@@ -45,6 +45,9 @@ class MainActivity : FlutterActivity() {
     private var easyTierMonitorTick = 0
     private var remoteControlService: RemoteControlService? = null
 
+    private var initialIntentUrl: String? = null
+    private var browserProxyChannel: MethodChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -53,6 +56,38 @@ class MainActivity : FlutterActivity() {
             attributes.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             window.attributes = attributes
+        }
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+        val url = intent.dataString
+        if (url != null && browserProxyChannel != null) {
+            mainHandler.post {
+                browserProxyChannel?.invokeMethod("onNewIntentUrl", mapOf("url" to url))
+            }
+        }
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val action = intent?.action
+        val data = intent?.dataString
+        if (Intent.ACTION_VIEW == action && data != null) {
+            initialIntentUrl = data
+            Log.d(logTag, "Received VIEW intent with URL: $data")
+        } else if (Intent.ACTION_SEND == action && "text/plain" == intent.type) {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (sharedText != null) {
+                if (sharedText.matches(Regex("^https?://.*"))) {
+                    initialIntentUrl = sharedText
+                    Log.d(logTag, "Received SEND intent with URL: $sharedText")
+                } else {
+                    initialIntentUrl = "https://www.google.com/search?q=${Uri.encode(sharedText)}"
+                    Log.d(logTag, "Received SEND intent with text (search): $sharedText")
+                }
+            }
         }
     }
     private val channelName = "browser_proxy"
@@ -169,8 +204,8 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-            .setMethodCallHandler { call, result ->
+        browserProxyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        browserProxyChannel?.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isSupported" -> {
                         Log.d(logTag, "Checking proxy override support")
@@ -258,6 +293,10 @@ class MainActivity : FlutterActivity() {
 
                         pendingStoragePermissionResult = result
                         requestFileAccessPermission()
+                    }
+
+                    "getInitialIntentUrl" -> {
+                        result.success(initialIntentUrl)
                     }
 
                     else -> result.notImplemented()
