@@ -4,6 +4,16 @@ String? normalizeBrowserUrl(String rawValue) {
     return null;
   }
 
+  final directUri = Uri.tryParse(trimmed);
+  if (directUri != null &&
+      directUri.hasScheme &&
+      directUri.scheme.toLowerCase() == 'file') {
+    if (directUri.path.isEmpty) {
+      return null;
+    }
+    return directUri.toString();
+  }
+
   if (RegExp(r'[\s\u4e00-\u9fa5]').hasMatch(trimmed)) {
     return null;
   }

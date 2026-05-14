@@ -35,6 +35,13 @@ void main() {
       );
     });
 
+    test('keeps valid file url with spaces and chinese characters', () {
+      expect(
+        normalizeBrowserUrl('file:///storage/emulated/0/Download/测试 页面.html'),
+        'file:///storage/emulated/0/Download/%E6%B5%8B%E8%AF%95%20%E9%A1%B5%E9%9D%A2.html',
+      );
+    });
+
     test('rejects inputs with spaces or chinese characters', () {
       expect(normalizeBrowserUrl('hello world'), isNull);
       expect(normalizeBrowserUrl('示例.com'), isNull);
