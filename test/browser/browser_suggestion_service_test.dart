@@ -16,7 +16,12 @@ void main() {
 
     expect(
       suggestions,
-      equals(<String>['https://flutter.dev', 'Flutter Documentation']),
+      equals(<String>[
+        'https://flutter.dev',
+        'Flutter Documentation',
+        'https://docs.flutter.dev',
+        'Flutter API Docs',
+      ]),
     );
 
     service.dispose();
@@ -37,7 +42,41 @@ void main() {
         'Example',
         'https://flutter.dev',
         'Flutter Documentation',
+        'https://docs.flutter.dev',
+        'Flutter API Docs',
       ]),
+    );
+
+    service.dispose();
+  });
+
+  test('matches history by partial url substring', () async {
+    final service = BrowserSuggestionService(
+      historyService: _FakeBrowserHistoryService(),
+      debounceDuration: Duration.zero,
+    );
+
+    final suggestions = await service.suggest('docs');
+
+    expect(
+      suggestions,
+      equals(<String>['https://docs.flutter.dev', 'Flutter API Docs']),
+    );
+
+    service.dispose();
+  });
+
+  test('matches history by partial title substring', () async {
+    final service = BrowserSuggestionService(
+      historyService: _FakeBrowserHistoryService(),
+      debounceDuration: Duration.zero,
+    );
+
+    final suggestions = await service.suggest('Document');
+
+    expect(
+      suggestions,
+      equals(<String>['https://flutter.dev', 'Flutter Documentation']),
     );
 
     service.dispose();
@@ -62,25 +101,33 @@ class _FakeBrowserHistoryService extends BrowserHistoryService {
         visitedAt: DateTime.utc(2024, 1, 2),
         visitCount: 5,
       ),
+      BrowserHistoryEntry(
+        id: 3,
+        url: 'https://docs.flutter.dev',
+        title: 'Flutter API Docs',
+        visitedAt: DateTime.utc(2024, 1, 3),
+        visitCount: 4,
+      ),
     ].take(limit).toList(growable: false);
   }
 
   @override
-  Future<List<BrowserHistoryEntry>> prefixSearch(
-    String prefix, {
-    int limit = 5,
+  Future<List<BrowserHistoryEntry>> query({
+    String? searchTerm,
+    int limit = 50,
   }) async {
-    if (prefix == 'flutter') {
-      return <BrowserHistoryEntry>[
-        BrowserHistoryEntry(
-          id: 2,
-          url: 'https://flutter.dev',
-          title: 'Flutter Documentation',
-          visitedAt: DateTime.utc(2024, 1, 2),
-          visitCount: 5,
-        ),
-      ];
+    final normalized = searchTerm?.trim().toLowerCase();
+    final allEntries = await getTop(limit: 10);
+    if (normalized == null || normalized.isEmpty) {
+      return allEntries.take(limit).toList(growable: false);
     }
-    return const <BrowserHistoryEntry>[];
+
+    return allEntries
+        .where((entry) {
+          return entry.url.toLowerCase().contains(normalized) ||
+              entry.title.toLowerCase().contains(normalized);
+        })
+        .take(limit)
+        .toList(growable: false);
   }
 }

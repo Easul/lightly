@@ -68,8 +68,8 @@ class BrowserSuggestionService {
           return;
         }
 
-        final historyEntries = await _historyService.prefixSearch(
-          normalizedQuery,
+        final historyEntries = await _historyService.query(
+          searchTerm: normalizedQuery,
           limit: 6,
         );
         final results = _mapHistoryEntries(historyEntries, normalizedQuery);
@@ -111,11 +111,11 @@ class BrowserSuggestionService {
       final loweredTitle = normalizedTitle.toLowerCase();
       final loweredUrl = url.toLowerCase();
 
-      final titleMatches =
-          isEmptyQuery || loweredTitle.startsWith(loweredQuery);
+      final titleMatches = isEmptyQuery || loweredTitle.contains(loweredQuery);
       final urlMatches = isEmptyQuery || loweredUrl.contains(loweredQuery);
+      final shouldIncludeUrl = urlMatches || titleMatches;
 
-      if (url.isNotEmpty && urlMatches && !results.contains(url)) {
+      if (url.isNotEmpty && shouldIncludeUrl && !results.contains(url)) {
         results.add(url);
       }
 
