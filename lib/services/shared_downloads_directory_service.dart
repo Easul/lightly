@@ -58,14 +58,11 @@ class SharedDownloadsDirectoryService {
   }) async {
     if (_isAndroid()) {
       if (preferSharedDownloads) {
-        final canUseSharedDownloads = await _canUseSharedDownloads(
+        final sharedDirectory = await _resolveAndroidSharedDownloadsDirectory(
           requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
         );
-        if (canUseSharedDownloads) {
-          final sharedPath = (await getSharedDownloadsPath())?.trim();
-          if (sharedPath != null && sharedPath.isNotEmpty) {
-            return _ensureDirectory(Directory(sharedPath));
-          }
+        if (sharedDirectory != null) {
+          return sharedDirectory;
         }
       }
 
@@ -92,29 +89,75 @@ class SharedDownloadsDirectoryService {
     );
   }
 
-  Future<bool> _canUseSharedDownloads({
+  Future<Directory?> _resolveAndroidSharedDownloadsDirectory({
     required bool requestSharedAccessIfNeeded,
   }) async {
     final alreadyGranted = await hasFileAccessPermission();
     if (!alreadyGranted) {
       if (!requestSharedAccessIfNeeded) {
-        return false;
+        return null;
       }
       final granted = await requestFileAccessPermission();
       if (!granted) {
-        return false;
+        return null;
       }
     }
-    // Permission check passed, but verify the directory is actually writable
-    // Some Android ROMs restrict access even with permissions granted
-    final sharedPath = (await getSharedDownloadsPath())?.trim();
-    if (sharedPath == null || sharedPath.isEmpty) {
-      return false;
+
+    for (final candidatePath in await _androidSharedDownloadCandidates()) {
+      final directory = Directory(candidatePath);
+      if (await _isDirectoryWritable(directory)) {
+        return _ensureDirectory(directory);
+      }
     }
-    return _isDirectoryWritable(Directory(sharedPath));
+
+    return null;
   }
 
-  /// Test if directory is actually writable by creating and deleting a temp file
+  Future<List<String>> _androidSharedDownloadCandidates() async {
+    final candidates = <String>[];
+
+    final sharedPath = (await getSharedDownloadsPath())?.trim();
+    if (sharedPath != null && sharedPath.isNotEmpty) {
+      candidates.add(sharedPath);
+    }
+
+    final derivedFromExternal = await _deriveSharedDownloadsPathFromExternal();
+    if (derivedFromExternal != null && derivedFromExternal.isNotEmpty) {
+      candidates.add(derivedFromExternal);
+    }
+
+    candidates.add('/storage/emulated/0/Download');
+
+    final unique = <String>[];
+    for (final candidate in candidates) {
+      if (!unique.contains(candidate)) {
+        unique.add(candidate);
+      }
+    }
+    return unique;
+  }
+
+  Future<String?> _deriveSharedDownloadsPathFromExternal() async {
+    final externalDirectory = await _getExternalStorageDirectory();
+    final externalPath = externalDirectory?.path.trim();
+    if (externalPath == null || externalPath.isEmpty) {
+      return null;
+    }
+
+    const androidDataSegment = '/Android/data/';
+    final androidDataIndex = externalPath.indexOf(androidDataSegment);
+    if (androidDataIndex <= 0) {
+      return null;
+    }
+
+    final storageRoot = externalPath.substring(0, androidDataIndex);
+    if (storageRoot.isEmpty) {
+      return null;
+    }
+
+    return path.join(storageRoot, 'Download');
+  }
+
   Future<bool> _isDirectoryWritable(Directory directory) async {
     try {
       if (!await directory.exists()) {
