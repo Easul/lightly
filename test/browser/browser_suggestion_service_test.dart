@@ -81,6 +81,29 @@ void main() {
 
     service.dispose();
   });
+
+  test('reuses the same pending future for repeated query input', () async {
+    final service = BrowserSuggestionService(
+      historyService: _FakeBrowserHistoryService(),
+      debounceDuration: const Duration(milliseconds: 10),
+    );
+
+    final firstFuture = service.suggest('flutter');
+    final secondFuture = service.suggest('flutter');
+
+    expect(identical(firstFuture, secondFuture), isTrue);
+    expect(
+      await secondFuture,
+      equals(<String>[
+        'https://flutter.dev',
+        'Flutter Documentation',
+        'https://docs.flutter.dev',
+        'Flutter API Docs',
+      ]),
+    );
+
+    service.dispose();
+  });
 }
 
 class _FakeBrowserHistoryService extends BrowserHistoryService {

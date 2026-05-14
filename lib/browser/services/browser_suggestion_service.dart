@@ -38,9 +38,6 @@ class BrowserSuggestionService {
   String? _lastIssuedQuery;
 
   Future<List<String>> suggest(String query) {
-    _debounceTimer?.cancel();
-    _pendingCompleter?.complete(<String>[]);
-
     final normalizedQuery = query.trim();
     final cachedEntry = _suggestionCache[normalizedQuery];
     if (cachedEntry != null) {
@@ -50,6 +47,11 @@ class BrowserSuggestionService {
 
     if (_lastIssuedQuery == normalizedQuery && _pendingCompleter != null) {
       return _pendingCompleter!.future;
+    }
+
+    _debounceTimer?.cancel();
+    if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
+      _pendingCompleter!.complete(<String>[]);
     }
 
     final completer = Completer<List<String>>();
