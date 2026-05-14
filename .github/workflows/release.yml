@@ -74,8 +74,16 @@ jobs:
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
-        echo $KEYSTORE_BASE64 | base64 -d > android/app/upload-keystore.jks
-        echo "✅ Keystore decoded"
+        if [ -z "$KEYSTORE_BASE64" ]; then
+          echo "❌ ERROR: KEYSTORE_BASE64 secret is not set"
+          exit 1
+        fi
+        echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+        if [ ! -f "android/app/upload-keystore.jks" ] || [ ! -s "android/app/upload-keystore.jks" ]; then
+          echo "❌ ERROR: Keystore file not created or empty"
+          exit 1
+        fi
+        echo "✅ Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
 
     - name: Build arm64-v8a (64-bit)
       env:
