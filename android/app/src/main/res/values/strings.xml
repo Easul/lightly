@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="remote_control_accessibility_description">用于远程控制的手势注入服务，允许模拟点击、滑动等操作</string>
+</resources>

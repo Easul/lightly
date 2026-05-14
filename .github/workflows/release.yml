@@ -1,0 +1,196 @@
+name: Release Android APK
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build-android:
+    name: Build Android APKs
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.41.6'
+        channel: 'stable'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Install dependencies
+      run: flutter pub get
+    
+    - name: Get version info
+      id: version
+      run: |
+        # Get short commit hash (6 characters)
+        COMMIT_HASH=$(git rev-parse --short=6 HEAD)
+        
+        # Get version from tag or input
+        if [ "${{ github.event_name }}" == "push" ]; then
+          VERSION="${{ github.ref_name }}"
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        
+        # Build version label with commit hash: tag+commit
+        BUILD_VERSION="${VERSION}+${COMMIT_HASH}"
+        
+        # Calculate version code from main branch commit count with offset (5000+count)
+        COMMIT_COUNT=$(git rev-list --count main 2>/dev/null || git rev-list --count HEAD 2>/dev/null || echo "1")
+        VERSION_CODE=$((5000 + COMMIT_COUNT))
+        
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+        echo "build_version=${BUILD_VERSION}" >> $GITHUB_OUTPUT
+        echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
+        
+        echo "📝 Version: ${VERSION}"
+        echo "🔖 Commit: ${COMMIT_HASH}"
+        echo "📦 Build Version: ${BUILD_VERSION}"
+        echo "🔢 Version Code: ${VERSION_CODE}"
+    
+    - name: Decode keystore
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      run: |
+        echo $KEYSTORE_BASE64 | base64 -d > android/app/upload-keystore.jks
+        echo "✅ Keystore decoded"
+
+    - name: Build arm64-v8a (64-bit)
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        export TARGET_ABI=arm64-v8a
+        export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
+        
+        flutter build apk \
+          --release \
+          --target-platform android-arm64 \
+          --build-name="${{ steps.version.outputs.version }}" \
+          --build-number="${{ steps.version.outputs.version_code }}" \
+          --obfuscate \
+          --split-debug-info=build/app/outputs/symbols
+        
+        mkdir -p dist
+        cp build/app/outputs/flutter-apk/app-release.apk \
+          dist/app-arm64-v8a-release.apk
+        
+        echo "✅ Built arm64-v8a APK"
+
+    - name: Build armeabi-v7a (32-bit)
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'"
+        _JAVA_OPTIONS: '-Xmx12G'
+      run: |
+        export TARGET_ABI=armeabi-v7a
+        export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
+        
+        flutter build apk \
+          --release \
+          --target-platform android-arm \
+          --build-name="${{ steps.version.outputs.version }}" \
+          --build-number="${{ steps.version.outputs.version_code }}" \
+          --obfuscate \
+          --split-debug-info=build/app/outputs/symbols
+        
+        cp build/app/outputs/flutter-apk/app-release.apk \
+          dist/app-armeabi-v7a-release.apk
+        
+        echo "✅ Built armeabi-v7a APK"
+    
+    - name: Show build artifacts
+      run: |
+        ls -lh dist/
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apks
+        path: dist/*.apk
+        retention-days: 7
+
+  release:
+    name: Create Release
+    needs: build-android
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: android-apks
+        path: dist/
+    
+    - name: Display artifacts
+      run: |
+        ls -lh dist/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*.apk
+        generate_release_notes: true
+        body: |
+          ## Android Release ${{ github.ref_name }}
+          
+          ### 📱 下载安装包
+          
+          根据你的设备架构选择合适的 APK：
+          
+          | 文件名 | 架构 | 适用设备 |
+          |--------|------|----------|
+          | `app-arm64-v8a-release.apk` | ARM64 (64位) | 大多数现代安卓设备 |
+          | `app-armeabi-v7a-release.apk` | ARMv7 (32位) | 老旧设备或低内存设备 |
+          
+          ### 🔧 安装说明
+          
+          1. 下载适合你设备架构的 APK
+          2. 允许安装未知来源应用
+          3. 安装 APK
+          
+          ### 🚀 功能特性
+          
+          - 高级浏览器，支持 VLESS 代理协议
+          - 远程屏幕控制和音频流媒体
+          - EasyTier VPN 集成，安全网络连接
+          - 视频播放器，支持悬浮窗播放
+          - 内置计算器和其他工具
+          
+          ### 📝 版本信息
+          
+          - **版本**: ${{ github.ref_name }}
+          - **提交**: ${{ needs.build-android.outputs.commit_hash }}
+          - **构建时间**: ${{ github.event.head_commit.timestamp }}
+          
+          ### ⚠️ 注意事项
+          
+          - 首次安装可能需要授予无障碍服务权限（用于远程控制）
+          - VPN 功能需要系统 VPN 权限
+          - 录屏功能需要屏幕录制权限
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

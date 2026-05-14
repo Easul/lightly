@@ -1,0 +1,394 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+
+import 'floating_video_player_widget.dart';
+
+const MethodChannel _floatingVideoChannel = MethodChannel('floating_video');
+
+Future<void> _setKeepScreenOn(bool keepOn) async {
+  try {
+    await _floatingVideoChannel.invokeMethod('keepScreenOn', {
+      'keepOn': keepOn,
+    });
+  } catch (e) {
+    // Fallback: ignore if method not implemented
+  }
+}
+
+/// 悬浮视频播放器模式
+enum FloatingPlayerMode {
+  /// 默认模式 - 全宽悬浮窗
+  defaultMode,
+
+  /// 小窗口模式 - 45%宽度
+  mini,
+
+  /// 横屏全屏模式
+  fullscreen,
+}
+
+class FloatingVideoPlayerController {
+  _FloatingVideoPlayerState? _state;
+
+  FloatingPlayerMode get mode =>
+      _state?._mode ?? FloatingPlayerMode.defaultMode;
+
+  bool get isAttached => _state != null;
+
+  bool get isFullscreen => mode == FloatingPlayerMode.fullscreen;
+
+  void _attach(_FloatingVideoPlayerState state) {
+    _state = state;
+  }
+
+  void _detach(_FloatingVideoPlayerState state) {
+    if (_state == state) {
+      _state = null;
+    }
+  }
+
+  void exitFullscreenToDefault() {
+    _state?._setMode(FloatingPlayerMode.defaultMode);
+  }
+}
+
+/// A draggable floating video player that can be positioned anywhere on screen.
+/// Uses Overlay to float above other widgets within the app.
+class FloatingVideoPlayer extends StatefulWidget {
+  const FloatingVideoPlayer({
+    super.key,
+    this.controller,
+    required this.onClose,
+    this.onDownload,
+    this.title,
+    this.initialPosition,
+    this.isLoading = false,
+    this.errorMessage,
+    this.onModeChanged,
+    this.playerController,
+  });
+
+  final VideoPlayerController? controller;
+  final VoidCallback onClose;
+  final VoidCallback? onDownload;
+  final String? title;
+  final Offset? initialPosition;
+  final bool isLoading;
+  final String? errorMessage;
+  final ValueChanged<FloatingPlayerMode>? onModeChanged;
+  final FloatingVideoPlayerController? playerController;
+
+  @override
+  State<FloatingVideoPlayer> createState() => _FloatingVideoPlayerState();
+
+  /// Shows the floating player as an overlay.
+  static OverlayEntry show({
+    required BuildContext context,
+    VideoPlayerController? controller,
+    required VoidCallback onClose,
+    VoidCallback? onDownload,
+    String? title,
+    Offset? initialPosition,
+    bool isLoading = false,
+    String? errorMessage,
+    ValueChanged<FloatingPlayerMode>? onModeChanged,
+    FloatingVideoPlayerController? playerController,
+  }) {
+    final overlay = OverlayEntry(
+      builder: (context) => FloatingVideoPlayer(
+        controller: controller,
+        onClose: onClose,
+        onDownload: onDownload,
+        title: title,
+        initialPosition: initialPosition,
+        isLoading: isLoading,
+        errorMessage: errorMessage,
+        onModeChanged: onModeChanged,
+        playerController: playerController,
+      ),
+    );
+    Overlay.of(context).insert(overlay);
+    return overlay;
+  }
+}
+
+class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
+    with WidgetsBindingObserver {
+  late Offset _position;
+  bool _isDragging = false;
+  FloatingPlayerMode _mode = FloatingPlayerMode.defaultMode;
+  bool _isLocked = false;
+
+  static const double _miniWidthFactor = 0.45;
+
+  // Static counter to track active floating player instances.
+  // Only disable wake lock when the last instance is disposed.
+  static int _activeInstanceCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _position = widget.initialPosition ?? Offset(0, 0);
+    widget.playerController?._attach(this);
+    _activeInstanceCount++;
+    _enableWakeLock();
+    unawaited(_applySystemUiForCurrentMode(immediate: true));
+  }
+
+  void _enableWakeLock() {
+    WakelockPlus.enable();
+    _setKeepScreenOn(true);
+  }
+
+  void _disableWakeLockIfLast() {
+    _activeInstanceCount--;
+    if (_activeInstanceCount <= 0) {
+      _activeInstanceCount = 0;
+      WakelockPlus.disable();
+      _setKeepScreenOn(false);
+    }
+  }
+
+  Future<void> _applySystemUiForCurrentMode({bool immediate = false}) async {
+    if (!mounted) return;
+
+    Future<void> apply() async {
+      if (!mounted) return;
+      if (_isFullscreen) {
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+      _enableWakeLock();
+    }
+
+    if (immediate) {
+      await apply();
+      return;
+    }
+
+    unawaited(Future<void>.delayed(const Duration(milliseconds: 300), apply));
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (_isFullscreen) {
+      unawaited(_applySystemUiForCurrentMode());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_applySystemUiForCurrentMode(immediate: true));
+    }
+  }
+
+  /// 获取当前模式
+  FloatingPlayerMode get mode => _mode;
+
+  /// 是否处于全屏模式
+  bool get _isFullscreen => _mode == FloatingPlayerMode.fullscreen;
+
+  /// 是否处于小窗口模式
+  bool get _isMini => _mode == FloatingPlayerMode.mini;
+
+  /// 切换模式按钮点击处理
+  /// 按钮逻辑：默认窗 <-> 横屏，小窗 -> 默认窗
+  void _toggleMode() {
+    switch (_mode) {
+      case FloatingPlayerMode.defaultMode:
+        _setMode(FloatingPlayerMode.fullscreen);
+        break;
+      case FloatingPlayerMode.mini:
+        _setMode(FloatingPlayerMode.defaultMode);
+        break;
+      case FloatingPlayerMode.fullscreen:
+        _setMode(FloatingPlayerMode.defaultMode);
+        break;
+    }
+  }
+
+  void _setMode(FloatingPlayerMode newMode) {
+    setState(() {
+      _mode = newMode;
+      if (newMode == FloatingPlayerMode.defaultMode) {
+        _position = Offset(0, _minY);
+      }
+    });
+
+    widget.onModeChanged?.call(_mode);
+
+    if (_isFullscreen) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    }
+
+    unawaited(_applySystemUiForCurrentMode());
+  }
+
+  /// 双击切换小窗模式
+  void _toggleMiniMode() {
+    if (_isFullscreen) return;
+
+    setState(() {
+      if (_mode == FloatingPlayerMode.mini) {
+        _mode = FloatingPlayerMode.defaultMode;
+        _position = Offset(0, _minY);
+      } else {
+        _mode = FloatingPlayerMode.mini;
+      }
+    });
+    widget.onModeChanged?.call(_mode);
+  }
+
+  void _toggleLock() {
+    setState(() {
+      _isLocked = !_isLocked;
+    });
+  }
+
+  double get _minY => 0.0; // Allow covering status bar
+
+  double get _playerWidth {
+    final screenW = MediaQuery.of(context).size.width;
+    switch (_mode) {
+      case FloatingPlayerMode.fullscreen:
+        return screenW;
+      case FloatingPlayerMode.mini:
+        return screenW * _miniWidthFactor;
+      case FloatingPlayerMode.defaultMode:
+        return screenW;
+    }
+  }
+
+  double get _playerHeight {
+    final screenW = MediaQuery.of(context).size.width;
+    final screenH = MediaQuery.of(context).size.height;
+    switch (_mode) {
+      case FloatingPlayerMode.fullscreen:
+        return screenH;
+      case FloatingPlayerMode.mini:
+        return screenW * _miniWidthFactor * 9 / 16;
+      case FloatingPlayerMode.defaultMode:
+        return screenW * 9 / 16;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final maxY = size.height - _playerHeight - 80;
+
+    if (!_isFullscreen) {
+      _position = _clampedPosition(_position, size, maxY);
+    }
+
+    return Positioned(
+      left: _isFullscreen ? 0 : _position.dx,
+      top: _isFullscreen ? 0 : _position.dy,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+        width: _playerWidth,
+        height: _playerHeight,
+        child: Material(
+          elevation: 8,
+          clipBehavior: Clip.antiAlias,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            dragStartBehavior: DragStartBehavior.down,
+            onPanStart: (_) {
+              if (!_isFullscreen && !_isLocked) {
+                setState(() {
+                  _isDragging = true;
+                });
+              }
+            },
+            onPanUpdate: (details) {
+              if (!_isFullscreen && !_isLocked) {
+                final screenSize = MediaQuery.of(context).size;
+                final maxDragY = screenSize.height - _playerHeight - 80;
+                setState(() {
+                  final nextPosition = _mode == FloatingPlayerMode.defaultMode
+                      ? Offset(0, _position.dy + details.delta.dy)
+                      : _position + details.delta;
+                  _position = _clampedPosition(
+                    nextPosition,
+                    screenSize,
+                    maxDragY,
+                  );
+                });
+              }
+            },
+            onPanEnd: (_) {
+              if (!_isFullscreen && !_isLocked) {
+                setState(() {
+                  _isDragging = false;
+                });
+              }
+            },
+            onDoubleTap: _toggleMiniMode,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black,
+                border: _isDragging
+                    ? Border.all(
+                        color: Colors.red.withValues(alpha: 0.5),
+                        width: 2,
+                      )
+                    : null,
+              ),
+              child: FloatingVideoPlayerWidget(
+                controller: widget.controller,
+                title: widget.title,
+                mode: _mode,
+                isLocked: _isLocked,
+                isLoading: widget.isLoading,
+                errorMessage: widget.errorMessage,
+                onClose: widget.onClose,
+                onModeToggle: _toggleMode,
+                onLockToggle: _toggleLock,
+                onDownload: widget.onDownload,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Offset _clampedPosition(Offset position, Size size, double maxY) {
+    final minX = _mode == FloatingPlayerMode.defaultMode ? 0.0 : 0.0;
+    final maxX = _mode == FloatingPlayerMode.defaultMode
+        ? 0.0
+        : size.width - _playerWidth;
+    return Offset(
+      position.dx.clamp(minX, maxX),
+      position.dy.clamp(_minY, maxY),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.playerController?._detach(this);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // Disable screen wake lock only when the last floating player instance closes
+    _disableWakeLockIfLast();
+    super.dispose();
+  }
+}

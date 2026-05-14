@@ -1,0 +1,548 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../browser/browser_settings.dart';
+import '../browser/browser_settings_service.dart';
+import '../browser/clipboard_http_server_service.dart';
+import '../browser/local_http_file_server_service.dart';
+import '../models/easytier_config.dart';
+import '../models/easytier_network_profile.dart';
+import '../services/easytier_network_info_analyzer.dart';
+import '../services/easytier_profile_coordinator.dart';
+import '../services/easytier_profile_service.dart';
+import '../services/easytier_runtime_status_controller.dart';
+import '../services/easytier_service_access_coordinator.dart';
+import '../services/easytier_service.dart';
+import '../widgets/easytier/easytier_sections.dart';
+
+class EasyTierSettingsPage extends StatefulWidget {
+  const EasyTierSettingsPage({super.key});
+
+  @override
+  State<EasyTierSettingsPage> createState() => _EasyTierSettingsPageState();
+}
+
+class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
+  final _easyTierService = EasyTierService();
+  final _browserSettingsService = BrowserSettingsService();
+  final _localHttpFileServerService = LocalHttpFileServerService();
+  final _clipboardHttpServerService = ClipboardHttpServerService();
+  final _profileCoordinator = EasyTierProfileCoordinator();
+  final _serviceAccessCoordinator = const EasyTierServiceAccessCoordinator();
+  late final EasyTierRuntimeStatusController _runtimeStatusController;
+  final _formKey = GlobalKey<FormState>();
+
+  final _instanceNameController = TextEditingController(text: 'ruoqing_vpn');
+  final _networkNameController = TextEditingController();
+  final _networkSecretController = TextEditingController();
+  final _ipv4Controller = TextEditingController();
+  final _hostnameController = TextEditingController();
+  final _peerController = TextEditingController();
+
+  bool _dhcp = false;
+  bool _enableP2p = true;
+  List<String> _peers = [];
+  bool _isRunning = false;
+  bool _isLoading = false;
+  String? _statusMessage;
+  String? _errorMessage;
+  Map<String, dynamic>? _networkInfo;
+  BrowserSettings? _browserSettings;
+  List<EasyTierNetworkProfile> _profiles = const <EasyTierNetworkProfile>[];
+  String? _selectedProfileId;
+  bool _isApplyingProfile = false;
+  Timer? _refreshTimer;
+  String? _lastAppliedEasyTierIp;
+
+  @override
+  void initState() {
+    super.initState();
+    _isRunning = _easyTierService.isRunning;
+    _runtimeStatusController = EasyTierRuntimeStatusController(
+      startVpn: _easyTierService.startVpn,
+      stopVpn: _easyTierService.stopVpn,
+      getNetworkInfo: _easyTierService.getNetworkInfo,
+      readLastError: () => _easyTierService.lastError,
+    );
+    _instanceNameController.addListener(_onFormChanged);
+    _networkNameController.addListener(_onFormChanged);
+    _networkSecretController.addListener(_onFormChanged);
+    _ipv4Controller.addListener(_onFormChanged);
+    _hostnameController.addListener(_onFormChanged);
+    unawaited(_loadBrowserSettings());
+    _loadStatus();
+    unawaited(_loadProfiles());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _instanceNameController.removeListener(_onFormChanged);
+    _networkNameController.removeListener(_onFormChanged);
+    _networkSecretController.removeListener(_onFormChanged);
+    _ipv4Controller.removeListener(_onFormChanged);
+    _hostnameController.removeListener(_onFormChanged);
+    _instanceNameController.dispose();
+    _networkNameController.dispose();
+    _networkSecretController.dispose();
+    _ipv4Controller.dispose();
+    _hostnameController.dispose();
+    _peerController.dispose();
+    super.dispose();
+  }
+
+  EasyTierConfig _buildCurrentConfig() {
+    return EasyTierConfig(
+      instanceName: _instanceNameController.text.trim(),
+      networkName: _networkNameController.text.trim(),
+      networkSecret: _networkSecretController.text.trim(),
+      ipv4: _dhcp ? null : _ipv4Controller.text.trim(),
+      dhcp: _dhcp,
+      peers: List<String>.from(_peers),
+      enableP2p: _enableP2p,
+      hostname: _hostnameController.text.trim().isEmpty
+          ? null
+          : _hostnameController.text.trim(),
+    );
+  }
+
+  Future<void> _loadProfiles() async {
+    final result = await _profileCoordinator.loadProfiles();
+    if (!mounted) return;
+    setState(() {
+      _profiles = result.profiles;
+      _selectedProfileId = result.selectedProfile.id;
+    });
+    _applyProfile(result.selectedProfile);
+  }
+
+  Future<void> _loadBrowserSettings() async {
+    final settings = await _browserSettingsService.loadSettings();
+    if (!mounted) return;
+    setState(() {
+      _browserSettings = settings;
+    });
+  }
+
+  void _applyProfile(EasyTierNetworkProfile profile) {
+    _isApplyingProfile = true;
+    _instanceNameController.text = profile.config.instanceName;
+    _networkNameController.text = profile.config.networkName;
+    _networkSecretController.text = profile.config.networkSecret ?? '';
+    _dhcp = profile.config.dhcp;
+    _ipv4Controller.text = profile.config.ipv4 ?? '';
+    _hostnameController.text = profile.config.hostname ?? '';
+    _enableP2p = profile.config.enableP2p;
+    _peers = List<String>.from(profile.config.peers);
+    _selectedProfileId = profile.id;
+    _isApplyingProfile = false;
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onFormChanged() {
+    if (_isApplyingProfile) return;
+    unawaited(_persistCurrentProfile());
+  }
+
+  Future<void> _persistCurrentProfile() async {
+    final result = await _profileCoordinator.persistCurrentProfile(
+      selectedId: _selectedProfileId,
+      profiles: _profiles,
+      currentConfig: _buildCurrentConfig(),
+    );
+    if (result == null || !mounted) return;
+    if (!mounted) return;
+    setState(() {
+      _profiles = result.profiles;
+    });
+  }
+
+  Future<void> _selectProfile(String? profileId) async {
+    final result = await _profileCoordinator.selectProfile(
+      profileId: profileId,
+      profiles: _profiles,
+    );
+    if (result == null) return;
+    _applyProfile(result.selectedProfile);
+  }
+
+  Future<void> _createNewProfile() async {
+    final result = await _profileCoordinator.createProfile(profiles: _profiles);
+    if (!mounted) return;
+    setState(() {
+      _profiles = result.profiles;
+    });
+    _applyProfile(result.selectedProfile);
+  }
+
+  Future<void> _deleteCurrentProfile() async {
+    final result = await _profileCoordinator.deleteCurrentProfile(
+      selectedProfileId: _selectedProfileId,
+      profiles: _profiles,
+    );
+    if (result == null) return;
+    if (!mounted) return;
+    setState(() {
+      _profiles = result.profiles;
+    });
+    _applyProfile(result.selectedProfile);
+  }
+
+  Future<void> _loadStatus() async {
+    if (_isRunning) {
+      final result = await _runtimeStatusController.loadStatus(
+        instanceName: _instanceNameController.text,
+        previousIp: _lastAppliedEasyTierIp,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (result.errorMessage != null) {
+        setState(() {
+          _errorMessage = result.errorMessage;
+        });
+        return;
+      }
+      setState(() {
+        _networkInfo = result.networkInfo;
+        _lastAppliedEasyTierIp = result.nextIp;
+      });
+      if (result.shouldRestartServices) {
+        unawaited(_restartServicesForEasyTierIp());
+      }
+    }
+  }
+
+  Map<String, dynamic>? _currentInstanceNetworkInfo() {
+    return EasyTierNetworkInfoAnalyzer.currentInstanceNetworkInfo(
+      _networkInfo,
+      _instanceNameController.text,
+    );
+  }
+
+  void _updateRefreshTimer() {
+    _refreshTimer?.cancel();
+    if (!_isRunning) {
+      _refreshTimer = null;
+      return;
+    }
+
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_loadStatus());
+    });
+  }
+
+  List<Map<String, String>> _buildPeerSummaries() {
+    return EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
+      _networkInfo,
+      _instanceNameController.text,
+    );
+  }
+
+  List<String> _buildDiagnostics() {
+    return EasyTierNetworkInfoAnalyzer.buildDiagnostics(
+      _networkInfo,
+      _instanceNameController.text,
+    );
+  }
+
+  String? _currentEasyTierIpv4() {
+    final networkInfo = _currentInstanceNetworkInfo();
+    if (networkInfo == null) {
+      return null;
+    }
+    final myNodeInfo = networkInfo['my_node_info'];
+    if (myNodeInfo is! Map) {
+      return null;
+    }
+    return EasyTierNetworkInfoAnalyzer.decodeIpv4(
+      myNodeInfo['virtual_ipv4'] is Map
+          ? Map<String, dynamic>.from(myNodeInfo['virtual_ipv4'] as Map)
+          : null,
+    );
+  }
+
+  String _formattedNetworkInfoText() {
+    return EasyTierNetworkInfoAnalyzer.formattedNetworkInfoText(
+      rawNetworkInfo: _easyTierService.lastRawNetworkInfo,
+      networkInfo: _networkInfo,
+      instanceName: _instanceNameController.text,
+    );
+  }
+
+  Future<void> _enableLocalHttpVpnExposure() async {
+    final result = _serviceAccessCoordinator.enableLocalHttpVpnExposure(
+      _browserSettings,
+    );
+    if (result == null) {
+      return;
+    }
+    await _browserSettingsService.saveSettings(result.settings);
+    await _localHttpFileServerService.applySettings(result.settings);
+    if (!mounted) return;
+    setState(() {
+      _browserSettings = result.settings;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _startClipboardServiceIfNeeded() async {
+    final result = _serviceAccessCoordinator.startClipboardServiceIfNeeded(
+      isRunning: _clipboardHttpServerService.isRunning,
+    );
+    if (!result.didChange) {
+      return;
+    }
+    await _clipboardHttpServerService.start(preferredPort: 12345);
+    if (!mounted) return;
+    setState(() {});
+    if (result.message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message!)));
+    }
+  }
+
+  Future<void> _restartServicesForEasyTierIp() async {
+    final plan = _serviceAccessCoordinator.buildRestartPlan(
+      browserSettings: _browserSettings,
+      clipboardRunning: _clipboardHttpServerService.isRunning,
+      configuredClipboardPort: _clipboardHttpServerService.configuredPort,
+      boundClipboardPort: _clipboardHttpServerService.boundPort,
+    );
+    if (plan.localHttpSettings != null) {
+      await _localHttpFileServerService.applySettings(plan.localHttpSettings!);
+    }
+
+    if (plan.restartClipboard) {
+      await _clipboardHttpServerService.start(
+        preferredPort: plan.preferredClipboardPort,
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  Future<void> _copyNetworkInfo() async {
+    final formatted = _formattedNetworkInfoText();
+    if (formatted.isEmpty) {
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: formatted));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('网络信息已复制')));
+  }
+
+  void _addPeer() {
+    final peer = _peerController.text.trim();
+    if (peer.isNotEmpty) {
+      setState(() {
+        _peers.add(peer);
+        _peerController.clear();
+      });
+      unawaited(_persistCurrentProfile());
+    }
+  }
+
+  void _removePeer(int index) {
+    setState(() {
+      _peers.removeAt(index);
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
+  Future<void> _startVpn() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _statusMessage = '正在启动 EasyTier VPN，必要时会请求系统权限...';
+    });
+
+    final result = await _runtimeStatusController.startVpn(
+      _buildCurrentConfig(),
+    );
+    setState(() {
+      _isLoading = false;
+      _isRunning = result.isRunning;
+      _statusMessage = result.statusMessage;
+      _errorMessage = result.errorMessage;
+    });
+    _updateRefreshTimer();
+    if (result.shouldLoadStatus) {
+      unawaited(_loadStatus());
+    }
+  }
+
+  Future<void> _stopVpn() async {
+    setState(() {
+      _isLoading = true;
+      _statusMessage = '正在停止 VPN...';
+    });
+
+    final result = await _runtimeStatusController.stopVpn();
+    setState(() {
+      _isLoading = false;
+      _isRunning = result.isRunning;
+      _statusMessage = result.statusMessage;
+      _errorMessage = result.errorMessage;
+      if (result.clearNetworkInfo) {
+        _networkInfo = null;
+      }
+    });
+    _updateRefreshTimer();
+  }
+
+  Future<void> _refreshStatus() async {
+    await _loadStatus();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final peerSummaries = _buildPeerSummaries();
+    final diagnostics = _buildDiagnostics();
+    final easyTierIpv4 = _currentEasyTierIpv4();
+    final easyTierIp = easyTierIpv4?.split('/').first;
+    final displayNetworkInfo = _formattedNetworkInfoText();
+    final browserSettings = _browserSettings;
+    final localHttpReachable =
+        browserSettings != null &&
+        browserSettings.localHttpServerEnabled &&
+        browserSettings.localHttpBindAllInterfaces &&
+        _localHttpFileServerService.boundPort != null;
+    final clipboardReachable =
+        _clipboardHttpServerService.isRunning &&
+        _clipboardHttpServerService.boundPort != null;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('P2P VPN 设置'),
+        actions: [
+          if (_isRunning)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _refreshStatus,
+            ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Status Card
+                EasyTierStatusCard(
+                  isRunning: _isRunning,
+                  statusMessage: _statusMessage,
+                  errorMessage: _errorMessage,
+                ),
+                const SizedBox(height: 16),
+
+                if (_profiles.isNotEmpty) ...[
+                  EasyTierProfilesCard(
+                    selectedProfileId: _selectedProfileId,
+                    profileItems: _profiles
+                        .map(
+                          (profile) => DropdownMenuItem<String>(
+                            value: profile.id,
+                            child: Text(profile.name),
+                          ),
+                        )
+                        .toList(),
+                    isLoading: _isLoading,
+                    canDelete: _profiles.length > 1,
+                    onSelected: _selectProfile,
+                    onCreate: _createNewProfile,
+                    onDelete: _deleteCurrentProfile,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Network Info
+                if (_networkInfo != null) ...[
+                  EasyTierNetworkInfoCard(
+                    peerSummaries: peerSummaries,
+                    diagnostics: diagnostics,
+                    displayNetworkInfo: displayNetworkInfo,
+                    onCopy: _copyNetworkInfo,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                if (easyTierIp != null) ...[
+                  EasyTierInternalServicesCard(
+                    easyTierIp: easyTierIp,
+                    localHttpReachable: localHttpReachable,
+                    localHttpSubtitle: localHttpReachable
+                        ? 'http://$easyTierIp:${_localHttpFileServerService.boundPort}'
+                        : '当前未处于 VPN 可访问模式',
+                    clipboardReachable: clipboardReachable,
+                    clipboardSubtitle: clipboardReachable
+                        ? 'http://$easyTierIp:${_clipboardHttpServerService.boundPort}'
+                        : '服务未运行',
+                    onEnableLocalHttp: _enableLocalHttpVpnExposure,
+                    onStartClipboard: _startClipboardServiceIfNeeded,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                EasyTierControlButtons(
+                  isLoading: _isLoading,
+                  isRunning: _isRunning,
+                  onStart: _startVpn,
+                  onStop: _stopVpn,
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+
+                EasyTierConfigurationSection(
+                  instanceNameController: _instanceNameController,
+                  networkNameController: _networkNameController,
+                  networkSecretController: _networkSecretController,
+                  dhcp: _dhcp,
+                  ipv4Controller: _ipv4Controller,
+                  hostnameController: _hostnameController,
+                  enableP2p: _enableP2p,
+                  peerController: _peerController,
+                  peers: _peers,
+                  onDhcpChanged: (value) {
+                    setState(() {
+                      _dhcp = value;
+                    });
+                    unawaited(_persistCurrentProfile());
+                  },
+                  onEnableP2pChanged: (value) {
+                    setState(() {
+                      _enableP2p = value;
+                    });
+                    unawaited(_persistCurrentProfile());
+                  },
+                  onAddPeer: _addPeer,
+                  onRemovePeer: _removePeer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,0 +1,474 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+
+import '../browser/services/browser_backup_service.dart';
+import '../services/app_log_service.dart';
+import '../services/shared_downloads_directory_service.dart';
+import '../widgets/shared_download_access_dialog.dart';
+
+class DataManagementPageResult {
+  const DataManagementPageResult({
+    required this.changed,
+    required this.favoritesChanged,
+    required this.settingsChanged,
+    required this.webDataChanged,
+    required this.restoredOrigins,
+  });
+
+  final bool changed;
+  final bool favoritesChanged;
+  final bool settingsChanged;
+  final bool webDataChanged;
+  final List<String> restoredOrigins;
+}
+
+class DataManagementPage extends StatefulWidget {
+  const DataManagementPage({super.key});
+
+  @override
+  State<DataManagementPage> createState() => _DataManagementPageState();
+}
+
+class _DataManagementPageState extends State<DataManagementPage> {
+  final BrowserBackupService _backupService = BrowserBackupService();
+  final AppLogService _appLogService = AppLogService.instance;
+  final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService =
+      SharedDownloadsDirectoryService();
+  bool _busy = false;
+  bool _logRecordingEnabled = false;
+  DataManagementPageResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadLogRecordingState());
+  }
+
+  Future<void> _loadLogRecordingState() async {
+    await _appLogService.initialize();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _logRecordingEnabled = _appLogService.isEnabled;
+    });
+  }
+
+  Future<void> _closePage() async {
+    if (!mounted || _busy) {
+      return;
+    }
+    Navigator.pop(context, _result);
+  }
+
+  Future<void> _exportToClipboard() async {
+    setState(() => _busy = true);
+    try {
+      await _backupService.copyToClipboard();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('备份数据已复制到剪贴板')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _exportToDownloads() async {
+    setState(() => _busy = true);
+    try {
+      final requestSharedAccessIfNeeded =
+          await _shouldRequestSharedDownloadPermission(actionLabel: '备份文件');
+      if (requestSharedAccessIfNeeded == null) {
+        return;
+      }
+      final file = await _backupService.exportToDownloads(
+        requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已导出到 ${file.path}')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导出备份失败：$e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _importFromFile() async {
+    bool mergeFavorites = true;
+    bool importSettings = true;
+    bool importHistory = true;
+    bool importClipboard = true;
+    bool importCalculatorHistory = true;
+    bool importCookies = true;
+    bool importEasyTierProfiles = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('导入数据'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('请选择备份文件后导入，并勾选要恢复的数据类型。'),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('合并收藏'),
+                  value: mergeFavorites,
+                  onChanged: (value) => setDialogState(() {
+                    mergeFavorites = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入设置'),
+                  value: importSettings,
+                  onChanged: (value) => setDialogState(() {
+                    importSettings = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入浏览历史'),
+                  value: importHistory,
+                  onChanged: (value) => setDialogState(() {
+                    importHistory = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入剪贴板内容与端口'),
+                  value: importClipboard,
+                  onChanged: (value) => setDialogState(() {
+                    importClipboard = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入计算器历史'),
+                  value: importCalculatorHistory,
+                  onChanged: (value) => setDialogState(() {
+                    importCalculatorHistory = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入登录数据 (Cookie)'),
+                  subtitle: const Text('恢复大多数网站的登录状态，不含 Telegram Web 等特殊站点'),
+                  value: importCookies,
+                  onChanged: (value) => setDialogState(() {
+                    importCookies = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入 VPN 配置'),
+                  subtitle: const Text('恢复 EasyTier 网络档案与当前选中的网络'),
+                  value: importEasyTierProfiles,
+                  onChanged: (value) => setDialogState(() {
+                    importEasyTierProfiles = value ?? true;
+                  }),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('导入'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+    );
+    final filePath = picked != null && picked.files.isNotEmpty
+        ? picked.files.first.path
+        : null;
+    if (filePath == null || filePath.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('未选择备份文件')));
+      }
+      return;
+    }
+
+    final jsonText = await File(filePath).readAsString();
+
+    final validationError = _backupService.validateImportJson(jsonText);
+    if (validationError != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(validationError)));
+      }
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final data = await _backupService.importFromJson(jsonText);
+      final result = await _backupService.importData(
+        data,
+        mergeFavorites: mergeFavorites,
+        importSettings: importSettings,
+        importHistory: importHistory,
+        importClipboard: importClipboard,
+        importCalculatorHistory: importCalculatorHistory,
+        importCookies: importCookies,
+        importEasyTierProfiles: importEasyTierProfiles,
+      );
+      _result = DataManagementPageResult(
+        changed: true,
+        favoritesChanged: result.favoritesImported > 0,
+        settingsChanged: importSettings,
+        webDataChanged: result.cookiesImported > 0,
+        restoredOrigins: result.restoredOrigins,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导入完成：$result')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导入失败：$e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _exportLogsToDownloads() async {
+    setState(() => _busy = true);
+    try {
+      final requestSharedAccessIfNeeded =
+          await _shouldRequestSharedDownloadPermission(actionLabel: '运行日志');
+      if (requestSharedAccessIfNeeded == null) {
+        return;
+      }
+      final file = await _appLogService.exportLogToDownloads(
+        requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('日志已导出到 ${file.path}')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('导出日志失败：$e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool?> _shouldRequestSharedDownloadPermission({
+    required String actionLabel,
+  }) async {
+    if (!Platform.isAndroid) {
+      return true;
+    }
+
+    final hasPermission = await _sharedDownloadsDirectoryService
+        .hasFileAccessPermission();
+    if (hasPermission) {
+      return true;
+    }
+
+    final choice = await showSharedDownloadAccessDialog(
+      context,
+      actionLabel: actionLabel,
+    );
+    switch (choice) {
+      case SharedDownloadAccessChoice.requestPermission:
+        final granted = await _sharedDownloadsDirectoryService
+            .requestFileAccessPermission();
+        if (!granted && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未获得 Download 授权，将保存到应用目录')),
+          );
+        }
+        return granted;
+      case SharedDownloadAccessChoice.useAppDirectory:
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('已改为保存到应用目录')));
+        }
+        return false;
+      case SharedDownloadAccessChoice.cancel:
+        return null;
+    }
+  }
+
+  Future<void> _copyLogsToClipboard() async {
+    setState(() => _busy = true);
+    try {
+      await _appLogService.copyLogToClipboard();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('运行日志已复制到剪贴板')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('复制日志失败：$e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setLogRecordingEnabled(bool enabled) async {
+    setState(() => _busy = true);
+    try {
+      await _appLogService.setEnabled(enabled);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _logRecordingEnabled = enabled;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(enabled ? '已开启运行日志记录' : '已关闭运行日志记录')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('切换日志记录失败：$e')));
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop || _busy) {
+          return;
+        }
+        await _closePage();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('数据管理'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _closePage,
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('导出', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _exportToDownloads,
+                    icon: const Icon(Icons.download),
+                    label: const Text('导出到 Download/ruoqing-年月日.json'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _exportToClipboard,
+                    icon: const Icon(Icons.copy),
+                    label: const Text('复制到剪贴板'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text('日志', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _logRecordingEnabled,
+                title: const Text('启用运行日志记录'),
+                subtitle: Text(
+                  _logRecordingEnabled
+                      ? '已记录运行错误与关键事件，复现下载失败后可导出日志给我分析'
+                      : '关闭时不再追加新日志；开启后再复现问题可帮助排查下载失败',
+                ),
+                onChanged: _busy ? null : _setLogRecordingEnabled,
+              ),
+              if (_appLogService.logPath != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '日志文件：${_appLogService.logPath}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _exportLogsToDownloads,
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('导出运行日志到 Download'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _copyLogsToClipboard,
+                    icon: const Icon(Icons.copy),
+                    label: const Text('复制运行日志到剪贴板'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text('导入', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              const Text('通过选择备份文件恢复数据。导入设置后会在返回浏览器时自动重载相关运行配置。'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _busy ? null : _importFromFile,
+                icon: const Icon(Icons.upload_file),
+                label: const Text('选择备份文件并导入'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

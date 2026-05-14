@@ -1,0 +1,100 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+import '../utils/browser_auth_url_detector.dart';
+import '../utils/browser_popup_filter.dart';
+import '../widgets/popup_webview_dialog.dart';
+
+enum BrowserPopupWindowAction { ignore, external, openTab, showPopup }
+
+class BrowserPopupWindowDecision {
+  const BrowserPopupWindowDecision({
+    required this.action,
+    this.statusMessage,
+    this.initialUrl,
+  });
+
+  final BrowserPopupWindowAction action;
+  final String? statusMessage;
+  final String? initialUrl;
+}
+
+class BrowserPopupWindowHandler {
+  bool _isShowingPopupDialog = false;
+
+  bool get isShowingPopupDialog => _isShowingPopupDialog;
+
+  BrowserPopupWindowDecision decide({
+    required String requestedUrl,
+    required String? sourceUrl,
+    required bool hasGesture,
+    required bool openNewWindowInTab,
+  }) {
+    final parsedRequestedUrl = requestedUrl.isEmpty
+        ? null
+        : Uri.tryParse(requestedUrl);
+    final requestedScheme = parsedRequestedUrl?.scheme.toLowerCase();
+
+    if (parsedRequestedUrl != null &&
+        !BrowserPopupFilter.isWebScheme(requestedScheme)) {
+      return const BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.external,
+      );
+    }
+
+    if (requestedUrl.isEmpty &&
+        hasGesture &&
+        BrowserAuthUrlDetector.looksLikeAuthUrl(sourceUrl)) {
+      return const BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.showPopup,
+        statusMessage: '站点正在延迟创建登录窗口，已改为弹窗继续',
+      );
+    }
+
+    if (BrowserPopupFilter.shouldSuppressPopupUrl(requestedUrl)) {
+      return const BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.ignore,
+      );
+    }
+
+    final isTrustedAuthPopup = BrowserAuthUrlDetector.isTrustedAuthPopupUrl(
+      requestedUrl,
+    );
+    if (openNewWindowInTab && !isTrustedAuthPopup) {
+      return BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.openTab,
+        initialUrl: requestedUrl,
+      );
+    }
+
+    return BrowserPopupWindowDecision(
+      action: BrowserPopupWindowAction.showPopup,
+      initialUrl: requestedUrl.isEmpty ? null : requestedUrl,
+    );
+  }
+
+  Future<void> showPopupWindow({
+    required BuildContext context,
+    required int? windowId,
+    required String? initialUrl,
+    required void Function(String) onStatus,
+  }) async {
+    if (_isShowingPopupDialog) {
+      onStatus('已有弹窗正在处理中');
+      return;
+    }
+
+    _isShowingPopupDialog = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) =>
+            PopupWebViewDialog(windowId: windowId, initialUrl: initialUrl),
+      );
+    } finally {
+      _isShowingPopupDialog = false;
+      onStatus('');
+    }
+  }
+}
