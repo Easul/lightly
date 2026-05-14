@@ -208,6 +208,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       favoriteService: _favoriteService,
     );
     _initialize();
+    _setupExternalUrlListener();
   }
 
   @override
@@ -470,6 +471,39 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
+  static const MethodChannel _browserProxyChannel = MethodChannel(
+    'browser_proxy',
+  );
+
+  Future<String?> _getInitialIntentUrl() async {
+    try {
+      final url = await _browserProxyChannel.invokeMethod<String>(
+        'getInitialIntentUrl',
+      );
+      return url;
+    } on MissingPluginException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _setupExternalUrlListener() {
+    _browserProxyChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onNewIntentUrl') {
+        final url = call.arguments['url'] as String?;
+        if (url != null && url.isNotEmpty && mounted) {
+          await _openNewTabWithUrl(url);
+        }
+      }
+      return null;
+    });
+  }
+
+  Future<void> _openNewTabWithUrl(String url) async {
+    await _openTab(url, title: '');
+  }
+
   Future<void> _initialize() async {
     final appliedSettings = await _initializer.initialize(
       onRestoreSessions: () {
@@ -486,6 +520,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       onReplaceSuggestionService: _replaceSuggestionService,
       enableWebView: widget.enableWebView,
+      onGetInitialIntentUrl: _getInitialIntentUrl,
+      onOpenExternalUrl: (url) => _openNewTabWithUrl(url),
     );
 
     if (!mounted) {
@@ -1355,6 +1391,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final scheme = requestedUrl.scheme.toLowerCase();
     if (_isWebScheme(scheme)) {
       _syncUrlIfNeeded(requestedUrl.toString());
+      return NavigationActionPolicy.ALLOW;
+    }
+
+    if (scheme == 'file') {
       return NavigationActionPolicy.ALLOW;
     }
 

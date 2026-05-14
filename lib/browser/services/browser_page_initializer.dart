@@ -255,6 +255,8 @@ class BrowserPageInitializer {
     required VoidCallback onStartClipboardServerAfterFrame,
     required VoidCallback onReplaceSuggestionService,
     required bool enableWebView,
+    Future<String?> Function()? onGetInitialIntentUrl,
+    required void Function(String url) onOpenExternalUrl,
   }) async {
     final settingsFuture = _settingsService.loadSettings();
     final restoreSessionsFuture = onRestoreSessions();
@@ -269,6 +271,13 @@ class BrowserPageInitializer {
     );
     await restoreSessionsFuture;
     final appliedSettings = await appliedSettingsFuture;
+
+    final externalUrl = onGetInitialIntentUrl != null
+        ? await onGetInitialIntentUrl()
+        : null;
+    if (externalUrl != null && externalUrl.isNotEmpty) {
+      onOpenExternalUrl(externalUrl);
+    }
 
     onSyncAddressBar();
     await onCheckFavoriteStatus(
