@@ -101,19 +101,24 @@ class BrowserSuggestionService {
   ) {
     final results = <String>[];
     final loweredQuery = query.toLowerCase();
+    final isEmptyQuery = loweredQuery.isEmpty;
 
     for (final entry in entries) {
       final url = entry.url;
       final title = entry.title;
 
-      if (url.isNotEmpty && !results.contains(url)) {
+      final normalizedTitle = title.trim();
+      final loweredTitle = normalizedTitle.toLowerCase();
+      final loweredUrl = url.toLowerCase();
+
+      final titleMatches =
+          isEmptyQuery || loweredTitle.startsWith(loweredQuery);
+      final urlMatches = isEmptyQuery || loweredUrl.contains(loweredQuery);
+
+      if (url.isNotEmpty && urlMatches && !results.contains(url)) {
         results.add(url);
       }
 
-      final normalizedTitle = title.trim();
-      final titleMatches =
-          loweredQuery.isEmpty ||
-          normalizedTitle.toLowerCase().startsWith(loweredQuery);
       if (normalizedTitle.isNotEmpty &&
           titleMatches &&
           !results.contains(normalizedTitle)) {
