@@ -62,8 +62,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent)
-        val url = intent.dataString
+        val url = handleIntent(intent)
         if (url != null && browserProxyChannel != null) {
             mainHandler.post {
                 browserProxyChannel?.invokeMethod("onNewIntentUrl", mapOf("url" to url))
@@ -71,24 +70,50 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun handleIntent(intent: Intent?) {
+    private fun handleIntent(intent: Intent?): String? {
         val action = intent?.action
         val data = intent?.dataString
-        if (Intent.ACTION_VIEW == action && data != null) {
-            initialIntentUrl = data
-            Log.d(logTag, "Received VIEW intent with URL: $data")
-        } else if (Intent.ACTION_SEND == action && "text/plain" == intent.type) {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (sharedText != null) {
-                if (sharedText.matches(Regex("^https?://.*"))) {
-                    initialIntentUrl = sharedText
-                    Log.d(logTag, "Received SEND intent with URL: $sharedText")
-                } else {
-                    initialIntentUrl = "https://www.google.com/search?q=${Uri.encode(sharedText)}"
-                    Log.d(logTag, "Received SEND intent with text (search): $sharedText")
-                }
+        val resolvedUrl = when {
+            Intent.ACTION_VIEW == action && data != null -> data
+            Intent.ACTION_SEND == action && "text/plain" == intent.type ->
+                resolveSharedTextTargetUrl(intent.getStringExtra(Intent.EXTRA_TEXT))
+            Intent.ACTION_PROCESS_TEXT == action ->
+                resolveSharedTextTargetUrl(
+                    intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+                )
+            else -> null
+        }
+
+        initialIntentUrl = resolvedUrl
+        if (resolvedUrl != null) {
+            Log.d(logTag, "Resolved external browser input: $resolvedUrl")
+        }
+        return resolvedUrl
+    }
+
+    private fun resolveSharedTextTargetUrl(rawText: String?): String? {
+        val sharedText = rawText?.trim()
+        if (sharedText.isNullOrEmpty()) {
+            return null
+        }
+
+        if (sharedText.matches(Regex("^(https?|file)://.*", RegexOption.IGNORE_CASE))) {
+            return sharedText
+        }
+
+        if (sharedText.matches(Regex("^[^\\s]+\\.[^\\s]+.*$"))) {
+            return if (sharedText.startsWith("localhost", ignoreCase = true) ||
+                sharedText.startsWith("10.") ||
+                sharedText.startsWith("127.") ||
+                sharedText.startsWith("192.168.") ||
+                sharedText.matches(Regex("^172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"))) {
+                "http://$sharedText"
+            } else {
+                "https://$sharedText"
             }
         }
+
+        return "https://www.google.com/search?q=${Uri.encode(sharedText)}"
     }
     private val channelName = "browser_proxy"
     private val floatingChannelName = "floating_video"
