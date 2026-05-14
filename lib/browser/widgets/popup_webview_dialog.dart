@@ -36,6 +36,8 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
     mediaPlaybackRequiresUserGesture: false,
     allowsInlineMediaPlayback: true,
     thirdPartyCookiesEnabled: true,
+    allowFileAccess: true,
+    allowContentAccess: true,
   );
 
   @override
@@ -275,7 +277,8 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                         scheme.isNotEmpty &&
                         scheme != 'http' &&
                         scheme != 'https' &&
-                        scheme != 'file') {
+                        scheme != 'file' &&
+                        scheme != 'content') {
                       await _externalUrlLauncher.launch(uri!);
                       return false;
                     }

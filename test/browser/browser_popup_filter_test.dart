@@ -6,6 +6,7 @@ void main() {
     test('recognizes supported web schemes', () {
       expect(BrowserPopupFilter.isWebScheme('https'), isTrue);
       expect(BrowserPopupFilter.isWebScheme('FILE'), isTrue);
+      expect(BrowserPopupFilter.isWebScheme('content'), isTrue);
       expect(BrowserPopupFilter.isWebScheme('weixin'), isFalse);
     });
 

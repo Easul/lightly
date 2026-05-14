@@ -1,7 +1,7 @@
 class BrowserPopupFilter {
   const BrowserPopupFilter._();
 
-  static const Set<String> _webSchemes = {'http', 'https', 'file'};
+  static const Set<String> _webSchemes = {'http', 'https', 'file', 'content'};
   static const Set<String> _popupImageExtensions = {
     '.png',
     '.jpg',

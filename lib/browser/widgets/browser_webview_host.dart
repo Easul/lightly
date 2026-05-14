@@ -158,6 +158,8 @@ class BrowserWebViewHost extends StatelessWidget {
               domStorageEnabled: true,
               databaseEnabled: true,
               thirdPartyCookiesEnabled: true,
+              allowFileAccess: true,
+              allowContentAccess: true,
               useWideViewPort: true,
               loadWithOverviewMode: true,
               loadsImagesAutomatically: true,

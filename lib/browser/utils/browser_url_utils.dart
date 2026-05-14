@@ -4,7 +4,9 @@ String? normalizeBrowserUrl(String rawValue) {
     return null;
   }
 
-  final directUri = Uri.tryParse(trimmed);
+  final normalizedFileInput = _normalizeAndroidFileUrl(trimmed);
+
+  final directUri = Uri.tryParse(normalizedFileInput);
   if (directUri != null &&
       directUri.hasScheme &&
       directUri.scheme.toLowerCase() == 'file') {
@@ -14,15 +16,15 @@ String? normalizeBrowserUrl(String rawValue) {
     return directUri.toString();
   }
 
-  if (RegExp(r'[\s\u4e00-\u9fa5]').hasMatch(trimmed)) {
+  if (RegExp(r'[\s\u4e00-\u9fa5]').hasMatch(normalizedFileInput)) {
     return null;
   }
 
-  final withScheme = trimmed.contains('://')
-      ? trimmed
-      : _shouldPreferHttp(trimmed)
-      ? 'http://$trimmed'
-      : 'https://$trimmed';
+  final withScheme = normalizedFileInput.contains('://')
+      ? normalizedFileInput
+      : _shouldPreferHttp(normalizedFileInput)
+      ? 'http://$normalizedFileInput'
+      : 'https://$normalizedFileInput';
   final uri = Uri.tryParse(withScheme);
   if (uri == null ||
       !uri.hasScheme ||
@@ -40,6 +42,24 @@ String? normalizeBrowserUrl(String rawValue) {
   }
 
   return uri.toString();
+}
+
+String _normalizeAndroidFileUrl(String rawValue) {
+  final lowerCased = rawValue.toLowerCase();
+  if (!lowerCased.startsWith('file://') || lowerCased.startsWith('file:///')) {
+    return rawValue;
+  }
+
+  final remainder = rawValue.substring('file://'.length);
+  if (remainder.startsWith('/')) {
+    return 'file://$remainder';
+  }
+
+  if (remainder.startsWith('storage/') || remainder.startsWith('sdcard/')) {
+    return 'file:///$remainder';
+  }
+
+  return rawValue;
 }
 
 bool _shouldPreferHttp(String rawValue) {

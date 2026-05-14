@@ -42,6 +42,13 @@ void main() {
       );
     });
 
+    test('normalizes common android file url missing third slash', () {
+      expect(
+        normalizeBrowserUrl('file://storage/emulated/0/Download/index.html'),
+        'file:///storage/emulated/0/Download/index.html',
+      );
+    });
+
     test('rejects inputs with spaces or chinese characters', () {
       expect(normalizeBrowserUrl('hello world'), isNull);
       expect(normalizeBrowserUrl('示例.com'), isNull);
