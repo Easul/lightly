@@ -63,8 +63,13 @@ class BrowserTabService {
     required String url,
     String title = '',
     bool activate = true,
+    bool isExternallyOpened = false,
   }) {
-    final tab = _buildTab(url: url, title: title);
+    final tab = _buildTab(
+      url: url,
+      title: title,
+      isExternallyOpened: isExternallyOpened,
+    );
     _tabs.add(tab);
     if (activate) {
       _activeTabId = tab.id;
@@ -129,6 +134,7 @@ class BrowserTabService {
     bool? canGoBack,
     bool? canGoForward,
     double? scrollPosition,
+    bool? isExternallyOpened,
   }) {
     final index = _indexOf(tabId);
     if (index == -1) {
@@ -142,13 +148,15 @@ class BrowserTabService {
       canGoBack: canGoBack,
       canGoForward: canGoForward,
       scrollPosition: scrollPosition,
+      isExternallyOpened: isExternallyOpened,
     );
     if (next.url == current.url &&
         next.title == current.title &&
         next.isLoading == current.isLoading &&
         next.canGoBack == current.canGoBack &&
         next.canGoForward == current.canGoForward &&
-        next.scrollPosition == current.scrollPosition) {
+        next.scrollPosition == current.scrollPosition &&
+        next.isExternallyOpened == current.isExternallyOpened) {
       return false;
     }
 
@@ -186,14 +194,23 @@ class BrowserTabService {
       await prefs.remove(_prefsKey);
       return;
     }
-    final activeIndex = _activeTabId == null
+    final persistentTabs = _tabs
+        .where((tab) => !tab.isExternallyOpened)
+        .toList();
+    if (persistentTabs.isEmpty) {
+      await prefs.remove(_prefsKey);
+      return;
+    }
+    final persistentActiveIndex = _activeTabId == null
         ? 0
-        : _tabs
+        : persistentTabs
               .indexWhere((t) => t.id == _activeTabId)
-              .clamp(0, _tabs.length - 1);
+              .clamp(0, persistentTabs.length - 1);
     final data = {
-      'tabs': _tabs.map((t) => {'url': t.url, 'title': t.title}).toList(),
-      'activeIndex': activeIndex,
+      'tabs': persistentTabs
+          .map((t) => {'url': t.url, 'title': t.title})
+          .toList(),
+      'activeIndex': persistentActiveIndex,
     };
     await prefs.setString(_prefsKey, jsonEncode(data));
   }
@@ -253,13 +270,18 @@ class BrowserTabService {
     return replacement;
   }
 
-  BrowserTabSession _buildTab({required String url, String title = ''}) {
+  BrowserTabSession _buildTab({
+    required String url,
+    String title = '',
+    bool isExternallyOpened = false,
+  }) {
     _nextId += 1;
     return BrowserTabSession(
       id: 'tab_$_nextId',
       url: url,
       keepAlive: url.startsWith('http') ? InAppWebViewKeepAlive() : null,
       title: title,
+      isExternallyOpened: isExternallyOpened,
     );
   }
 

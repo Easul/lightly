@@ -49,5 +49,17 @@ void main() {
       );
       expect(service.activeTab?.url, 'https://four.example');
     });
+
+    test('does not persist externally opened tabs', () async {
+      final service = BrowserTabService.test(maxTabs: 3);
+      service.initialize('https://one.example');
+
+      service.openTab(
+        url: 'content://provider/document/file.txt',
+        isExternallyOpened: true,
+      );
+
+      expect(service.activeTab?.isExternallyOpened, isTrue);
+    });
   });
 }

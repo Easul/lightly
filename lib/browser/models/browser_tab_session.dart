@@ -10,6 +10,7 @@ class BrowserTabSession {
     this.canGoBack = false,
     this.canGoForward = false,
     this.scrollPosition = 0,
+    this.isExternallyOpened = false,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class BrowserTabSession {
   final bool canGoBack;
   final bool canGoForward;
   final double scrollPosition;
+  final bool isExternallyOpened;
 
   String get displayTitle {
     final trimmedTitle = title.trim();
@@ -39,6 +41,7 @@ class BrowserTabSession {
     bool? canGoBack,
     bool? canGoForward,
     double? scrollPosition,
+    bool? isExternallyOpened,
   }) {
     return BrowserTabSession(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class BrowserTabSession {
       canGoBack: canGoBack ?? this.canGoBack,
       canGoForward: canGoForward ?? this.canGoForward,
       scrollPosition: scrollPosition ?? this.scrollPosition,
+      isExternallyOpened: isExternallyOpened ?? this.isExternallyOpened,
     );
   }
 }

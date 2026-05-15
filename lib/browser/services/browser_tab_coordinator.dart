@@ -66,6 +66,7 @@ class BrowserTabCoordinator {
     bool? canGoBack,
     bool? canGoForward,
     double? scrollPosition,
+    bool? isExternallyOpened,
   }) {
     final tabId = activeTabId;
     if (tabId == null) {
@@ -80,6 +81,7 @@ class BrowserTabCoordinator {
       canGoBack: canGoBack,
       canGoForward: canGoForward,
       scrollPosition: scrollPosition,
+      isExternallyOpened: isExternallyOpened,
     );
   }
 
@@ -91,6 +93,7 @@ class BrowserTabCoordinator {
     bool? canGoBack,
     bool? canGoForward,
     double? scrollPosition,
+    bool? isExternallyOpened,
   }) {
     return _tabService.updateTab(
       tabId,
@@ -100,6 +103,7 @@ class BrowserTabCoordinator {
       canGoBack: canGoBack,
       canGoForward: canGoForward,
       scrollPosition: scrollPosition,
+      isExternallyOpened: isExternallyOpened,
     );
   }
 
@@ -216,8 +220,16 @@ class BrowserTabCoordinator {
     );
   }
 
-  BrowserTabSession openTab({required String url, String title = ''}) {
-    return _tabService.openTab(url: url, title: title);
+  BrowserTabSession openTab({
+    required String url,
+    String title = '',
+    bool isExternallyOpened = false,
+  }) {
+    return _tabService.openTab(
+      url: url,
+      title: title,
+      isExternallyOpened: isExternallyOpened,
+    );
   }
 
   bool activateTab(String tabId) => _tabService.activateTab(tabId);
