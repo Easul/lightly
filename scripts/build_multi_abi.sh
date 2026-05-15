@@ -7,7 +7,12 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APK_OUTPUT_DIR="$PROJECT_ROOT/build/app/outputs/flutter-apk"
 
 build_arm32_release() {
-  GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'" \
+  local gradle_opts="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'"
+  if [ "$1" = "no-daemon" ]; then
+    gradle_opts="-Dorg.gradle.daemon=false ${gradle_opts}"
+  fi
+
+  GRADLE_OPTS="$gradle_opts" \
   _JAVA_OPTIONS='-Xmx12G' \
   TARGET_ABI=armeabi-v7a \
   BUILD_VERSION_LABEL="$VERSION_NAME" \
@@ -15,8 +20,7 @@ build_arm32_release() {
     --release \
     --target-platform android-arm \
     --obfuscate \
-    --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols" \
-    "$@"
+    --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols"
 }
 
 # Get latest tag or fallback to default
@@ -64,7 +68,7 @@ if ! build_arm32_release; then
     ./gradlew --stop
   ) || true
   sleep 2
-  build_arm32_release -- --no-daemon
+  build_arm32_release no-daemon
 fi
 
 # Save with ABI-specific name
