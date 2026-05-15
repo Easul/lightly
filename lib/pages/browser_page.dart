@@ -1166,6 +1166,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
+    _tabCoordinator.trimInactiveKeepAlives();
+
     _webViewController = null;
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();
@@ -1505,6 +1507,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showTabSwitcher() async {
+    _tabCoordinator.trimInactiveKeepAlives();
+    await Future<void>.delayed(Duration.zero);
     await showBrowserTabSwitcherModal(
       context: context,
       tabs: _tabs,
@@ -1621,6 +1625,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         await _handleBrowserBack();
       },
       child: Scaffold(
+        onDrawerChanged: (isOpen) {
+          if (isOpen) {
+            _tabCoordinator.trimInactiveKeepAlives();
+          }
+        },
         drawer: AppDrawer(onOpenSettings: _openSettings),
         appBar: BrowserPageAppBar(
           addressController: _addressController,
