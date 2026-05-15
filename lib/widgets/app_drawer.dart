@@ -153,6 +153,9 @@ class _VersionFooter extends StatefulWidget {
 }
 
 class _VersionFooterState extends State<_VersionFooter> {
+  static PackageInfo? _cachedPackageInfo;
+  static Future<PackageInfo>? _loadingPackageInfo;
+
   String _version = '';
   String _buildNumber = '';
 
@@ -176,7 +179,10 @@ class _VersionFooterState extends State<_VersionFooter> {
 
   Future<void> _loadVersion() async {
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
+      final packageInfo =
+          _cachedPackageInfo ??
+          await (_loadingPackageInfo ??= PackageInfo.fromPlatform());
+      _cachedPackageInfo = packageInfo;
       if (mounted) {
         setState(() {
           _version = packageInfo.version;

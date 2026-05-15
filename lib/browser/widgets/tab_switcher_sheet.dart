@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_theme.dart';
 import '../models/browser_tab_session.dart';
 
 class TabSwitcherSheet extends StatelessWidget {
@@ -123,15 +122,14 @@ class TabSwitcherSheet extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(22),
-                          boxShadow: AppTheme.softShadow(),
-                          border: isActive
-                              ? Border.all(
-                                  color: colorScheme.primary.withValues(
+                          border: Border.all(
+                            color: isActive
+                                ? colorScheme.primary.withValues(alpha: 0.4)
+                                : colorScheme.outlineVariant.withValues(
                                     alpha: 0.4,
                                   ),
-                                  width: 1.5,
-                                )
-                              : null,
+                            width: isActive ? 1.5 : 1,
+                          ),
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,

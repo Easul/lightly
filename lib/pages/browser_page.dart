@@ -347,29 +347,28 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               : false;
           _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
 
-          final refreshNavigationFuture = _refreshNavigationStateForTab(
-            hostedTabId,
-            controller,
-          );
-          final title = await controller.getTitle();
-          final resolvedTitle = title ?? '';
-          unawaited(_recordHistory(url, resolvedTitle));
-          await refreshNavigationFuture;
+          final currentTitle =
+              _tabCoordinator.tabById(hostedTabId)?.title ?? '';
+          unawaited(_recordHistory(url, currentTitle));
           if (!mounted) {
             return;
           }
-          final previousTitle =
-              _tabCoordinator.tabById(hostedTabId)?.title ?? '';
-          final didChangeTitle = previousTitle != resolvedTitle;
-          _updateTabById(hostedTabId, title: resolvedTitle);
           if (_webViewCoordinator.shouldRebuildOnLoadStop(
             isActiveTab: _isActiveTabId(hostedTabId),
             didChangeProgress: didChangeProgress,
-            didChangeTitle: didChangeTitle,
+            didChangeTitle: false,
             didChangeLoading: didChangeLoading,
           )) {
             setState(() {});
           }
+
+          unawaited(
+            _completeLoadStopFollowUp(
+              hostedTabId: hostedTabId,
+              controller: controller,
+              url: url,
+            ),
+          );
 
           final savedScroll =
               _tabCoordinator.tabById(hostedTabId)?.scrollPosition ?? 0;
@@ -870,6 +869,52 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       canGoForward: canGoForward,
     );
     if (changed && _activeTabId == tabId) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _completeLoadStopFollowUp({
+    required String hostedTabId,
+    required InAppWebViewController controller,
+    required WebUri? url,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) {
+      return;
+    }
+
+    final results = await Future.wait<dynamic>([
+      controller.getTitle(),
+      controller.canGoBack(),
+      controller.canGoForward(),
+    ]);
+
+    if (!mounted) {
+      return;
+    }
+
+    final resolvedTitle = (results[0] as String?) ?? '';
+    final canGoBack = results[1] as bool;
+    final canGoForward = results[2] as bool;
+    final previousTitle = _tabCoordinator.tabById(hostedTabId)?.title ?? '';
+    final didChangeTitle = previousTitle != resolvedTitle;
+    final didChangeNavigation = _updateTabById(
+      hostedTabId,
+      title: resolvedTitle,
+      canGoBack: canGoBack,
+      canGoForward: canGoForward,
+    );
+
+    if (resolvedTitle.isNotEmpty) {
+      unawaited(_recordHistory(url, resolvedTitle));
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if ((didChangeTitle || didChangeNavigation) &&
+        _activeTabId == hostedTabId) {
       setState(() {});
     }
   }
