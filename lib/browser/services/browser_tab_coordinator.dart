@@ -109,6 +109,16 @@ class BrowserTabCoordinator {
 
   bool isActiveTabId(String? tabId) => tabId != null && activeTabId == tabId;
 
+  int trimInactiveKeepAlives({
+    Duration inactiveThreshold = const Duration(seconds: 45),
+    int maxRetainedBackgroundTabs = 1,
+  }) {
+    return _tabService.trimInactiveKeepAlives(
+      inactiveThreshold: inactiveThreshold,
+      maxRetainedBackgroundTabs: maxRetainedBackgroundTabs,
+    );
+  }
+
   BrowserTabUrlSyncResult syncUrlForTabIfNeeded(String tabId, String? url) {
     if (url == null) {
       return const BrowserTabUrlSyncResult(

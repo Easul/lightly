@@ -61,5 +61,27 @@ void main() {
 
       expect(service.activeTab?.isExternallyOpened, isTrue);
     });
+
+    test('trims keepAlive objects for inactive background tabs', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      final second = service.openTab(url: 'https://two.example');
+      service.openTab(url: 'https://three.example');
+
+      service.activateTab(second.id);
+      final trimmed = service.trimInactiveKeepAlives(
+        inactiveThreshold: Duration.zero,
+        maxRetainedBackgroundTabs: 0,
+      );
+
+      expect(trimmed, 2);
+      expect(service.activeTab?.keepAlive, isNotNull);
+      expect(
+        service.tabs
+            .where((tab) => tab.id != service.activeTab?.id)
+            .every((tab) => tab.keepAlive == null),
+        isTrue,
+      );
+    });
   });
 }

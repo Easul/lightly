@@ -23,6 +23,7 @@ class BrowserTabService {
 
   final List<BrowserTabSession> _tabs = <BrowserTabSession>[];
   final List<String> _usageOrder = <String>[];
+  final Map<String, DateTime> _lastActiveTimes = <String, DateTime>{};
   String? _activeTabId;
   int _nextId = 0;
   String _fallbackUrl = 'https://www.google.com';
@@ -95,6 +96,53 @@ class BrowserTabService {
     _activeTabId = tabId;
     _touch(tabId);
     return true;
+  }
+
+  int trimInactiveKeepAlives({
+    Duration inactiveThreshold = const Duration(seconds: 45),
+    int maxRetainedBackgroundTabs = 1,
+  }) {
+    if (_tabs.length <= 1) {
+      return 0;
+    }
+
+    final now = DateTime.now();
+    final activeId = _activeTabId;
+    final backgroundTabs = _tabs.where((tab) => tab.id != activeId).toList()
+      ..sort((a, b) {
+        final aTime =
+            _lastActiveTimes[a.id] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            _lastActiveTimes[b.id] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+
+    final retainedIds = <String>{};
+    for (final tab in backgroundTabs) {
+      final lastActive = _lastActiveTimes[tab.id];
+      if (retainedIds.length >= maxRetainedBackgroundTabs ||
+          lastActive == null) {
+        continue;
+      }
+      if (now.difference(lastActive) <= inactiveThreshold) {
+        retainedIds.add(tab.id);
+      }
+    }
+
+    var trimmedCount = 0;
+    for (var i = 0; i < _tabs.length; i++) {
+      final tab = _tabs[i];
+      if (tab.id == activeId ||
+          tab.keepAlive == null ||
+          retainedIds.contains(tab.id)) {
+        continue;
+      }
+      _disposeKeepAlive(tab.keepAlive);
+      _tabs[i] = tab.copyWith(clearKeepAlive: true);
+      trimmedCount += 1;
+    }
+
+    return trimmedCount;
   }
 
   bool ensureKeepAlive(String tabId) {
@@ -171,6 +219,7 @@ class BrowserTabService {
     }
     final removed = _tabs.removeAt(index);
     _usageOrder.remove(tabId);
+    _lastActiveTimes.remove(tabId);
     _disposeKeepAlive(removed.keepAlive);
 
     if (_tabs.isEmpty) {
@@ -230,6 +279,7 @@ class BrowserTabService {
           (data['activeIndex'] as int?)?.clamp(0, tabList.length - 1) ?? 0;
       _tabs.clear();
       _usageOrder.clear();
+      _lastActiveTimes.clear();
       _nextId = 0;
       for (int i = 0; i < tabList.length; i++) {
         final item = tabList[i] as Map<String, dynamic>;
@@ -252,6 +302,7 @@ class BrowserTabService {
   void _createInitialTab(String url) {
     _tabs.clear();
     _usageOrder.clear();
+    _lastActiveTimes.clear();
     _nextId = 0;
     final tab = _buildTab(url: url);
     _tabs.add(tab);
@@ -310,6 +361,7 @@ class BrowserTabService {
   void _touch(String tabId) {
     _usageOrder.remove(tabId);
     _usageOrder.add(tabId);
+    _lastActiveTimes[tabId] = DateTime.now();
   }
 
   int _indexOf(String tabId) {
