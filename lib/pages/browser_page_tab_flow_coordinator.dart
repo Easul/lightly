@@ -3,6 +3,7 @@ enum BrowserPageBackAction {
   closeVideoOverlay,
   exitWebFullscreen,
   goBackInWebView,
+  closeExternalTabAndExitApp,
   closeActiveTab,
   showFavoritesHome,
   exitApp,
@@ -37,6 +38,7 @@ class BrowserPageTabFlowCoordinator {
     required bool canGoBackInWebView,
     required int tabCount,
     required String? activeTabId,
+    required bool isActiveTabExternallyOpened,
     required bool isFavoritesPage,
   }) {
     if (hasActiveVideoOverlay) {
@@ -54,6 +56,12 @@ class BrowserPageTabFlowCoordinator {
     if (canGoBackInWebView) {
       return const BrowserPageBackDecision(
         action: BrowserPageBackAction.goBackInWebView,
+      );
+    }
+    if (isActiveTabExternallyOpened && activeTabId != null) {
+      return BrowserPageBackDecision(
+        action: BrowserPageBackAction.closeExternalTabAndExitApp,
+        activeTabId: activeTabId,
       );
     }
     if (tabCount > 1 && activeTabId != null) {

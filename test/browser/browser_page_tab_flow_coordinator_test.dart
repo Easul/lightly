@@ -17,6 +17,7 @@ void main() {
                 canGoBackInWebView: true,
                 tabCount: 3,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: false,
               )
               .action,
@@ -32,6 +33,7 @@ void main() {
                 canGoBackInWebView: true,
                 tabCount: 3,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: false,
               )
               .action,
@@ -47,6 +49,7 @@ void main() {
                 canGoBackInWebView: true,
                 tabCount: 3,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: false,
               )
               .action,
@@ -62,6 +65,7 @@ void main() {
                 canGoBackInWebView: true,
                 tabCount: 3,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: false,
               )
               .action,
@@ -75,6 +79,7 @@ void main() {
           canGoBackInWebView: false,
           tabCount: 2,
           activeTabId: 'a',
+          isActiveTabExternallyOpened: false,
           isFavoritesPage: false,
         );
         expect(closeDecision.action, BrowserPageBackAction.closeActiveTab);
@@ -89,6 +94,7 @@ void main() {
                 canGoBackInWebView: false,
                 tabCount: 1,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: false,
               )
               .action,
@@ -104,6 +110,7 @@ void main() {
                 canGoBackInWebView: false,
                 tabCount: 1,
                 activeTabId: 'a',
+                isActiveTabExternallyOpened: false,
                 isFavoritesPage: true,
               )
               .action,
@@ -111,6 +118,22 @@ void main() {
         );
       },
     );
+
+    test('externally opened tab exits app flow before exposing other tabs', () {
+      final decision = coordinator.decideBackAction(
+        hasActiveVideoOverlay: false,
+        isVideoFullscreen: false,
+        isInWebFullscreen: false,
+        canGoBackInWebView: false,
+        tabCount: 3,
+        activeTabId: 'external',
+        isActiveTabExternallyOpened: true,
+        isFavoritesPage: false,
+      );
+
+      expect(decision.action, BrowserPageBackAction.closeExternalTabAndExitApp);
+      expect(decision.activeTabId, 'external');
+    });
 
     test('close tab follow up chooses switch or rebuild', () {
       expect(

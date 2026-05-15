@@ -480,7 +480,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       final url = await _browserProxyChannel.invokeMethod<String>(
         'getInitialIntentUrl',
       );
-      return url;
+      return await _prepareExternalIntentUrl(url);
     } on MissingPluginException {
       return null;
     } catch (_) {
@@ -488,10 +488,34 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<String?> _prepareExternalIntentUrl(String? url) async {
+    if (url == null || url.isEmpty) {
+      return null;
+    }
+
+    final parsed = Uri.tryParse(url);
+    if (parsed?.scheme.toLowerCase() != 'content') {
+      return url;
+    }
+
+    try {
+      final imported = await _browserProxyChannel.invokeMethod<String>(
+        'importContentUriToPrivateFile',
+        {'uri': url},
+      );
+      return imported?.isNotEmpty == true ? imported : url;
+    } on MissingPluginException {
+      return url;
+    } catch (_) {
+      return url;
+    }
+  }
+
   void _setupExternalUrlListener() {
     _browserProxyChannel.setMethodCallHandler((call) async {
       if (call.method == 'onNewIntentUrl') {
-        final url = call.arguments['url'] as String?;
+        final rawUrl = call.arguments['url'] as String?;
+        final url = await _prepareExternalIntentUrl(rawUrl);
         if (url != null && url.isNotEmpty && mounted) {
           await _openNewTabWithUrl(url);
         }
@@ -501,7 +525,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _openNewTabWithUrl(String url) async {
-    await _openTab(url, title: '');
+    await _openTab(url, title: '', isExternallyOpened: true);
   }
 
   Future<void> _initialize() async {
@@ -620,7 +644,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     final wasFavoritesPage = _isFavoritesPage(_currentUrl);
     _addressController.text = target;
-    final didChangeUrl = _updateActiveTab(url: target);
+    final didChangeUrl = _updateActiveTab(
+      url: target,
+      isExternallyOpened: false,
+    );
     final activeTabId = _activeTabId;
     if (activeTabId != null) {
       if (wasFavoritesPage) {
@@ -715,6 +742,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     bool? canGoBack,
     bool? canGoForward,
     double? scrollPosition,
+    bool? isExternallyOpened,
   }) {
     return _tabCoordinator.updateActiveTab(
       url: url,
@@ -723,6 +751,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       canGoBack: canGoBack,
       canGoForward: canGoForward,
       scrollPosition: scrollPosition,
+      isExternallyOpened: isExternallyOpened,
     );
   }
 
@@ -1044,9 +1073,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     String url, {
     String title = '',
     String statusMessage = '',
+    bool isExternallyOpened = false,
   }) async {
     _webViewController = null;
-    final tab = _tabCoordinator.openTab(url: url, title: title);
+    final tab = _tabCoordinator.openTab(
+      url: url,
+      title: title,
+      isExternallyOpened: isExternallyOpened,
+    );
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();
     _syncAddressBarForCurrentTab();
@@ -1136,6 +1170,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       canGoBackInWebView: canGoBack,
       tabCount: _tabService.tabCount,
       activeTabId: _activeTabId,
+      isActiveTabExternallyOpened: _activeTab?.isExternallyOpened ?? false,
       isFavoritesPage: _isFavoritesPage(_currentUrl),
     );
 
@@ -1154,6 +1189,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (controller != null) {
           await controller.goBack();
           await _refreshNavigationState(controller);
+        }
+        return;
+      case BrowserPageBackAction.closeExternalTabAndExitApp:
+        final externalTabId = decision.activeTabId;
+        if (externalTabId != null) {
+          await _closeTab(externalTabId);
+        }
+        if (mounted) {
+          await SystemNavigator.pop();
         }
         return;
       case BrowserPageBackAction.closeActiveTab:

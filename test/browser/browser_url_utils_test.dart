@@ -49,6 +49,24 @@ void main() {
       );
     });
 
+    test('keeps valid content uri', () {
+      expect(
+        normalizeBrowserUrl(
+          'content://com.android.externalstorage.documents/document/primary%3ADownload%2Fnote.txt',
+        ),
+        'content://com.android.externalstorage.documents/document/primary%3ADownload%2Fnote.txt',
+      );
+    });
+
+    test('keeps imported private file uri stable after content import', () {
+      expect(
+        normalizeBrowserUrl(
+          'file:///data/user/0/lightly.tool/files/imported_documents/note.txt',
+        ),
+        'file:///data/user/0/lightly.tool/files/imported_documents/note.txt',
+      );
+    });
+
     test('rejects inputs with spaces or chinese characters', () {
       expect(normalizeBrowserUrl('hello world'), isNull);
       expect(normalizeBrowserUrl('示例.com'), isNull);
