@@ -11,6 +11,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.provider.OpenableColumns
 import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
@@ -27,6 +28,7 @@ import io.flutter.embedding.engine.renderer.FlutterRenderer
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.Executor
 
 class MainActivity : FlutterActivity() {
@@ -115,6 +117,76 @@ class MainActivity : FlutterActivity() {
 
         return "https://www.google.com/search?q=${Uri.encode(sharedText)}"
     }
+
+    private fun importContentUriToPrivateFile(uriString: String): String? {
+        val uri = Uri.parse(uriString)
+        if (uri.scheme?.lowercase() != "content") {
+            return uriString
+        }
+
+        val importsDir = File(filesDir, "imported_documents")
+        if (!importsDir.exists()) {
+            importsDir.mkdirs()
+        }
+
+        val displayName = queryContentDisplayName(uri)?.trim().orEmpty()
+        val safeName = sanitizeImportedFileName(displayName.ifEmpty {
+            "imported_${System.currentTimeMillis()}.txt"
+        })
+        val targetFile = buildUniqueImportedFile(importsDir, safeName)
+
+        contentResolver.openInputStream(uri)?.use { input ->
+            targetFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        } ?: return null
+
+        return Uri.fromFile(targetFile).toString()
+    }
+
+    private fun queryContentDisplayName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (!cursor.moveToFirst()) {
+                        return@use null
+                    }
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index == -1) {
+                        null
+                    } else {
+                        cursor.getString(index)
+                    }
+                }
+        } catch (e: Exception) {
+            Log.w(logTag, "Failed to query display name for $uri", e)
+            null
+        }
+    }
+
+    private fun sanitizeImportedFileName(rawName: String): String {
+        val trimmed = rawName.trim()
+        val fallback = if (trimmed.isEmpty()) {
+            "imported_${System.currentTimeMillis()}.txt"
+        } else {
+            trimmed
+        }
+        return fallback.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    }
+
+    private fun buildUniqueImportedFile(parent: File, fileName: String): File {
+        val dotIndex = fileName.lastIndexOf('.')
+        val baseName = if (dotIndex > 0) fileName.substring(0, dotIndex) else fileName
+        val extension = if (dotIndex > 0) fileName.substring(dotIndex) else ""
+        var candidate = File(parent, fileName)
+        var counter = 1
+        while (candidate.exists()) {
+            candidate = File(parent, "${baseName}_${counter}${extension}")
+            counter += 1
+        }
+        return candidate
+    }
+
     private val channelName = "browser_proxy"
     private val floatingChannelName = "floating_video"
     private val easyTierChannelName = "easytier_vpn"
@@ -322,6 +394,20 @@ class MainActivity : FlutterActivity() {
 
                     "getInitialIntentUrl" -> {
                         result.success(initialIntentUrl)
+                    }
+
+                    "importContentUriToPrivateFile" -> {
+                        val uriString = call.argument<String>("uri")
+                        if (uriString.isNullOrBlank()) {
+                            result.error("INVALID_URI", "URI is required", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            result.success(importContentUriToPrivateFile(uriString))
+                        } catch (e: Exception) {
+                            Log.e(logTag, "Failed to import content URI: $uriString", e)
+                            result.error("IMPORT_FAILED", e.message, null)
+                        }
                     }
 
                     else -> result.notImplemented()
