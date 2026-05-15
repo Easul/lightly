@@ -1167,8 +1167,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    _tabCoordinator.trimInactiveKeepAlives();
-
     _webViewController = null;
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();

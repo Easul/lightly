@@ -102,5 +102,27 @@ void main() {
       expect(backgroundTabs, hasLength(1));
       expect(backgroundTabs.single.keepAlive, isNull);
     });
+
+    test('switching tabs keeps recently opened web tabs alive by default', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      final second = service.openTab(url: 'https://two.example');
+
+      final firstTabBeforeSwitch = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://one.example',
+      );
+      expect(firstTabBeforeSwitch.keepAlive, isNotNull);
+
+      service.activateTab(second.id);
+
+      final firstTabAfterSwitch = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://one.example',
+      );
+      final secondTabAfterSwitch = service.tabs.firstWhere(
+        (tab) => tab.id == second.id,
+      );
+      expect(firstTabAfterSwitch.keepAlive, isNotNull);
+      expect(secondTabAfterSwitch.keepAlive, isNotNull);
+    });
   });
 }
