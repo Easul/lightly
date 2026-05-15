@@ -484,6 +484,10 @@ The address bar lock icon opens a dialog for clearing current-site data:
      - `unset GRADLE_OPTS`
   2. If the build still fails in R8 with `Java heap space`, retry with the larger known-good workaround:
      - `GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'" _JAVA_OPTIONS='-Xmx12G' flutter build apk --release --target-platform android-arm`
+- If the second ABI build fails because the Gradle daemon disappears after a successful arm64 build, stop daemons and retry arm32 with no daemon:
+  - `cd android && ./gradlew --stop`
+  - `GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'" _JAVA_OPTIONS='-Xmx12G' TARGET_ABI=armeabi-v7a flutter build apk --release --target-platform android-arm --obfuscate --split-debug-info=build/app/outputs/symbols`
+- `scripts/build_multi_abi.sh` should keep the fast daemon-backed arm32 attempt first, but automatically fall back to `gradlew --stop` + no-daemon arm32 retry when that daemon-disappeared failure happens.
 - In practice, prefer no extra heap tuning for arm64 unless the build actually shows memory pressure; this staged fallback is primarily for arm32 release packaging.
 
 ### Current open follow-up areas

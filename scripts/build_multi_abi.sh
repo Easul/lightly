@@ -6,6 +6,19 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APK_OUTPUT_DIR="$PROJECT_ROOT/build/app/outputs/flutter-apk"
 
+build_arm32_release() {
+  GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'" \
+  _JAVA_OPTIONS='-Xmx12G' \
+  TARGET_ABI=armeabi-v7a \
+  BUILD_VERSION_LABEL="$VERSION_NAME" \
+  flutter build apk \
+    --release \
+    --target-platform android-arm \
+    --obfuscate \
+    --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols" \
+    "$@"
+}
+
 # Get latest tag or fallback to default
 LATEST_TAG=$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || git -C "$PROJECT_ROOT" tag --sort=-v:refname | head -1 2>/dev/null || echo "v1.0.0")
 echo "🏷️  Latest tag: $LATEST_TAG"
@@ -44,15 +57,15 @@ echo "✅ Saved: app-arm64-v8a-release.apk (version: $VERSION_NAME, code: $VERSI
 
 # Build armeabi-v7a (32-bit)
 echo "🚀 Building armeabi-v7a (32-bit)..."
-GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'" \
-_JAVA_OPTIONS='-Xmx12G' \
-TARGET_ABI=armeabi-v7a \
-BUILD_VERSION_LABEL="$VERSION_NAME" \
-flutter build apk \
-  --release \
-  --target-platform android-arm \
-  --obfuscate \
-  --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols"
+if ! build_arm32_release; then
+  echo "⚠️  arm32 daemon build failed; stopping Gradle daemons and retrying without daemon..."
+  (
+    cd "$PROJECT_ROOT/android"
+    ./gradlew --stop
+  ) || true
+  sleep 2
+  build_arm32_release -- --no-daemon
+fi
 
 # Save with ABI-specific name
 mv "$APK_OUTPUT_DIR/app-release.apk" "$APK_OUTPUT_DIR/app-armeabi-v7a-release.apk"
