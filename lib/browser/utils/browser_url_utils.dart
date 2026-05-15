@@ -7,13 +7,17 @@ String? normalizeBrowserUrl(String rawValue) {
   final normalizedFileInput = _normalizeAndroidFileUrl(trimmed);
 
   final directUri = Uri.tryParse(normalizedFileInput);
-  if (directUri != null &&
-      directUri.hasScheme &&
-      directUri.scheme.toLowerCase() == 'file') {
-    if (directUri.path.isEmpty) {
-      return null;
+  if (directUri != null && directUri.hasScheme) {
+    final scheme = directUri.scheme.toLowerCase();
+    if (scheme == 'file') {
+      if (directUri.path.isEmpty) {
+        return null;
+      }
+      return directUri.toString();
     }
-    return directUri.toString();
+    if (scheme == 'content') {
+      return directUri.toString();
+    }
   }
 
   if (RegExp(r'[\s\u4e00-\u9fa5]').hasMatch(normalizedFileInput)) {
@@ -32,7 +36,7 @@ String? normalizeBrowserUrl(String rawValue) {
     return null;
   }
 
-  const allowedSchemes = {'http', 'https', 'file'};
+  const allowedSchemes = {'http', 'https', 'file', 'content'};
   if (!allowedSchemes.contains(uri.scheme.toLowerCase())) {
     return null;
   }
