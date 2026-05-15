@@ -18,6 +18,7 @@ import 'browser_find_controller.dart';
 import 'browser_fullscreen_manager.dart';
 import 'browser_history_recorder.dart';
 import 'browser_history_service.dart';
+import 'browser_imported_document_service.dart';
 import 'browser_long_press_handler.dart';
 import 'browser_popup_window_handler.dart';
 import 'browser_shared_services.dart';
@@ -42,6 +43,7 @@ class BrowserPageServices {
     required this.downloadStore,
     required this.externalUrlLauncher,
     required this.favoriteService,
+    required this.importedDocumentService,
     required this.localHttpFileServerService,
     required this.clipboardService,
     required this.clipboardStorage,
@@ -76,6 +78,9 @@ class BrowserPageServices {
     final downloadStore = sharedServices.downloadStore;
     final externalUrlLauncher = sharedServices.externalUrlLauncher;
     final favoriteService = sharedServices.favoriteService;
+    final importedDocumentService = BrowserImportedDocumentService(
+      favoriteService: favoriteService,
+    );
     final localHttpFileServerService =
         sharedServices.localHttpFileServerService;
     final clipboardService = sharedServices.clipboardService;
@@ -144,6 +149,7 @@ class BrowserPageServices {
       downloadStore: downloadStore,
       externalUrlLauncher: externalUrlLauncher,
       favoriteService: favoriteService,
+      importedDocumentService: importedDocumentService,
       localHttpFileServerService: localHttpFileServerService,
       clipboardService: clipboardService,
       clipboardStorage: clipboardStorage,
@@ -173,6 +179,7 @@ class BrowserPageServices {
   final BrowserDownloadStore downloadStore;
   final BrowserExternalUrlLauncherService externalUrlLauncher;
   final BrowserFavoriteService favoriteService;
+  final BrowserImportedDocumentService importedDocumentService;
   final LocalHttpFileServerService localHttpFileServerService;
   final ClipboardHttpServerService clipboardService;
   final ClipboardStorageService clipboardStorage;
@@ -222,6 +229,7 @@ class BrowserPageInitializer {
     required BrowserSettingsService settingsService,
     required BrowserTabService tabService,
     required BrowserFavoritesCoordinator favoritesCoordinator,
+    required BrowserImportedDocumentService importedDocumentService,
     required BrowserFavoriteStatusTracker favoriteStatusTracker,
     required BrowserVideoDetectionCoordinator videoDetectionCoordinator,
     required ProxyService proxyService,
@@ -231,6 +239,7 @@ class BrowserPageInitializer {
   }) : _settingsService = settingsService,
        _tabService = tabService,
        _favoritesCoordinator = favoritesCoordinator,
+       _importedDocumentService = importedDocumentService,
        _favoriteStatusTracker = favoriteStatusTracker,
        _videoDetectionCoordinator = videoDetectionCoordinator,
        _proxyService = proxyService,
@@ -241,6 +250,7 @@ class BrowserPageInitializer {
   final BrowserSettingsService _settingsService;
   final BrowserTabService _tabService;
   final BrowserFavoritesCoordinator _favoritesCoordinator;
+  final BrowserImportedDocumentService _importedDocumentService;
   final BrowserFavoriteStatusTracker _favoriteStatusTracker;
   final BrowserVideoDetectionCoordinator _videoDetectionCoordinator;
   final ProxyService _proxyService;
@@ -260,6 +270,8 @@ class BrowserPageInitializer {
   }) async {
     final settingsFuture = _settingsService.loadSettings();
     final restoreSessionsFuture = onRestoreSessions();
+    final cleanupImportedFilesFuture = _importedDocumentService
+        .cleanupUnfavoritedImportedFiles();
     _tabService.setFallbackUrl(_favoritesCoordinator.favoritesPageUrl);
 
     final settings = await settingsFuture;
@@ -270,6 +282,7 @@ class BrowserPageInitializer {
       enableWebView: enableWebView,
     );
     await restoreSessionsFuture;
+    await cleanupImportedFilesFuture;
     final appliedSettings = await appliedSettingsFuture;
 
     final externalUrl = onGetInitialIntentUrl != null

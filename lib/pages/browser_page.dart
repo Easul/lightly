@@ -24,6 +24,7 @@ import '../browser/services/browser_find_controller.dart';
 import '../browser/services/browser_fullscreen_manager.dart';
 import '../browser/services/browser_history_recorder.dart';
 import '../browser/services/browser_history_service.dart';
+import '../browser/services/browser_imported_document_service.dart';
 import '../browser/services/browser_long_press_handler.dart';
 import '../browser/services/browser_page_initializer.dart';
 import '../browser/services/browser_popup_window_handler.dart';
@@ -108,6 +109,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _services.favoritesCoordinator;
   ProxyService get _proxyService => _services.proxyService;
   BrowserHistoryService get _historyService => _services.historyService;
+  BrowserImportedDocumentService get _importedDocumentService =>
+      _services.importedDocumentService;
   BrowserDownloadService get _downloadService => _services.downloadService;
   BrowserDownloadStore get _downloadStore => _services.downloadStore;
   BrowserExternalUrlLauncherService get _externalUrlLauncher =>
@@ -181,6 +184,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       settingsService: _settingsService,
       tabService: _tabService,
       favoritesCoordinator: _favoritesCoordinator,
+      importedDocumentService: _importedDocumentService,
       favoriteStatusTracker: _favoriteStatusTracker,
       videoDetectionCoordinator: _videoDetectionCoordinator,
       proxyService: _proxyService,
@@ -216,6 +220,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(_tabService.saveSessions());
+      unawaited(_importedDocumentService.cleanupUnfavoritedImportedFiles());
     }
   }
 
@@ -252,6 +257,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_tabService.saveSessions());
+    unawaited(_importedDocumentService.cleanupUnfavoritedImportedFiles());
     unawaited(_fullscreenManager.restorePortraitIfNeeded());
     _suggestionService.dispose();
     _addressController.dispose();
@@ -340,6 +346,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               ? _updateProgressIfNeeded(100)
               : false;
           _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
+
           final refreshNavigationFuture = _refreshNavigationStateForTab(
             hostedTabId,
             controller,
@@ -363,6 +370,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           )) {
             setState(() {});
           }
+
           final savedScroll =
               _tabCoordinator.tabById(hostedTabId)?.scrollPosition ?? 0;
           if (savedScroll > 0) {

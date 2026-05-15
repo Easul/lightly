@@ -187,6 +187,41 @@ class MainActivity : FlutterActivity() {
         return candidate
     }
 
+    private fun cleanupImportedPrivateFiles(retainedUrls: List<String>): Boolean {
+        val importsDir = File(filesDir, "imported_documents")
+        if (!importsDir.exists()) {
+            return true
+        }
+
+        val importsRoot = importsDir.canonicalFile
+        val retainedFiles = retainedUrls.mapNotNull { retainedUrl ->
+            try {
+                val uri = Uri.parse(retainedUrl)
+                if (uri.scheme?.lowercase() != "file") {
+                    return@mapNotNull null
+                }
+                val path = uri.path ?: return@mapNotNull null
+                val file = File(path).canonicalFile
+                if (file.path.startsWith(importsRoot.path + File.separator)) {
+                    file.path
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }.toSet()
+
+        importsRoot.listFiles()?.forEach { child ->
+            val canonicalChild = child.canonicalFile
+            if (!retainedFiles.contains(canonicalChild.path)) {
+                canonicalChild.delete()
+            }
+        }
+
+        return true
+    }
+
     private val channelName = "browser_proxy"
     private val floatingChannelName = "floating_video"
     private val easyTierChannelName = "easytier_vpn"
@@ -407,6 +442,17 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             Log.e(logTag, "Failed to import content URI: $uriString", e)
                             result.error("IMPORT_FAILED", e.message, null)
+                        }
+                    }
+
+                    "cleanupImportedPrivateFiles" -> {
+                        val retainedUrls =
+                            call.argument<List<String>>("retainedUrls") ?: emptyList()
+                        try {
+                            result.success(cleanupImportedPrivateFiles(retainedUrls))
+                        } catch (e: Exception) {
+                            Log.e(logTag, "Failed to cleanup imported private files", e)
+                            result.error("CLEANUP_FAILED", e.message, null)
                         }
                     }
 
