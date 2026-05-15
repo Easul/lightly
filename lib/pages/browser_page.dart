@@ -236,6 +236,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();
     _resetProgress();
+    _tabCoordinator.trimAllBackgroundKeepAlives();
     _favoritesCoordinator.applyFavoritesHomeState(
       tabCoordinator: _tabCoordinator,
       tabService: _tabService,
