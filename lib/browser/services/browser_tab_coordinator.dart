@@ -119,6 +119,10 @@ class BrowserTabCoordinator {
     );
   }
 
+  int trimAllBackgroundKeepAlives() {
+    return _tabService.trimAllBackgroundKeepAlives();
+  }
+
   BrowserTabUrlSyncResult syncUrlForTabIfNeeded(String tabId, String? url) {
     if (url == null) {
       return const BrowserTabUrlSyncResult(

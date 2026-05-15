@@ -145,6 +145,13 @@ class BrowserTabService {
     return trimmedCount;
   }
 
+  int trimAllBackgroundKeepAlives() {
+    return trimInactiveKeepAlives(
+      inactiveThreshold: Duration.zero,
+      maxRetainedBackgroundTabs: 0,
+    );
+  }
+
   bool ensureKeepAlive(String tabId) {
     final index = _indexOf(tabId);
     if (index == -1) {
@@ -291,6 +298,8 @@ class BrowserTabService {
       }
       if (_tabs.isNotEmpty) {
         _activeTabId = _tabs[activeIndex].id;
+        _touch(_activeTabId!);
+        trimAllBackgroundKeepAlives();
       } else {
         _createInitialTab(fallbackUrl);
       }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lightly/browser/services/browser_tab_service.dart';
 
 void main() {
@@ -82,6 +83,24 @@ void main() {
             .every((tab) => tab.keepAlive == null),
         isTrue,
       );
+    });
+
+    test('restored sessions only keep the active tab alive', () async {
+      SharedPreferences.setMockInitialValues({
+        'browser_tab_sessions_v1':
+            '{"tabs":[{"url":"https://one.example","title":"One"},{"url":"https://two.example","title":"Two"}],"activeIndex":1}',
+      });
+      final service = BrowserTabService.test(maxTabs: 4);
+
+      await service.restoreSessions('https://fallback.example');
+
+      expect(service.activeTab?.url, 'https://two.example');
+      expect(service.activeTab?.keepAlive, isNotNull);
+      final backgroundTabs = service.tabs
+          .where((tab) => tab.id != service.activeTab?.id)
+          .toList(growable: false);
+      expect(backgroundTabs, hasLength(1));
+      expect(backgroundTabs.single.keepAlive, isNull);
     });
   });
 }
