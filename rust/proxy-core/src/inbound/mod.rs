@@ -44,15 +44,16 @@ async fn handle_connection(
         return Err(crate::common::Error::ConnectionClosed);
     }
     
+    let client = pool.get_client("default").await;
+    
     match buf[0] {
         0x05 => {
             log::debug!("SOCKS5 protocol detected");
-            let client = pool.get_client("default").await;
             socks5::handle_socks5(socket, client).await
         }
         b'G' | b'P' | b'H' | b'D' | b'O' | b'T' | b'C' => {
             log::debug!("HTTP protocol detected");
-            http::handle_http(socket).await
+            http::handle_http(socket, client).await
         }
         _ => {
             Err(crate::common::Error::Protocol(

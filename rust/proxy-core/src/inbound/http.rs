@@ -1,9 +1,14 @@
+use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::Mutex;
 use crate::common::Result;
-use std::io::Write;
+use crate::outbound::vless::VlessClient;
 
-pub async fn handle_http(stream: TcpStream) -> Result<()> {
+pub async fn handle_http(
+    stream: TcpStream,
+    outbound: Option<Arc<VlessClient>>,
+) -> Result<()> {
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
     
@@ -25,15 +30,73 @@ pub async fn handle_http(stream: TcpStream) -> Result<()> {
         let (addr, port) = parse_target(target)?;
         log::info!("HTTP CONNECT to {}:{}", addr, port);
         
-        match TcpStream::connect(format!("{}:{}", addr, port)).await {
-            Ok(target) => {
-                let mut stream = reader.into_inner();
-                stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
-                pipe_bidirectional(stream, target).await;
+        match outbound {
+            Some(client) => {
+                match client.connect(&addr, port).await {
+                    Ok(vless_stream) => {
+                        let mut stream = reader.into_inner();
+                        stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
+                        
+                        let vless = Arc::new(Mutex::new(vless_stream));
+                        let vless_clone = vless.clone();
+                        
+                        let (mut client_r, mut client_w) = stream.split();
+                        
+                        let c2v = async move {
+                            let mut buf = [0u8; 4096];
+                            loop {
+                                match client_r.read(&mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if vless.lock().await.write(&buf[..n]).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                        };
+                        
+                        let v2c = async move {
+                            let mut buf = [0u8; 4096];
+                            loop {
+                                match vless_clone.lock().await.read(&mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if client_w.write_all(&buf[..n]).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                            let _ = vless_clone.lock().await.close().await;
+                        };
+                        
+                        tokio::select! {
+                            _ = c2v => {},
+                            _ = v2c => {},
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("VLESS connection failed: {}", e);
+                        let mut stream = reader.into_inner();
+                        stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await?;
+                    }
+                }
             }
-            Err(_) => {
-                let mut stream = reader.into_inner();
-                stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await?;
+            None => {
+                match TcpStream::connect(format!("{}:{}", addr, port)).await {
+                    Ok(target) => {
+                        let mut stream = reader.into_inner();
+                        stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
+                        pipe_bidirectional(stream, target).await;
+                    }
+                    Err(_) => {
+                        let mut stream = reader.into_inner();
+                        stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await?;
+                    }
+                }
             }
         }
     } else {
@@ -45,20 +108,94 @@ pub async fn handle_http(stream: TcpStream) -> Result<()> {
         
         let (addr, port) = parse_target_with_default_port(&host, 80)?;
         
-        let mut target = TcpStream::connect(format!("{}:{}", addr, port)).await?;
-        
-        let mut stream = reader.into_inner();
-        stream.write_all(request_line.as_bytes()).await?;
-        stream.write_all(b"\r\n").await?;
-        for (k, v) in &headers {
-            stream.write_all(format!("{}: {}\r\n", k, v).as_bytes()).await?;
+        match outbound {
+            Some(client) => {
+                match client.connect(&addr, port).await {
+                    Ok(mut vless_stream) => {
+                        let mut stream = reader.into_inner();
+                        
+                        let request_bytes = build_http_request(&request_line, &headers).await;
+                        if let Err(e) = vless_stream.write(&request_bytes).await {
+                            log::error!("Failed to send HTTP request via VLESS: {}", e);
+                            return Ok(());
+                        }
+                        
+                        let vless = Arc::new(Mutex::new(vless_stream));
+                        let vless_clone = vless.clone();
+                        
+                        let (mut client_r, mut client_w) = stream.split();
+                        
+                        let c2v = async move {
+                            let mut buf = [0u8; 4096];
+                            loop {
+                                match client_r.read(&mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if vless.lock().await.write(&buf[..n]).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                        };
+                        
+                        let v2c = async move {
+                            let mut buf = [0u8; 4096];
+                            loop {
+                                match vless_clone.lock().await.read(&mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if client_w.write_all(&buf[..n]).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                            let _ = vless_clone.lock().await.close().await;
+                        };
+                        
+                        tokio::select! {
+                            _ = c2v => {},
+                            _ = v2c => {},
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("VLESS connection failed: {}", e);
+                        let mut stream = reader.into_inner();
+                        stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await?;
+                    }
+                }
+            }
+            None => {
+                let mut target = TcpStream::connect(format!("{}:{}", addr, port)).await?;
+                
+                let mut stream = reader.into_inner();
+                stream.write_all(request_line.as_bytes()).await?;
+                stream.write_all(b"\r\n").await?;
+                for (k, v) in &headers {
+                    stream.write_all(format!("{}: {}\r\n", k, v).as_bytes()).await?;
+                }
+                stream.write_all(b"\r\n").await?;
+                
+                pipe_bidirectional(stream, target).await;
+            }
         }
-        stream.write_all(b"\r\n").await?;
-        
-        pipe_bidirectional(stream, target).await;
     }
     
     Ok(())
+}
+
+async fn build_http_request(request_line: &str, headers: &[(String, String)]) -> Vec<u8> {
+    let mut buf = Vec::new();
+    buf.extend_from_slice(request_line.as_bytes());
+    buf.extend_from_slice(b"\r\n");
+    for (k, v) in headers {
+        buf.extend_from_slice(format!("{}: {}\r\n", k, v).as_bytes());
+    }
+    buf.extend_from_slice(b"\r\n");
+    buf
 }
 
 fn parse_target(target: &str) -> Result<(String, u16)> {
