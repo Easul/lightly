@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 class BrowserFavoriteIcon extends StatelessWidget {
@@ -8,6 +10,7 @@ class BrowserFavoriteIcon extends StatelessWidget {
     this.size = 44,
     this.onTap,
     this.onLongPress,
+    this.proxyUrl,
   });
 
   final String url;
@@ -15,6 +18,7 @@ class BrowserFavoriteIcon extends StatelessWidget {
   final double size;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final String? proxyUrl;
 
   String get _faviconUrl {
     try {
@@ -23,6 +27,19 @@ class BrowserFavoriteIcon extends StatelessWidget {
     } catch (_) {
       return '';
     }
+  }
+
+  Map<String, String>? get _imageHeaders {
+    // 当使用代理时，添加Referer头避免部分网站阻止直接请求图标
+    if (proxyUrl != null && proxyUrl!.isNotEmpty) {
+      try {
+        final uri = Uri.parse(url);
+        return {HttpHeaders.refererHeader: '${uri.scheme}://${uri.host}'};
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   Color get _fallbackColor {
@@ -78,6 +95,7 @@ class BrowserFavoriteIcon extends StatelessWidget {
                 height: size,
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.low,
+                headers: _imageHeaders,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     color: _fallbackColor,

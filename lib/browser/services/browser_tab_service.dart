@@ -153,9 +153,10 @@ class BrowserTabService {
   }
 
   int trimKeepAlivesForOverlay() {
+    // 延长 overlay 模式下的保留时间和数量，减少状态丢失
     return trimInactiveKeepAlives(
-      inactiveThreshold: const Duration(minutes: 2),
-      maxRetainedBackgroundTabs: 2,
+      inactiveThreshold: const Duration(minutes: 5),
+      maxRetainedBackgroundTabs: 3,
     );
   }
 

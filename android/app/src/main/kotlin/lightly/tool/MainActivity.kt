@@ -460,6 +460,62 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        // MediaScanner channel - 用于通知系统文件管理器扫描新文件
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "media_scanner")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "scanFile" -> {
+                        val filePath = call.argument<String>("filePath")
+                        if (filePath.isNullOrEmpty()) {
+                            result.error("INVALID_PATH", "File path is required", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val file = java.io.File(filePath)
+                            if (file.exists()) {
+                                // 使用 MediaScannerConnection 通知系统扫描新文件
+                                android.media.MediaScannerConnection.scanFile(
+                                    this,
+                                    arrayOf(filePath),
+                                    null
+                                ) { _, _ -> }
+                                result.success(true)
+                            } else {
+                                result.success(false)
+                            }
+                        } catch (e: Exception) {
+                            result.error("SCAN_FAILED", e.message, null)
+                        }
+                    }
+                    "scanDirectory" -> {
+                        val dirPath = call.argument<String>("directoryPath")
+                        if (dirPath.isNullOrEmpty()) {
+                            result.error("INVALID_PATH", "Directory path is required", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val dir = java.io.File(dirPath)
+                            if (dir.exists() && dir.isDirectory) {
+                                val files = dir.listFiles()?.map { it.absolutePath }?.toTypedArray()
+                                if (files != null && files.isNotEmpty()) {
+                                    android.media.MediaScannerConnection.scanFile(
+                                        this,
+                                        files,
+                                        null
+                                    ) { _, _ -> }
+                                }
+                                result.success(true)
+                            } else {
+                                result.success(false)
+                            }
+                        } catch (e: Exception) {
+                            result.error("SCAN_FAILED", e.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, easyTierChannelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

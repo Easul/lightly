@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
+
+import '../../services/media_scanner_service.dart';
 
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
@@ -235,6 +238,8 @@ class BrowserDownloadService {
         savedPath: savedPath,
       );
       await downloadStore.update(currentRecord);
+      // 扫描新下载的文件，让系统文件管理器可以看到
+      unawaited(MediaScannerService.scanFile(savedPath));
       onStatus('下载完成：${record.fileName}');
     } catch (_) {
       currentRecord = currentRecord.copyWith(status: 'failed');
