@@ -124,5 +124,38 @@ void main() {
       expect(firstTabAfterSwitch.keepAlive, isNotNull);
       expect(secondTabAfterSwitch.keepAlive, isNotNull);
     });
+
+    test('overlay trimming retains two recent background tabs', () {
+      final service = BrowserTabService.test(maxTabs: 5);
+      service.initialize('https://one.example');
+      final second = service.openTab(url: 'https://two.example');
+      final third = service.openTab(url: 'https://three.example');
+      final fourth = service.openTab(url: 'https://four.example');
+
+      service.activateTab(second.id);
+      service.activateTab(third.id);
+      service.activateTab(fourth.id);
+
+      final trimmed = service.trimKeepAlivesForOverlay();
+
+      expect(trimmed, 1);
+      final firstTab = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://one.example',
+      );
+      final secondTab = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://two.example',
+      );
+      final thirdTab = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://three.example',
+      );
+      final fourthTab = service.tabs.firstWhere(
+        (tab) => tab.url == 'https://four.example',
+      );
+
+      expect(firstTab.keepAlive, isNull);
+      expect(secondTab.keepAlive, isNotNull);
+      expect(thirdTab.keepAlive, isNotNull);
+      expect(fourthTab.keepAlive, isNotNull);
+    });
   });
 }

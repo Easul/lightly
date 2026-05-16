@@ -123,6 +123,10 @@ class BrowserTabCoordinator {
     return _tabService.trimAllBackgroundKeepAlives();
   }
 
+  int trimKeepAlivesForOverlay() {
+    return _tabService.trimKeepAlivesForOverlay();
+  }
+
   BrowserTabUrlSyncResult syncUrlForTabIfNeeded(String tabId, String? url) {
     if (url == null) {
       return const BrowserTabUrlSyncResult(

@@ -152,6 +152,13 @@ class BrowserTabService {
     );
   }
 
+  int trimKeepAlivesForOverlay() {
+    return trimInactiveKeepAlives(
+      inactiveThreshold: const Duration(minutes: 2),
+      maxRetainedBackgroundTabs: 2,
+    );
+  }
+
   bool ensureKeepAlive(String tabId) {
     final index = _indexOf(tabId);
     if (index == -1) {
