@@ -40,6 +40,20 @@ jobs:
     - name: Install dependencies
       run: flutter pub get
     
+    - name: Install Rust
+      uses: dtolnay/rust-action@stable
+      with:
+        targets: aarch64-linux-android,armv7-linux-androideabi
+    
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk
+    
+    - name: Build proxy-core native libraries
+      run: |
+        ./scripts/build_proxy_core.sh --all
+        echo "✅ Proxy-core native libraries built"
+        ls -lh android/app/src/main/jniLibs/*/libproxy_core.so
+    
     - name: Get version info
       id: version
       run: |
