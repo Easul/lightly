@@ -10,6 +10,9 @@ import '../services/remote_control_protocol.dart' as protocol;
 import '../services/app_lifecycle_manager.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_network_info_analyzer.dart';
+import '../browser/proxy_service.dart';
+import '../browser/browser_settings_service.dart';
+import '../browser/browser_settings.dart';
 
 class RemoteControlPage extends StatefulWidget {
   const RemoteControlPage({super.key});
@@ -26,6 +29,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final TextEditingController _screenPortController = TextEditingController();
   final TextEditingController _audioPortController = TextEditingController();
   final EasyTierService _easyTierService = EasyTierService();
+  final ProxyService _proxyService = ProxyService();
+  final BrowserSettingsService _settingsService = BrowserSettingsService();
 
   RemoteControlMode _selectedMode = RemoteControlMode.controller;
   RemoteControlPortConfig? _portConfig;
@@ -34,6 +39,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   String? _errorMessage;
   List<Map<String, String>> _peers = [];
   bool _isLoadingPeers = false;
+  bool _useInternalProxy = false;
+  BrowserSettings? _settings;
+  bool _isProxyRunning = false;
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
@@ -45,7 +53,26 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _messageSubscription = _service.messageStream.listen(_handleMessage);
     _portConfig = _service.config?.ports;
     _applyPortConfigToInputs(_portConfig);
+    _loadSettings();
     _loadPeers();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await _settingsService.loadSettings();
+    if (mounted) {
+      setState(() {
+        _settings = settings;
+        _isProxyRunning = _proxyService.isRunning;
+      });
+    }
+    // 监听代理状态变化
+    _proxyService.stateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isProxyRunning = state == ProxyState.started;
+        });
+      }
+    });
   }
 
   @override
@@ -226,8 +253,29 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _errorMessage = null;
     });
 
+    // 如果使用内置代理，确保代理已启动
+    if (_useInternalProxy) {
+      if (_settings == null || !_settings!.shouldApplyProxy) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('请先在设置中配置并启用代理')));
+        }
+        setState(() => _isConnecting = false);
+        return;
+      }
+      if (!_proxyService.isRunning) {
+        await _proxyService.applyProxy(_settings!);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
     if (_portConfig == null) {
-      final discoveredPorts = await _service.discoverReceiverPorts(host);
+      final discoveredPorts = await _service.discoverReceiverPorts(
+        host,
+        useProxy: _useInternalProxy,
+        proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+      );
       if (discoveredPorts != null && mounted) {
         setState(() {
           _portConfig = discoveredPorts;
@@ -239,7 +287,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     Object? lastError;
     for (final ports in _buildCandidatePorts()) {
       try {
-        await _service.connectToReceiver(host, ports);
+        await _service.connectToReceiver(
+          host,
+          ports,
+          useProxy: _useInternalProxy,
+          proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+        );
         if (!mounted) {
           return;
         }
@@ -400,6 +453,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       audioPortController: _audioPortController,
       portConfig: _portConfig,
       isConnecting: _isConnecting,
+      useInternalProxy: _useInternalProxy,
+      isProxyRunning: _isProxyRunning,
       onReloadPeers: _loadPeers,
       onSelectPeer: _selectPeer,
       onControlPortChanged: (value) {
@@ -428,6 +483,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
             audioPort: value,
           );
         });
+      },
+      onUseInternalProxyChanged: (value) {
+        setState(() => _useInternalProxy = value);
       },
       onConnect: _connectToReceiver,
     );

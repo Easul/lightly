@@ -206,11 +206,14 @@ class RemoteControlControllerSection extends StatelessWidget {
   final TextEditingController audioPortController;
   final RemoteControlPortConfig? portConfig;
   final bool isConnecting;
+  final bool useInternalProxy;
+  final bool isProxyRunning;
   final VoidCallback onReloadPeers;
   final void Function(Map<String, String> peer) onSelectPeer;
   final ValueChanged<int> onControlPortChanged;
   final ValueChanged<int> onScreenPortChanged;
   final ValueChanged<int> onAudioPortChanged;
+  final ValueChanged<bool> onUseInternalProxyChanged;
   final VoidCallback onConnect;
 
   const RemoteControlControllerSection({
@@ -224,11 +227,14 @@ class RemoteControlControllerSection extends StatelessWidget {
     required this.audioPortController,
     required this.portConfig,
     required this.isConnecting,
+    required this.useInternalProxy,
+    required this.isProxyRunning,
     required this.onReloadPeers,
     required this.onSelectPeer,
     required this.onControlPortChanged,
     required this.onScreenPortChanged,
     required this.onAudioPortChanged,
+    required this.onUseInternalProxyChanged,
     required this.onConnect,
   });
 
@@ -269,12 +275,62 @@ class RemoteControlControllerSection extends StatelessWidget {
                 label: const Text('刷新设备列表'),
               ),
             const SizedBox(height: 16),
+            Card(
+              margin: EdgeInsets.zero,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.router,
+                          size: 20,
+                          color: isProxyRunning ? Colors.green : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '使用内置代理连接',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        Switch(
+                          value: useInternalProxy,
+                          onChanged: isProxyRunning
+                              ? onUseInternalProxyChanged
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isProxyRunning
+                          ? '数据将通过浏览器代理转发到服务器，由服务器与被控端P2P通信'
+                          : '请先在设置中配置并启用代理',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: hostController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '被控端地址',
-                hintText: '例如: 10.126.126.2 或 192.168.1.100',
-                border: OutlineInputBorder(),
+                hintText: useInternalProxy
+                    ? '例如: 10.126.126.2 (通过代理转发)'
+                    : '例如: 10.126.126.2 或 192.168.1.100',
+                border: const OutlineInputBorder(),
               ),
               keyboardType: TextInputType.url,
             ),

@@ -312,6 +312,8 @@ class RemoteControlService {
     RemoteControlPortConfig ports, {
     List<String> availableHosts = const [],
     int discoveryDelayMs = 0,
+    bool useProxy = false,
+    int? proxyPort,
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
@@ -340,6 +342,8 @@ class RemoteControlService {
         final connection = await _lifecycleHelper.connectControllerSockets(
           host: host,
           config: _config!,
+          useProxy: useProxy,
+          proxyPort: proxyPort,
           onControlData: _handleControlData,
           onControlError: _handleControlError,
           onControlDone: _handleControlDone,
@@ -397,11 +401,17 @@ class RemoteControlService {
     throw lastError ?? Exception('连接失败');
   }
 
-  Future<RemoteControlPortConfig?> discoverReceiverPorts(String host) async {
+  Future<RemoteControlPortConfig?> discoverReceiverPorts(
+    String host, {
+    bool useProxy = false,
+    int? proxyPort,
+  }) async {
     return _connectionHelper.discoverReceiverPorts(
       host: host,
       statusBridge: _statusBridge,
       decodeBufferedMessages: _commandHelper.decodeBufferedMessages,
+      useProxy: useProxy,
+      proxyPort: proxyPort,
     );
   }
 
