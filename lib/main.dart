@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
 import 'services/app_log_service.dart';
+import 'services/app_lifecycle_manager.dart';
 import 'pages/browser_page.dart';
 import 'pages/clipboard_page.dart';
 import 'pages/game_2048_page.dart';
@@ -19,6 +20,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final appLogService = AppLogService.instance;
   await appLogService.initialize();
+
+  // 初始化应用生命周期管理器，确保服务默认关闭状态
+  await AppLifecycleManager().initialize();
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);

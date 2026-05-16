@@ -7,6 +7,7 @@ import 'remote_control_session_page.dart';
 import 'remote_control_setup_sections.dart';
 import '../services/remote_control_service.dart';
 import '../services/remote_control_protocol.dart' as protocol;
+import '../services/app_lifecycle_manager.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_network_info_analyzer.dart';
 
@@ -49,9 +50,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   @override
   void dispose() {
-    if (_service.mode == RemoteControlMode.receiver || _service.isConnected) {
-      unawaited(_service.disconnect());
-    }
+    // 不在页面退出时自动断开连接，保持后台服务运行
     _hostController.dispose();
     _controlPortController.dispose();
     _screenPortController.dispose();
@@ -116,6 +115,22 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     try {
       final config = await RemoteControlConfig.defaultConfig();
+
+      // 检查并尝试启动 VPN
+      final vpnStarted = await AppLifecycleManager()
+          .ensureVpnForRemoteControl();
+      if (!vpnStarted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('请先在设置中配置并选择一个 P2P 网络配置'),
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        setState(() => _isConnecting = false);
+        return;
+      }
 
       final hasPermission =
           await _channel.invokeMethod<bool>('checkAccessibilityPermission') ??

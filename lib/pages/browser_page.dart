@@ -56,6 +56,7 @@ import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
 import 'browser_site_security_dialogs.dart';
 import 'browser_site_data_manager.dart';
+import '../services/app_lifecycle_manager.dart';
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key, this.enableWebView = true});
@@ -1251,6 +1252,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           await _closeTab(externalTabId);
         }
         if (mounted) {
+          await AppLifecycleManager().shutdownAllServices();
           await SystemNavigator.pop();
         }
         return;
@@ -1265,6 +1267,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         return;
       case BrowserPageBackAction.exitApp:
         if (mounted) {
+          await AppLifecycleManager().shutdownAllServices();
           await SystemNavigator.pop();
         }
         return;
@@ -1531,6 +1534,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onCloseTab: _closeCurrentTab,
       onOpenSettings: _openSettings,
       onExitApp: () async {
+        await AppLifecycleManager().shutdownAllServices();
         await SystemNavigator.pop();
       },
       onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
