@@ -605,6 +605,28 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.proxy.core/proxy")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "nativeInit" -> {
+                        val logLevel = call.argument<String>("logLevel") ?: "info"
+                        val res = com.proxy.core.ProxyCore.nativeInit(logLevel)
+                        result.success(res)
+                    }
+                    "nativeStart" -> {
+                        val listenAddr = call.argument<String>("listenAddr") ?: "127.0.0.1:23333"
+                        val config = call.argument<String>("config") ?: "{}"
+                        val res = com.proxy.core.ProxyCore.nativeStart(listenAddr, config)
+                        result.success(res)
+                    }
+                    "nativeStop" -> {
+                        val res = com.proxy.core.ProxyCore.nativeStop()
+                        result.success(res)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, remoteControlChannelName)
         channel?.setMethodCallHandler { call, result ->
                 when (call.method) {
