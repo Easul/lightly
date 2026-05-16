@@ -1,9 +1,15 @@
+use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::Mutex;
 use crate::common::Result;
-use std::net::SocketAddr;
+use crate::outbound::vless::VlessClient;
+use crate::pool::ConnectionPool;
 
-pub async fn handle_socks5(mut stream: TcpStream) -> Result<()> {
+pub async fn handle_socks5(
+    mut stream: TcpStream,
+    outbound: Option<Arc<VlessClient>>,
+) -> Result<()> {
     let mut buf = [0u8; 2];
     stream.read_exact(&mut buf).await?;
     
@@ -67,24 +73,86 @@ pub async fn handle_socks5(mut stream: TcpStream) -> Result<()> {
     
     log::info!("SOCKS5 connecting to {}:{}", addr, port);
     
-    match TcpStream::connect(format!("{}:{}", addr, port)).await {
-        Ok(target) => {
-            let bind_addr = target.local_addr().unwrap_or_else(|_| {
-                SocketAddr::from(([127, 0, 0, 1], 0))
-            });
-            
-            stream.write_all(&[
-                0x05, 0x00, 0x00, 0x01,
-                0, 0, 0, 0,
-                (bind_addr.port() >> 8) as u8,
-                (bind_addr.port() & 0xFF) as u8,
-            ]).await?;
-            
-            pipe_bidirectional(stream, target).await;
+    match outbound {
+        Some(client) => {
+            match client.connect(&addr, port).await {
+                Ok(vless_stream) => {
+                    stream.write_all(&[
+                        0x05, 0x00, 0x00, 0x01,
+                        0, 0, 0, 0,
+                        (port >> 8) as u8,
+                        (port & 0xFF) as u8,
+                    ]).await?;
+                    
+                    let vless = Arc::new(Mutex::new(vless_stream));
+                    let vless_clone = vless.clone();
+                    
+                    let (mut client_r, mut client_w) = stream.split();
+                    
+                    let c2v = async move {
+                        let mut buf = [0u8; 4096];
+                        loop {
+                            match client_r.read(&mut buf).await {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    if vless.lock().await.write(&buf[..n]).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                    };
+                    
+                    let v2c = async move {
+                        let mut buf = [0u8; 4096];
+                        loop {
+                            match vless_clone.lock().await.read(&mut buf).await {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    if client_w.write_all(&buf[..n]).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                        let _ = vless_clone.lock().await.close().await;
+                    };
+                    
+                    tokio::select! {
+                        _ = c2v => {},
+                        _ = v2c => {},
+                    }
+                }
+                Err(e) => {
+                    log::error!("VLESS connection failed: {}", e);
+                    stream.write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+                }
+            }
         }
-        Err(e) => {
-            stream.write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
-            return Err(e.into());
+        None => {
+            match TcpStream::connect(format!("{}:{}", addr, port)).await {
+                Ok(target) => {
+                    use std::net::SocketAddr;
+                    let bind_addr = target.local_addr().unwrap_or_else(|_| {
+                        SocketAddr::from(([127, 0, 0, 1], 0))
+                    });
+                    
+                    stream.write_all(&[
+                        0x05, 0x00, 0x00, 0x01,
+                        0, 0, 0, 0,
+                        (bind_addr.port() >> 8) as u8,
+                        (bind_addr.port() & 0xFF) as u8,
+                    ]).await?;
+                    
+                    pipe_bidirectional(stream, target).await;
+                }
+                Err(e) => {
+                    stream.write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+                    return Err(e.into());
+                }
+            }
         }
     }
     
