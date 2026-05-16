@@ -158,7 +158,7 @@ impl VlessStream {
     }
 }
 
-fn parse_uuid(uuid_str: &str) -> Result<[u8; 16]> {
+pub fn parse_uuid(uuid_str: &str) -> Result<[u8; 16]> {
     let hex_str = uuid_str.replace("-", "");
     if hex_str.len() != 32 {
         return Err(Error::InvalidConfig("Invalid UUID format".to_string()));
@@ -180,7 +180,7 @@ fn generate_sec_websocket_key() -> String {
     base64::encode(&bytes)
 }
 
-fn build_vless_request(uuid: &[u8; 16], addr: &str, port: u16) -> Bytes {
+pub fn build_vless_request(uuid: &[u8; 16], addr: &str, port: u16) -> Bytes {
     let mut buf = BytesMut::new();
     
     buf.extend_from_slice(&[0x00]);

@@ -1306,6 +1306,7 @@ dependencies = [
  "jni",
  "libc",
  "log",
+ "once_cell",
  "pin-project",
  "quinn",
  "quinn-proto",
