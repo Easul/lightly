@@ -48,6 +48,7 @@ Future<void> showBrowserMoreActionsModal({
   required VoidCallback onOpenDataManagement,
   required VoidCallback onCloseTab,
   required VoidCallback onOpenSettings,
+  required VoidCallback onExitApp,
   required VoidCallback? onOpenFavoritesMenu,
   required VoidCallback onFindInPage,
 }) {
@@ -62,6 +63,7 @@ Future<void> showBrowserMoreActionsModal({
       onOpenDataManagement: onOpenDataManagement,
       onCloseTab: onCloseTab,
       onOpenSettings: onOpenSettings,
+      onExitApp: onExitApp,
       onOpenFavoritesMenu: onOpenFavoritesMenu,
       onFindInPage: onFindInPage,
     ),

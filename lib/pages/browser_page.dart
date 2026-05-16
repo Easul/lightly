@@ -1530,6 +1530,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onOpenDataManagement: _openDataManagement,
       onCloseTab: _closeCurrentTab,
       onOpenSettings: _openSettings,
+      onExitApp: () async {
+        await SystemNavigator.pop();
+      },
       onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
           ? _showFavoritesMenu
           : null,

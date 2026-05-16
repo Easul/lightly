@@ -45,8 +45,13 @@ class BrowserTabCoordinator {
   List<BrowserTabSession> get tabs => _tabService.tabs;
   String get currentUrl => activeTab?.url ?? _favoritesPageUrl;
   bool get isLoading => activeTab?.isLoading ?? false;
-  bool get canGoBack =>
-      (activeTab?.canGoBack ?? false) || !isFavoritesPage(currentUrl);
+  bool get canGoBack {
+    if (isFavoritesPage(currentUrl)) {
+      return false;
+    }
+    return activeTab?.canGoBack ?? false;
+  }
+
   bool get canGoForward => activeTab?.canGoForward ?? false;
   bool get isSecure =>
       !isFavoritesPage(currentUrl) && currentUrl.startsWith('https://');

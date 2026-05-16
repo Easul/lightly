@@ -460,7 +460,6 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // MediaScanner channel - 用于通知系统文件管理器扫描新文件
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "media_scanner")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -473,7 +472,6 @@ class MainActivity : FlutterActivity() {
                         try {
                             val file = java.io.File(filePath)
                             if (file.exists()) {
-                                // 使用 MediaScannerConnection 通知系统扫描新文件
                                 android.media.MediaScannerConnection.scanFile(
                                     this,
                                     arrayOf(filePath),
