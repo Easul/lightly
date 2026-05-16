@@ -1506,7 +1506,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showTabSwitcher() async {
-    _tabCoordinator.trimInactiveKeepAlives();
+    _tabCoordinator.trimKeepAlivesForOverlay();
     await Future<void>.delayed(Duration.zero);
     await showBrowserTabSwitcherModal(
       context: context,
@@ -1626,7 +1626,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       child: Scaffold(
         onDrawerChanged: (isOpen) {
           if (isOpen) {
-            _tabCoordinator.trimInactiveKeepAlives();
+            _tabCoordinator.trimKeepAlivesForOverlay();
           }
         },
         drawer: AppDrawer(onOpenSettings: _openSettings),
