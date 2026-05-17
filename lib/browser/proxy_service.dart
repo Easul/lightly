@@ -3,47 +3,65 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../services/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
 import 'local_mixed_proxy_server.dart';
-import 'vless_client.dart';
 
 class ProxyService {
   ProxyService._internal({
     required LocalMixedProxyServer localProxyServer,
+    required proxy_core.ProxyCoreService proxyCoreService,
     required MethodChannel proxyChannel,
   }) : _localProxyServer = localProxyServer,
+       _proxyCoreService = proxyCoreService,
        _proxyChannel = proxyChannel;
 
   factory ProxyService({
     LocalMixedProxyServer? localProxyServer,
+    proxy_core.ProxyCoreService? proxyCoreService,
     MethodChannel? proxyChannel,
   }) {
-    if (localProxyServer == null && proxyChannel == null) {
+    if (localProxyServer == null &&
+        proxyCoreService == null &&
+        proxyChannel == null) {
       return _sharedInstance;
     }
 
     return ProxyService._internal(
       localProxyServer: localProxyServer ?? LocalMixedProxyServer(),
+      proxyCoreService: proxyCoreService ?? proxy_core.ProxyCoreService(),
       proxyChannel: proxyChannel ?? const MethodChannel('browser_proxy'),
     );
   }
 
   static final ProxyService _sharedInstance = ProxyService._internal(
     localProxyServer: LocalMixedProxyServer(),
+    proxyCoreService: proxy_core.ProxyCoreService(),
     proxyChannel: const MethodChannel('browser_proxy'),
   );
 
   final LocalMixedProxyServer _localProxyServer;
+  final proxy_core.ProxyCoreService _proxyCoreService;
   final MethodChannel _proxyChannel;
 
   final _stateController = StreamController<ProxyState>.broadcast();
   ProxyState _currentState = ProxyState.stopped;
   String? _activeProxyFingerprint;
 
-  bool get isRunning => _localProxyServer.isRunning;
+  bool get isRunning =>
+      _localProxyServer.isRunning || _proxyCoreService.isRunning;
 
-  int? get localProxyPort => _localProxyServer.boundPort;
+  int? get localProxyPort {
+    if (_localProxyServer.boundPort != null) {
+      return _localProxyServer.boundPort;
+    }
+    final parts = _proxyCoreService.listenAddr.split(':');
+    if (parts.length < 2) {
+      return null;
+    }
+    return int.tryParse(parts.last);
+  }
 
   ProxyState get currentState => _currentState;
 
@@ -85,50 +103,46 @@ class ProxyService {
     }
 
     if (settings.proxyProtocol == BrowserProxyProtocol.vless) {
-      // VLESS: Start local mixed proxy server that tunnels through VLESS
-      final config = VlessConfig(
+      final config = proxy_core.VlessConfig(
         uuid: settings.proxyUuid.trim(),
-        host: settings.proxyHost.trim(),
-        port: settings.proxyPort!,
+        serverAddr: settings.proxyHost.trim(),
+        serverPort: settings.proxyPort!,
         security: settings.proxyTlsEnabled ? 'tls' : 'none',
+        host: settings.proxyTransportHost.trim().isEmpty
+            ? null
+            : settings.proxyTransportHost.trim(),
         sni: settings.proxyServerName.trim().isEmpty
             ? null
             : settings.proxyServerName.trim(),
-        transportType: settings.proxyTransportType.trim().isEmpty
-            ? null
-            : settings.proxyTransportType.trim(),
-        wsPath: settings.proxyTransportPath.trim().isEmpty
-            ? null
+        path: settings.proxyTransportPath.trim().isEmpty
+            ? '/'
             : settings.proxyTransportPath.trim(),
-        wsHost: settings.proxyTransportHost.trim().isEmpty
-            ? null
-            : settings.proxyTransportHost.trim(),
-        packetEncoding: settings.proxyPacketEncoding.trim().isEmpty
-            ? null
-            : settings.proxyPacketEncoding.trim(),
         tlsInsecure: settings.proxyTlsInsecure,
       );
 
       _emitState(ProxyState.starting);
 
       try {
-        await _localProxyServer.start(
-          config,
-          preferredPort: settings.localProxyPort,
+        final result = await _proxyCoreService.startWithVless(
+          logLevel: 'debug',
+          listenAddr: '127.0.0.1:${settings.localProxyPort ?? 23333}',
+          vlessConfig: config,
         );
+        if (result != 0) {
+          throw StateError('Rust proxy core start failed: $result');
+        }
       } catch (e) {
         _emitState(ProxyState.stopped);
         rethrow;
       }
 
-      final localPort = _localProxyServer.boundPort;
+      final localPort = settings.localProxyPort ?? localProxyPort;
       if (localPort == null) {
-        await _localProxyServer.stop();
+        await _proxyCoreService.stop();
         _emitState(ProxyState.stopped);
         throw StateError('Local HTTP proxy port was not assigned');
       }
 
-      // Point WebView to our local HTTP proxy server
       await _setWebViewProxy(
         LocalMixedProxyServer.localHost,
         localPort,
@@ -183,10 +197,12 @@ class ProxyService {
     }
 
     if (!_localProxyServer.isRunning) {
-      return false;
+      if (!_proxyCoreService.isRunning) {
+        return false;
+      }
     }
 
-    final localPort = _localProxyServer.boundPort;
+    final localPort = settings.localProxyPort ?? this.localProxyPort;
     if (localPort == null) {
       return false;
     }
@@ -203,6 +219,9 @@ class ProxyService {
   Future<void> _stopLocalProxy() async {
     if (_localProxyServer.isRunning) {
       await _localProxyServer.stop();
+    }
+    if (_proxyCoreService.isRunning) {
+      await _proxyCoreService.stop();
     }
   }
 
@@ -269,7 +288,7 @@ class ProxyService {
       return 'PROXY ${settings.proxyHost.trim()}:${settings.proxyPort!}';
     }
 
-    final localPort = _localProxyServer.boundPort;
+    final localPort = settings.localProxyPort ?? this.localProxyPort;
     if (localPort == null) {
       return 'DIRECT';
     }
@@ -327,42 +346,52 @@ class ProxyService {
       throw StateError('Unsupported proxy protocol: ${settings.proxyProtocol}');
     }
 
-    final tempServer = LocalMixedProxyServer();
     final probeTimeout = timeout < const Duration(seconds: 30)
         ? const Duration(seconds: 30)
         : timeout;
-    final config = VlessConfig(
+    final config = proxy_core.VlessConfig(
       uuid: settings.proxyUuid.trim(),
-      host: settings.proxyHost.trim(),
-      port: settings.proxyPort!,
+      serverAddr: settings.proxyHost.trim(),
+      serverPort: settings.proxyPort!,
       security: settings.proxyTlsEnabled ? 'tls' : 'none',
       sni: settings.proxyServerName.trim().isEmpty
           ? null
           : settings.proxyServerName.trim(),
-      transportType: settings.proxyTransportType.trim().isEmpty
-          ? null
-          : settings.proxyTransportType.trim(),
-      wsPath: settings.proxyTransportPath.trim().isEmpty
-          ? null
-          : settings.proxyTransportPath.trim(),
-      wsHost: settings.proxyTransportHost.trim().isEmpty
+      host: settings.proxyTransportHost.trim().isEmpty
           ? null
           : settings.proxyTransportHost.trim(),
-      packetEncoding: settings.proxyPacketEncoding.trim().isEmpty
-          ? null
-          : settings.proxyPacketEncoding.trim(),
+      path: settings.proxyTransportPath.trim().isEmpty
+          ? '/'
+          : settings.proxyTransportPath.trim(),
       tlsInsecure: settings.proxyTlsInsecure,
     );
 
+    final usingExistingRustProxy = _proxyCoreService.isRunning;
+    final tempProxyCoreService = usingExistingRustProxy
+        ? null
+        : proxy_core.ProxyCoreService();
+    final tempListenPort = usingExistingRustProxy
+        ? localProxyPort
+        : await _allocateEphemeralLoopbackPort();
+
+    if (tempListenPort == null) {
+      throw StateError('Temporary Rust proxy port was not assigned');
+    }
+
     try {
-      await tempServer.start(config);
-      final localPort = tempServer.boundPort;
-      if (localPort == null) {
-        throw StateError('Local proxy port was not assigned');
+      if (tempProxyCoreService != null) {
+        final startResult = await tempProxyCoreService.startWithVless(
+          logLevel: 'debug',
+          listenAddr: '127.0.0.1:$tempListenPort',
+          vlessConfig: config,
+        );
+        if (startResult != 0) {
+          throw StateError('Temporary Rust proxy start failed: $startResult');
+        }
       }
 
       final httpLatency = await _measureHttpRequest(
-        proxy: 'PROXY ${LocalMixedProxyServer.localHost}:$localPort',
+        proxy: 'PROXY ${LocalMixedProxyServer.localHost}:$tempListenPort',
         timeout: probeTimeout,
         testUrls: [
           testUrl,
@@ -379,7 +408,17 @@ class ProxyService {
         timeout: probeTimeout,
       );
     } finally {
-      await tempServer.stop();
+      await tempProxyCoreService?.stop();
+    }
+  }
+
+  Future<int?> _allocateEphemeralLoopbackPort() async {
+    ServerSocket? socket;
+    try {
+      socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      return socket.port;
+    } finally {
+      await socket?.close();
     }
   }
 

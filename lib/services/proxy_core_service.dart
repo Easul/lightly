@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 
@@ -95,6 +93,7 @@ class VlessConfig {
   final String? host;
   final String? sni;
   final String path;
+  final bool tlsInsecure;
 
   VlessConfig({
     required this.uuid,
@@ -104,6 +103,7 @@ class VlessConfig {
     this.host,
     this.sni,
     this.path = '/',
+    this.tlsInsecure = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -116,6 +116,7 @@ class VlessConfig {
         'host': host,
         'sni': sni,
         'path': path,
+        'tls_insecure': tlsInsecure,
       },
     };
   }
