@@ -245,6 +245,8 @@ class ProxyConfigurationForm extends StatelessWidget {
           decoration: InputDecoration(
             labelText: selectedProtocol == BrowserProxyProtocol.http
                 ? '密码（可选）'
+                : selectedProtocol == BrowserProxyProtocol.hysteria2
+                ? '认证密码 / Auth'
                 : 'UUID',
             prefixIcon: const Icon(Icons.key_outlined),
           ),
@@ -314,11 +316,14 @@ class ProxyConfigurationForm extends StatelessWidget {
             DropdownMenuItem(value: '', child: Text('默认')),
             DropdownMenuItem(value: 'xudp', child: Text('xudp')),
           ],
-          onChanged: !proxyEnabled
+          onChanged:
+              !proxyEnabled ||
+                  selectedProtocol == BrowserProxyProtocol.hysteria2
               ? null
               : (value) => onPacketEncodingChanged(value ?? ''),
         ),
-        if (proxyTlsEnabled) ...[
+        if (proxyTlsEnabled ||
+            selectedProtocol == BrowserProxyProtocol.hysteria2) ...[
           const SizedBox(height: 12),
           TextField(
             controller: proxyServerNameController,
@@ -449,7 +454,8 @@ class _NodeLinkParserCard extends StatelessWidget {
           controller: nodeLinkController,
           decoration: const InputDecoration(
             labelText: '粘贴 vless:// 或 http:// 链接',
-            hintText: 'vless://uuid@host:port?...',
+            hintText:
+                'vless://uuid@host:port?... 或 hysteria2://password@host:port?...',
             prefixIcon: Icon(Icons.content_paste_outlined),
           ),
         ),

@@ -111,7 +111,9 @@ class SettingsPageHomeSections extends StatelessWidget {
                 ),
                 detailText:
                     formController.selectedProtocol ==
-                        BrowserProxyProtocol.vless
+                            BrowserProxyProtocol.vless ||
+                        formController.selectedProtocol ==
+                            BrowserProxyProtocol.hysteria2
                     ? '本地 mixed 端口（HTTP + SOCKS5）：${proxyService.localProxyPort?.toString() ?? '未启动'}'
                     : '代理地址：${formController.proxyHostController.text.trim().isEmpty ? '未设置' : '${formController.proxyHostController.text.trim()}:${formController.proxyPortController.text.trim()}'}',
                 nodeLinkController: formController.nodeLinkController,
