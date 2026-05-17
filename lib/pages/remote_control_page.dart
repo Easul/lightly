@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_session_page.dart';
+import 'remote_control_page_connection_helper.dart';
+import 'remote_control_page_port_config_helper.dart';
+import 'remote_control_page_receiver_helper.dart';
 import 'remote_control_setup_sections.dart';
 import '../services/remote_control_service.dart';
 import '../services/remote_control_protocol.dart' as protocol;
@@ -31,6 +34,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final EasyTierService _easyTierService = EasyTierService();
   final ProxyService _proxyService = ProxyService();
   final BrowserSettingsService _settingsService = BrowserSettingsService();
+  final RemoteControlPageConnectionHelper _connectionHelper =
+      const RemoteControlPageConnectionHelper();
+  final RemoteControlPagePortConfigHelper _portConfigHelper =
+      const RemoteControlPagePortConfigHelper();
+  final RemoteControlPageReceiverHelper _receiverHelper =
+      const RemoteControlPageReceiverHelper();
 
   RemoteControlMode _selectedMode = RemoteControlMode.controller;
   RemoteControlPortConfig? _portConfig;
@@ -142,46 +151,11 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     });
 
     try {
-      final config = await RemoteControlConfig.defaultConfig();
-
-      // 检查并尝试启动 VPN
-      final vpnStarted = await AppLifecycleManager()
-          .ensureVpnForRemoteControl();
-      if (!vpnStarted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('请先在设置中配置并选择一个 P2P 网络配置'),
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-        setState(() => _isConnecting = false);
-        return;
-      }
-
-      final hasPermission =
-          await _channel.invokeMethod<bool>('checkAccessibilityPermission') ??
-          false;
-      if (!hasPermission) {
-        await _channel.invokeMethod('openAccessibilitySettings');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('请在无障碍设置中开启本应用的权限，然后返回重试'),
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-        setState(() => _isConnecting = false);
-        return;
-      }
-
-      final ports = await _service.startReceiver(config: config);
-
-      await _service.startScreenCapture(
-        fps: config.screenFps,
-        bitrate: config.screenBitrate,
+      final ports = await _receiverHelper.startReceiverFlow(
+        channel: _channel,
+        service: _service,
+        ensureVpnForRemoteControl:
+            AppLifecycleManager().ensureVpnForRemoteControl,
       );
 
       if (!mounted) return;
@@ -201,6 +175,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
           ),
         );
       }
+    } on RemoteControlPageReceiverStartException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      setState(() => _isConnecting = false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -254,28 +237,29 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _errorMessage = null;
     });
 
-    // 如果使用内置代理，确保代理已启动
-    if (_useInternalProxy) {
-      if (_settings == null || !_settings!.shouldApplyProxy) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('请先在设置中配置并启用代理')));
-        }
-        setState(() => _isConnecting = false);
-        return;
+    int? proxyPort;
+    try {
+      proxyPort = await _connectionHelper.ensureInternalProxyReady(
+        useInternalProxy: _useInternalProxy,
+        settings: _settings,
+        proxyService: _proxyService,
+      );
+    } on RemoteControlPageConnectionException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
-      if (!_proxyService.isRunning) {
-        await _proxyService.applyProxy(_settings!);
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      setState(() => _isConnecting = false);
+      return;
     }
 
     if (!_portsManuallyEdited) {
-      final discoveredPorts = await _service.discoverReceiverPorts(
-        host,
-        useProxy: _useInternalProxy,
-        proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+      final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
+        service: _service,
+        host: host,
+        useInternalProxy: _useInternalProxy,
+        proxyPort: proxyPort,
       );
       if (discoveredPorts != null && mounted) {
         setState(() {
@@ -292,7 +276,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
           host,
           ports,
           useProxy: _useInternalProxy,
-          proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+          proxyPort: proxyPort,
         );
         if (!mounted) {
           return;
@@ -318,31 +302,16 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     setState(() {
       _isConnecting = false;
-      _errorMessage = '连接失败: ${lastError ?? '请检查地址、端口和被控端是否已启动'}';
+      _errorMessage = _connectionHelper.buildConnectErrorMessage(lastError);
     });
   }
 
   List<RemoteControlPortConfig> _buildCandidatePorts() {
-    if (_portConfig != null) {
-      return <RemoteControlPortConfig>[_portConfig!];
-    }
-
-    return <RemoteControlPortConfig>[
-      for (final basePort in RemoteControlPortConfig.shuffledBasePorts())
-        RemoteControlPortConfig.fromBasePort(basePort),
-    ];
+    return _portConfigHelper.buildCandidatePorts(_portConfig);
   }
 
   String _normalizeHost(String host) {
-    final trimmed = host.trim();
-    if (trimmed.isEmpty) {
-      return trimmed;
-    }
-    final slashIndex = trimmed.indexOf('/');
-    if (slashIndex <= 0) {
-      return trimmed;
-    }
-    return trimmed.substring(0, slashIndex);
+    return _portConfigHelper.normalizeHost(host);
   }
 
   Future<void> _selectPeer(Map<String, String> peer) async {
@@ -359,9 +328,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     });
     _applyPortConfigToInputs(null);
 
-    final discoveredPorts = await _service.discoverReceiverPorts(
-      host,
-      useProxy: _useInternalProxy,
+    final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
+      service: _service,
+      host: host,
+      useInternalProxy: _useInternalProxy,
       proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
     );
     if (!mounted || discoveredPorts == null) {
@@ -375,16 +345,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   void _applyPortConfigToInputs(RemoteControlPortConfig? ports) {
-    final resolved =
-        ports ??
-        const RemoteControlPortConfig(
-          controlPort: 18080,
-          screenPort: 18081,
-          audioPort: 18082,
-        );
-    _controlPortController.text = '${resolved.controlPort}';
-    _screenPortController.text = '${resolved.screenPort}';
-    _audioPortController.text = '${resolved.audioPort}';
+    _portConfigHelper.applyPortConfigToInputs(
+      controlPortController: _controlPortController,
+      screenPortController: _screenPortController,
+      audioPortController: _audioPortController,
+      ports: ports,
+    );
   }
 
   @override
@@ -468,31 +434,19 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       onControlPortChanged: (value) {
         setState(() {
           _portsManuallyEdited = true;
-          _portConfig = RemoteControlPortConfig(
-            controlPort: value,
-            screenPort: _portConfig?.screenPort ?? 18081,
-            audioPort: _portConfig?.audioPort ?? 18082,
-          );
+          _portConfig = _portConfigHelper.updateControlPort(_portConfig, value);
         });
       },
       onScreenPortChanged: (value) {
         setState(() {
           _portsManuallyEdited = true;
-          _portConfig = RemoteControlPortConfig(
-            controlPort: _portConfig?.controlPort ?? 18080,
-            screenPort: value,
-            audioPort: _portConfig?.audioPort ?? 18082,
-          );
+          _portConfig = _portConfigHelper.updateScreenPort(_portConfig, value);
         });
       },
       onAudioPortChanged: (value) {
         setState(() {
           _portsManuallyEdited = true;
-          _portConfig = RemoteControlPortConfig(
-            controlPort: _portConfig?.controlPort ?? 18080,
-            screenPort: _portConfig?.screenPort ?? 18081,
-            audioPort: value,
-          );
+          _portConfig = _portConfigHelper.updateAudioPort(_portConfig, value);
         });
       },
       onUseInternalProxyChanged: (value) {
