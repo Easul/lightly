@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Proxy Core CLI starting...");
 
-    let pool = Arc::new(pool::ConnectionPool::new(100));
+    let pool = Arc::new(pool::OutboundClientRegistry::new(100));
     let server = inbound::InboundServer::bind("127.0.0.1:23333", pool).await?;
     server.run().await?;
 

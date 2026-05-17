@@ -11,7 +11,7 @@ use jni::JNIEnv;
 use crate::inbound::InboundServer;
 use crate::outbound::hysteria2::{Hysteria2Client, Hysteria2Config};
 use crate::outbound::vless::{SecurityType, VlessClient, VlessConfig};
-use crate::pool::ConnectionPool;
+use crate::pool::OutboundClientRegistry;
 
 static RUNTIME: OnceCell<Runtime> = OnceCell::new();
 static SERVER_HANDLE: OnceCell<Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>> = OnceCell::new();
@@ -95,7 +95,7 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
     let handle = SERVER_HANDLE.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let result = rt.block_on(async {
-        let pool = Arc::new(ConnectionPool::new(100));
+        let pool = Arc::new(OutboundClientRegistry::new(100));
 
         if !config_json.is_empty() && config_json != "{}" {
             match parse_proxy_config(&config_json) {

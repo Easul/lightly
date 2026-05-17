@@ -1,21 +1,19 @@
+#[cfg(feature = "mux-experimental")]
 pub mod mux;
 
-use crate::common::Result;
 use crate::outbound::OutboundClient;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub struct ConnectionPool {
+pub struct OutboundClientRegistry {
     clients: Arc<Mutex<HashMap<String, Arc<dyn OutboundClient>>>>,
-    max_connections: usize,
 }
 
-impl ConnectionPool {
-    pub fn new(max_connections: usize) -> Self {
+impl OutboundClientRegistry {
+    pub fn new(_max_connections: usize) -> Self {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
-            max_connections,
         }
     }
 
@@ -28,9 +26,6 @@ impl ConnectionPool {
         let clients = self.clients.lock().await;
         clients.get(name).cloned()
     }
-
-    pub async fn get_connection(&self, _target: &str) -> Result<()> {
-        log::debug!("Getting connection for {}", _target);
-        Ok(())
-    }
 }
+
+pub type ConnectionPool = OutboundClientRegistry;

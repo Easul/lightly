@@ -9,6 +9,10 @@ description = "High-performance proxy core with VLESS and Hysteria2 support"
 crate-type = ["cdylib", "staticlib"]
 name = "proxy_core"
 
+[features]
+default = []
+mux-experimental = []
+
 [[bin]]
 name = "proxy-core-cli"
 path = "src/main.rs"
