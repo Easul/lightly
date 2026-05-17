@@ -4,8 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../models/remote_control_config.dart';
-import 'remote_control_protocol.dart';
-import 'remote_control_status_bridge.dart';
 
 class RemoteControlControllerConnectionResult {
   final Socket controlSocket;
@@ -41,14 +39,15 @@ class RemoteControlLifecycleHelper {
     startAudioPlayback,
     required Future<void> Function(int port) sendAudioPortStatus,
   }) async {
-    final controlSocket = await _connectSocket(
+    final controlConnection = await _connectSocket(
       host: host,
       port: config.ports.controlPort,
       useProxy: useProxy,
       proxyPort: proxyPort,
     );
+    final controlSocket = controlConnection.socket;
     controlSocket.setOption(SocketOption.tcpNoDelay, true);
-    controlSocket.listen(
+    controlConnection.stream.listen(
       onControlData,
       onError: onControlError,
       onDone: onControlDone,
@@ -56,14 +55,15 @@ class RemoteControlLifecycleHelper {
 
     Socket? screenSocket;
     if (config.enableScreen) {
-      screenSocket = await _connectSocket(
+      final screenConnection = await _connectSocket(
         host: host,
         port: config.ports.screenPort,
         useProxy: useProxy,
         proxyPort: proxyPort,
       );
+      screenSocket = screenConnection.socket;
       screenSocket.setOption(SocketOption.tcpNoDelay, true);
-      screenSocket.listen(
+      screenConnection.stream.listen(
         onScreenDataRaw,
         onError: (error) => onScreenError(error, screenSocket!),
         onDone: () => onScreenDone(screenSocket!),
@@ -85,18 +85,19 @@ class RemoteControlLifecycleHelper {
     );
   }
 
-  Future<Socket> _connectSocket({
+  Future<_ConnectedSocket> _connectSocket({
     required String host,
     required int port,
     bool useProxy = false,
     int? proxyPort,
   }) async {
     if (!useProxy || proxyPort == null) {
-      return await Socket.connect(
+      final socket = await Socket.connect(
         InternetAddress.tryParse(host) ?? host,
         port,
         timeout: const Duration(milliseconds: 1500),
       );
+      return _ConnectedSocket(socket: socket, stream: socket);
     }
 
     // 使用 SOCKS5 代理连接
@@ -105,9 +106,10 @@ class RemoteControlLifecycleHelper {
       proxyPort,
       timeout: const Duration(milliseconds: 3000),
     );
+    final incomingStream = proxySocket.asBroadcastStream();
 
     // 创建缓冲区读取器
-    final reader = _ProxySocketReader(proxySocket);
+    final reader = _ProxySocketReader(incomingStream);
 
     // 发送 SOCKS5 认证协商请求
     proxySocket.add(const [0x05, 0x01, 0x00]);
@@ -163,7 +165,7 @@ class RemoteControlLifecycleHelper {
     }
 
     await reader.dispose();
-    return proxySocket;
+    return _ConnectedSocket(socket: proxySocket, stream: incomingStream);
   }
 
   void attachReceiverControlClient({
@@ -189,15 +191,21 @@ class RemoteControlLifecycleHelper {
   }
 }
 
+class _ConnectedSocket {
+  final Socket socket;
+  final Stream<Uint8List> stream;
+
+  const _ConnectedSocket({required this.socket, required this.stream});
+}
+
 /// SOCKS5 代理连接的缓冲区读取器
 class _ProxySocketReader {
-  final Socket _socket;
   final List<int> _buffer = [];
   StreamSubscription<List<int>>? _subscription;
   final _completers = <_ReadRequest>[];
 
-  _ProxySocketReader(this._socket) {
-    _subscription = _socket.listen(_onData, onDone: _onDone, onError: _onError);
+  _ProxySocketReader(Stream<List<int>> stream) {
+    _subscription = stream.listen(_onData, onDone: _onDone, onError: _onError);
   }
 
   void _onData(List<int> data) {

@@ -39,16 +39,17 @@ class RemoteControlConnectionHelper {
       Socket? socket;
       StreamSubscription<Uint8List>? subscription;
       try {
-        socket = await _connectSocket(
+        final connection = await _connectSocket(
           host: normalizedHost,
           port: basePort,
           useProxy: useProxy,
           proxyPort: proxyPort,
         );
+        socket = connection.socket;
         final completer = Completer<RemoteControlPortConfig?>();
         final buffer = StringBuffer();
 
-        subscription = socket.listen(
+        subscription = connection.stream.listen(
           (data) {
             final messages = decodeBufferedMessages(buffer, data);
             for (final message in messages) {
@@ -91,18 +92,19 @@ class RemoteControlConnectionHelper {
     return null;
   }
 
-  Future<Socket> _connectSocket({
+  Future<_ConnectedSocket> _connectSocket({
     required String host,
     required int port,
     bool useProxy = false,
     int? proxyPort,
   }) async {
     if (!useProxy || proxyPort == null) {
-      return await Socket.connect(
+      final socket = await Socket.connect(
         InternetAddress.tryParse(host) ?? host,
         port,
         timeout: const Duration(milliseconds: 1500),
       );
+      return _ConnectedSocket(socket: socket, stream: socket);
     }
 
     // 使用 SOCKS5 代理连接
@@ -111,16 +113,19 @@ class RemoteControlConnectionHelper {
       proxyPort,
       timeout: const Duration(milliseconds: 3000),
     );
+    final incomingStream = proxySocket.asBroadcastStream();
+    final reader = _ProxySocketReader(incomingStream);
 
     // 发送 SOCKS5 认证协商请求
     proxySocket.add(const [0x05, 0x01, 0x00]);
     await proxySocket.flush();
 
     // 接收认证响应
-    final authResponse = await _readExact(proxySocket, 2);
+    final authResponse = await reader.readBytes(2);
     if (authResponse.length < 2 ||
         authResponse[0] != 0x05 ||
         authResponse[1] != 0x00) {
+      await reader.dispose();
       proxySocket.destroy();
       throw Exception('代理认证失败');
     }
@@ -146,10 +151,11 @@ class RemoteControlConnectionHelper {
     await proxySocket.flush();
 
     // 接收连接响应
-    final responseHeader = await _readExact(proxySocket, 4);
+    final responseHeader = await reader.readBytes(4);
     if (responseHeader.length < 4 ||
         responseHeader[0] != 0x05 ||
         responseHeader[1] != 0x00) {
+      await reader.dispose();
       proxySocket.destroy();
       throw Exception('代理连接请求失败');
     }
@@ -157,33 +163,111 @@ class RemoteControlConnectionHelper {
     // 读取绑定地址
     final addrType = responseHeader[3];
     if (addrType == 0x01) {
-      await _readExact(proxySocket, 6);
+      await reader.readBytes(6);
     } else if (addrType == 0x03) {
-      final domainLen = await _readByte(proxySocket);
-      await _readExact(proxySocket, domainLen + 2);
+      final domainLen = await reader.readByte();
+      await reader.readBytes(domainLen + 2);
     } else if (addrType == 0x04) {
-      await _readExact(proxySocket, 18);
+      await reader.readBytes(18);
     }
 
-    return proxySocket;
+    await reader.dispose();
+    return _ConnectedSocket(socket: proxySocket, stream: incomingStream);
+  }
+}
+
+class _ConnectedSocket {
+  final Socket socket;
+  final Stream<Uint8List> stream;
+
+  const _ConnectedSocket({required this.socket, required this.stream});
+}
+
+class _ProxySocketReader {
+  final List<int> _buffer = [];
+  StreamSubscription<List<int>>? _subscription;
+  final _completers = <_ReadRequest>[];
+
+  _ProxySocketReader(Stream<List<int>> stream) {
+    _subscription = stream.listen(_onData, onDone: _onDone, onError: _onError);
   }
 
-  Future<List<int>> _readExact(Socket socket, int length) async {
-    final result = <int>[];
-    final subscription = socket.listen((data) {
-      result.addAll(data);
-    });
+  void _onData(List<int> data) {
+    _buffer.addAll(data);
+    _checkPendingReads();
+  }
 
-    while (result.length < length) {
-      await Future.delayed(const Duration(milliseconds: 50));
+  void _onDone() {
+    for (final request in _completers) {
+      if (!request.completer.isCompleted) {
+        request.completer.complete(List<int>.from(_buffer));
+      }
+    }
+    _completers.clear();
+  }
+
+  void _onError(Object error) {
+    for (final request in _completers) {
+      if (!request.completer.isCompleted) {
+        request.completer.completeError(error);
+      }
+    }
+    _completers.clear();
+  }
+
+  void _checkPendingReads() {
+    while (_completers.isNotEmpty) {
+      final request = _completers.first;
+      if (_buffer.length >= request.length) {
+        _completers.removeAt(0);
+        final result = _buffer.sublist(0, request.length);
+        _buffer.removeRange(0, request.length);
+        if (!request.completer.isCompleted) {
+          request.completer.complete(result);
+        }
+      } else {
+        break;
+      }
+    }
+  }
+
+  Future<List<int>> readBytes(int length) async {
+    if (_buffer.length >= length) {
+      final result = _buffer.sublist(0, length);
+      _buffer.removeRange(0, length);
+      return result;
     }
 
-    await subscription.cancel();
-    return result.take(length).toList();
+    final completer = Completer<List<int>>();
+    _completers.add(_ReadRequest(length, completer));
+
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw TimeoutException('读取超时'),
+    );
   }
 
-  Future<int> _readByte(Socket socket) async {
-    final data = await _readExact(socket, 1);
-    return data.isNotEmpty ? data[0] : 0;
+  Future<int> readByte() async {
+    final bytes = await readBytes(1);
+    return bytes.isNotEmpty ? bytes[0] : 0;
   }
+
+  Future<void> dispose() async {
+    await _subscription?.cancel();
+  }
+}
+
+class _ReadRequest {
+  final int length;
+  final Completer<List<int>> completer;
+
+  _ReadRequest(this.length, this.completer);
+}
+
+class TimeoutException implements Exception {
+  final String message;
+  TimeoutException(this.message);
+
+  @override
+  String toString() => 'TimeoutException: $message';
 }

@@ -42,6 +42,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   bool _useInternalProxy = false;
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
+  bool _portsManuallyEdited = false;
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
@@ -270,7 +271,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       }
     }
 
-    if (_portConfig == null) {
+    if (!_portsManuallyEdited) {
       final discoveredPorts = await _service.discoverReceiverPorts(
         host,
         useProxy: _useInternalProxy,
@@ -299,6 +300,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         setState(() {
           _isConnecting = false;
           _portConfig = _service.config?.ports ?? ports;
+          _portsManuallyEdited = false;
         });
         _applyPortConfigToInputs(_portConfig);
         await Navigator.push(
@@ -352,11 +354,16 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     setState(() {
       _hostController.text = host;
       _portConfig = null;
+      _portsManuallyEdited = false;
       _errorMessage = null;
     });
     _applyPortConfigToInputs(null);
 
-    final discoveredPorts = await _service.discoverReceiverPorts(host);
+    final discoveredPorts = await _service.discoverReceiverPorts(
+      host,
+      useProxy: _useInternalProxy,
+      proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+    );
     if (!mounted || discoveredPorts == null) {
       return;
     }
@@ -425,6 +432,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       onControllerTap: () => setState(() {
         _selectedMode = RemoteControlMode.controller;
         _portConfig = null;
+        _portsManuallyEdited = false;
         _applyPortConfigToInputs(null);
         _errorMessage = null;
       }),
@@ -459,6 +467,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       onSelectPeer: _selectPeer,
       onControlPortChanged: (value) {
         setState(() {
+          _portsManuallyEdited = true;
           _portConfig = RemoteControlPortConfig(
             controlPort: value,
             screenPort: _portConfig?.screenPort ?? 18081,
@@ -468,6 +477,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       },
       onScreenPortChanged: (value) {
         setState(() {
+          _portsManuallyEdited = true;
           _portConfig = RemoteControlPortConfig(
             controlPort: _portConfig?.controlPort ?? 18080,
             screenPort: value,
@@ -477,6 +487,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       },
       onAudioPortChanged: (value) {
         setState(() {
+          _portsManuallyEdited = true;
           _portConfig = RemoteControlPortConfig(
             controlPort: _portConfig?.controlPort ?? 18080,
             screenPort: _portConfig?.screenPort ?? 18081,
