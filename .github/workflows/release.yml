@@ -202,11 +202,19 @@ jobs:
           
           ### 🚀 功能特性
           
-          - 高级浏览器，支持 VLESS 代理协议
-          - 远程屏幕控制和音频流媒体
-          - EasyTier VPN 集成，安全网络连接
-          - 视频播放器，支持悬浮窗播放
-          - 内置计算器和其他工具
+          - 浏览器代理运行时已统一到 Rust proxy-core，减少旧 Dart 代理实现负担
+          - HTTP / SOCKS5 / VLESS 内部 relay 与 VLESS outbound 已完成结构性拆分与去重
+          - 浏览器页面与远程控制页面的低频 orchestration/helper 已进一步模块化
+          - 远程屏幕控制、音频流与 EasyTier VPN 相关功能继续保留
+          - 视频播放器、下载、收藏夹与站点数据管理功能继续保留
+
+          ### 🔄 本次修改说明
+
+          - 清理并移除了旧的 Dart VLESS / mixed proxy 运行时残留
+          - 将代理配置、复用策略、延迟探测、WebView 代理桥接等逻辑拆分为独立 helper
+          - 将 Rust inbound/outbound 关键路径拆分为更小模块，降低后续维护风险
+          - 对 pool/mux 未使用路径进行了默认 feature-gate 清理，减少误导性复杂度
+          - 对 BrowserPage / RemoteControlPage 做了多轮低风险拆分，减少页面职责密度
           
           ### 📝 版本信息
           
