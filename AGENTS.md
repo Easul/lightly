@@ -120,27 +120,23 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 
 - Telegram sends multiple authentication methods (e.g., 0x00 no-auth and 0x02 username/password).
 - The proxy MUST select one method in the reply (0x00 or 0x02), or 0xFF if none acceptable.
-- Implementation in `lib/browser/local_mixed_proxy_server.dart` (`_selectSocks5AuthMethod`).
-- **Do not hardcode** to no-auth only; Telegram may require username/password auth.
+- The active SOCKS5 implementation used by Android release builds now lives in `rust/proxy-core/src/inbound/socks5.rs`; keep repo-level Dart wrappers and Rust core behavior aligned.
+- When a client offers both 0x00 and 0x02, prefer 0x00 unless this repo adds real end-to-end authenticated SOCKS5 enforcement. Telegram can advertise both methods even when the working path is no-auth.
+- **Do not hardcode** to username/password when the server is not actually enforcing credentials; that can break otherwise healthy Telegram proxy handshakes.
 
 ### CONNECT Success Reply Format
 
 - Telegram is sensitive to SOCKS5 CONNECT success reply `BND.ADDR`/`BND.PORT` fields.
 - Must be the **actual relay bind address and port**, not zeros or placeholders.
-- The implementation gets the real bind address from the tunnel after `connect()` succeeds:
-  ```dart
-  bindAddress: tunnel.localBindAddress ?? InternetAddress(localHost),
-  bindPort: tunnel.localBindPort ?? boundPort ?? 0
-  ```
-- **Do not send** `0.0.0.0:0` as placeholder; Telegram rejects it.
+- In the Rust proxy core, first use `VlessStream::local_bind_addr()`. If that is unavailable or unspecified, fall back to the local listener address with a concrete loopback IP instead of any zero placeholder.
+- **Do not send** `0.0.0.0:0` or `[::]:0` as placeholder; Telegram rejects it.
 
 ### Half-Close Semantics
 
 - Telegram expects proper half-close semantics: client input EOF should not immediately tear down the entire tunnel.
-- The VLESS tunnel (`lib/browser/vless_client.dart`) now handles this:
-  - `onLocalDone` is only set after tunnel is fully established
-  - Tunnel close only happens when both directions are done
-- **Do not** close the entire tunnel when only the client input closes.
+- In `rust/proxy-core/src/inbound/socks5.rs`, treat `Client → VLESS: EOF` / reset as a normal peer-close signal for the upload side, while still allowing the downstream VLESS → client path to drain until the client socket is actually gone.
+- If a later VLESS → client write hits `Broken pipe`, `Connection reset`, `Connection aborted`, or `Not connected` after client EOF, treat it as an expected Telegram close path rather than a protocol failure.
+- **Do not** close the entire tunnel early just because the client has stopped sending.
 
 ### WebSocket Connection Pacing
 
@@ -154,6 +150,12 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Telegram may connect to multiple addresses in parallel (IPv4/IPv6).
 - WebSocket connection now falls back to the first resolved address if the preferred fails.
 - **Do not** remove the fallback logic in `_connectToWebSocket()`.
+
+### Log Interpretation Pitfall
+
+- Telegram opens many short-lived parallel SOCKS5 connections. Some of them are only probe/bootstrap channels and may close quickly after sending their initial payload.
+- In logs, repeated `Client → VLESS: EOF` followed by a later downstream write failure on the same connection is not automatically a proxy regression; correlate it with connection duration and whether the client had already closed its input side.
+- Focus on regressions where CONNECT replies are malformed, auth negotiation is wrong, or long-lived data channels collapse before Telegram finishes handshake/bootstrap.
 
 ## Build Size & Code Optimization Guidelines
 
