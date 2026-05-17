@@ -1,11 +1,19 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../services/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
+import 'services/proxy_config_mapper.dart';
+import 'services/proxy_download_route_resolver.dart';
+import 'services/proxy_error_formatter.dart';
+import 'services/proxy_latency_probe.dart';
+import 'services/proxy_latency_tester.dart';
+import 'services/proxy_reuse_policy.dart';
+import 'services/proxy_runtime_launcher.dart';
+import 'services/proxy_webview_bridge.dart';
+import 'services/proxy_webview_target_resolver.dart';
 
 const String _localProxyHost = '127.0.0.1';
 
@@ -37,6 +45,25 @@ class ProxyService {
 
   final proxy_core.ProxyCoreService _proxyCoreService;
   final MethodChannel _proxyChannel;
+  final ProxyConfigMapper _configMapper = const ProxyConfigMapper();
+  final ProxyDownloadRouteResolver _downloadRouteResolver =
+      const ProxyDownloadRouteResolver();
+  final ProxyErrorFormatter _errorFormatter = const ProxyErrorFormatter();
+  final ProxyLatencyProbe _latencyProbe = const ProxyLatencyProbe();
+  final ProxyReusePolicy _reusePolicy = const ProxyReusePolicy();
+  late final ProxyRuntimeLauncher _runtimeLauncher = ProxyRuntimeLauncher(
+    _configMapper,
+  );
+  late final ProxyLatencyTester _latencyTester = ProxyLatencyTester(
+    latencyProbe: _latencyProbe,
+    runtimeLauncher: _runtimeLauncher,
+    localProxyHost: _localProxyHost,
+  );
+  late final ProxyWebViewBridge _webViewBridge = ProxyWebViewBridge(
+    _proxyChannel,
+  );
+  final ProxyWebViewTargetResolver _webViewTargetResolver =
+      const ProxyWebViewTargetResolver();
 
   final _stateController = StreamController<ProxyState>.broadcast();
   ProxyState _currentState = ProxyState.stopped;
@@ -66,81 +93,109 @@ class ProxyService {
       return;
     }
 
-    final fingerprint = _buildProxyFingerprint(settings);
-    if (_activeProxyFingerprint == fingerprint) {
-      final reattached = await _reattachExistingProxyIfPossible(settings);
-      if (reattached) {
-        _emitState(ProxyState.started);
-        return;
-      }
+    final applyContext = _buildApplyContext(settings);
+    if (await _tryReuseExistingProxy(settings, applyContext)) {
+      return;
     }
 
     // Stop any existing local proxy before starting a new one
     await _stopProxyCore();
 
     if (settings.proxyProtocol == BrowserProxyProtocol.http) {
-      // HTTP: Set WebView proxy directly to the user's HTTP proxy server
-      await _setWebViewProxy(
-        settings.proxyHost.trim(),
-        settings.proxyPort!,
-        scheme: 'http',
-        bypassDomains: settings.proxyBypassDomainList,
-      );
-      _activeProxyFingerprint = fingerprint;
-      _emitState(ProxyState.started);
+      await _applyHttpProxy(applyContext);
       return;
     }
 
-    if (settings.proxyProtocol == BrowserProxyProtocol.vless ||
-        settings.proxyProtocol == BrowserProxyProtocol.hysteria2) {
-      final isHysteria2 =
-          settings.proxyProtocol == BrowserProxyProtocol.hysteria2;
-
-      _emitState(ProxyState.starting);
-
-      try {
-        final listenAddr = '127.0.0.1:${settings.localProxyPort ?? 23333}';
-        final result = isHysteria2
-            ? await _proxyCoreService.startWithHysteria2(
-                logLevel: 'debug',
-                listenAddr: listenAddr,
-                hysteria2Config: _buildRustHysteria2Config(settings),
-              )
-            : await _proxyCoreService.startWithVless(
-                logLevel: 'debug',
-                listenAddr: listenAddr,
-                vlessConfig: _buildRustVlessConfig(settings),
-              );
-        if (result != 0) {
-          throw StateError(
-            '${BrowserProxyProtocol.label(settings.proxyProtocol)} proxy core start failed: $result',
-          );
-        }
-      } catch (e) {
-        _emitState(ProxyState.stopped);
-        rethrow;
-      }
-
-      final localPort = settings.localProxyPort ?? localProxyPort;
-      if (localPort == null) {
-        await _proxyCoreService.stop();
-        _emitState(ProxyState.stopped);
-        throw StateError('Local HTTP proxy port was not assigned');
-      }
-
-      await _setWebViewProxy(
-        _localProxyHost,
-        localPort,
-        scheme: 'http',
-        bypassDomains: settings.proxyBypassDomainList,
-      );
-      _activeProxyFingerprint = fingerprint;
-      _emitState(ProxyState.started);
+    if (_runtimeLauncher.supportsRustProxy(settings.proxyProtocol)) {
+      await _applyRustProxy(settings, applyContext);
       return;
     }
 
     // Unknown protocol - clear proxy
     await clearProxy();
+  }
+
+  _ProxyApplyContext _buildApplyContext(BrowserSettings settings) {
+    final localPort = settings.localProxyPort ?? localProxyPort;
+    final target = _resolveWebViewProxyTarget(
+      settings,
+      localProxyPort: localPort,
+    );
+    final reuseDecision = _reusePolicy.evaluate(
+      settings: settings,
+      activeFingerprint: _activeProxyFingerprint,
+      proxyCoreIsRunning: _proxyCoreService.isRunning,
+      hasResolvedWebViewTarget: target != null,
+    );
+    return _ProxyApplyContext(
+      localPort: localPort,
+      target: target,
+      reuseDecision: reuseDecision,
+    );
+  }
+
+  Future<bool> _tryReuseExistingProxy(
+    BrowserSettings settings,
+    _ProxyApplyContext applyContext,
+  ) async {
+    if (!applyContext.reuseDecision.shouldReuse ||
+        applyContext.target == null) {
+      return false;
+    }
+
+    await _applyWebViewProxyTarget(applyContext.target!);
+    _emitState(ProxyState.started);
+    return true;
+  }
+
+  Future<void> _applyHttpProxy(_ProxyApplyContext applyContext) async {
+    if (applyContext.target == null) {
+      throw StateError('HTTP proxy target could not be resolved');
+    }
+
+    await _applyWebViewProxyTarget(applyContext.target!);
+    _activeProxyFingerprint = applyContext.reuseDecision.fingerprint;
+    _emitState(ProxyState.started);
+  }
+
+  Future<void> _applyRustProxy(
+    BrowserSettings settings,
+    _ProxyApplyContext applyContext,
+  ) async {
+    _emitState(ProxyState.starting);
+
+    try {
+      final listenAddr = '127.0.0.1:${settings.localProxyPort ?? 23333}';
+      final result = await _runtimeLauncher.startProxyCore(
+        proxyCoreService: _proxyCoreService,
+        settings: settings,
+        listenAddr: listenAddr,
+      );
+      if (result != 0) {
+        throw StateError(
+          '${BrowserProxyProtocol.label(settings.proxyProtocol)} proxy core start failed: $result',
+        );
+      }
+    } catch (e) {
+      _emitState(ProxyState.stopped);
+      rethrow;
+    }
+
+    if (applyContext.localPort == null) {
+      await _proxyCoreService.stop();
+      _emitState(ProxyState.stopped);
+      throw StateError('Local HTTP proxy port was not assigned');
+    }
+
+    if (applyContext.target == null) {
+      await _proxyCoreService.stop();
+      _emitState(ProxyState.stopped);
+      throw StateError('Local HTTP proxy target could not be resolved');
+    }
+
+    await _applyWebViewProxyTarget(applyContext.target!);
+    _activeProxyFingerprint = applyContext.reuseDecision.fingerprint;
+    _emitState(ProxyState.started);
   }
 
   Future<void> clearProxy() async {
@@ -150,53 +205,24 @@ class ProxyService {
     _emitState(ProxyState.stopped);
   }
 
-  String _buildProxyFingerprint(BrowserSettings settings) {
-    return [
-      settings.proxyProtocol,
-      settings.proxyHost.trim(),
-      '${settings.proxyPort ?? ''}',
-      settings.proxyUuid.trim(),
-      '${settings.proxyTlsEnabled}',
-      '${settings.proxyTlsInsecure}',
-      settings.proxyServerName.trim(),
-      settings.proxyTransportType.trim(),
-      settings.proxyTransportPath.trim(),
-      settings.proxyTransportHost.trim(),
-      settings.proxyPacketEncoding.trim(),
-      '${settings.localProxyPort ?? ''}',
-      ...settings.proxyBypassDomainList,
-    ].join('|');
+  ProxyWebViewTarget? _resolveWebViewProxyTarget(
+    BrowserSettings settings, {
+    int? localProxyPort,
+  }) {
+    return _webViewTargetResolver.resolve(
+      settings: settings,
+      localProxyHost: _localProxyHost,
+      localProxyPort: localProxyPort,
+    );
   }
 
-  Future<bool> _reattachExistingProxyIfPossible(
-    BrowserSettings settings,
-  ) async {
-    if (settings.proxyProtocol == BrowserProxyProtocol.http) {
-      await _setWebViewProxy(
-        settings.proxyHost.trim(),
-        settings.proxyPort!,
-        scheme: 'http',
-        bypassDomains: settings.proxyBypassDomainList,
-      );
-      return true;
-    }
-
-    if (!_proxyCoreService.isRunning) {
-      return false;
-    }
-
-    final localPort = settings.localProxyPort ?? this.localProxyPort;
-    if (localPort == null) {
-      return false;
-    }
-
+  Future<void> _applyWebViewProxyTarget(ProxyWebViewTarget target) async {
     await _setWebViewProxy(
-      _localProxyHost,
-      localPort,
-      scheme: 'http',
-      bypassDomains: settings.proxyBypassDomainList,
+      target.host,
+      target.port,
+      scheme: target.scheme,
+      bypassDomains: target.bypassDomains,
     );
-    return true;
   }
 
   Future<void> _stopProxyCore() async {
@@ -211,24 +237,16 @@ class ProxyService {
     String scheme = 'http',
     List<String> bypassDomains = const [],
   }) async {
-    try {
-      await _proxyChannel.invokeMethod('setProxy', {
-        'host': host,
-        'port': port,
-        'scheme': scheme,
-        'bypassDomains': bypassDomains,
-      });
-    } catch (_) {
-      // Ignore WebView proxy errors on unsupported platforms
-    }
+    await _webViewBridge.setProxy(
+      host,
+      port,
+      scheme: scheme,
+      bypassDomains: bypassDomains,
+    );
   }
 
   Future<void> _clearWebViewProxy() async {
-    try {
-      await _proxyChannel.invokeMethod('clearProxy');
-    } catch (_) {
-      // Ignore WebView proxy errors on unsupported platforms
-    }
+    await _webViewBridge.clearProxy();
   }
 
   void _emitState(ProxyState state) {
@@ -237,42 +255,16 @@ class ProxyService {
   }
 
   String describeError(Object error) {
-    if (error is PlatformException) {
-      switch (error.code) {
-        case 'UNSUPPORTED':
-          return 'WebView proxy override is not supported on this device.';
-        case 'INVALID_ARGUMENTS':
-          return 'Invalid proxy configuration. Please check host and port.';
-        default:
-          return error.message ?? 'An unexpected proxy error occurred.';
-      }
-    }
-
-    if (error is SocketException) {
-      return 'Network error: ${error.message}. Please check your connection and server address.';
-    }
-
-    if (error is HandshakeException) {
-      return 'TLS 握手失败，请检查服务器地址、SNI 和 TLS 设置；如果节点要求，可尝试开启“允许不安全证书”。';
-    }
-
-    return 'Failed to update the proxy configuration: $error';
+    return _errorFormatter.describe(error);
   }
 
   String findProxyForDownload(BrowserSettings settings, Uri uri) {
-    if (!settings.shouldApplyProxy || settings.shouldBypassProxyForUri(uri)) {
-      return 'DIRECT';
-    }
-
-    if (settings.proxyProtocol == BrowserProxyProtocol.http) {
-      return 'PROXY ${settings.proxyHost.trim()}:${settings.proxyPort!}';
-    }
-
-    final localPort = settings.localProxyPort ?? this.localProxyPort;
-    if (localPort == null) {
-      return 'DIRECT';
-    }
-    return 'PROXY $_localProxyHost:$localPort';
+    return _downloadRouteResolver.resolve(
+      settings: settings,
+      uri: uri,
+      localProxyHost: _localProxyHost,
+      localProxyPort: settings.localProxyPort ?? localProxyPort,
+    );
   }
 
   Future<Duration?> testNodeLatency(
@@ -280,220 +272,26 @@ class ProxyService {
     Duration timeout = const Duration(seconds: 10),
     String testUrl = 'https://www.gstatic.com/generate_204',
   }) async {
-    final testUri = Uri.parse(testUrl);
-
-    if (!settings.shouldApplyProxy) {
-      final httpLatency = await _measureHttpRequest(
-        proxy: null,
-        timeout: timeout,
-        testUrls: [
-          testUrl,
-          'https://www.google.com/generate_204',
-          'https://example.com/',
-        ],
-      );
-      if (httpLatency != null) {
-        return httpLatency;
-      }
-      return _measureTcpConnect(
-        host: testUri.host,
-        port: testUri.port == 0 ? 443 : testUri.port,
-        timeout: timeout,
-      );
-    }
-
-    if (settings.proxyProtocol == BrowserProxyProtocol.http) {
-      final httpLatency = await _measureHttpRequest(
-        proxy: 'PROXY ${settings.proxyHost.trim()}:${settings.proxyPort!}',
-        timeout: timeout,
-        testUrls: [
-          testUrl,
-          'https://www.google.com/generate_204',
-          'https://example.com/',
-        ],
-      );
-      if (httpLatency != null) {
-        return httpLatency;
-      }
-      return _measureTcpConnect(
-        host: settings.proxyHost.trim(),
-        port: settings.proxyPort!,
-        timeout: timeout,
-      );
-    }
-
-    if (settings.proxyProtocol != BrowserProxyProtocol.vless &&
-        settings.proxyProtocol != BrowserProxyProtocol.hysteria2) {
-      throw StateError('Unsupported proxy protocol: ${settings.proxyProtocol}');
-    }
-
-    final probeTimeout = timeout < const Duration(seconds: 30)
-        ? const Duration(seconds: 30)
-        : timeout;
-    final isHysteria2 =
-        settings.proxyProtocol == BrowserProxyProtocol.hysteria2;
-    final usingExistingRustProxy = _proxyCoreService.isRunning;
-    final tempProxyCoreService = usingExistingRustProxy
-        ? null
-        : proxy_core.ProxyCoreService();
-    final tempListenPort = usingExistingRustProxy
-        ? localProxyPort
-        : await _allocateEphemeralLoopbackPort();
-
-    if (tempListenPort == null) {
-      throw StateError('Temporary Rust proxy port was not assigned');
-    }
-
-    try {
-      if (tempProxyCoreService != null) {
-        final listenAddr = '127.0.0.1:$tempListenPort';
-        final startResult = isHysteria2
-            ? await tempProxyCoreService.startWithHysteria2(
-                logLevel: 'debug',
-                listenAddr: listenAddr,
-                hysteria2Config: _buildRustHysteria2Config(settings),
-              )
-            : await tempProxyCoreService.startWithVless(
-                logLevel: 'debug',
-                listenAddr: listenAddr,
-                vlessConfig: _buildRustVlessConfig(settings),
-              );
-        if (startResult != 0) {
-          throw StateError('Temporary Rust proxy start failed: $startResult');
-        }
-      }
-
-      final httpLatency = await _measureHttpRequest(
-        proxy: 'PROXY $_localProxyHost:$tempListenPort',
-        timeout: probeTimeout,
-        testUrls: [
-          testUrl,
-          'https://www.google.com/generate_204',
-          'https://example.com/',
-        ],
-      );
-      if (httpLatency != null) {
-        return httpLatency;
-      }
-      return _measureTcpConnect(
-        host: settings.proxyHost.trim(),
-        port: settings.proxyPort!,
-        timeout: probeTimeout,
-      );
-    } finally {
-      await tempProxyCoreService?.stop();
-    }
-  }
-
-  proxy_core.VlessConfig _buildRustVlessConfig(BrowserSettings settings) {
-    return proxy_core.VlessConfig(
-      uuid: settings.proxyUuid.trim(),
-      serverAddr: settings.proxyHost.trim(),
-      serverPort: settings.proxyPort!,
-      security: settings.proxyTlsEnabled ? 'tls' : 'none',
-      host: settings.proxyTransportHost.trim().isEmpty
-          ? null
-          : settings.proxyTransportHost.trim(),
-      sni: settings.proxyServerName.trim().isEmpty
-          ? null
-          : settings.proxyServerName.trim(),
-      path: settings.proxyTransportPath.trim().isEmpty
-          ? '/'
-          : settings.proxyTransportPath.trim(),
-      tlsInsecure: settings.proxyTlsInsecure,
+    return _latencyTester.testNodeLatency(
+      settings: settings,
+      proxyCoreService: _proxyCoreService,
+      currentLocalProxyPort: localProxyPort,
+      timeout: timeout,
+      testUrl: testUrl,
     );
-  }
-
-  proxy_core.Hysteria2Config _buildRustHysteria2Config(
-    BrowserSettings settings,
-  ) {
-    return proxy_core.Hysteria2Config(
-      serverAddr: settings.proxyHost.trim(),
-      serverPort: settings.proxyPort!,
-      password: settings.proxyUuid.trim(),
-      sni: settings.proxyServerName.trim().isEmpty
-          ? null
-          : settings.proxyServerName.trim(),
-      obfs: settings.proxyTransportType.trim().isEmpty
-          ? null
-          : settings.proxyTransportType.trim(),
-      obfsPassword: settings.proxyTransportHost.trim().isEmpty
-          ? null
-          : settings.proxyTransportHost.trim(),
-      tlsInsecure: settings.proxyTlsInsecure,
-    );
-  }
-
-  Future<int?> _allocateEphemeralLoopbackPort() async {
-    ServerSocket? socket;
-    try {
-      socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      return socket.port;
-    } finally {
-      await socket?.close();
-    }
-  }
-
-  Future<Duration?> _measureHttpRequest({
-    required String? proxy,
-    required Duration timeout,
-    required List<String> testUrls,
-  }) async {
-    final client = HttpClient()..connectionTimeout = timeout;
-    if (proxy != null && proxy.isNotEmpty) {
-      client.findProxy = (_) => proxy;
-    }
-
-    try {
-      for (final testUrl in testUrls) {
-        final stopwatch = Stopwatch()..start();
-        try {
-          final request = await client
-              .getUrl(Uri.parse(testUrl))
-              .timeout(timeout);
-          request.followRedirects = true;
-          request.headers.set(HttpHeaders.userAgentHeader, 'Mozilla/5.0');
-          final response = await request.close().timeout(timeout);
-          await response.drain<void>().timeout(timeout);
-          stopwatch.stop();
-          if (response.statusCode >= 200 && response.statusCode < 500) {
-            return stopwatch.elapsed;
-          }
-        } on TimeoutException {
-          continue;
-        } on SocketException {
-          continue;
-        } on HandshakeException {
-          continue;
-        } on HttpException {
-          continue;
-        }
-      }
-      return null;
-    } finally {
-      client.close(force: true);
-    }
-  }
-
-  Future<Duration?> _measureTcpConnect({
-    required String host,
-    required int port,
-    required Duration timeout,
-  }) async {
-    final stopwatch = Stopwatch()..start();
-    Socket? socket;
-    try {
-      socket = await Socket.connect(host, port, timeout: timeout);
-      stopwatch.stop();
-      return stopwatch.elapsed;
-    } on SocketException {
-      return null;
-    } on TimeoutException {
-      return null;
-    } finally {
-      await socket?.close();
-    }
   }
 }
 
 enum ProxyState { starting, started, stopping, stopped }
+
+class _ProxyApplyContext {
+  const _ProxyApplyContext({
+    required this.localPort,
+    required this.target,
+    required this.reuseDecision,
+  });
+
+  final int? localPort;
+  final ProxyWebViewTarget? target;
+  final ProxyReuseDecision reuseDecision;
+}

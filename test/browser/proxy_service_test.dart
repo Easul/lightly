@@ -140,6 +140,34 @@ void main() {
       expect(fakeProxyCore.startCount, 1);
     });
 
+    test(
+      'reapplies unchanged http proxy config without starting proxy core',
+      () async {
+        final fakeProxyCore = _FakeProxyCoreService();
+        final service = ProxyService(
+          proxyCoreService: fakeProxyCore,
+          proxyChannel: channel,
+        );
+
+        final settings = BrowserSettings.defaults().copyWith(
+          proxyEnabled: true,
+          proxyScheme: BrowserProxyProtocol.http,
+          proxyHost: 'proxy.example.com',
+          proxyPort: 8080,
+        );
+
+        await service.applyProxy(settings);
+        await service.applyProxy(settings);
+
+        final setProxyCalls = methodCalls.where(
+          (call) => call.method == 'setProxy',
+        );
+        expect(setProxyCalls.length, 2);
+        expect(fakeProxyCore.startCount, 0);
+        expect(fakeProxyCore.stopCount, 0);
+      },
+    );
+
     test('passes transport host/path to rust VlessConfig', () async {
       final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
@@ -212,6 +240,84 @@ void main() {
       expect(fakeProxyCore.lastHysteria2Config!.tlsInsecure, isTrue);
       expect(fakeProxyCore.lastListenAddr, '127.0.0.1:19091');
     });
+
+    test('findProxyForDownload returns DIRECT when proxy is disabled', () {
+      final service = ProxyService(proxyChannel: channel);
+      final settings = BrowserSettings.defaults().copyWith(proxyEnabled: false);
+
+      final result = service.findProxyForDownload(
+        settings,
+        Uri.parse('https://example.com/file.apk'),
+      );
+
+      expect(result, 'DIRECT');
+    });
+
+    test('findProxyForDownload returns DIRECT for bypassed domains', () {
+      final service = ProxyService(proxyChannel: channel);
+      final settings = BrowserSettings.defaults().copyWith(
+        proxyEnabled: true,
+        proxyScheme: BrowserProxyProtocol.http,
+        proxyHost: 'proxy.example.com',
+        proxyPort: 8080,
+      );
+
+      final result = service.findProxyForDownload(
+        settings,
+        Uri.parse('https://accounts.google.com/o/oauth2/v2/auth'),
+      );
+
+      expect(result, 'DIRECT');
+    });
+
+    test(
+      'findProxyForDownload returns upstream HTTP proxy when configured',
+      () {
+        final service = ProxyService(proxyChannel: channel);
+        final settings = BrowserSettings.defaults().copyWith(
+          proxyEnabled: true,
+          proxyScheme: BrowserProxyProtocol.http,
+          proxyHost: 'proxy.example.com',
+          proxyPort: 8080,
+        );
+
+        final result = service.findProxyForDownload(
+          settings,
+          Uri.parse('https://example.com/file.apk'),
+        );
+
+        expect(result, 'PROXY proxy.example.com:8080');
+      },
+    );
+
+    test(
+      'findProxyForDownload returns local loopback proxy for vless',
+      () async {
+        final fakeProxyCore = _FakeProxyCoreService();
+        final service = ProxyService(
+          proxyCoreService: fakeProxyCore,
+          proxyChannel: channel,
+        );
+        final settings = BrowserSettings.defaults().copyWith(
+          proxyEnabled: true,
+          proxyScheme: BrowserProxyProtocol.vless,
+          proxyHost: 'edge.example.com',
+          proxyPort: 443,
+          proxyUuid: '86c50e3a-5b87-49dd-bd20-03c7f2735e40',
+          proxyTlsEnabled: true,
+          localProxyPort: 19090,
+        );
+
+        await service.applyProxy(settings);
+
+        final result = service.findProxyForDownload(
+          settings,
+          Uri.parse('https://example.com/file.apk'),
+        );
+
+        expect(result, 'PROXY 127.0.0.1:19090');
+      },
+    );
   });
 }
 
