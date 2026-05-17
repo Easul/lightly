@@ -610,17 +610,23 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "nativeInit" -> {
                         val logLevel = call.argument<String>("logLevel") ?: "info"
+                        Log.i("ProxyCore", "MethodChannel nativeInit called, logLevel=$logLevel")
                         val res = com.proxy.core.ProxyCore.nativeInit(logLevel)
+                        Log.i("ProxyCore", "nativeInit result=$res")
                         result.success(res)
                     }
                     "nativeStart" -> {
                         val listenAddr = call.argument<String>("listenAddr") ?: "127.0.0.1:23333"
                         val config = call.argument<String>("config") ?: "{}"
+                        Log.i("ProxyCore", "MethodChannel nativeStart called, listenAddr=$listenAddr, configLength=${config.length}")
                         val res = com.proxy.core.ProxyCore.nativeStart(listenAddr, config)
+                        Log.i("ProxyCore", "nativeStart result=$res")
                         result.success(res)
                     }
                     "nativeStop" -> {
+                        Log.i("ProxyCore", "MethodChannel nativeStop called")
                         val res = com.proxy.core.ProxyCore.nativeStop()
+                        Log.i("ProxyCore", "nativeStop result=$res")
                         result.success(res)
                     }
                     else -> result.notImplemented()

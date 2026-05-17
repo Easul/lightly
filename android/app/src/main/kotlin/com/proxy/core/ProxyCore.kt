@@ -1,8 +1,19 @@
 package com.proxy.core
 
+import android.util.Log
+
 object ProxyCore {
+    private const val TAG = "ProxyCore"
+    
     init {
-        System.loadLibrary("proxy_core")
+        Log.i(TAG, "Loading proxy_core library...")
+        try {
+            System.loadLibrary("proxy_core")
+            Log.i(TAG, "proxy_core library loaded successfully")
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Failed to load proxy_core library: ${e.message}")
+            throw e
+        }
     }
 
     @JvmStatic
