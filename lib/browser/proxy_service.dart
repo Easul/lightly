@@ -6,42 +6,35 @@ import 'package:flutter/services.dart';
 import '../services/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
-import 'local_mixed_proxy_server.dart';
+
+const String _localProxyHost = '127.0.0.1';
 
 class ProxyService {
   ProxyService._internal({
-    required LocalMixedProxyServer localProxyServer,
     required proxy_core.ProxyCoreService proxyCoreService,
     required MethodChannel proxyChannel,
-  }) : _localProxyServer = localProxyServer,
-       _proxyCoreService = proxyCoreService,
+  }) : _proxyCoreService = proxyCoreService,
        _proxyChannel = proxyChannel;
 
   factory ProxyService({
-    LocalMixedProxyServer? localProxyServer,
     proxy_core.ProxyCoreService? proxyCoreService,
     MethodChannel? proxyChannel,
   }) {
-    if (localProxyServer == null &&
-        proxyCoreService == null &&
-        proxyChannel == null) {
+    if (proxyCoreService == null && proxyChannel == null) {
       return _sharedInstance;
     }
 
     return ProxyService._internal(
-      localProxyServer: localProxyServer ?? LocalMixedProxyServer(),
       proxyCoreService: proxyCoreService ?? proxy_core.ProxyCoreService(),
       proxyChannel: proxyChannel ?? const MethodChannel('browser_proxy'),
     );
   }
 
   static final ProxyService _sharedInstance = ProxyService._internal(
-    localProxyServer: LocalMixedProxyServer(),
     proxyCoreService: proxy_core.ProxyCoreService(),
     proxyChannel: const MethodChannel('browser_proxy'),
   );
 
-  final LocalMixedProxyServer _localProxyServer;
   final proxy_core.ProxyCoreService _proxyCoreService;
   final MethodChannel _proxyChannel;
 
@@ -49,13 +42,9 @@ class ProxyService {
   ProxyState _currentState = ProxyState.stopped;
   String? _activeProxyFingerprint;
 
-  bool get isRunning =>
-      _localProxyServer.isRunning || _proxyCoreService.isRunning;
+  bool get isRunning => _proxyCoreService.isRunning;
 
   int? get localProxyPort {
-    if (_localProxyServer.boundPort != null) {
-      return _localProxyServer.boundPort;
-    }
     final parts = _proxyCoreService.listenAddr.split(':');
     if (parts.length < 2) {
       return null;
@@ -87,7 +76,7 @@ class ProxyService {
     }
 
     // Stop any existing local proxy before starting a new one
-    await _stopLocalProxy();
+    await _stopProxyCore();
 
     if (settings.proxyProtocol == BrowserProxyProtocol.http) {
       // HTTP: Set WebView proxy directly to the user's HTTP proxy server
@@ -140,7 +129,7 @@ class ProxyService {
       }
 
       await _setWebViewProxy(
-        LocalMixedProxyServer.localHost,
+        _localProxyHost,
         localPort,
         scheme: 'http',
         bypassDomains: settings.proxyBypassDomainList,
@@ -155,7 +144,7 @@ class ProxyService {
   }
 
   Future<void> clearProxy() async {
-    await _stopLocalProxy();
+    await _stopProxyCore();
     await _clearWebViewProxy();
     _activeProxyFingerprint = null;
     _emitState(ProxyState.stopped);
@@ -192,10 +181,8 @@ class ProxyService {
       return true;
     }
 
-    if (!_localProxyServer.isRunning) {
-      if (!_proxyCoreService.isRunning) {
-        return false;
-      }
+    if (!_proxyCoreService.isRunning) {
+      return false;
     }
 
     final localPort = settings.localProxyPort ?? this.localProxyPort;
@@ -204,7 +191,7 @@ class ProxyService {
     }
 
     await _setWebViewProxy(
-      LocalMixedProxyServer.localHost,
+      _localProxyHost,
       localPort,
       scheme: 'http',
       bypassDomains: settings.proxyBypassDomainList,
@@ -212,10 +199,7 @@ class ProxyService {
     return true;
   }
 
-  Future<void> _stopLocalProxy() async {
-    if (_localProxyServer.isRunning) {
-      await _localProxyServer.stop();
-    }
+  Future<void> _stopProxyCore() async {
     if (_proxyCoreService.isRunning) {
       await _proxyCoreService.stop();
     }
@@ -288,7 +272,7 @@ class ProxyService {
     if (localPort == null) {
       return 'DIRECT';
     }
-    return 'PROXY ${LocalMixedProxyServer.localHost}:$localPort';
+    return 'PROXY $_localProxyHost:$localPort';
   }
 
   Future<Duration?> testNodeLatency(
@@ -380,7 +364,7 @@ class ProxyService {
       }
 
       final httpLatency = await _measureHttpRequest(
-        proxy: 'PROXY ${LocalMixedProxyServer.localHost}:$tempListenPort',
+        proxy: 'PROXY $_localProxyHost:$tempListenPort',
         timeout: probeTimeout,
         testUrls: [
           testUrl,
