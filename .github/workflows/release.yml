@@ -12,12 +12,17 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.0'
+        default: 'v1.0.4'
 
 jobs:
   build-android:
     name: Build Android APKs
     runs-on: ubuntu-latest
+    outputs:
+      commit_hash: ${{ steps.version.outputs.commit_hash }}
+      version: ${{ steps.version.outputs.version }}
+      build_version: ${{ steps.version.outputs.build_version }}
+      version_code: ${{ steps.version.outputs.version_code }}
     
     steps:
     - name: Checkout code
@@ -41,7 +46,7 @@ jobs:
       run: flutter pub get
     
     - name: Install Rust
-      uses: dtolnay/rust-action@stable
+      uses: dtolnay/rust-toolchain@stable
       with:
         targets: aarch64-linux-android,armv7-linux-androideabi
     
