@@ -1,16 +1,23 @@
-use crate::common::Result;
 use crate::common::Error;
+use crate::common::Result;
+use crate::outbound::{OutboundClient, ProxyStream};
+use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use futures::{stream::{SplitSink, SplitStream}, SinkExt, StreamExt};
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
+use http;
 use rustls_022::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls_022::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls_022::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
+use std::net::SocketAddr;
 use tokio::net::{lookup_host, TcpStream};
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
-use tokio_tungstenite::{client_async_tls_with_config, tungstenite::Message, Connector, WebSocketStream, MaybeTlsStream};
-use http;
-use std::net::SocketAddr;
+use tokio_tungstenite::{
+    client_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream,
+};
 
 pub struct VlessClient {
     config: VlessConfig,
@@ -53,6 +60,8 @@ struct VlessStreamState {
     remote_closed: bool,
 }
 
+const MAX_VLESS_RESPONSE_ADDONS_LENGTH: usize = 64;
+
 use std::sync::Arc;
 
 impl VlessClient {
@@ -61,12 +70,20 @@ impl VlessClient {
     }
 
     pub async fn connect(&self, target_addr: &str, target_port: u16) -> Result<VlessStream> {
-        log::info!("[VLESS] Connecting to target {}:{}", target_addr, target_port);
-        log::info!("[VLESS] Server: {}:{}", self.config.server_addr, self.config.server_port);
-        
+        log::info!(
+            "[VLESS] Connecting to target {}:{}",
+            target_addr,
+            target_port
+        );
+        log::info!(
+            "[VLESS] Server: {}:{}",
+            self.config.server_addr,
+            self.config.server_port
+        );
+
         let uuid_bytes = parse_uuid(&self.config.uuid)?;
         log::debug!("[VLESS] UUID parsed successfully");
-        
+
         let use_tls = self.config.security == SecurityType::Tls;
         let ws_host = non_empty_str(self.config.host.as_deref());
         let tls_server_name = non_empty_str(self.config.sni.as_deref())
@@ -85,16 +102,12 @@ impl VlessClient {
             self.config.path
         );
         log::info!("[VLESS] WebSocket URL: {}", ws_url);
-        
+
         let http_host = ws_host.unwrap_or(tls_server_name);
-        let host_header = build_websocket_host_header(
-            http_host,
-            self.config.server_port,
-            use_tls,
-        );
+        let host_header = build_websocket_host_header(http_host, self.config.server_port, use_tls);
         log::debug!("[VLESS] Host header: {}", host_header);
         log::debug!("[VLESS] TLS server name: {}", tls_server_name);
-        
+
         let request = http::Request::builder()
             .uri(&ws_url)
             .header("Host", host_header)
@@ -104,10 +117,14 @@ impl VlessClient {
             .header("Sec-WebSocket-Version", "13")
             .body(())
             .map_err(|e| Error::InvalidConfig(format!("Invalid WebSocket request: {}", e)))?;
-        
+
         let tcp_addr = format!("{}:{}", self.config.server_addr, self.config.server_port);
-        log::info!("[VLESS] Initiating WebSocket connection over TCP {}...", tcp_addr);
-        let socket = connect_tcp_with_fallback(&self.config.server_addr, self.config.server_port).await?;
+        log::info!(
+            "[VLESS] Initiating WebSocket connection over TCP {}...",
+            tcp_addr
+        );
+        let socket =
+            connect_tcp_with_fallback(&self.config.server_addr, self.config.server_port).await?;
         let local_bind_addr = socket.local_addr().ok();
 
         let connector = if use_tls {
@@ -120,18 +137,18 @@ impl VlessClient {
             Duration::from_secs(15),
             client_async_tls_with_config(request, socket, None, connector),
         )
-            .await
-            .map_err(|_| {
-                log::error!("[VLESS] WebSocket connection timed out");
-                Error::Timeout
-            })?
-            .map_err(|e| {
-                log::error!("[VLESS] WebSocket connection failed: {}", e);
-                Error::Network(format!("WebSocket connection failed: {}", e))
-            })?;
-        
+        .await
+        .map_err(|_| {
+            log::error!("[VLESS] WebSocket connection timed out");
+            Error::Timeout
+        })?
+        .map_err(|e| {
+            log::error!("[VLESS] WebSocket connection failed: {}", e);
+            Error::Network(format!("WebSocket connection failed: {}", e))
+        })?;
+
         log::info!("[VLESS] WebSocket connected successfully");
-        
+
         let (write_half, read_half) = ws.split();
 
         let stream = VlessStream {
@@ -150,9 +167,16 @@ impl VlessClient {
             target_port,
             local_bind_addr,
         };
-        
+
         log::info!("[VLESS] Stream created for {}:{}", target_addr, target_port);
         Ok(stream)
+    }
+}
+
+#[async_trait]
+impl OutboundClient for VlessClient {
+    async fn connect(&self, addr: &str, port: u16) -> Result<Arc<dyn ProxyStream>> {
+        Ok(Arc::new(VlessClient::connect(self, addr, port).await?))
     }
 }
 
@@ -277,13 +301,28 @@ impl VlessStream {
             return None;
         }
 
+        if state.response_header_buffer[0] != 0x00 {
+            let payload = state.response_header_buffer.split().to_vec();
+            state.response_header_pending = false;
+            return Some(payload);
+        }
+
         let addons_length = state.response_header_buffer[1] as usize;
+        if addons_length > MAX_VLESS_RESPONSE_ADDONS_LENGTH {
+            let payload = state.response_header_buffer.split().to_vec();
+            state.response_header_pending = false;
+            return Some(payload);
+        }
+
         let header_length = 2 + addons_length;
         if state.response_header_buffer.len() < header_length {
             return None;
         }
 
-        let payload = state.response_header_buffer.split_off(header_length).to_vec();
+        let payload = state
+            .response_header_buffer
+            .split_off(header_length)
+            .to_vec();
         state.response_header_buffer.clear();
         state.response_header_pending = false;
         Some(payload)
@@ -305,14 +344,15 @@ impl VlessStream {
             }
         }
 
-        log::info!("[VLESS] Performing handshake to {}:{} (first_data: {})",
-            self.target_addr, self.target_port, first_data.map(|d| d.len()).unwrap_or(0));
-
-        let mut vless_request = build_vless_request(
-            &self.uuid,
-            &self.target_addr,
+        log::info!(
+            "[VLESS] Performing handshake to {}:{} (first_data: {})",
+            self.target_addr,
             self.target_port,
+            first_data.map(|d| d.len()).unwrap_or(0)
         );
+
+        let mut vless_request =
+            build_vless_request(&self.uuid, &self.target_addr, self.target_port);
         log::debug!(
             "[VLESS] Request bytes len={} hex={}",
             vless_request.len(),
@@ -333,13 +373,18 @@ impl VlessStream {
         }
 
         let mut write_half = self.write_half.lock().await;
-        write_half.send(Message::Binary(vless_request.to_vec())).await
+        write_half
+            .send(Message::Binary(vless_request.to_vec()))
+            .await
             .map_err(|e| {
                 log::error!("[VLESS] Handshake send failed: {}", e);
                 Error::Network(format!("WebSocket send failed: {}", e))
             })?;
 
-        log::info!("[VLESS] Handshake sent successfully ({} bytes)", vless_request.len());
+        log::info!(
+            "[VLESS] Handshake sent successfully ({} bytes)",
+            vless_request.len()
+        );
         let mut state = self.state.lock().await;
         state.handshake_done = true;
         Ok(first_data.is_some())
@@ -355,7 +400,11 @@ impl VlessStream {
             if !state.read_buffer.is_empty() {
                 let len = std::cmp::min(buf.len(), state.read_buffer.len());
                 buf[..len].copy_from_slice(&state.read_buffer.split_to(len));
-                log::trace!("[VLESS] Read {} bytes from buffer (remaining: {})", len, state.read_buffer.len());
+                log::trace!(
+                    "[VLESS] Read {} bytes from buffer (remaining: {})",
+                    len,
+                    state.read_buffer.len()
+                );
                 return Ok(len);
             }
         }
@@ -383,7 +432,10 @@ impl VlessStream {
                         Self::consume_response_header(&mut state, &data)
                     };
                     let Some(payload) = payload else {
-                        log::debug!("[VLESS] Response header still pending after len={}", data.len());
+                        log::debug!(
+                            "[VLESS] Response header still pending after len={}",
+                            data.len()
+                        );
                         continue;
                     };
                     if payload.is_empty() {
@@ -396,22 +448,39 @@ impl VlessStream {
                         let mut state = self.state.lock().await;
                         state.read_buffer.extend_from_slice(&payload[len..]);
                     }
-                    log::debug!("[VLESS] Read {} bytes from WebSocket payload (total: {})", len, payload.len());
+                    log::debug!(
+                        "[VLESS] Read {} bytes from WebSocket payload (total: {})",
+                        len,
+                        payload.len()
+                    );
                     return Ok(len);
                 }
                 Some(Ok(Message::Close(_))) => {
                     log::info!("[VLESS] Received close frame");
                     self.mark_remote_closed().await;
+                    let mut state = self.state.lock().await;
+                    if !state.read_buffer.is_empty() {
+                        let len = std::cmp::min(buf.len(), state.read_buffer.len());
+                        buf[..len].copy_from_slice(&state.read_buffer.split_to(len));
+                        log::debug!(
+                            "[VLESS] Drained {} buffered bytes after close frame (remaining: {})",
+                            len,
+                            state.read_buffer.len()
+                        );
+                        return Ok(len);
+                    }
                     return Ok(0);
                 }
                 Some(Ok(Message::Ping(payload))) => {
-                    log::trace!("[VLESS] Received ping ({} bytes), sending pong", payload.len());
+                    log::trace!(
+                        "[VLESS] Received ping ({} bytes), sending pong",
+                        payload.len()
+                    );
                     let mut write_half = self.write_half.lock().await;
-                    write_half.send(Message::Pong(payload)).await
-                        .map_err(|e| {
-                            log::error!("[VLESS] Pong send failed: {}", e);
-                            Error::Network(format!("WebSocket pong failed: {}", e))
-                        })?;
+                    write_half.send(Message::Pong(payload)).await.map_err(|e| {
+                        log::error!("[VLESS] Pong send failed: {}", e);
+                        Error::Network(format!("WebSocket pong failed: {}", e))
+                    })?;
                     continue;
                 }
                 Some(Ok(Message::Pong(_))) => {
@@ -442,12 +511,17 @@ impl VlessStream {
         }
 
         if self.ensure_handshake(Some(buf)).await? {
-            log::info!("[VLESS] Auto-handshake on first write ({} bytes data)", buf.len());
+            log::info!(
+                "[VLESS] Auto-handshake on first write ({} bytes data)",
+                buf.len()
+            );
             return Ok(());
         }
 
         let mut write_half = self.write_half.lock().await;
-        write_half.send(Message::Binary(buf.to_vec())).await
+        write_half
+            .send(Message::Binary(buf.to_vec()))
+            .await
             .map_err(|e| {
                 if is_websocket_already_closed_error(&e.to_string()) {
                     return Error::ConnectionClosed;
@@ -473,6 +547,25 @@ impl VlessStream {
     }
 }
 
+#[async_trait]
+impl ProxyStream for VlessStream {
+    async fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        VlessStream::read(self, buf).await
+    }
+
+    async fn write(&self, buf: &[u8]) -> Result<()> {
+        VlessStream::write(self, buf).await
+    }
+
+    async fn close(&self) -> Result<()> {
+        VlessStream::close(self).await
+    }
+
+    fn local_bind_addr(&self) -> Option<SocketAddr> {
+        VlessStream::local_bind_addr(self)
+    }
+}
+
 fn non_empty_str(value: Option<&str>) -> Option<&str> {
     value.and_then(|item| {
         let trimmed = item.trim();
@@ -488,7 +581,12 @@ async fn connect_tcp_with_fallback(server_addr: &str, server_port: u16) -> Resul
     let mut candidates: Vec<SocketAddr> = lookup_host((server_addr, server_port))
         .await
         .map_err(|e| {
-            log::error!("[VLESS] DNS lookup failed for {}:{}: {}", server_addr, server_port, e);
+            log::error!(
+                "[VLESS] DNS lookup failed for {}:{}: {}",
+                server_addr,
+                server_port,
+                e
+            );
             Error::Network(format!("DNS lookup failed: {}", e))
         })?
         .collect();
@@ -506,10 +604,16 @@ async fn connect_tcp_with_fallback(server_addr: &str, server_port: u16) -> Resul
     for candidate in candidates {
         log::debug!("[VLESS] Trying TCP connect to {}", candidate);
         match timeout(Duration::from_secs(10), TcpStream::connect(candidate)).await {
-            Ok(Ok(socket)) => return Ok(socket),
+            Ok(Ok(socket)) => {
+                let _ = socket.set_nodelay(true);
+                return Ok(socket);
+            }
             Ok(Err(e)) => {
                 log::warn!("[VLESS] TCP connect failed for {}: {}", candidate, e);
-                last_error = Some(Error::Network(format!("TCP connect failed for {}: {}", candidate, e)));
+                last_error = Some(Error::Network(format!(
+                    "TCP connect failed for {}: {}",
+                    candidate, e
+                )));
             }
             Err(_) => {
                 log::warn!("[VLESS] TCP connect timed out for {}", candidate);
@@ -533,13 +637,13 @@ pub fn parse_uuid(uuid_str: &str) -> Result<[u8; 16]> {
     if hex_str.len() != 32 {
         return Err(Error::InvalidConfig("Invalid UUID format".to_string()));
     }
-    
+
     let mut bytes = [0u8; 16];
     for i in 0..16 {
-        bytes[i] = u8::from_str_radix(&hex_str[i*2..i*2+2], 16)
+        bytes[i] = u8::from_str_radix(&hex_str[i * 2..i * 2 + 2], 16)
             .map_err(|_| Error::InvalidConfig("Invalid UUID hex".to_string()))?;
     }
-    
+
     Ok(bytes)
 }
 
@@ -552,7 +656,7 @@ fn generate_sec_websocket_key() -> String {
 
 pub fn build_vless_request(uuid: &[u8; 16], addr: &str, port: u16) -> Bytes {
     let mut buf = BytesMut::new();
-    
+
     buf.extend_from_slice(&[0x00]);
     buf.extend_from_slice(uuid);
     buf.extend_from_slice(&[0x00]);
@@ -576,7 +680,7 @@ pub fn build_vless_request(uuid: &[u8; 16], addr: &str, port: u16) -> Bytes {
 
 mod base64 {
     use base64::prelude::*;
-    
+
     pub fn encode(input: &[u8]) -> String {
         BASE64_STANDARD.encode(input)
     }
@@ -592,7 +696,21 @@ fn format_bytes_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_vless_request, parse_uuid};
+    use super::{
+        build_vless_request, parse_uuid, VlessStream, VlessStreamState,
+        MAX_VLESS_RESPONSE_ADDONS_LENGTH,
+    };
+    use bytes::BytesMut;
+
+    fn response_state() -> VlessStreamState {
+        VlessStreamState {
+            read_buffer: BytesMut::new(),
+            handshake_done: false,
+            response_header_pending: true,
+            response_header_buffer: BytesMut::new(),
+            remote_closed: false,
+        }
+    }
 
     #[test]
     fn builds_expected_ipv4_request() {
@@ -621,5 +739,46 @@ mod tests {
         assert_eq!(request[21], 0x02);
         assert_eq!(request[22], 14);
         assert_eq!(&request[23..], b"www.google.com");
+    }
+
+    #[test]
+    fn keeps_payload_when_first_byte_is_not_vless_version() {
+        let mut state = response_state();
+        let payload = [0xaf, 0xed, 0xaa, 0x0f];
+
+        let result = VlessStream::consume_response_header(&mut state, &payload);
+
+        assert_eq!(result, Some(payload.to_vec()));
+        assert!(!state.response_header_pending);
+        assert!(state.response_header_buffer.is_empty());
+    }
+
+    #[test]
+    fn keeps_payload_when_addons_length_is_unreasonably_large() {
+        let mut state = response_state();
+        let payload = [
+            0x00,
+            (MAX_VLESS_RESPONSE_ADDONS_LENGTH as u8) + 1,
+            0x12,
+            0x34,
+        ];
+
+        let result = VlessStream::consume_response_header(&mut state, &payload);
+
+        assert_eq!(result, Some(payload.to_vec()));
+        assert!(!state.response_header_pending);
+        assert!(state.response_header_buffer.is_empty());
+    }
+
+    #[test]
+    fn strips_valid_vless_response_header_only() {
+        let mut state = response_state();
+        let payload = [0x00, 0x00, 0xde, 0xad, 0xbe, 0xef];
+
+        let result = VlessStream::consume_response_header(&mut state, &payload);
+
+        assert_eq!(result, Some(vec![0xde, 0xad, 0xbe, 0xef]));
+        assert!(!state.response_header_pending);
+        assert!(state.response_header_buffer.is_empty());
     }
 }
