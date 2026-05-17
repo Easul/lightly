@@ -27,11 +27,26 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeInit(
         Err(_) => "debug".to_string(),
     };
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Debug)
             .with_tag("ProxyCore"),
     );
+
+    std::panic::set_hook(Box::new(|info| {
+        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic payload".to_string()
+        };
+        log::error!("PANIC at {}: {}", location, payload);
+    }));
 
     log::info!(
         "RustProxy: Proxy core Android initialized with log level: {}",

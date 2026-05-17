@@ -3,12 +3,13 @@ use crate::outbound::{OutboundClient, ProxyStream};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{ClientConfig, Endpoint};
+use quinn::{ClientConfig, Endpoint, TokioRuntime, TransportConfig};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::net::lookup_host;
 use tokio::sync::Mutex;
@@ -18,6 +19,7 @@ pub struct Hysteria2Client {
     endpoint: Arc<Mutex<Option<Endpoint>>>,
     connection: Arc<Mutex<Option<quinn::Connection>>>,
     h3_sender: Arc<Mutex<Option<h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>>>>,
+    h3_driver: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,7 @@ impl Hysteria2Client {
             endpoint: Arc::new(Mutex::new(None)),
             connection: Arc::new(Mutex::new(None)),
             h3_sender: Arc::new(Mutex::new(None)),
+            h3_driver: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -131,10 +134,30 @@ impl Hysteria2Client {
 
         let client_config = build_quinn_client_config(&self.config.sni, self.config.tls_insecure)?;
 
-        let bind_addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        // Try binding to 0.0.0.0:0 first, fall back to 127.0.0.1:0 on Android
+        // Some Android configurations reject binding to 0.0.0.0 (quinn#1624)
+        let socket = match std::net::UdpSocket::bind("0.0.0.0:0") {
+            Ok(s) => {
+                log::debug!("Hysteria2 UDP socket bound to 0.0.0.0:0");
+                s
+            }
+            Err(e) => {
+                log::warn!("Hysteria2 bind 0.0.0.0:0 failed ({}), trying 127.0.0.1:0", e);
+                std::net::UdpSocket::bind("127.0.0.1:0")
+                    .map_err(|e2| Error::Network(format!(
+                        "Failed to bind UDP socket (0.0.0.0:0 → {}, 127.0.0.1:0 → {})",
+                        e, e2
+                    )))?
+            }
+        };
 
-        let mut endpoint = Endpoint::client(bind_addr)
-            .map_err(|e| Error::Network(format!("Failed to create QUIC endpoint: {}", e)))?;
+        let mut endpoint = Endpoint::new(
+            quinn::EndpointConfig::default(),
+            None,
+            socket,
+            Arc::new(TokioRuntime),
+        )
+        .map_err(|e| Error::Network(format!("Failed to create QUIC endpoint: {}", e)))?;
 
         endpoint.set_default_client_config(client_config);
 
@@ -150,7 +173,7 @@ impl Hysteria2Client {
             .await
             .map_err(|e| Error::Network(format!("QUIC handshake failed: {}", e)))?;
 
-        let sender = authenticate_hysteria2(
+        let (sender, driver_handle) = authenticate_hysteria2(
             &connection,
             &self.config.password,
             &self.config.obfs,
@@ -160,6 +183,7 @@ impl Hysteria2Client {
 
         *conn_lock = Some(connection.clone());
         *self.h3_sender.lock().await = Some(sender);
+        *self.h3_driver.lock().await = Some(driver_handle);
 
         let mut endpoint_lock = self.endpoint.lock().await;
         *endpoint_lock = Some(endpoint);
@@ -190,12 +214,17 @@ async fn authenticate_hysteria2(
     password: &str,
     obfs: &Option<String>,
     obfs_password: &Option<String>,
-) -> Result<h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>> {
+) -> Result<(h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>, tokio::task::JoinHandle<()>)> {
     let h3_connection = h3_quinn::Connection::new(connection.clone());
-    let (_driver, mut sender) = h3::client::builder()
+    let (mut driver, mut sender) = h3::client::builder()
         .build::<_, _, Bytes>(h3_connection)
         .await
         .map_err(|e| Error::Network(format!("Hysteria2 HTTP/3 setup failed: {}", e)))?;
+
+    let driver_handle = tokio::spawn(async move {
+        let _ = driver.wait_idle().await;
+        log::debug!("Hysteria2 h3 driver ended");
+    });
 
     let mut request_builder = http::Request::post("https://hysteria/auth")
         .header("Hysteria-Auth", password)
@@ -234,7 +263,7 @@ async fn authenticate_hysteria2(
         )));
     }
 
-    Ok(sender)
+    Ok((sender, driver_handle))
 }
 
 #[async_trait]
@@ -300,7 +329,16 @@ fn build_quinn_client_config(_sni: &Option<String>, tls_insecure: bool) -> Resul
     let quic_config = QuicClientConfig::try_from(client_config)
         .map_err(|e| Error::Network(format!("Invalid TLS config: {}", e)))?;
 
-    Ok(ClientConfig::new(Arc::new(quic_config)))
+    let mut transport = TransportConfig::default();
+    transport.max_idle_timeout(Some(Duration::from_secs(30).try_into().map_err(|e| {
+        Error::Network(format!("Invalid idle timeout: {}", e))
+    })?));
+    transport.keep_alive_interval(Some(Duration::from_secs(10)));
+
+    let mut config = ClientConfig::new(Arc::new(quic_config));
+    config.transport_config(Arc::new(transport));
+
+    Ok(config)
 }
 
 fn random_padding_string(min_len: usize, max_len: usize) -> String {
