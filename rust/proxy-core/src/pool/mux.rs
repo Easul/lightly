@@ -3,12 +3,12 @@ use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream, MaybeTlsStream};
 use tokio::net::TcpStream;
+use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
-use crate::common::{Result, Error};
+use crate::common::{Error, Result};
 use crate::outbound::vless::{build_vless_request, parse_uuid};
 
 const MUX_FRAME_HEADER_LEN: usize = 8;
@@ -39,11 +39,7 @@ pub struct MuxStream {
 }
 
 impl MuxConnection {
-    pub async fn connect(
-        ws_url: &str,
-        uuid: &str,
-        host: &str,
-    ) -> Result<Arc<Self>> {
+    pub async fn connect(ws_url: &str, uuid: &str, host: &str) -> Result<Arc<Self>> {
         let request = http::Request::builder()
             .uri(ws_url)
             .header("Host", host)
@@ -53,25 +49,25 @@ impl MuxConnection {
             .header("Sec-WebSocket-Version", "13")
             .body(())
             .map_err(|e| Error::Network(e.to_string()))?;
-        
+
         let (ws, _) = connect_async(request)
             .await
             .map_err(|e| Error::Network(format!("WebSocket connection failed: {}", e)))?;
-        
+
         let conn = Arc::new(Self {
             ws: Arc::new(Mutex::new(ws)),
             streams: Arc::new(RwLock::new(HashMap::new())),
             next_stream_id: AtomicU32::new(1),
             recv_task: Arc::new(Mutex::new(None)),
         });
-        
+
         let conn_clone = conn.clone();
         let recv_task = tokio::spawn(async move {
             conn_clone.run_receive_loop().await;
         });
-        
+
         *conn.recv_task.lock().await = Some(recv_task);
-        
+
         Ok(conn)
     }
 
@@ -123,27 +119,24 @@ impl MuxConnection {
         streams.clear();
     }
 
-    pub async fn open_stream(
-        &self,
-        target_addr: &str,
-        target_port: u16,
-    ) -> Result<MuxStream> {
+    pub async fn open_stream(&self, target_addr: &str, target_port: u16) -> Result<MuxStream> {
         let stream_id = self.next_stream_id.fetch_add(1, Ordering::SeqCst);
-        
+
         let (tx, rx) = mpsc::unbounded_channel();
-        
+
         {
             let mut streams = self.streams.write().await;
             streams.insert(stream_id, MuxStreamHandle { tx });
         }
 
         let vless_req = build_vless_request_bytes(&[0u8; 16], target_addr, target_port);
-        
+
         let frame = build_mux_frame(stream_id, MUX_CMD_OPEN, &vless_req);
-        
+
         {
             let mut ws = self.ws.lock().await;
-            ws.send(Message::Binary(frame.to_vec())).await
+            ws.send(Message::Binary(frame.to_vec()))
+                .await
                 .map_err(|e| Error::Network(format!("Failed to send open stream: {}", e)))?;
         }
 
@@ -158,21 +151,23 @@ impl MuxConnection {
 
     async fn send_data(&self, stream_id: u32, data: &[u8]) -> Result<()> {
         let frame = build_mux_frame(stream_id, MUX_CMD_DATA, data);
-        
+
         let mut ws = self.ws.lock().await;
-        ws.send(Message::Binary(frame.to_vec())).await
+        ws.send(Message::Binary(frame.to_vec()))
+            .await
             .map_err(|e| Error::Network(format!("Failed to send data: {}", e)))?;
-        
+
         Ok(())
     }
 
     async fn close_stream(&self, stream_id: u32) -> Result<()> {
         let frame = build_mux_frame(stream_id, MUX_CMD_CLOSE, &[]);
-        
+
         let mut ws = self.ws.lock().await;
-        ws.send(Message::Binary(frame.to_vec())).await
+        ws.send(Message::Binary(frame.to_vec()))
+            .await
             .map_err(|e| Error::Network(format!("Failed to close stream: {}", e)))?;
-        
+
         self.remove_stream(stream_id).await;
         Ok(())
     }
@@ -240,7 +235,7 @@ impl MuxStream {
 
 fn build_mux_frame(stream_id: u32, cmd: u8, payload: &[u8]) -> Bytes {
     let mut frame = BytesMut::with_capacity(MUX_FRAME_HEADER_LEN + payload.len());
-    
+
     frame.extend_from_slice(&[
         (stream_id >> 24) as u8,
         (stream_id >> 16) as u8,
@@ -249,7 +244,7 @@ fn build_mux_frame(stream_id: u32, cmd: u8, payload: &[u8]) -> Bytes {
     ]);
     frame.extend_from_slice(&[cmd, 0, 0, 0]);
     frame.extend_from_slice(payload);
-    
+
     frame.freeze()
 }
 
@@ -266,7 +261,7 @@ fn generate_sec_websocket_key() -> String {
 
 mod base64 {
     use base64::prelude::*;
-    
+
     pub fn encode(input: &[u8]) -> String {
         BASE64_STANDARD.encode(input)
     }
