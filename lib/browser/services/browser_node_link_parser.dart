@@ -40,7 +40,7 @@ class BrowserNodeLinkParser {
     final node = _subscriptionService.parseSingleNode(trimmedLink);
     if (node == null) {
       throw const BrowserNodeLinkParserException(
-        '无法解析该链接，仅支持 vless:// 和 http:// 格式',
+        '无法解析该链接，仅支持 vless://、hysteria2:// 和 http:// 格式',
       );
     }
 

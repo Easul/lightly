@@ -107,7 +107,9 @@ class BrowserSubscriptionService {
     final supportedItems = rawItems.where((item) {
       final rawProtocol = (item['protocol'] as String? ?? '').toLowerCase();
       return rawProtocol == BrowserProxyProtocol.http ||
-          rawProtocol == BrowserProxyProtocol.vless;
+          rawProtocol == BrowserProxyProtocol.vless ||
+          rawProtocol == BrowserProxyProtocol.hysteria2 ||
+          rawProtocol == 'hy2';
     });
 
     return supportedItems.map(BrowserSubscriptionNode.fromJson).toList();
@@ -154,9 +156,9 @@ class BrowserSubscriptionService {
       proxyHost: node.host,
       proxyPort: node.port,
       proxyScheme: protocol,
-      proxyUuid: protocol == BrowserProxyProtocol.http
-          ? _readString(settings['password'])
-          : _readString(settings['uuid']),
+      proxyUuid: protocol == BrowserProxyProtocol.vless
+          ? _readString(settings['uuid'])
+          : _readString(settings['password']),
       proxyTlsEnabled: tlsEnabled,
       proxyTlsInsecure: _readBool(settings['tlsInsecure']),
       proxyServerName: _readString(settings['serverName']),
@@ -181,6 +183,9 @@ class BrowserSubscriptionService {
     switch (scheme) {
       case 'vless':
         return _parseVless(rawUrl);
+      case 'hy2':
+      case 'hysteria2':
+        return _parseHysteria2(rawUrl);
       case 'http':
       case 'https':
         return _parseHttp(rawUrl);
@@ -248,6 +253,37 @@ class BrowserSubscriptionService {
       rawUrl: rawUrl,
       settings: <String, dynamic>{
         'password': _decodeUserInfoPart(uri.userInfo, 1),
+      },
+    );
+  }
+
+  BrowserSubscriptionNode? _parseHysteria2(String rawUrl) {
+    final uri = _tryParseUri(rawUrl);
+    if (uri == null || uri.host.isEmpty) {
+      return null;
+    }
+
+    final query = uri.queryParameters;
+    final port = uri.port > 0 ? uri.port : 443;
+    return BrowserSubscriptionNode(
+      id: _buildNodeId(rawUrl),
+      protocol: BrowserProxyProtocol.hysteria2,
+      host: uri.host,
+      port: port,
+      name: _buildName(
+        protocol: BrowserProxyProtocol.hysteria2,
+        host: uri.host,
+        port: port,
+        preferredName: _decodeName(uri.fragment),
+      ),
+      rawUrl: rawUrl,
+      settings: <String, dynamic>{
+        'password': _decodeUserInfoPart(uri.userInfo, 0),
+        'tlsEnabled': true,
+        'tlsInsecure': _queryBool(query, const ['allowInsecure', 'insecure']),
+        'serverName': _stringFromQuery(query, 'sni', fallback: uri.host),
+        'transportType': _stringFromQuery(query, 'obfs'),
+        'transportHost': _stringFromQuery(query, 'obfs-password'),
       },
     );
   }

@@ -79,11 +79,12 @@ invalid line
 # comment line
 vless://a0b1c2d3-e4f5-6789-abcd-ef0123456789@vless.example.com:443?sni=vless-sni.example.com&type=ws&host=cdn.vless.example.com&path=%2Fvless#VLESS%20Node
 http://demo:pass@http.example.com:1080#Http%20Node
+hysteria2://hy2-secret@hy2.example.com:443?sni=hy2.sni.example.com&insecure=1#HY2%20Node
 https://127.0.0.1:1080#Direct
 trojan://ignored
 ''');
 
-      expect(nodes, hasLength(3));
+      expect(nodes, hasLength(4));
 
       expect(nodes[0].protocol, BrowserProxyProtocol.vless);
       expect(nodes[0].name, 'VLESS Node');
@@ -101,10 +102,16 @@ trojan://ignored
       expect(nodes[1].port, 1080);
       expect(nodes[1].settings['password'], 'pass');
 
-      expect(nodes[2].protocol, BrowserProxyProtocol.http);
-      expect(nodes[2].host, '127.0.0.1');
-      expect(nodes[2].port, 1080);
-      expect(nodes[2].name, 'Direct');
+      expect(nodes[2].protocol, BrowserProxyProtocol.hysteria2);
+      expect(nodes[2].host, 'hy2.example.com');
+      expect(nodes[2].settings['password'], 'hy2-secret');
+      expect(nodes[2].settings['serverName'], 'hy2.sni.example.com');
+      expect(nodes[2].settings['tlsInsecure'], isTrue);
+
+      expect(nodes[3].protocol, BrowserProxyProtocol.http);
+      expect(nodes[3].host, '127.0.0.1');
+      expect(nodes[3].port, 1080);
+      expect(nodes[3].name, 'Direct');
     });
 
     test('parseNodes decodes base64 subscription content', () {
@@ -255,6 +262,24 @@ http://127.0.0.1:1080#Http
       expect(patch.proxyHost, 'http.example.com');
       expect(patch.proxyPort, 1080);
       expect(patch.proxyUuid, 'pass');
+      expect(patch.proxyValidationError, isNull);
+    });
+
+    test('convertNodeToSettings maps hysteria2 nodes', () {
+      final node = service
+          .parseNodes(
+            'hy2://secret@hy2.example.com:443?sni=hy2.sni.example.com#HY2',
+          )
+          .single;
+
+      final patch = service.convertNodeToSettings(node);
+
+      expect(patch.proxyScheme, BrowserProxyProtocol.hysteria2);
+      expect(patch.proxyHost, 'hy2.example.com');
+      expect(patch.proxyPort, 443);
+      expect(patch.proxyUuid, 'secret');
+      expect(patch.proxyTlsEnabled, isTrue);
+      expect(patch.proxyServerName, 'hy2.sni.example.com');
       expect(patch.proxyValidationError, isNull);
     });
   });
