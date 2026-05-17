@@ -48,9 +48,14 @@ import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
 import '../widgets/app_drawer.dart';
 import 'browser_page_action_coordinator.dart';
+import 'browser_page_external_intent_helper.dart';
+import 'browser_page_favorite_helper.dart';
 import 'browser_page_modal_actions.dart';
+import 'browser_page_settings_helper.dart';
+import 'browser_page_site_security_helper.dart';
 import 'browser_page_shell_widgets.dart';
 import 'browser_page_status_coordinator.dart';
+import 'browser_page_tab_transition_helper.dart';
 import 'browser_page_tab_flow_coordinator.dart';
 import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
@@ -90,13 +95,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageActionCoordinator();
   final BrowserPageStatusCoordinator _statusCoordinator =
       const BrowserPageStatusCoordinator();
+  final BrowserPageSettingsHelper _settingsHelper =
+      const BrowserPageSettingsHelper();
+  final BrowserPageSiteSecurityHelper _siteSecurityHelper =
+      const BrowserPageSiteSecurityHelper();
   final BrowserPageTabFlowCoordinator _tabFlowCoordinator =
       const BrowserPageTabFlowCoordinator();
+  final BrowserPageTabTransitionHelper _tabTransitionHelper =
+      const BrowserPageTabTransitionHelper();
   final BrowserPageWebViewCoordinator _webViewCoordinator =
       const BrowserPageWebViewCoordinator();
   final BrowserPageRouteHandler _routeHandler = const BrowserPageRouteHandler();
   final BrowserSiteDataManager _siteDataManager =
       const BrowserSiteDataManager();
+  final BrowserPageExternalIntentHelper _externalIntentHelper =
+      const BrowserPageExternalIntentHelper();
+  final BrowserPageFavoriteHelper _favoriteHelper =
+      const BrowserPageFavoriteHelper();
 
   void _logDebug(String message) {
     if (kDebugMode) {
@@ -480,48 +495,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  static const MethodChannel _browserProxyChannel = MethodChannel(
-    'browser_proxy',
-  );
-
   Future<String?> _getInitialIntentUrl() async {
-    try {
-      final url = await _browserProxyChannel.invokeMethod<String>(
-        'getInitialIntentUrl',
-      );
-      return await _prepareExternalIntentUrl(url);
-    } on MissingPluginException {
-      return null;
-    } catch (_) {
-      return null;
-    }
+    return _externalIntentHelper.getInitialIntentUrl();
   }
 
   Future<String?> _prepareExternalIntentUrl(String? url) async {
-    if (url == null || url.isEmpty) {
-      return null;
-    }
-
-    final parsed = Uri.tryParse(url);
-    if (parsed?.scheme.toLowerCase() != 'content') {
-      return url;
-    }
-
-    try {
-      final imported = await _browserProxyChannel.invokeMethod<String>(
-        'importContentUriToPrivateFile',
-        {'uri': url},
-      );
-      return imported?.isNotEmpty == true ? imported : url;
-    } on MissingPluginException {
-      return url;
-    } catch (_) {
-      return url;
-    }
+    return _externalIntentHelper.prepareExternalIntentUrl(url);
   }
 
   void _setupExternalUrlListener() {
-    _browserProxyChannel.setMethodCallHandler((call) async {
+    BrowserPageExternalIntentHelper.browserProxyChannel.setMethodCallHandler((
+      call,
+    ) async {
       if (call.method == 'onNewIntentUrl') {
         final rawUrl = call.arguments['url'] as String?;
         final url = await _prepareExternalIntentUrl(rawUrl);
@@ -561,14 +546,20 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
+    final snapshot = _settingsHelper.buildInitializedSnapshot(
+      settings: appliedSettings.settings,
+      proxySupported: appliedSettings.proxySupported,
+      isProxyActive: appliedSettings.isProxyActive,
+      statusMessage: appliedSettings.proxyStatusMessage,
+    );
     _syncAddressBarForCurrentTab();
     _checkFavoriteStatus(_currentUrl);
     setState(() {
-      _settings = appliedSettings.settings;
-      _proxySupported = appliedSettings.proxySupported;
-      _isProxyActive = appliedSettings.isProxyActive;
-      _statusMessage = appliedSettings.proxyStatusMessage;
-      _isInitialized = true;
+      _settings = snapshot.settings;
+      _proxySupported = snapshot.proxySupported;
+      _isProxyActive = snapshot.isProxyActive;
+      _statusMessage = snapshot.statusMessage;
+      _isInitialized = snapshot.isInitialized;
     });
   }
 
@@ -584,11 +575,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
 
     _tabService.setFallbackUrl(_favoritesCoordinator.favoritesPageUrl);
+    final snapshot = _settingsHelper.buildReloadedSnapshot(
+      settings: appliedSettings.settings,
+      proxySupported: appliedSettings.proxySupported,
+      isProxyActive: appliedSettings.isProxyActive,
+      statusMessage: appliedSettings.proxyStatusMessage,
+      isInitialized: _isInitialized,
+    );
     setState(() {
-      _settings = appliedSettings.settings;
-      _proxySupported = appliedSettings.proxySupported;
-      _isProxyActive = appliedSettings.isProxyActive;
-      _statusMessage = appliedSettings.proxyStatusMessage;
+      _settings = snapshot.settings;
+      _proxySupported = snapshot.proxySupported;
+      _isProxyActive = snapshot.isProxyActive;
+      _statusMessage = snapshot.statusMessage;
+      _isInitialized = snapshot.isInitialized;
       _initializer.clearVideoPromptState();
     });
 
@@ -1087,37 +1086,26 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showSiteSecurityDialog() async {
-    final currentUri = Uri.tryParse(_currentUrl);
-    final securityState = _siteDataManager.buildSecurityState(
-      currentUri: currentUri,
-      isSecure: _isSecure,
-    );
-
-    await showBrowserSiteSecurityDialog(
+    await _siteSecurityHelper.showSiteSecurityDialog(
       context: context,
-      state: securityState,
-      onClearSiteData: () async {
-        if (currentUri != null) {
-          await _clearCurrentSiteData(currentUri);
-        }
-      },
+      currentUrl: _currentUrl,
+      isSecure: _isSecure,
+      siteDataManager: _siteDataManager,
+      onClearSiteData: _clearCurrentSiteData,
     );
   }
 
   Future<void> _clearCurrentSiteData(Uri currentUri) async {
-    final confirmed = await showBrowserSiteDataClearConfirmation(
-      context: context,
-      currentUri: currentUri,
-    );
-    if (!confirmed) {
-      return;
-    }
-
     try {
-      final successMessage = await _siteDataManager.clearCurrentSiteData(
+      final successMessage = await _siteSecurityHelper.clearCurrentSiteData(
         currentUri: currentUri,
+        context: context,
+        siteDataManager: _siteDataManager,
         controller: _webViewController,
       );
+      if (successMessage == null) {
+        return;
+      }
       _showSnackBar(successMessage);
     } catch (error) {
       _showSnackBar('清除站点数据失败: $error');
@@ -1130,23 +1118,35 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     String statusMessage = '',
     bool isExternallyOpened = false,
   }) async {
-    _webViewController = null;
     final tab = _tabCoordinator.openTab(
       url: url,
       title: title,
       isExternallyOpened: isExternallyOpened,
     );
-    _addressFocusNode.unfocus();
-    _resetVideoDetectionState();
-    _syncAddressBarForCurrentTab();
-    _checkFavoriteStatus(tab.url);
     if (!mounted) {
       return;
     }
-    _resetProgress();
-    setState(() {
-      _statusMessage = statusMessage;
-    });
+    await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
+      clearWebViewController: () {
+        _webViewController = null;
+      },
+      unfocusAddressBar: _addressFocusNode.unfocus,
+      resetVideoDetectionState: _resetVideoDetectionState,
+      syncAddressBar: _syncAddressBarForCurrentTab,
+      checkFavoriteStatus: _checkFavoriteStatus,
+      url: tab.url,
+      resetProgress: _resetProgress,
+      clearStatus: () {
+        if (mounted) {
+          setState(() {
+            _statusMessage = statusMessage;
+          });
+        }
+      },
+      syncTrackedScrollPosition:
+          _tabCoordinator.syncTrackedScrollPositionWithActiveTab,
+      syncTrackedScroll: false,
+    );
   }
 
   void _setStatusMessage(String message) {
@@ -1168,35 +1168,55 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    _webViewController = null;
-    _addressFocusNode.unfocus();
-    _resetVideoDetectionState();
-    _tabCoordinator.syncTrackedScrollPositionWithActiveTab();
-    _syncAddressBarForCurrentTab();
-    _checkFavoriteStatus(_currentUrl);
     if (!mounted) {
       return;
     }
-    _resetProgress();
-    setState(() {
-      _statusMessage = _statusCoordinator.cleared();
-    });
+    await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
+      clearWebViewController: () {
+        _webViewController = null;
+      },
+      unfocusAddressBar: _addressFocusNode.unfocus,
+      resetVideoDetectionState: _resetVideoDetectionState,
+      syncAddressBar: _syncAddressBarForCurrentTab,
+      checkFavoriteStatus: _checkFavoriteStatus,
+      url: _currentUrl,
+      resetProgress: _resetProgress,
+      clearStatus: () {
+        if (mounted) {
+          setState(() {
+            _statusMessage = _statusCoordinator.cleared();
+          });
+        }
+      },
+      syncTrackedScrollPosition:
+          _tabCoordinator.syncTrackedScrollPositionWithActiveTab,
+      syncTrackedScroll: true,
+    );
   }
 
   Future<void> _closeTab(String tabId) async {
     final previousActiveId = _activeTabId;
     final nextTab = _tabCoordinator.closeTab(tabId);
-    _webViewController = null;
-    _addressFocusNode.unfocus();
-    _syncAddressBarForCurrentTab();
-    _checkFavoriteStatus(nextTab.url);
     if (!mounted) {
       return;
     }
-    _resetProgress();
-    setState(() {
-      _statusMessage = _statusCoordinator.cleared();
-    });
+    await _tabTransitionHelper.prepareClosedTab(
+      clearWebViewController: () {
+        _webViewController = null;
+      },
+      unfocusAddressBar: _addressFocusNode.unfocus,
+      syncAddressBar: _syncAddressBarForCurrentTab,
+      checkFavoriteStatus: _checkFavoriteStatus,
+      url: nextTab.url,
+      resetProgress: _resetProgress,
+      clearStatus: () {
+        if (mounted) {
+          setState(() {
+            _statusMessage = _statusCoordinator.cleared();
+          });
+        }
+      },
+    );
 
     final previousId = previousActiveId;
     if (previousId == null) {
@@ -1286,16 +1306,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   Future<void> _closeAllTabs() async {
     _tabCoordinator.closeAllTabs();
 
-    _addressFocusNode.unfocus();
-    _syncAddressBarForCurrentTab();
-    _checkFavoriteStatus(_currentUrl);
     if (!mounted) {
       return;
     }
-    _resetProgress();
-    setState(() {
-      _statusMessage = _statusCoordinator.cleared();
-    });
+    await _tabTransitionHelper.prepareCloseAllTabs(
+      unfocusAddressBar: _addressFocusNode.unfocus,
+      syncAddressBar: _syncAddressBarForCurrentTab,
+      checkFavoriteStatus: _checkFavoriteStatus,
+      url: _currentUrl,
+      resetProgress: _resetProgress,
+      clearStatus: () {
+        if (mounted) {
+          setState(() {
+            _statusMessage = _statusCoordinator.cleared();
+          });
+        }
+      },
+    );
     unawaited(_tabService.saveSessions());
   }
 
@@ -1378,8 +1405,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _checkFavoriteStatus(String url) async {
-    await _favoriteStatusTracker.checkStatus(
-      url,
+    await _favoriteHelper.checkFavoriteStatus(
+      tracker: _favoriteStatusTracker,
+      url: url,
       isFavoritesPage: _isFavoritesPage(url),
     );
   }
@@ -1388,29 +1416,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final url = _currentUrl;
     final title = _activeTab?.title ?? '';
 
-    try {
-      final result = await _favoriteActionCoordinator.toggleFavorite(
-        url: url,
-        title: title,
-        isFavoritesPage: _isFavoritesPage(url),
-        isCurrentlyFavorited: _favoriteStatusTracker.isCurrentPageFavorited,
-      );
-      if (result == null) {
-        return;
-      }
-      _favoriteStatusTracker.applyKnownStatus(url, result.isFavorited);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(result.message)));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
-      }
+    final result = await _favoriteHelper.toggleFavorite(
+      coordinator: _favoriteActionCoordinator,
+      tracker: _favoriteStatusTracker,
+      url: url,
+      title: title,
+      isFavoritesPage: _isFavoritesPage(url),
+    );
+    if (result == null || !mounted) {
+      return;
     }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
   }
 
   void _resetVideoDetectionState() {
