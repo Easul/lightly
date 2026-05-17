@@ -1,4 +1,5 @@
 use crate::common::Result;
+use crate::inbound::relay;
 use crate::outbound::OutboundClient;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{
@@ -7,7 +8,7 @@ use std::sync::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 
 const AUTH_NONE: u8 = 0x00;
 const AUTH_USERNAME_PASSWORD: u8 = 0x02;
@@ -179,126 +180,99 @@ pub async fn handle_socks5(
 
                 log::info!("[SOCKS5] {} ↔ Starting bidirectional relay", peer_addr);
 
-                let c2v = async move {
-                    let mut buf = [0u8; 8192];
-                    let mut total = 0usize;
-                    let mut waiting_for_first_payload = true;
-                    loop {
-                        let read_result = if waiting_for_first_payload {
-                            tokio::select! {
-                                result = client_r.read(&mut buf) => result,
-                                _ = sleep(Duration::from_millis(250)) => {
-                                    if let Err(error) = outbound_upload.write(&[]).await {
-                                        if !matches!(error, crate::common::Error::ConnectionClosed) {
-                                            log::warn!(
-                                                "[SOCKS5] Handshake fallback failed before first payload: {}",
-                                                error
-                                            );
-                                        }
-                                        break;
-                                    }
-                                    waiting_for_first_payload = false;
-                                    continue;
-                                }
+                let c2v = relay::relay_client_to_vless(
+                    client_r,
+                    outbound_upload,
+                    8192,
+                    None,
+                    Some(Duration::from_millis(250)),
+                    true,
+                    |n| {
+                        log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
+                    },
+                    |_| {},
+                    |error| {
+                        log::warn!(
+                            "[SOCKS5] Handshake fallback failed before first payload: {}",
+                            error
+                        );
+                    },
+                    |error, _| {
+                        log::warn!("[SOCKS5] Client → VLESS: Write failed: {}", error);
+                    },
+                    |total| {
+                        client_input_done_for_c2v.store(true, Ordering::Relaxed);
+                        log::info!("[SOCKS5] Client → VLESS: EOF (total {} bytes)", total);
+                    },
+                    |error, _| {
+                        client_input_done_for_c2v.store(true, Ordering::Relaxed);
+                        if is_expected_client_read_close(error) {
+                            log::info!(
+                                "[SOCKS5] Client → VLESS: Peer closed input ({})",
+                                error
+                            );
+                        } else {
+                            log::warn!("[SOCKS5] Client → VLESS: Read error {}", error);
+                        }
+                    },
+                    |total| {
+                        log::debug!("[SOCKS5] Client → VLESS: Closed (total {} bytes)", total);
+                    },
+                );
+
+                let client_input_done_for_v2c_write = client_input_done_for_v2c.clone();
+                let client_input_done_for_v2c_read = client_input_done_for_v2c.clone();
+                let v2c = relay::relay_vless_downstream_to_client(
+                    outbound_download,
+                    client_w,
+                    8192,
+                    |n| {
+                        log::trace!("[SOCKS5] VLESS → Client: {} bytes", n);
+                    },
+                    |total| {
+                        log::info!("[SOCKS5] VLESS → Client: EOF (total {} bytes)", total);
+                    },
+                    move |error, _| {
+                        if is_expected_client_write_close(error) {
+                            let saw_client_eof =
+                                client_input_done_for_v2c_write.swap(true, Ordering::Relaxed);
+                            if saw_client_eof {
+                                log::debug!(
+                                    "[SOCKS5] VLESS → Client: Peer already closed after client EOF ({})",
+                                    error,
+                                );
+                            } else {
+                                log::info!(
+                                    "[SOCKS5] VLESS → Client: Peer closed receive side ({})",
+                                    error,
+                                );
                             }
                         } else {
-                            client_r.read(&mut buf).await
-                        };
-
-                        waiting_for_first_payload = false;
-                        match read_result {
-                            Ok(0) => {
-                                client_input_done_for_c2v.store(true, Ordering::Relaxed);
-                                log::info!("[SOCKS5] Client → VLESS: EOF (total {} bytes)", total);
-                                let _ = outbound_upload.close().await;
-                                break;
-                            }
-                            Ok(n) => {
-                                total += n;
-                                log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
-                                if let Err(error) = outbound_upload.write(&buf[..n]).await {
-                                    if !matches!(error, crate::common::Error::ConnectionClosed) {
-                                        log::warn!(
-                                            "[SOCKS5] Client → VLESS: Write failed: {}",
-                                            error
-                                        );
-                                    }
-                                    break;
-                                }
-                            }
-                            Err(e) => {
-                                client_input_done_for_c2v.store(true, Ordering::Relaxed);
-                                if is_expected_client_read_close(&e) {
-                                    log::info!(
-                                        "[SOCKS5] Client → VLESS: Peer closed input ({})",
-                                        e
-                                    );
-                                } else {
-                                    log::warn!("[SOCKS5] Client → VLESS: Read error {}", e);
-                                }
-                                let _ = outbound_upload.close().await;
-                                break;
-                            }
+                            log::warn!("[SOCKS5] VLESS → Client: Write failed: {}", error);
                         }
-                    }
-                    log::debug!("[SOCKS5] Client → VLESS: Closed (total {} bytes)", total);
-                };
-
-let v2c = async move {
-                    let mut buf = [0u8; 8192];
-                    let mut total = 0usize;
-                    loop {
-                        match outbound_download.read(&mut buf).await {
-                            Ok(0) => {
-                                log::info!("[SOCKS5] VLESS → Client: EOF (total {} bytes)", total);
-                                break;
-                            }
-                            Ok(n) => {
-                                total += n;
-                                log::trace!("[SOCKS5] VLESS → Client: {} bytes", n);
-                                if let Err(error) = client_w.write_all(&buf[..n]).await {
-                                    if is_expected_client_write_close(&error) {
-                                        let saw_client_eof =
-                                            client_input_done_for_v2c.swap(true, Ordering::Relaxed);
-                                        if saw_client_eof {
-                                            log::debug!(
-                                                "[SOCKS5] VLESS → Client: Peer already closed after client EOF ({})",
-                                                error,
-                                            );
-                                        } else {
-                                            log::info!(
-                                                "[SOCKS5] VLESS → Client: Peer closed receive side ({})",
-                                                error,
-                                            );
-                                        }
-                                    } else {
-                                        log::warn!(
-                                            "[SOCKS5] VLESS → Client: Write failed: {}",
-                                            error
-                                        );
-                                    }
-                                    break;
-                                }
-                            }
-                            Err(e) => {
-                                if client_input_done_for_v2c.load(Ordering::Relaxed) {
-                                    log::debug!(
-                                        "[SOCKS5] VLESS → Client: Read error after client EOF ({})",
-                                        e
-                                    );
-                                } else {
-                                    log::warn!("[SOCKS5] VLESS → Client: Read error {}", e);
-                                }
-                                break;
-                            }
+                    },
+                    move |error, _| {
+                        if client_input_done_for_v2c_read.load(Ordering::Relaxed) {
+                            log::debug!(
+                                "[SOCKS5] VLESS → Client: Read error after client EOF ({})",
+                                error
+                            );
+                        } else {
+                            log::warn!("[SOCKS5] VLESS → Client: Read error {}", error);
                         }
-                    }
-                    let _ = client_w.shutdown().await;
-                    log::debug!("[SOCKS5] VLESS → Client: Closed (total {} bytes)", total);
-                };
+                    },
+                    |total| {
+                        log::debug!("[SOCKS5] VLESS → Client: Closed (total {} bytes)", total);
+                    },
+                );
 
-                tokio::join!(c2v, v2c);
-                let _ = cleanup_outbound.close().await;
+                relay::run_vless_relay_session(
+                    c2v,
+                    v2c,
+                    std::future::ready(()),
+                    cleanup_outbound,
+                )
+                .await;
                 log::info!("[SOCKS5] {} ↔ Bidirectional relay completed", peer_addr);
             }
             Err(e) => {
@@ -326,7 +300,7 @@ let v2c = async move {
                     ])
                     .await?;
 
-                pipe_bidirectional(stream, target).await;
+                relay::pipe_bidirectional(stream, target, "SOCKS5").await;
             }
             Err(e) => {
                 stream
@@ -398,27 +372,6 @@ fn is_expected_client_write_close(error: &std::io::Error) -> bool {
             | std::io::ErrorKind::ConnectionAborted
             | std::io::ErrorKind::NotConnected
     )
-}
-
-async fn pipe_bidirectional(mut client: TcpStream, mut target: TcpStream) {
-    let (mut client_r, mut client_w) = client.split();
-    let (mut target_r, mut target_w) = target.split();
-
-    let c2t = tokio::io::copy(&mut client_r, &mut target_w);
-    let t2c = tokio::io::copy(&mut target_r, &mut client_w);
-
-    match tokio::try_join!(c2t, t2c) {
-        Ok((c2t_bytes, t2c_bytes)) => {
-            log::debug!(
-                "SOCKS5 tunnel closed: {} bytes client→target, {} bytes target→client",
-                c2t_bytes,
-                t2c_bytes
-            );
-        }
-        Err(e) => {
-            log::debug!("SOCKS5 tunnel error: {}", e);
-        }
-    }
 }
 
 #[cfg(test)]

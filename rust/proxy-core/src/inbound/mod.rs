@@ -1,18 +1,19 @@
 pub mod http;
+pub mod relay;
 pub mod socks5;
 
 use crate::common::Result;
-use crate::pool::ConnectionPool;
+use crate::pool::OutboundClientRegistry;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
 pub struct InboundServer {
     listener: TcpListener,
-    pool: Arc<ConnectionPool>,
+    pool: Arc<OutboundClientRegistry>,
 }
 
 impl InboundServer {
-    pub async fn bind(addr: &str, pool: Arc<ConnectionPool>) -> Result<Self> {
+    pub async fn bind(addr: &str, pool: Arc<OutboundClientRegistry>) -> Result<Self> {
         let listener = TcpListener::bind(addr).await?;
         log::info!("Inbound server listening on {}", addr);
         Ok(Self { listener, pool })
@@ -35,7 +36,7 @@ impl InboundServer {
 
 async fn handle_connection(
     mut socket: tokio::net::TcpStream,
-    pool: Arc<ConnectionPool>,
+    pool: Arc<OutboundClientRegistry>,
 ) -> Result<()> {
     let peer_addr = socket
         .peer_addr()

@@ -1,7 +1,8 @@
 use crate::common::Result;
+use crate::inbound::relay;
 use crate::outbound::OutboundClient;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
 
@@ -49,74 +50,64 @@ pub async fn handle_http(
 
                     let (mut client_r, mut client_w) = stream.split();
 
-                    let c2v = async move {
-                        let mut buf = [0u8; 4096];
-                        if !remaining.is_empty() {
-                            if let Err(e) = outbound_upload.write(&remaining).await {
-                                log::error!(
-                                    "Failed to forward buffered CONNECT payload via VLESS: {}",
-                                    e
-                                );
-                                return;
-                            }
-                        }
-                        loop {
-                            match client_r.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("HTTP CONNECT client -> VLESS EOF");
-                                    break;
-                                }
-                                Ok(n) => {
-                                    if let Err(error) = outbound_upload.write(&buf[..n]).await {
-                                        if !matches!(error, crate::common::Error::ConnectionClosed)
-                                        {
-                                            log::warn!(
-                                                "HTTP CONNECT client -> VLESS write failed: {}",
-                                                error
-                                            );
-                                        }
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::warn!("HTTP CONNECT client -> VLESS read error: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                    };
+                    let c2v = relay::relay_client_to_vless(
+                        client_r,
+                        outbound_upload,
+                        4096,
+                        Some(remaining),
+                        None,
+                        false,
+                        |_| {},
+                        |error| {
+                            log::error!(
+                                "Failed to forward buffered CONNECT payload via VLESS: {}",
+                                error
+                            );
+                        },
+                        |_| {},
+                        |error, _| {
+                            log::warn!("HTTP CONNECT client -> VLESS write failed: {}", error);
+                        },
+                        |_| {
+                            log::info!("HTTP CONNECT client -> VLESS EOF");
+                        },
+                        |error, _| {
+                            log::warn!("HTTP CONNECT client -> VLESS read error: {}", error);
+                        },
+                        |_| {},
+                    );
 
-                    let v2c = async move {
-                        let mut buf = [0u8; 4096];
-                        loop {
-                            match outbound_download.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("HTTP CONNECT VLESS -> client EOF");
-                                    break;
-                                }
-                                Ok(n) => {
-                                    if client_w.write_all(&buf[..n]).await.is_err() {
-                                        log::warn!("HTTP CONNECT VLESS -> client write failed");
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::warn!("HTTP CONNECT VLESS -> client read error: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                        let _ = client_w.shutdown().await;
-                    };
+                    let v2c = relay::relay_vless_downstream_to_client(
+                        outbound_download,
+                        client_w,
+                        4096,
+                        |_| {},
+                        |_| {
+                            log::info!("HTTP CONNECT VLESS -> client EOF");
+                        },
+                        |_, _| {
+                            log::warn!("HTTP CONNECT VLESS -> client write failed");
+                        },
+                        |error, _| {
+                            log::warn!("HTTP CONNECT VLESS -> client read error: {}", error);
+                        },
+                        |_| {},
+                    );
 
                     let handshake_fallback = tokio::spawn(async move {
                         sleep(Duration::from_millis(8)).await;
                         let _ = fallback_outbound.write(&[]).await;
                     });
 
-                    tokio::join!(c2v, v2c);
-                    let _ = handshake_fallback.await;
-                    let _ = cleanup_outbound.close().await;
+                    relay::run_vless_relay_session(
+                        c2v,
+                        v2c,
+                        async move {
+                            let _ = handshake_fallback.await;
+                        },
+                        cleanup_outbound,
+                    )
+                    .await;
                 }
                 Err(e) => {
                     log::error!("VLESS connection failed: {}", e);
@@ -133,7 +124,7 @@ pub async fn handle_http(
                     stream
                         .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
                         .await?;
-                    pipe_bidirectional(stream, target).await;
+                    relay::pipe_bidirectional(stream, target, "HTTP").await;
                 }
                 Err(_) => {
                     let mut stream = reader.into_inner();
@@ -174,59 +165,52 @@ pub async fn handle_http(
 
                     let (mut client_r, mut client_w) = stream.split();
 
-                    let c2v = async move {
-                        let mut buf = [0u8; 4096];
-                        loop {
-                            match client_r.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("HTTP client -> VLESS EOF");
-                                    break;
-                                }
-                                Ok(n) => {
-                                    if let Err(error) = outbound_upload.write(&buf[..n]).await {
-                                        if !matches!(error, crate::common::Error::ConnectionClosed)
-                                        {
-                                            log::warn!(
-                                                "HTTP client -> VLESS write failed: {}",
-                                                error
-                                            );
-                                        }
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::warn!("HTTP client -> VLESS read error: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                    };
+                    let c2v = relay::relay_client_to_vless(
+                        client_r,
+                        outbound_upload,
+                        4096,
+                        None,
+                        None,
+                        false,
+                        |_| {},
+                        |_| {},
+                        |_| {},
+                        |error, _| {
+                            log::warn!("HTTP client -> VLESS write failed: {}", error);
+                        },
+                        |_| {
+                            log::info!("HTTP client -> VLESS EOF");
+                        },
+                        |error, _| {
+                            log::warn!("HTTP client -> VLESS read error: {}", error);
+                        },
+                        |_| {},
+                    );
 
-                    let v2c = async move {
-                        let mut buf = [0u8; 4096];
-                        loop {
-                            match outbound_download.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("HTTP VLESS -> client EOF");
-                                    break;
-                                }
-                                Ok(n) => {
-                                    if client_w.write_all(&buf[..n]).await.is_err() {
-                                        log::warn!("HTTP VLESS -> client write failed");
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::warn!("HTTP VLESS -> client read error: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                        let _ = client_w.shutdown().await;
-                    };
+                    let v2c = relay::relay_vless_downstream_to_client(
+                        outbound_download,
+                        client_w,
+                        4096,
+                        |_| {},
+                        |_| {
+                            log::info!("HTTP VLESS -> client EOF");
+                        },
+                        |_, _| {
+                            log::warn!("HTTP VLESS -> client write failed");
+                        },
+                        |error, _| {
+                            log::warn!("HTTP VLESS -> client read error: {}", error);
+                        },
+                        |_| {},
+                    );
 
-                    tokio::join!(c2v, v2c);
-                    let _ = cleanup_outbound.close().await;
+                    relay::run_vless_relay_session(
+                        c2v,
+                        v2c,
+                        std::future::ready(()),
+                        cleanup_outbound,
+                    )
+                    .await;
                 }
                 Err(e) => {
                     log::error!("VLESS connection failed: {}", e);
@@ -255,7 +239,7 @@ pub async fn handle_http(
                     stream.write_all(&remaining).await?;
                 }
 
-                pipe_bidirectional(stream, target).await;
+                relay::pipe_bidirectional(stream, target, "HTTP").await;
             }
         }
     }
@@ -349,25 +333,4 @@ async fn read_headers(reader: &mut BufReader<TcpStream>) -> Result<Vec<(String, 
         }
     }
     Ok(headers)
-}
-
-async fn pipe_bidirectional(mut client: TcpStream, mut target: TcpStream) {
-    let (mut client_r, mut client_w) = client.split();
-    let (mut target_r, mut target_w) = target.split();
-
-    let c2t = tokio::io::copy(&mut client_r, &mut target_w);
-    let t2c = tokio::io::copy(&mut target_r, &mut client_w);
-
-    match tokio::try_join!(c2t, t2c) {
-        Ok((c2t_bytes, t2c_bytes)) => {
-            log::debug!(
-                "HTTP tunnel closed: {} bytes client→target, {} bytes target→client",
-                c2t_bytes,
-                t2c_bytes
-            );
-        }
-        Err(e) => {
-            log::debug!("HTTP tunnel error: {}", e);
-        }
-    }
 }
