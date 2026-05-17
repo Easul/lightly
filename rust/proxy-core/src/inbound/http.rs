@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 use crate::common::Result;
 use crate::outbound::vless::VlessClient;
 
@@ -29,30 +29,50 @@ pub async fn handle_http(
     if method == "CONNECT" {
         let (addr, port) = parse_target(target)?;
         log::info!("HTTP CONNECT to {}:{}", addr, port);
+        let _headers = read_headers(&mut reader).await?;
         
         match outbound {
             Some(client) => {
                 match client.connect(&addr, port).await {
                     Ok(vless_stream) => {
+                        let remaining = reader.buffer().to_vec();
                         let mut stream = reader.into_inner();
                         stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
+                        stream.flush().await?;
                         
-                        let vless = Arc::new(Mutex::new(vless_stream));
+                        let vless = Arc::new(vless_stream);
                         let vless_clone = vless.clone();
+                        let fallback_vless = vless.clone();
+                        let cleanup_vless = vless.clone();
                         
                         let (mut client_r, mut client_w) = stream.split();
-                        
+                          
                         let c2v = async move {
                             let mut buf = [0u8; 4096];
+                            if !remaining.is_empty() {
+                                if let Err(e) = vless.write(&remaining).await {
+                                    log::error!("Failed to forward buffered CONNECT payload via VLESS: {}", e);
+                                    return;
+                                }
+                            }
                             loop {
                                 match client_r.read(&mut buf).await {
-                                    Ok(0) => break,
+                                    Ok(0) => {
+                                        log::info!("HTTP CONNECT client -> VLESS EOF");
+                                        break;
+                                    }
                                     Ok(n) => {
-                                        if vless.lock().await.write(&buf[..n]).await.is_err() {
+                                        if let Err(error) = vless.write(&buf[..n]).await {
+                                            if !matches!(error, crate::common::Error::ConnectionClosed) {
+                                                log::warn!("HTTP CONNECT client -> VLESS write failed: {}", error);
+                                            }
                                             break;
                                         }
                                     }
-                                    Err(_) => break,
+                                    Err(e) => {
+                                        log::warn!("HTTP CONNECT client -> VLESS read error: {}", e);
+                                        break;
+                                    }
                                 }
                             }
                         };
@@ -60,23 +80,34 @@ pub async fn handle_http(
                         let v2c = async move {
                             let mut buf = [0u8; 4096];
                             loop {
-                                match vless_clone.lock().await.read(&mut buf).await {
-                                    Ok(0) => break,
+                                match vless_clone.read(&mut buf).await {
+                                    Ok(0) => {
+                                        log::info!("HTTP CONNECT VLESS -> client EOF");
+                                        break;
+                                    }
                                     Ok(n) => {
                                         if client_w.write_all(&buf[..n]).await.is_err() {
+                                            log::warn!("HTTP CONNECT VLESS -> client write failed");
                                             break;
                                         }
                                     }
-                                    Err(_) => break,
+                                    Err(e) => {
+                                        log::warn!("HTTP CONNECT VLESS -> client read error: {}", e);
+                                        break;
+                                    }
                                 }
                             }
-                            let _ = vless_clone.lock().await.close().await;
+                            let _ = client_w.shutdown().await;
                         };
+
+                        let handshake_fallback = tokio::spawn(async move {
+                            sleep(Duration::from_millis(8)).await;
+                            let _ = fallback_vless.send_handshake_if_needed().await;
+                        });
                         
-                        tokio::select! {
-                            _ = c2v => {},
-                            _ = v2c => {},
-                        }
+                        tokio::join!(c2v, v2c);
+                        let _ = handshake_fallback.await;
+                        let _ = cleanup_vless.close().await;
                     }
                     Err(e) => {
                         log::error!("VLESS connection failed: {}", e);
@@ -88,6 +119,7 @@ pub async fn handle_http(
             None => {
                 match TcpStream::connect(format!("{}:{}", addr, port)).await {
                     Ok(target) => {
+                        let _remaining = reader.buffer().to_vec();
                         let mut stream = reader.into_inner();
                         stream.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
                         pipe_bidirectional(stream, target).await;
@@ -111,17 +143,20 @@ pub async fn handle_http(
         match outbound {
             Some(client) => {
                 match client.connect(&addr, port).await {
-                    Ok(mut vless_stream) => {
+                    Ok(vless_stream) => {
+                        let remaining = reader.buffer().to_vec();
                         let mut stream = reader.into_inner();
                         
-                        let request_bytes = build_http_request(&request_line, &headers).await;
+                        let normalized_request_line = normalize_http_proxy_request_line_for_origin(&request_line);
+                        let request_bytes = build_http_request(&normalized_request_line, &headers, &remaining).await;
                         if let Err(e) = vless_stream.write(&request_bytes).await {
                             log::error!("Failed to send HTTP request via VLESS: {}", e);
                             return Ok(());
                         }
                         
-                        let vless = Arc::new(Mutex::new(vless_stream));
+                        let vless = Arc::new(vless_stream);
                         let vless_clone = vless.clone();
+                        let cleanup_vless = vless.clone();
                         
                         let (mut client_r, mut client_w) = stream.split();
                         
@@ -129,13 +164,22 @@ pub async fn handle_http(
                             let mut buf = [0u8; 4096];
                             loop {
                                 match client_r.read(&mut buf).await {
-                                    Ok(0) => break,
+                                    Ok(0) => {
+                                        log::info!("HTTP client -> VLESS EOF");
+                                        break;
+                                    }
                                     Ok(n) => {
-                                        if vless.lock().await.write(&buf[..n]).await.is_err() {
+                                        if let Err(error) = vless.write(&buf[..n]).await {
+                                            if !matches!(error, crate::common::Error::ConnectionClosed) {
+                                                log::warn!("HTTP client -> VLESS write failed: {}", error);
+                                            }
                                             break;
                                         }
                                     }
-                                    Err(_) => break,
+                                    Err(e) => {
+                                        log::warn!("HTTP client -> VLESS read error: {}", e);
+                                        break;
+                                    }
                                 }
                             }
                         };
@@ -143,23 +187,28 @@ pub async fn handle_http(
                         let v2c = async move {
                             let mut buf = [0u8; 4096];
                             loop {
-                                match vless_clone.lock().await.read(&mut buf).await {
-                                    Ok(0) => break,
+                                match vless_clone.read(&mut buf).await {
+                                    Ok(0) => {
+                                        log::info!("HTTP VLESS -> client EOF");
+                                        break;
+                                    }
                                     Ok(n) => {
                                         if client_w.write_all(&buf[..n]).await.is_err() {
+                                            log::warn!("HTTP VLESS -> client write failed");
                                             break;
                                         }
                                     }
-                                    Err(_) => break,
+                                    Err(e) => {
+                                        log::warn!("HTTP VLESS -> client read error: {}", e);
+                                        break;
+                                    }
                                 }
                             }
-                            let _ = vless_clone.lock().await.close().await;
+                            let _ = client_w.shutdown().await;
                         };
                         
-                        tokio::select! {
-                            _ = c2v => {},
-                            _ = v2c => {},
-                        }
+                        tokio::join!(c2v, v2c);
+                        let _ = cleanup_vless.close().await;
                     }
                     Err(e) => {
                         log::error!("VLESS connection failed: {}", e);
@@ -170,14 +219,19 @@ pub async fn handle_http(
             }
             None => {
                 let mut target = TcpStream::connect(format!("{}:{}", addr, port)).await?;
+                let remaining = reader.buffer().to_vec();
                 
                 let mut stream = reader.into_inner();
-                stream.write_all(request_line.as_bytes()).await?;
+                let normalized_request_line = normalize_http_proxy_request_line_for_origin(&request_line);
+                stream.write_all(normalized_request_line.as_bytes()).await?;
                 stream.write_all(b"\r\n").await?;
                 for (k, v) in &headers {
                     stream.write_all(format!("{}: {}\r\n", k, v).as_bytes()).await?;
                 }
                 stream.write_all(b"\r\n").await?;
+                if !remaining.is_empty() {
+                    stream.write_all(&remaining).await?;
+                }
                 
                 pipe_bidirectional(stream, target).await;
             }
@@ -187,7 +241,7 @@ pub async fn handle_http(
     Ok(())
 }
 
-async fn build_http_request(request_line: &str, headers: &[(String, String)]) -> Vec<u8> {
+async fn build_http_request(request_line: &str, headers: &[(String, String)], remaining: &[u8]) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(request_line.as_bytes());
     buf.extend_from_slice(b"\r\n");
@@ -195,7 +249,38 @@ async fn build_http_request(request_line: &str, headers: &[(String, String)]) ->
         buf.extend_from_slice(format!("{}: {}\r\n", k, v).as_bytes());
     }
     buf.extend_from_slice(b"\r\n");
+    buf.extend_from_slice(remaining);
     buf
+}
+
+fn normalize_http_proxy_request_line_for_origin(request_line: &str) -> String {
+    let parts: Vec<&str> = request_line.trim().split_whitespace().collect();
+    if parts.len() < 3 {
+        return request_line.trim().to_string();
+    }
+
+    let method = parts[0];
+    let target = parts[1];
+    let version = parts[2];
+
+    let Ok(uri) = target.parse::<http::Uri>() else {
+        return request_line.trim().to_string();
+    };
+
+    if uri.scheme().is_none() || uri.host().is_none() {
+        return request_line.trim().to_string();
+    }
+
+    let mut origin_form = uri.path().to_string();
+    if origin_form.is_empty() {
+        origin_form = "/".to_string();
+    }
+    if let Some(query) = uri.query() {
+        origin_form.push('?');
+        origin_form.push_str(query);
+    }
+
+    format!("{} {} {}", method, origin_form, version)
 }
 
 fn parse_target(target: &str) -> Result<(String, u16)> {

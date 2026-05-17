@@ -37,25 +37,33 @@ async fn handle_connection(
     mut socket: tokio::net::TcpStream,
     pool: Arc<ConnectionPool>,
 ) -> Result<()> {
+    let peer_addr = socket.peer_addr().unwrap_or_else(|_| "unknown".parse().unwrap());
+    log::info!("[RustProxy] New connection from {}", peer_addr);
+    
     let mut buf = [0u8; 1];
     let n = socket.peek(&mut buf).await?;
     
     if n == 0 {
+        log::warn!("[RustProxy] Connection closed before data received");
         return Err(crate::common::Error::ConnectionClosed);
     }
     
+    log::info!("[RustProxy] First byte: 0x{:02x} (char: {})", buf[0], buf[0] as char);
+    
     let client = pool.get_client("default").await;
+    log::info!("[RustProxy] Got outbound client: {}", if client.is_some() { "Some" } else { "None (direct mode)" });
     
     match buf[0] {
         0x05 => {
-            log::debug!("SOCKS5 protocol detected");
+            log::info!("[RustProxy] Routing to SOCKS5 handler");
             socks5::handle_socks5(socket, client).await
         }
         b'G' | b'P' | b'H' | b'D' | b'O' | b'T' | b'C' => {
-            log::debug!("HTTP protocol detected");
+            log::info!("[RustProxy] Routing to HTTP handler");
             http::handle_http(socket, client).await
         }
         _ => {
+            log::error!("[RustProxy] Unknown protocol byte: 0x{:02x}", buf[0]);
             Err(crate::common::Error::Protocol(
                 format!("Unknown protocol byte: 0x{:02x}", buf[0])
             ))
