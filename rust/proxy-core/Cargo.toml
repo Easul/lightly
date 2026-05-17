@@ -30,6 +30,8 @@ hyper-util = { version = "0.1", features = ["full"] }
 hyper-rustls = "0.26"
 tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
 h2 = "0.4"
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
 http = "1.0"
 http-body = "1.0"
 http-body-util = "0.1"
