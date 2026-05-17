@@ -51,10 +51,10 @@ key.properties
 /android/app/profile
 /android/app/release
 
-# Proxy core native libraries - build locally or in CI
+# Proxy core native libraries - generated build outputs, do not commit unless explicitly requested
 /android/app/src/main/jniLibs/*/libproxy_core.so
 
-# Rust build artifacts
+# Rust build artifacts and caches - generated locally/CI only
 /rust/proxy-core/target/
 
 # Local scratch workspace
