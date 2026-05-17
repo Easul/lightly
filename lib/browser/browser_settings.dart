@@ -1,8 +1,9 @@
 class BrowserProxyProtocol {
   static const String http = 'http';
   static const String vless = 'vless';
+  static const String hysteria2 = 'hysteria2';
 
-  static const List<String> values = [http, vless];
+  static const List<String> values = [http, vless, hysteria2];
 
   static String normalize(String? value) {
     final normalizedValue = (value ?? '').trim().toLowerCase().replaceFirst(
@@ -16,6 +17,9 @@ class BrowserProxyProtocol {
         return http;
       case vless:
         return vless;
+      case 'hy2':
+      case hysteria2:
+        return hysteria2;
       default:
         return http;
     }
@@ -27,6 +31,8 @@ class BrowserProxyProtocol {
         return 'HTTP';
       case vless:
         return 'VLESS';
+      case hysteria2:
+        return 'Hysteria2';
     }
 
     return 'HTTP';
@@ -314,6 +320,10 @@ class BrowserSettings {
         return null;
       case BrowserProxyProtocol.vless:
         return proxyUuid.trim().isEmpty ? 'VLESS UUID is required' : null;
+      case BrowserProxyProtocol.hysteria2:
+        return proxyUuid.trim().isEmpty
+            ? 'Hysteria2 password is required'
+            : null;
     }
 
     return null;

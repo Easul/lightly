@@ -97,6 +97,24 @@ void main() {
       expect(settings.proxyValidationError, isNull);
     });
 
+    test('supports Hysteria2 scheme normalization and password validation', () {
+      final invalid = BrowserSettings.defaults().copyWith(
+        proxyEnabled: true,
+        proxyHost: 'hy2.example.com',
+        proxyPort: 443,
+        proxyScheme: 'hy2',
+        proxyUuid: '',
+      );
+
+      expect(invalid.proxyProtocol, BrowserProxyProtocol.hysteria2);
+      expect(BrowserProxyProtocol.label(invalid.proxyProtocol), 'Hysteria2');
+      expect(invalid.hasUsableProxy, isFalse);
+
+      final valid = invalid.copyWith(proxyUuid: 'secret');
+      expect(valid.hasUsableProxy, isTrue);
+      expect(valid.proxyValidationError, isNull);
+    });
+
     test('local proxy port must be in valid range', () {
       final settings = BrowserSettings.defaults().copyWith(
         proxyEnabled: true,
@@ -208,7 +226,9 @@ void main() {
       final settings = BrowserSettings.defaults();
 
       expect(
-        settings.shouldBypassProxyForUri(Uri.parse('https://example-site.com/login')),
+        settings.shouldBypassProxyForUri(
+          Uri.parse('https://example-site.com/login'),
+        ),
         isTrue,
       );
       expect(

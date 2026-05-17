@@ -121,10 +121,13 @@ class BrowserSettingsFormController {
 
   bool get showsUuidField =>
       selectedProtocol == BrowserProxyProtocol.http ||
-      selectedProtocol == BrowserProxyProtocol.vless;
+      selectedProtocol == BrowserProxyProtocol.vless ||
+      selectedProtocol == BrowserProxyProtocol.hysteria2;
 
   bool get showsTransportFields =>
       selectedProtocol == BrowserProxyProtocol.vless;
 
-  bool get showsTlsFields => selectedProtocol == BrowserProxyProtocol.vless;
+  bool get showsTlsFields =>
+      selectedProtocol == BrowserProxyProtocol.vless ||
+      selectedProtocol == BrowserProxyProtocol.hysteria2;
 }
