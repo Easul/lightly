@@ -1,5 +1,10 @@
 pub mod hysteria2;
 pub mod vless;
+pub mod vless_codec;
+pub mod vless_handshake;
+pub mod vless_message_io;
+pub mod vless_stream_state;
+pub mod vless_transport;
 
 use crate::common::Result;
 use async_trait::async_trait;

@@ -1,23 +1,28 @@
 use crate::common::Error;
 use crate::common::Result;
 use crate::outbound::{OutboundClient, ProxyStream};
+#[cfg(feature = "mux-experimental")]
+pub use crate::outbound::vless_codec::{build_vless_request, parse_uuid};
+use crate::outbound::vless_codec::parse_uuid;
+use crate::outbound::vless_handshake::prepare_vless_handshake;
+use crate::outbound::vless_message_io::{
+    handle_read_error, handle_read_message, handle_stream_end, VlessReadAction,
+};
+use crate::outbound::vless_stream_state::VlessStreamState;
+use crate::outbound::vless_transport::{
+    build_connect_plan, build_rustls_config, build_websocket_request,
+    connect_tcp_with_fallback,
+};
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
 use futures::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use http;
-use rustls_022::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls_022::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls_022::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
 use std::net::SocketAddr;
-use tokio::net::{lookup_host, TcpStream};
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
-use tokio_tungstenite::{
-    client_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream,
-};
+use tokio_tungstenite::{client_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream};
 
 pub struct VlessClient {
     config: VlessConfig,
@@ -52,16 +57,6 @@ pub struct VlessStream {
     local_bind_addr: Option<SocketAddr>,
 }
 
-struct VlessStreamState {
-    read_buffer: BytesMut,
-    handshake_done: bool,
-    response_header_pending: bool,
-    response_header_buffer: BytesMut,
-    remote_closed: bool,
-}
-
-const MAX_VLESS_RESPONSE_ADDONS_LENGTH: usize = 64;
-
 use std::sync::Arc;
 
 impl VlessClient {
@@ -84,39 +79,12 @@ impl VlessClient {
         let uuid_bytes = parse_uuid(&self.config.uuid)?;
         log::debug!("[VLESS] UUID parsed successfully");
 
-        let use_tls = self.config.security == SecurityType::Tls;
-        let ws_host = non_empty_str(self.config.host.as_deref());
-        let tls_server_name = non_empty_str(self.config.sni.as_deref())
-            .or(ws_host)
-            .unwrap_or(&self.config.server_addr);
-        let request_uri_host = if use_tls {
-            tls_server_name
-        } else {
-            &self.config.server_addr
-        };
-        let ws_url = format!(
-            "{}://{}:{}{}",
-            if use_tls { "wss" } else { "ws" },
-            request_uri_host,
-            self.config.server_port,
-            self.config.path
-        );
-        log::info!("[VLESS] WebSocket URL: {}", ws_url);
+        let connect_plan = build_connect_plan(&self.config);
+        log::info!("[VLESS] WebSocket URL: {}", connect_plan.ws_url);
+        log::debug!("[VLESS] Host header: {}", connect_plan.host_header);
+        log::debug!("[VLESS] TLS server name: {}", connect_plan.tls_server_name);
 
-        let http_host = ws_host.unwrap_or(tls_server_name);
-        let host_header = build_websocket_host_header(http_host, self.config.server_port, use_tls);
-        log::debug!("[VLESS] Host header: {}", host_header);
-        log::debug!("[VLESS] TLS server name: {}", tls_server_name);
-
-        let request = http::Request::builder()
-            .uri(&ws_url)
-            .header("Host", host_header)
-            .header("Upgrade", "websocket")
-            .header("Connection", "Upgrade")
-            .header("Sec-WebSocket-Key", generate_sec_websocket_key())
-            .header("Sec-WebSocket-Version", "13")
-            .body(())
-            .map_err(|e| Error::InvalidConfig(format!("Invalid WebSocket request: {}", e)))?;
+        let request = build_websocket_request(&connect_plan)?;
 
         let tcp_addr = format!("{}:{}", self.config.server_addr, self.config.server_port);
         log::info!(
@@ -127,7 +95,7 @@ impl VlessClient {
             connect_tcp_with_fallback(&self.config.server_addr, self.config.server_port).await?;
         let local_bind_addr = socket.local_addr().ok();
 
-        let connector = if use_tls {
+        let connector = if connect_plan.use_tls {
             Some(Connector::Rustls(build_rustls_config(&self.config)?))
         } else {
             Some(Connector::Plain)
@@ -154,13 +122,7 @@ impl VlessClient {
         let stream = VlessStream {
             write_half: Arc::new(Mutex::new(write_half)),
             read_half: Arc::new(Mutex::new(read_half)),
-            state: Mutex::new(VlessStreamState {
-                read_buffer: BytesMut::new(),
-                handshake_done: false,
-                response_header_pending: true,
-                response_header_buffer: BytesMut::new(),
-                remote_closed: false,
-            }),
+            state: Mutex::new(VlessStreamState::new()),
             handshake_lock: Mutex::new(()),
             uuid: uuid_bytes,
             target_addr: target_addr.to_string(),
@@ -180,152 +142,15 @@ impl OutboundClient for VlessClient {
     }
 }
 
-fn build_rustls_config(config: &VlessConfig) -> Result<std::sync::Arc<ClientConfig>> {
-    let mut roots = RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
-    let mut client_config = ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-
-    if config.tls_insecure {
-        client_config
-            .dangerous()
-            .set_certificate_verifier(std::sync::Arc::new(NoCertificateVerification));
-    }
-
-    Ok(std::sync::Arc::new(client_config))
-}
-
-fn build_websocket_host_header(http_host: &str, port: u16, use_tls: bool) -> String {
-    let trimmed = http_host.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-
-    if has_explicit_port(trimmed) {
-        return trimmed.to_string();
-    }
-
-    let default_port = if use_tls { 443 } else { 80 };
-    if port == default_port {
-        return trimmed.to_string();
-    }
-
-    if trimmed.contains(':') && !(trimmed.starts_with('[') && trimmed.ends_with(']')) {
-        format!("[{}]:{}", trimmed, port)
-    } else {
-        format!("{}:{}", trimmed, port)
-    }
-}
-
-fn has_explicit_port(host: &str) -> bool {
-    if host.starts_with('[') {
-        if let Some(closing) = host.rfind(']') {
-            return closing < host.len() - 1 && host.as_bytes().get(closing + 1) == Some(&b':');
-        }
-    }
-    host.matches(':').count() == 1
-}
-
-#[derive(Debug)]
-struct NoCertificateVerification;
-
-impl ServerCertVerifier for NoCertificateVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _server_name: &ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: UnixTime,
-    ) -> std::result::Result<ServerCertVerified, rustls_022::Error> {
-        Ok(ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _message: &[u8],
-        _cert: &CertificateDer<'_>,
-        _dss: &DigitallySignedStruct,
-    ) -> std::result::Result<HandshakeSignatureValid, rustls_022::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _message: &[u8],
-        _cert: &CertificateDer<'_>,
-        _dss: &DigitallySignedStruct,
-    ) -> std::result::Result<HandshakeSignatureValid, rustls_022::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        vec![
-            SignatureScheme::RSA_PKCS1_SHA1,
-            SignatureScheme::ECDSA_SHA1_Legacy,
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384,
-            SignatureScheme::ECDSA_NISTP384_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512,
-            SignatureScheme::ECDSA_NISTP521_SHA512,
-            SignatureScheme::RSA_PSS_SHA256,
-            SignatureScheme::RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA512,
-            SignatureScheme::ED25519,
-            SignatureScheme::ED448,
-        ]
-    }
-}
-
 impl VlessStream {
     async fn mark_remote_closed(&self) {
         let mut state = self.state.lock().await;
-        state.remote_closed = true;
+        state.mark_remote_closed();
     }
 
     async fn is_remote_closed(&self) -> bool {
         let state = self.state.lock().await;
-        state.remote_closed
-    }
-
-    fn consume_response_header(state: &mut VlessStreamState, chunk: &[u8]) -> Option<Vec<u8>> {
-        if !state.response_header_pending {
-            return Some(chunk.to_vec());
-        }
-
-        state.response_header_buffer.extend_from_slice(chunk);
-        if state.response_header_buffer.len() < 2 {
-            return None;
-        }
-
-        if state.response_header_buffer[0] != 0x00 {
-            let payload = state.response_header_buffer.split().to_vec();
-            state.response_header_pending = false;
-            return Some(payload);
-        }
-
-        let addons_length = state.response_header_buffer[1] as usize;
-        if addons_length > MAX_VLESS_RESPONSE_ADDONS_LENGTH {
-            let payload = state.response_header_buffer.split().to_vec();
-            state.response_header_pending = false;
-            return Some(payload);
-        }
-
-        let header_length = 2 + addons_length;
-        if state.response_header_buffer.len() < header_length {
-            return None;
-        }
-
-        let payload = state
-            .response_header_buffer
-            .split_off(header_length)
-            .to_vec();
-        state.response_header_buffer.clear();
-        state.response_header_pending = false;
-        Some(payload)
+        state.is_remote_closed()
     }
 
     async fn ensure_handshake(&self, first_data: Option<&[u8]>) -> Result<bool> {
@@ -351,30 +176,30 @@ impl VlessStream {
             first_data.map(|d| d.len()).unwrap_or(0)
         );
 
-        let mut vless_request =
-            build_vless_request(&self.uuid, &self.target_addr, self.target_port);
+        let handshake = prepare_vless_handshake(
+            &self.uuid,
+            &self.target_addr,
+            self.target_port,
+            first_data,
+        );
         log::debug!(
             "[VLESS] Request bytes len={} hex={}",
-            vless_request.len(),
-            format_bytes_hex(&vless_request),
+            handshake.payload.len(),
+            format_bytes_hex(&handshake.payload),
         );
 
-        if let Some(data) = first_data {
-            let mut combined = Vec::with_capacity(vless_request.len() + data.len());
-            combined.extend_from_slice(&vless_request);
-            combined.extend_from_slice(data);
-            vless_request = Bytes::from(combined);
+        if handshake.first_payload_len > 0 {
             log::debug!(
                 "[VLESS] Combined handshake + first data: total={} request={} payload={}",
-                vless_request.len(),
-                vless_request.len() - data.len(),
-                data.len(),
+                handshake.payload.len(),
+                handshake.request_len,
+                handshake.first_payload_len,
             );
         }
 
         let mut write_half = self.write_half.lock().await;
         write_half
-            .send(Message::Binary(vless_request.to_vec()))
+            .send(Message::Binary(handshake.payload.to_vec()))
             .await
             .map_err(|e| {
                 log::error!("[VLESS] Handshake send failed: {}", e);
@@ -383,7 +208,7 @@ impl VlessStream {
 
         log::info!(
             "[VLESS] Handshake sent successfully ({} bytes)",
-            vless_request.len()
+            handshake.payload.len()
         );
         let mut state = self.state.lock().await;
         state.handshake_done = true;
@@ -397,13 +222,11 @@ impl VlessStream {
     pub async fn read(&self, buf: &mut [u8]) -> Result<usize> {
         {
             let mut state = self.state.lock().await;
-            if !state.read_buffer.is_empty() {
-                let len = std::cmp::min(buf.len(), state.read_buffer.len());
-                buf[..len].copy_from_slice(&state.read_buffer.split_to(len));
+            if let Some(len) = state.take_buffered(buf) {
                 log::trace!(
                     "[VLESS] Read {} bytes from buffer (remaining: {})",
                     len,
-                    state.read_buffer.len()
+                    state.remaining_buffer_len()
                 );
                 return Ok(len);
             }
@@ -417,67 +240,48 @@ impl VlessStream {
 
             match next_message {
                 Some(Ok(Message::Binary(data))) => {
-                    if data.is_empty() {
-                        log::trace!("[VLESS] Received empty binary message, continuing");
-                        continue;
-                    }
                     log::debug!(
                         "[VLESS] Received binary frame len={} hex={}{}",
                         data.len(),
                         format_bytes_hex(&data[..data.len().min(32)]),
                         if data.len() > 32 { " ..." } else { "" },
                     );
-                    let payload = {
+                    let action = {
                         let mut state = self.state.lock().await;
-                        Self::consume_response_header(&mut state, &data)
+                        handle_read_message(Message::Binary(data), &mut state, buf)
                     };
-                    let Some(payload) = payload else {
-                        log::debug!(
-                            "[VLESS] Response header still pending after len={}",
-                            data.len()
-                        );
-                        continue;
-                    };
-                    if payload.is_empty() {
-                        log::debug!("[VLESS] Response header consumed, payload empty");
-                        continue;
+                    match action {
+                        VlessReadAction::Continue => continue,
+                        VlessReadAction::Return(len) => return Ok(len),
+                        _ => continue,
                     }
-                    let len = std::cmp::min(buf.len(), payload.len());
-                    buf[..len].copy_from_slice(&payload[..len]);
-                    if payload.len() > len {
-                        let mut state = self.state.lock().await;
-                        state.read_buffer.extend_from_slice(&payload[len..]);
-                    }
-                    log::debug!(
-                        "[VLESS] Read {} bytes from WebSocket payload (total: {})",
-                        len,
-                        payload.len()
-                    );
-                    return Ok(len);
                 }
-                Some(Ok(Message::Close(_))) => {
+                Some(Ok(Message::Close(frame))) => {
                     log::info!("[VLESS] Received close frame");
-                    self.mark_remote_closed().await;
-                    let mut state = self.state.lock().await;
-                    if !state.read_buffer.is_empty() {
-                        let len = std::cmp::min(buf.len(), state.read_buffer.len());
-                        buf[..len].copy_from_slice(&state.read_buffer.split_to(len));
-                        log::debug!(
-                            "[VLESS] Drained {} buffered bytes after close frame (remaining: {})",
-                            len,
-                            state.read_buffer.len()
-                        );
-                        return Ok(len);
+                    let action = {
+                        let mut state = self.state.lock().await;
+                        handle_read_message(Message::Close(frame), &mut state, buf)
+                    };
+                    match action {
+                        VlessReadAction::MarkRemoteClosedAndReturn(len) => {
+                            return Ok(len);
+                        }
+                        _ => {
+                            self.mark_remote_closed().await;
+                            return Ok(0);
+                        }
                     }
-                    return Ok(0);
                 }
                 Some(Ok(Message::Ping(payload))) => {
-                    log::trace!(
-                        "[VLESS] Received ping ({} bytes), sending pong",
-                        payload.len()
-                    );
+                    let pong_payload = {
+                        let mut state = self.state.lock().await;
+                        match handle_read_message(Message::Ping(payload), &mut state, buf) {
+                            VlessReadAction::SendPong(payload) => payload,
+                            _ => continue,
+                        }
+                    };
                     let mut write_half = self.write_half.lock().await;
-                    write_half.send(Message::Pong(payload)).await.map_err(|e| {
+                    write_half.send(Message::Pong(pong_payload.into())).await.map_err(|e| {
                         log::error!("[VLESS] Pong send failed: {}", e);
                         Error::Network(format!("WebSocket pong failed: {}", e))
                     })?;
@@ -489,17 +293,31 @@ impl VlessStream {
                 }
                 Some(Ok(other)) => {
                     log::debug!("[VLESS] Received other message type: {:?}", other);
+                    {
+                        let mut state = self.state.lock().await;
+                        let _ = handle_read_message(other, &mut state, buf);
+                    }
                     continue;
                 }
                 Some(Err(e)) => {
                     log::error!("[VLESS] WebSocket error: {}", e);
-                    self.mark_remote_closed().await;
-                    return Err(Error::Network(format!("WebSocket error: {}", e)));
+                    match handle_read_error(&Error::Network(format!("WebSocket error: {}", e))) {
+                        VlessReadAction::MarkRemoteClosedAndError(message) => {
+                            self.mark_remote_closed().await;
+                            return Err(Error::Network(message));
+                        }
+                        _ => unreachable!(),
+                    }
                 }
                 None => {
                     log::info!("[VLESS] WebSocket stream ended");
-                    self.mark_remote_closed().await;
-                    return Ok(0);
+                    match handle_stream_end() {
+                        VlessReadAction::MarkRemoteClosedAndEof => {
+                            self.mark_remote_closed().await;
+                            return Ok(0);
+                        }
+                        _ => unreachable!(),
+                    }
                 }
             }
         }
@@ -566,124 +384,11 @@ impl ProxyStream for VlessStream {
     }
 }
 
-fn non_empty_str(value: Option<&str>) -> Option<&str> {
-    value.and_then(|item| {
-        let trimmed = item.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    })
-}
-
-async fn connect_tcp_with_fallback(server_addr: &str, server_port: u16) -> Result<TcpStream> {
-    let mut candidates: Vec<SocketAddr> = lookup_host((server_addr, server_port))
-        .await
-        .map_err(|e| {
-            log::error!(
-                "[VLESS] DNS lookup failed for {}:{}: {}",
-                server_addr,
-                server_port,
-                e
-            );
-            Error::Network(format!("DNS lookup failed: {}", e))
-        })?
-        .collect();
-
-    candidates.sort_by_key(|addr| if addr.is_ipv4() { 0 } else { 1 });
-
-    if candidates.is_empty() {
-        return Err(Error::Network(format!(
-            "No resolved addresses for {}:{}",
-            server_addr, server_port,
-        )));
-    }
-
-    let mut last_error: Option<Error> = None;
-    for candidate in candidates {
-        log::debug!("[VLESS] Trying TCP connect to {}", candidate);
-        match timeout(Duration::from_secs(10), TcpStream::connect(candidate)).await {
-            Ok(Ok(socket)) => {
-                let _ = socket.set_nodelay(true);
-                return Ok(socket);
-            }
-            Ok(Err(e)) => {
-                log::warn!("[VLESS] TCP connect failed for {}: {}", candidate, e);
-                last_error = Some(Error::Network(format!(
-                    "TCP connect failed for {}: {}",
-                    candidate, e
-                )));
-            }
-            Err(_) => {
-                log::warn!("[VLESS] TCP connect timed out for {}", candidate);
-                last_error = Some(Error::Timeout);
-            }
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| Error::Network("TCP connect failed".to_string())))
-}
-
 fn is_websocket_already_closed_error(message: &str) -> bool {
     let message = message.to_ascii_lowercase();
     message.contains("sending after closing is not allowed")
         || message.contains("connection closed normally")
         || message.contains("already closed")
-}
-
-pub fn parse_uuid(uuid_str: &str) -> Result<[u8; 16]> {
-    let hex_str = uuid_str.replace("-", "");
-    if hex_str.len() != 32 {
-        return Err(Error::InvalidConfig("Invalid UUID format".to_string()));
-    }
-
-    let mut bytes = [0u8; 16];
-    for i in 0..16 {
-        bytes[i] = u8::from_str_radix(&hex_str[i * 2..i * 2 + 2], 16)
-            .map_err(|_| Error::InvalidConfig("Invalid UUID hex".to_string()))?;
-    }
-
-    Ok(bytes)
-}
-
-fn generate_sec_websocket_key() -> String {
-    use rand::Rng;
-    let mut bytes = [0u8; 16];
-    rand::thread_rng().fill(&mut bytes);
-    base64::encode(&bytes)
-}
-
-pub fn build_vless_request(uuid: &[u8; 16], addr: &str, port: u16) -> Bytes {
-    let mut buf = BytesMut::new();
-
-    buf.extend_from_slice(&[0x00]);
-    buf.extend_from_slice(uuid);
-    buf.extend_from_slice(&[0x00]);
-    buf.extend_from_slice(&[0x01]);
-    buf.extend_from_slice(&[(port >> 8) as u8, (port & 0xFF) as u8]);
-
-    if let Ok(ip) = addr.parse::<std::net::Ipv4Addr>() {
-        buf.extend_from_slice(&[0x01]);
-        buf.extend_from_slice(&ip.octets());
-    } else if let Ok(ip) = addr.parse::<std::net::Ipv6Addr>() {
-        buf.extend_from_slice(&[0x03]);
-        buf.extend_from_slice(&ip.octets());
-    } else {
-        buf.extend_from_slice(&[0x02]);
-        buf.extend_from_slice(&[addr.len() as u8]);
-        buf.extend_from_slice(addr.as_bytes());
-    }
-
-    buf.freeze()
-}
-
-mod base64 {
-    use base64::prelude::*;
-
-    pub fn encode(input: &[u8]) -> String {
-        BASE64_STANDARD.encode(input)
-    }
 }
 
 fn format_bytes_hex(bytes: &[u8]) -> String {
@@ -696,20 +401,13 @@ fn format_bytes_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_vless_request, parse_uuid, VlessStream, VlessStreamState,
-        MAX_VLESS_RESPONSE_ADDONS_LENGTH,
+    use crate::outbound::vless_codec::{build_vless_request, parse_uuid};
+    use crate::outbound::vless_codec::{
+        consume_response_header, VlessResponseDecodeState, MAX_VLESS_RESPONSE_ADDONS_LENGTH,
     };
-    use bytes::BytesMut;
 
-    fn response_state() -> VlessStreamState {
-        VlessStreamState {
-            read_buffer: BytesMut::new(),
-            handshake_done: false,
-            response_header_pending: true,
-            response_header_buffer: BytesMut::new(),
-            remote_closed: false,
-        }
+    fn response_state() -> VlessResponseDecodeState {
+        VlessResponseDecodeState::new()
     }
 
     #[test]
@@ -746,7 +444,7 @@ mod tests {
         let mut state = response_state();
         let payload = [0xaf, 0xed, 0xaa, 0x0f];
 
-        let result = VlessStream::consume_response_header(&mut state, &payload);
+        let result = consume_response_header(&mut state, &payload);
 
         assert_eq!(result, Some(payload.to_vec()));
         assert!(!state.response_header_pending);
@@ -763,7 +461,7 @@ mod tests {
             0x34,
         ];
 
-        let result = VlessStream::consume_response_header(&mut state, &payload);
+        let result = consume_response_header(&mut state, &payload);
 
         assert_eq!(result, Some(payload.to_vec()));
         assert!(!state.response_header_pending);
@@ -775,7 +473,7 @@ mod tests {
         let mut state = response_state();
         let payload = [0x00, 0x00, 0xde, 0xad, 0xbe, 0xef];
 
-        let result = VlessStream::consume_response_header(&mut state, &payload);
+        let result = consume_response_header(&mut state, &payload);
 
         assert_eq!(result, Some(vec![0xde, 0xad, 0xbe, 0xef]));
         assert!(!state.response_header_pending);
