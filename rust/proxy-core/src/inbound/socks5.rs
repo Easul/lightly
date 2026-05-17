@@ -1,9 +1,13 @@
-use std::sync::Arc;
-use tokio::net::TcpStream;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{sleep, Duration};
 use crate::common::Result;
-use crate::outbound::vless::VlessClient;
+use crate::outbound::OutboundClient;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio::time::{sleep, Duration};
 
 const AUTH_NONE: u8 = 0x00;
 const AUTH_USERNAME_PASSWORD: u8 = 0x02;
@@ -11,78 +15,103 @@ const AUTH_NO_ACCEPTABLE: u8 = 0xFF;
 
 pub async fn handle_socks5(
     mut stream: TcpStream,
-    outbound: Option<Arc<VlessClient>>,
+    outbound: Option<Arc<dyn OutboundClient>>,
 ) -> Result<()> {
-    let peer_addr = stream.peer_addr().unwrap_or_else(|_| "unknown".parse().unwrap());
+    let _ = stream.set_nodelay(true);
+    let peer_addr = stream
+        .peer_addr()
+        .unwrap_or_else(|_| "unknown".parse().unwrap());
     log::info!("[SOCKS5] New connection from {}", peer_addr);
-    
+
     let mut buf = [0u8; 2];
     stream.read_exact(&mut buf).await?;
     log::debug!("[SOCKS5] Version: {}, Methods count: {}", buf[0], buf[1]);
-    
+
     if buf[0] != 0x05 {
         log::warn!("[SOCKS5] Invalid SOCKS version: {}", buf[0]);
         return Err(crate::common::Error::Protocol(
-            "Invalid SOCKS version".to_string()
+            "Invalid SOCKS version".to_string(),
         ));
     }
-    
+
     let nmethods = buf[1] as usize;
     let mut methods = vec![0u8; nmethods];
     stream.read_exact(&mut methods).await?;
     log::debug!("[SOCKS5] Client offered auth methods: {:?}", methods);
-    
-    let selected_auth = if methods.contains(&AUTH_NONE) {
-        log::debug!("[SOCKS5] Selecting NO AUTH (0x00)");
-        AUTH_NONE
-    } else if methods.contains(&AUTH_USERNAME_PASSWORD) {
-        log::debug!("[SOCKS5] Selecting USERNAME/PASSWORD (0x02)");
-        AUTH_USERNAME_PASSWORD
+
+    let selected_auth = if let Some(method) = select_auth_method(&methods) {
+        match method {
+            AUTH_USERNAME_PASSWORD => {
+                log::debug!("[SOCKS5] Selecting USERNAME/PASSWORD (0x02)");
+            }
+            AUTH_NONE => {
+                log::debug!("[SOCKS5] Selecting NO AUTH (0x00)");
+            }
+            _ => {}
+        }
+        method
     } else {
         log::warn!("[SOCKS5] No acceptable auth method from client");
         stream.write_all(&[0x05, AUTH_NO_ACCEPTABLE]).await?;
         return Err(crate::common::Error::Protocol(
-            "No supported authentication method".to_string()
+            "No supported authentication method".to_string(),
         ));
     };
-    
+
     stream.write_all(&[0x05, selected_auth]).await?;
-    
+
     if selected_auth == AUTH_USERNAME_PASSWORD {
         let mut auth_ver = [0u8; 1];
         stream.read_exact(&mut auth_ver).await?;
         log::debug!("[SOCKS5] Auth version: {}", auth_ver[0]);
         if auth_ver[0] != 0x01 {
             stream.write_all(&[0x01, 0x01]).await?;
-            return Err(crate::common::Error::Protocol("Invalid auth version".to_string()));
+            return Err(crate::common::Error::Protocol(
+                "Invalid auth version".to_string(),
+            ));
         }
-        
+
         let mut ulen = [0u8; 1];
         stream.read_exact(&mut ulen).await?;
         let mut username = vec![0u8; ulen[0] as usize];
         stream.read_exact(&mut username).await?;
-        
+
         let mut plen = [0u8; 1];
         stream.read_exact(&mut plen).await?;
         let mut password = vec![0u8; plen[0] as usize];
         stream.read_exact(&mut password).await?;
-        
-        log::debug!("[SOCKS5] Auth credentials received ({} bytes user, {} bytes pass)", ulen[0], plen[0]);
+
+        log::debug!(
+            "[SOCKS5] Auth credentials received ({} bytes user, {} bytes pass)",
+            ulen[0],
+            plen[0]
+        );
         stream.write_all(&[0x01, 0x00]).await?;
     }
-    
+
     let mut request = [0u8; 4];
     stream.read_exact(&mut request).await?;
-    log::debug!("[SOCKS5] Request: ver={}, cmd={}, atyp={}", request[0], request[1], request[3]);
-    
+    log::debug!(
+        "[SOCKS5] Request: ver={}, cmd={}, atyp={}",
+        request[0],
+        request[1],
+        request[3]
+    );
+
     if request[0] != 0x05 || request[1] != 0x01 {
-        log::warn!("[SOCKS5] Invalid request: ver={}, cmd={}", request[0], request[1]);
-        stream.write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+        log::warn!(
+            "[SOCKS5] Invalid request: ver={}, cmd={}",
+            request[0],
+            request[1]
+        );
+        stream
+            .write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            .await?;
         return Err(crate::common::Error::Protocol(
-            "Invalid SOCKS request".to_string()
+            "Invalid SOCKS request".to_string(),
         ));
     }
-    
+
     let addr = match request[3] {
         0x01 => {
             let mut addr = [0u8; 4];
@@ -107,161 +136,351 @@ pub async fn handle_socks5(
         }
         _ => {
             return Err(crate::common::Error::Protocol(
-                "Invalid address type".to_string()
+                "Invalid address type".to_string(),
             ));
         }
     };
-    
+
     let mut port = [0u8; 2];
     stream.read_exact(&mut port).await?;
     let port = ((port[0] as u16) << 8) | (port[1] as u16);
-    
+
     log::info!("[SOCKS5] {} → Connecting to {}:{}", peer_addr, addr, port);
-    
+
     match outbound {
-        Some(client) => {
-            match client.connect(&addr, port).await {
-                Ok(vless_stream) => {
-                    let bind_addr = vless_stream.local_bind_addr();
-                    let bind_ip = bind_addr.map(|addr| addr.ip()).unwrap_or_else(|| "127.0.0.1".parse().unwrap());
-                    let bind_port = bind_addr.map(|addr| addr.port()).unwrap_or(0);
-                    let (reply_atyp, reply_addr_bytes) = match bind_ip {
-                        std::net::IpAddr::V4(ipv4) => (0x01u8, ipv4.octets().to_vec()),
-                        std::net::IpAddr::V6(ipv6) => (0x04u8, ipv6.octets().to_vec()),
-                    };
-                    stream.write_all(&[
-                        0x05, 0x00, 0x00, reply_atyp,
-                    ]).await?;
-                    stream.write_all(&reply_addr_bytes).await?;
-                    stream.write_all(&[
-                        (bind_port >> 8) as u8,
-                        (bind_port & 0xFF) as u8,
-                    ]).await?;
-                    stream.flush().await?;
-                    log::info!("[SOCKS5] Reply bind {}:{}", bind_ip, bind_port);
-                    
-                    let vless = Arc::new(vless_stream);
-                    let vless_clone = vless.clone();
-                    let fallback_vless = vless.clone();
-                    let cleanup_vless = vless.clone();
-                    
-                    let (mut client_r, mut client_w) = stream.split();
-                     
-                    log::info!("[SOCKS5] {} ↔ Starting bidirectional relay", peer_addr);
-                    
-                    let c2v = async move {
-                        let mut buf = [0u8; 4096];
-                        let mut total = 0usize;
-                        loop {
-                            match client_r.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("[SOCKS5] Client → VLESS: EOF (total {} bytes)", total);
-                                    break;
-                                }
-                                Ok(n) => {
-                                    total += n;
-                                    log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
-                                    if let Err(error) = vless.write(&buf[..n]).await {
+        Some(client) => match client.connect(&addr, port).await {
+            Ok(outbound_stream) => {
+                let bind_addr = resolve_reply_bind_addr(
+                    outbound_stream.local_bind_addr(),
+                    stream.local_addr().ok(),
+                );
+                let bind_ip = bind_addr.ip();
+                let bind_port = bind_addr.port();
+                let (reply_atyp, reply_addr_bytes) = match bind_ip {
+                    std::net::IpAddr::V4(ipv4) => (0x01u8, ipv4.octets().to_vec()),
+                    std::net::IpAddr::V6(ipv6) => (0x04u8, ipv6.octets().to_vec()),
+                };
+                stream.write_all(&[0x05, 0x00, 0x00, reply_atyp]).await?;
+                stream.write_all(&reply_addr_bytes).await?;
+                stream
+                    .write_all(&[(bind_port >> 8) as u8, (bind_port & 0xFF) as u8])
+                    .await?;
+                stream.flush().await?;
+                log::info!("[SOCKS5] Reply bind {}:{}", bind_ip, bind_port);
+
+                let outbound_upload = outbound_stream.clone();
+                let outbound_download = outbound_stream.clone();
+                let cleanup_outbound = outbound_stream.clone();
+                let client_input_done = Arc::new(AtomicBool::new(false));
+                let client_input_done_for_c2v = client_input_done.clone();
+                let client_input_done_for_v2c = client_input_done.clone();
+
+                let (mut client_r, mut client_w) = stream.split();
+
+                log::info!("[SOCKS5] {} ↔ Starting bidirectional relay", peer_addr);
+
+                let c2v = async move {
+                    let mut buf = [0u8; 8192];
+                    let mut total = 0usize;
+                    let mut waiting_for_first_payload = true;
+                    loop {
+                        let read_result = if waiting_for_first_payload {
+                            tokio::select! {
+                                result = client_r.read(&mut buf) => result,
+                                _ = sleep(Duration::from_millis(250)) => {
+                                    if let Err(error) = outbound_upload.write(&[]).await {
                                         if !matches!(error, crate::common::Error::ConnectionClosed) {
-                                            log::warn!("[SOCKS5] Client → VLESS: Write failed: {}", error);
+                                            log::warn!(
+                                                "[SOCKS5] Handshake fallback failed before first payload: {}",
+                                                error
+                                            );
                                         }
                                         break;
                                     }
-                                }
-                                Err(e) => {
-                                    log::warn!("[SOCKS5] Client → VLESS: Read error {}", e);
-                                    break;
+                                    waiting_for_first_payload = false;
+                                    continue;
                                 }
                             }
-                        }
-                        log::debug!("[SOCKS5] Client → VLESS: Closed (total {} bytes)", total);
-                    };
-                    
-                    let v2c = async move {
-                        let mut buf = [0u8; 4096];
-                        let mut total = 0usize;
-                        sleep(Duration::from_millis(8)).await;
-                        loop {
-                            match vless_clone.read(&mut buf).await {
-                                Ok(0) => {
-                                    log::info!("[SOCKS5] VLESS → Client: EOF (total {} bytes)", total);
-                                    break;
-                                }
-                                Ok(n) => {
-                                    total += n;
-                                    log::trace!("[SOCKS5] VLESS → Client: {} bytes", n);
-                                    if client_w.write_all(&buf[..n]).await.is_err() {
-                                        log::warn!("[SOCKS5] VLESS → Client: Write failed");
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::warn!("[SOCKS5] VLESS → Client: Read error {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                        let _ = client_w.shutdown().await;
-                        log::debug!("[SOCKS5] VLESS → Client: Closed (total {} bytes)", total);
-                    };
+                        } else {
+                            client_r.read(&mut buf).await
+                        };
 
-                    let handshake_fallback = tokio::spawn(async move {
-                        sleep(Duration::from_millis(8)).await;
-                        let _ = fallback_vless.send_handshake_if_needed().await;
-                    });
-                    
-                    tokio::join!(c2v, v2c);
-                    let _ = handshake_fallback.await;
-                    let _ = cleanup_vless.close().await;
-                    log::info!("[SOCKS5] {} ↔ Bidirectional relay completed", peer_addr);
-                }
-                Err(e) => {
-                    log::error!("[SOCKS5] VLESS connection failed: {}", e);
-                    stream.write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
-                }
+                        waiting_for_first_payload = false;
+                        match read_result {
+                            Ok(0) => {
+                                client_input_done_for_c2v.store(true, Ordering::Relaxed);
+                                log::info!("[SOCKS5] Client → VLESS: EOF (total {} bytes)", total);
+                                let _ = outbound_upload.close().await;
+                                break;
+                            }
+                            Ok(n) => {
+                                total += n;
+                                log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
+                                if let Err(error) = outbound_upload.write(&buf[..n]).await {
+                                    if !matches!(error, crate::common::Error::ConnectionClosed) {
+                                        log::warn!(
+                                            "[SOCKS5] Client → VLESS: Write failed: {}",
+                                            error
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                client_input_done_for_c2v.store(true, Ordering::Relaxed);
+                                if is_expected_client_read_close(&e) {
+                                    log::info!(
+                                        "[SOCKS5] Client → VLESS: Peer closed input ({})",
+                                        e
+                                    );
+                                } else {
+                                    log::warn!("[SOCKS5] Client → VLESS: Read error {}", e);
+                                }
+                                let _ = outbound_upload.close().await;
+                                break;
+                            }
+                        }
+                    }
+                    log::debug!("[SOCKS5] Client → VLESS: Closed (total {} bytes)", total);
+                };
+
+let v2c = async move {
+                    let mut buf = [0u8; 8192];
+                    let mut total = 0usize;
+                    loop {
+                        match outbound_download.read(&mut buf).await {
+                            Ok(0) => {
+                                log::info!("[SOCKS5] VLESS → Client: EOF (total {} bytes)", total);
+                                break;
+                            }
+                            Ok(n) => {
+                                total += n;
+                                log::trace!("[SOCKS5] VLESS → Client: {} bytes", n);
+                                if let Err(error) = client_w.write_all(&buf[..n]).await {
+                                    if is_expected_client_write_close(&error) {
+                                        let saw_client_eof =
+                                            client_input_done_for_v2c.swap(true, Ordering::Relaxed);
+                                        if saw_client_eof {
+                                            log::debug!(
+                                                "[SOCKS5] VLESS → Client: Peer already closed after client EOF ({})",
+                                                error,
+                                            );
+                                        } else {
+                                            log::info!(
+                                                "[SOCKS5] VLESS → Client: Peer closed receive side ({})",
+                                                error,
+                                            );
+                                        }
+                                    } else {
+                                        log::warn!(
+                                            "[SOCKS5] VLESS → Client: Write failed: {}",
+                                            error
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                if client_input_done_for_v2c.load(Ordering::Relaxed) {
+                                    log::debug!(
+                                        "[SOCKS5] VLESS → Client: Read error after client EOF ({})",
+                                        e
+                                    );
+                                } else {
+                                    log::warn!("[SOCKS5] VLESS → Client: Read error {}", e);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    let _ = client_w.shutdown().await;
+                    log::debug!("[SOCKS5] VLESS → Client: Closed (total {} bytes)", total);
+                };
+
+                tokio::join!(c2v, v2c);
+                let _ = cleanup_outbound.close().await;
+                log::info!("[SOCKS5] {} ↔ Bidirectional relay completed", peer_addr);
             }
-        }
-        None => {
-            match TcpStream::connect(format!("{}:{}", addr, port)).await {
-                Ok(target) => {
-                    use std::net::SocketAddr;
-                    let bind_addr = target.local_addr().unwrap_or_else(|_| {
-                        SocketAddr::from(([127, 0, 0, 1], 0))
-                    });
-                    
-                    stream.write_all(&[
-                        0x05, 0x00, 0x00, 0x01,
-                        0, 0, 0, 0,
+            Err(e) => {
+                log::error!("[SOCKS5] VLESS connection failed: {}", e);
+                stream
+                    .write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await?;
+            }
+        },
+        None => match TcpStream::connect(format!("{}:{}", addr, port)).await {
+            Ok(target) => {
+                let bind_addr =
+                    resolve_reply_bind_addr(target.local_addr().ok(), stream.local_addr().ok());
+                let (reply_atyp, reply_addr_bytes) = match bind_addr.ip() {
+                    std::net::IpAddr::V4(ipv4) => (0x01u8, ipv4.octets().to_vec()),
+                    std::net::IpAddr::V6(ipv6) => (0x04u8, ipv6.octets().to_vec()),
+                };
+
+                stream.write_all(&[0x05, 0x00, 0x00, reply_atyp]).await?;
+                stream.write_all(&reply_addr_bytes).await?;
+                stream
+                    .write_all(&[
                         (bind_addr.port() >> 8) as u8,
                         (bind_addr.port() & 0xFF) as u8,
-                    ]).await?;
-                    
-                    pipe_bidirectional(stream, target).await;
-                }
-                Err(e) => {
-                    stream.write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
-                    return Err(e.into());
-                }
+                    ])
+                    .await?;
+
+                pipe_bidirectional(stream, target).await;
             }
+            Err(e) => {
+                stream
+                    .write_all(&[0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                    .await?;
+                return Err(e.into());
+            }
+        },
+    }
+
+    Ok(())
+}
+
+fn select_auth_method(methods: &[u8]) -> Option<u8> {
+    if methods.contains(&AUTH_NONE) {
+        return Some(AUTH_NONE);
+    }
+    if methods.contains(&AUTH_USERNAME_PASSWORD) {
+        return Some(AUTH_USERNAME_PASSWORD);
+    }
+    None
+}
+
+fn resolve_reply_bind_addr(
+    outbound_local_addr: Option<SocketAddr>,
+    client_local_addr: Option<SocketAddr>,
+) -> SocketAddr {
+    if let Some(addr) = outbound_local_addr {
+        if addr.port() != 0 && !addr.ip().is_unspecified() {
+            return addr;
         }
     }
-    
-    Ok(())
+
+    if let Some(addr) = client_local_addr {
+        let ip = if addr.ip().is_unspecified() {
+            loopback_for_ip(addr.ip())
+        } else {
+            addr.ip()
+        };
+        let port = if addr.port() == 0 { 1 } else { addr.port() };
+        return SocketAddr::new(ip, port);
+    }
+
+    SocketAddr::from(([127, 0, 0, 1], 1))
+}
+
+fn loopback_for_ip(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        IpAddr::V6(_) => IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
+    }
+}
+
+fn is_expected_client_read_close(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::UnexpectedEof
+            | std::io::ErrorKind::TimedOut
+    )
+}
+
+fn is_expected_client_write_close(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::ConnectionAborted
+            | std::io::ErrorKind::NotConnected
+    )
 }
 
 async fn pipe_bidirectional(mut client: TcpStream, mut target: TcpStream) {
     let (mut client_r, mut client_w) = client.split();
     let (mut target_r, mut target_w) = target.split();
-    
+
     let c2t = tokio::io::copy(&mut client_r, &mut target_w);
     let t2c = tokio::io::copy(&mut target_r, &mut client_w);
-    
+
     match tokio::try_join!(c2t, t2c) {
         Ok((c2t_bytes, t2c_bytes)) => {
-            log::debug!("SOCKS5 tunnel closed: {} bytes client→target, {} bytes target→client", c2t_bytes, t2c_bytes);
+            log::debug!(
+                "SOCKS5 tunnel closed: {} bytes client→target, {} bytes target→client",
+                c2t_bytes,
+                t2c_bytes
+            );
         }
         Err(e) => {
             log::debug!("SOCKS5 tunnel error: {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        is_expected_client_read_close, is_expected_client_write_close, resolve_reply_bind_addr,
+        select_auth_method, AUTH_NONE, AUTH_USERNAME_PASSWORD,
+    };
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    #[test]
+    fn prefers_no_auth_when_both_methods_are_offered() {
+        assert_eq!(
+            select_auth_method(&[AUTH_NONE, AUTH_USERNAME_PASSWORD]),
+            Some(AUTH_NONE),
+        );
+    }
+
+    #[test]
+    fn falls_back_to_no_auth_when_username_password_is_absent() {
+        assert_eq!(select_auth_method(&[AUTH_NONE]), Some(AUTH_NONE));
+    }
+
+    #[test]
+    fn keeps_real_outbound_bind_addr_when_available() {
+        let addr = SocketAddr::from(([192, 168, 2, 101], 48872));
+        assert_eq!(resolve_reply_bind_addr(Some(addr), None), addr);
+    }
+
+    #[test]
+    fn falls_back_to_client_local_addr_without_zero_values() {
+        let resolved = resolve_reply_bind_addr(
+            Some(SocketAddr::from(([0, 0, 0, 0], 0))),
+            Some(SocketAddr::from(([0, 0, 0, 0], 1080))),
+        );
+
+        assert_eq!(resolved.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(resolved.port(), 1080);
+    }
+
+    #[test]
+    fn treats_client_write_close_errors_as_expected() {
+        for kind in [
+            std::io::ErrorKind::BrokenPipe,
+            std::io::ErrorKind::ConnectionReset,
+            std::io::ErrorKind::ConnectionAborted,
+            std::io::ErrorKind::NotConnected,
+        ] {
+            let error = std::io::Error::new(kind, "telegram closed client socket");
+            assert!(is_expected_client_write_close(&error));
+        }
+    }
+
+    #[test]
+    fn keeps_unrelated_client_write_errors_unexpected() {
+        let error = std::io::Error::new(std::io::ErrorKind::TimedOut, "write timed out");
+        assert!(!is_expected_client_write_close(&error));
+    }
+
+    #[test]
+    fn treats_client_read_timeout_as_expected_close() {
+        let error = std::io::Error::new(std::io::ErrorKind::TimedOut, "read timed out");
+        assert!(is_expected_client_read_close(&error));
     }
 }

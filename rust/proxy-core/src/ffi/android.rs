@@ -1,6 +1,6 @@
+use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use once_cell::sync::OnceCell;
 use tokio::sync::Mutex;
 
 use jni::objects::JString;
@@ -9,8 +9,9 @@ use jni::sys::{jint, jlong};
 use jni::JNIEnv;
 
 use crate::inbound::InboundServer;
+use crate::outbound::hysteria2::{Hysteria2Client, Hysteria2Config};
+use crate::outbound::vless::{SecurityType, VlessClient, VlessConfig};
 use crate::pool::ConnectionPool;
-use crate::outbound::vless::{VlessClient, VlessConfig, SecurityType};
 
 static RUNTIME: OnceCell<Runtime> = OnceCell::new();
 static SERVER_HANDLE: OnceCell<Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>> = OnceCell::new();
@@ -25,14 +26,17 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeInit(
         Ok(s) => s.into(),
         Err(_) => "debug".to_string(),
     };
-    
+
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Debug)
             .with_tag("ProxyCore"),
     );
-    
-    log::info!("RustProxy: Proxy core Android initialized with log level: {}", level);
+
+    log::info!(
+        "RustProxy: Proxy core Android initialized with log level: {}",
+        level
+    );
     log::debug!("RustProxy: Debug logging enabled");
     0
 }
@@ -48,14 +52,18 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
         Ok(s) => s.into(),
         Err(_) => return -1,
     };
-    
+
     let config_json: String = match env.get_string(&config) {
         Ok(s) => s.into(),
         Err(_) => "{}".to_string(),
     };
-    
-    log::info!("RustProxy: nativeStart called with addr={}, config={}", addr, config_json);
-    
+
+    log::info!(
+        "RustProxy: nativeStart called with addr={}, config={}",
+        addr,
+        config_json
+    );
+
     let rt = match RUNTIME.get_or_try_init(|| {
         tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
@@ -68,28 +76,45 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
             return -2;
         }
     };
-    
+
     let handle = SERVER_HANDLE.get_or_init(|| Arc::new(Mutex::new(None)));
-    
+
     let result = rt.block_on(async {
         let pool = Arc::new(ConnectionPool::new(100));
-        
+
         if !config_json.is_empty() && config_json != "{}" {
-            match parse_vless_config(&config_json) {
-                Ok(vless_config) => {
-                    log::info!("Registering VLESS client: {}:{}", vless_config.server_addr, vless_config.server_port);
+            match parse_proxy_config(&config_json) {
+                Ok(ProxyConfig::Vless(vless_config)) => {
+                    log::info!(
+                        "Registering VLESS client: {}:{}",
+                        vless_config.server_addr,
+                        vless_config.server_port
+                    );
                     let client = VlessClient::new(vless_config);
-                    pool.register_vless("default".to_string(), client).await;
+                    pool.register_client("default".to_string(), Arc::new(client))
+                        .await;
                     log::info!("VLESS client registered successfully");
                 }
+                Ok(ProxyConfig::Hysteria2(hysteria2_config)) => {
+                    log::info!(
+                        "Registering Hysteria2 client: {}:{}",
+                        hysteria2_config.server_addr,
+                        hysteria2_config.server_port
+                    );
+                    let client = Hysteria2Client::new(hysteria2_config);
+                    pool.register_client("default".to_string(), Arc::new(client))
+                        .await;
+                    log::info!("Hysteria2 client registered successfully");
+                }
                 Err(e) => {
-                    log::warn!("Failed to parse VLESS config: {}. Running in direct mode.", e);
+                    log::error!("Failed to parse proxy config: {}", e);
+                    return -4;
                 }
             }
         } else {
-            log::info!("No VLESS config provided, running in direct mode");
+            log::info!("No proxy config provided, running in direct mode");
         }
-        
+
         match InboundServer::bind(&addr, pool).await {
             Ok(server) => {
                 log::info!("Server bound to {}, starting accept loop", addr);
@@ -98,7 +123,7 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
                         log::error!("Server error: {}", e);
                     }
                 });
-                
+
                 *handle.lock().await = Some(server_task);
                 log::info!("Server started successfully");
                 0
@@ -109,7 +134,7 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
             }
         }
     });
-    
+
     result
 }
 
@@ -123,7 +148,7 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStop(
             Some(rt) => rt,
             None => return -1,
         };
-        
+
         rt.block_on(async {
             let mut guard = handle.lock().await;
             if let Some(task) = guard.take() {
@@ -132,20 +157,36 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStop(
             }
         });
     }
-    
+
     0
 }
 
-use std::str::FromStr;
+enum ProxyConfig {
+    Vless(VlessConfig),
+    Hysteria2(Hysteria2Config),
+}
+
+fn parse_proxy_config(json_str: &str) -> crate::common::Result<ProxyConfig> {
+    use serde_json::Value;
+
+    let value: Value = serde_json::from_str(json_str)
+        .map_err(|e| crate::common::Error::InvalidConfig(format!("JSON parse error: {}", e)))?;
+
+    if value.get("hysteria2").is_some() {
+        return parse_hysteria2_config(json_str).map(ProxyConfig::Hysteria2);
+    }
+
+    parse_vless_config(json_str).map(ProxyConfig::Vless)
+}
 
 fn parse_vless_config(json_str: &str) -> crate::common::Result<VlessConfig> {
     use serde::Deserialize;
-    
+
     #[derive(Deserialize)]
     struct OuterConfig {
         vless: InnerConfig,
     }
-    
+
     #[derive(Deserialize)]
     struct InnerConfig {
         uuid: String,
@@ -157,20 +198,21 @@ fn parse_vless_config(json_str: &str) -> crate::common::Result<VlessConfig> {
         path: Option<String>,
         tls_insecure: Option<bool>,
     }
-    
+
     let outer: OuterConfig = serde_json::from_str(json_str)
         .map_err(|e| crate::common::Error::InvalidConfig(format!("JSON parse error: {}", e)))?;
-    
+
     let security = match outer.vless.security.as_deref() {
         Some("tls") | None => SecurityType::Tls,
         Some("none") => SecurityType::None,
         Some(other) => {
             return Err(crate::common::Error::InvalidConfig(format!(
-                "Unknown security type: {}", other
+                "Unknown security type: {}",
+                other
             )));
         }
     };
-    
+
     Ok(VlessConfig {
         uuid: outer.vless.uuid,
         server_addr: outer.vless.server_addr,
@@ -180,5 +222,38 @@ fn parse_vless_config(json_str: &str) -> crate::common::Result<VlessConfig> {
         sni: outer.vless.sni,
         path: outer.vless.path.unwrap_or_else(|| "/".to_string()),
         tls_insecure: outer.vless.tls_insecure.unwrap_or(false),
+    })
+}
+
+fn parse_hysteria2_config(json_str: &str) -> crate::common::Result<Hysteria2Config> {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct OuterConfig {
+        hysteria2: InnerConfig,
+    }
+
+    #[derive(Deserialize)]
+    struct InnerConfig {
+        server_addr: String,
+        server_port: u16,
+        password: String,
+        sni: Option<String>,
+        obfs: Option<String>,
+        obfs_password: Option<String>,
+        tls_insecure: Option<bool>,
+    }
+
+    let outer: OuterConfig = serde_json::from_str(json_str)
+        .map_err(|e| crate::common::Error::InvalidConfig(format!("JSON parse error: {}", e)))?;
+
+    Ok(Hysteria2Config {
+        server_addr: outer.hysteria2.server_addr,
+        server_port: outer.hysteria2.server_port,
+        password: outer.hysteria2.password,
+        sni: outer.hysteria2.sni,
+        obfs: outer.hysteria2.obfs,
+        obfs_password: outer.hysteria2.obfs_password,
+        tls_insecure: outer.hysteria2.tls_insecure.unwrap_or(false),
     })
 }

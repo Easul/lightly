@@ -26,12 +26,13 @@ class ProxyCoreService {
   Future<int> start({
     String listenAddr = '127.0.0.1:23333',
     VlessConfig? vlessConfig,
+    Hysteria2Config? hysteria2Config,
   }) async {
     if (_isRunning) {
       return 0;
     }
 
-    final config = vlessConfig?.toJson() ?? '{}';
+    final config = hysteria2Config?.toJson() ?? vlessConfig?.toJson() ?? '{}';
 
     try {
       final result = await _channel.invokeMethod<int>('nativeStart', {
@@ -80,6 +81,18 @@ class ProxyCoreService {
     return start(listenAddr: listenAddr, vlessConfig: vlessConfig);
   }
 
+  Future<int> startWithHysteria2({
+    String logLevel = 'info',
+    String listenAddr = '127.0.0.1:23333',
+    required Hysteria2Config hysteria2Config,
+  }) async {
+    final initResult = await init(logLevel: logLevel);
+    if (initResult != 0) {
+      return initResult;
+    }
+    return start(listenAddr: listenAddr, hysteria2Config: hysteria2Config);
+  }
+
   Future<void> dispose() async {
     await stop();
   }
@@ -116,6 +129,42 @@ class VlessConfig {
         'host': host,
         'sni': sni,
         'path': path,
+        'tls_insecure': tlsInsecure,
+      },
+    };
+  }
+
+  String toJson() => jsonEncode(toMap());
+}
+
+class Hysteria2Config {
+  final String serverAddr;
+  final int serverPort;
+  final String password;
+  final String? sni;
+  final String? obfs;
+  final String? obfsPassword;
+  final bool tlsInsecure;
+
+  Hysteria2Config({
+    required this.serverAddr,
+    this.serverPort = 443,
+    required this.password,
+    this.sni,
+    this.obfs,
+    this.obfsPassword,
+    this.tlsInsecure = false,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'hysteria2': {
+        'server_addr': serverAddr,
+        'server_port': serverPort,
+        'password': password,
+        'sni': sni,
+        'obfs': obfs,
+        'obfs_password': obfsPassword,
         'tls_insecure': tlsInsecure,
       },
     };

@@ -102,34 +102,30 @@ class ProxyService {
       return;
     }
 
-    if (settings.proxyProtocol == BrowserProxyProtocol.vless) {
-      final config = proxy_core.VlessConfig(
-        uuid: settings.proxyUuid.trim(),
-        serverAddr: settings.proxyHost.trim(),
-        serverPort: settings.proxyPort!,
-        security: settings.proxyTlsEnabled ? 'tls' : 'none',
-        host: settings.proxyTransportHost.trim().isEmpty
-            ? null
-            : settings.proxyTransportHost.trim(),
-        sni: settings.proxyServerName.trim().isEmpty
-            ? null
-            : settings.proxyServerName.trim(),
-        path: settings.proxyTransportPath.trim().isEmpty
-            ? '/'
-            : settings.proxyTransportPath.trim(),
-        tlsInsecure: settings.proxyTlsInsecure,
-      );
+    if (settings.proxyProtocol == BrowserProxyProtocol.vless ||
+        settings.proxyProtocol == BrowserProxyProtocol.hysteria2) {
+      final isHysteria2 =
+          settings.proxyProtocol == BrowserProxyProtocol.hysteria2;
 
       _emitState(ProxyState.starting);
 
       try {
-        final result = await _proxyCoreService.startWithVless(
-          logLevel: 'debug',
-          listenAddr: '127.0.0.1:${settings.localProxyPort ?? 23333}',
-          vlessConfig: config,
-        );
+        final listenAddr = '127.0.0.1:${settings.localProxyPort ?? 23333}';
+        final result = isHysteria2
+            ? await _proxyCoreService.startWithHysteria2(
+                logLevel: 'debug',
+                listenAddr: listenAddr,
+                hysteria2Config: _buildRustHysteria2Config(settings),
+              )
+            : await _proxyCoreService.startWithVless(
+                logLevel: 'debug',
+                listenAddr: listenAddr,
+                vlessConfig: _buildRustVlessConfig(settings),
+              );
         if (result != 0) {
-          throw StateError('Rust proxy core start failed: $result');
+          throw StateError(
+            '${BrowserProxyProtocol.label(settings.proxyProtocol)} proxy core start failed: $result',
+          );
         }
       } catch (e) {
         _emitState(ProxyState.stopped);
@@ -342,30 +338,16 @@ class ProxyService {
       );
     }
 
-    if (settings.proxyProtocol != BrowserProxyProtocol.vless) {
+    if (settings.proxyProtocol != BrowserProxyProtocol.vless &&
+        settings.proxyProtocol != BrowserProxyProtocol.hysteria2) {
       throw StateError('Unsupported proxy protocol: ${settings.proxyProtocol}');
     }
 
     final probeTimeout = timeout < const Duration(seconds: 30)
         ? const Duration(seconds: 30)
         : timeout;
-    final config = proxy_core.VlessConfig(
-      uuid: settings.proxyUuid.trim(),
-      serverAddr: settings.proxyHost.trim(),
-      serverPort: settings.proxyPort!,
-      security: settings.proxyTlsEnabled ? 'tls' : 'none',
-      sni: settings.proxyServerName.trim().isEmpty
-          ? null
-          : settings.proxyServerName.trim(),
-      host: settings.proxyTransportHost.trim().isEmpty
-          ? null
-          : settings.proxyTransportHost.trim(),
-      path: settings.proxyTransportPath.trim().isEmpty
-          ? '/'
-          : settings.proxyTransportPath.trim(),
-      tlsInsecure: settings.proxyTlsInsecure,
-    );
-
+    final isHysteria2 =
+        settings.proxyProtocol == BrowserProxyProtocol.hysteria2;
     final usingExistingRustProxy = _proxyCoreService.isRunning;
     final tempProxyCoreService = usingExistingRustProxy
         ? null
@@ -380,11 +362,18 @@ class ProxyService {
 
     try {
       if (tempProxyCoreService != null) {
-        final startResult = await tempProxyCoreService.startWithVless(
-          logLevel: 'debug',
-          listenAddr: '127.0.0.1:$tempListenPort',
-          vlessConfig: config,
-        );
+        final listenAddr = '127.0.0.1:$tempListenPort';
+        final startResult = isHysteria2
+            ? await tempProxyCoreService.startWithHysteria2(
+                logLevel: 'debug',
+                listenAddr: listenAddr,
+                hysteria2Config: _buildRustHysteria2Config(settings),
+              )
+            : await tempProxyCoreService.startWithVless(
+                logLevel: 'debug',
+                listenAddr: listenAddr,
+                vlessConfig: _buildRustVlessConfig(settings),
+              );
         if (startResult != 0) {
           throw StateError('Temporary Rust proxy start failed: $startResult');
         }
@@ -410,6 +399,45 @@ class ProxyService {
     } finally {
       await tempProxyCoreService?.stop();
     }
+  }
+
+  proxy_core.VlessConfig _buildRustVlessConfig(BrowserSettings settings) {
+    return proxy_core.VlessConfig(
+      uuid: settings.proxyUuid.trim(),
+      serverAddr: settings.proxyHost.trim(),
+      serverPort: settings.proxyPort!,
+      security: settings.proxyTlsEnabled ? 'tls' : 'none',
+      host: settings.proxyTransportHost.trim().isEmpty
+          ? null
+          : settings.proxyTransportHost.trim(),
+      sni: settings.proxyServerName.trim().isEmpty
+          ? null
+          : settings.proxyServerName.trim(),
+      path: settings.proxyTransportPath.trim().isEmpty
+          ? '/'
+          : settings.proxyTransportPath.trim(),
+      tlsInsecure: settings.proxyTlsInsecure,
+    );
+  }
+
+  proxy_core.Hysteria2Config _buildRustHysteria2Config(
+    BrowserSettings settings,
+  ) {
+    return proxy_core.Hysteria2Config(
+      serverAddr: settings.proxyHost.trim(),
+      serverPort: settings.proxyPort!,
+      password: settings.proxyUuid.trim(),
+      sni: settings.proxyServerName.trim().isEmpty
+          ? null
+          : settings.proxyServerName.trim(),
+      obfs: settings.proxyTransportType.trim().isEmpty
+          ? null
+          : settings.proxyTransportType.trim(),
+      obfsPassword: settings.proxyTransportHost.trim().isEmpty
+          ? null
+          : settings.proxyTransportHost.trim(),
+      tlsInsecure: settings.proxyTlsInsecure,
+    );
   }
 
   Future<int?> _allocateEphemeralLoopbackPort() async {

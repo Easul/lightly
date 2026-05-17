@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/local_mixed_proxy_server.dart';
 import 'package:lightly/browser/proxy_service.dart';
-import 'package:lightly/browser/vless_client.dart';
+import 'package:lightly/services/proxy_core_service.dart' as proxy_core;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -29,9 +29,9 @@ void main() {
     });
 
     test('passes tls security to VlessConfig for non-443 ws nodes', () async {
-      final fakeServer = _FakeLocalMixedProxyServer();
+      final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
-        localProxyServer: fakeServer,
+        proxyCoreService: fakeProxyCore,
         proxyChannel: channel,
       );
 
@@ -51,20 +51,20 @@ void main() {
 
       await service.applyProxy(settings);
 
-      expect(fakeServer.lastConfig, isNotNull);
-      expect(fakeServer.lastConfig!.security, 'tls');
-      expect(fakeServer.lastConfig!.isTlsEnabled, isTrue);
-      expect(fakeServer.lastConfig!.transportType, 'ws');
-      expect(fakeServer.lastConfig!.wsHost, 'vc.example.com');
-      expect(fakeServer.lastConfig!.wsPath, '/speedtest');
-      expect(fakeServer.lastConfig!.sni, 'vc.example.com');
-      expect(fakeServer.lastPreferredPort, 19090);
+      expect(fakeProxyCore.lastConfig, isNotNull);
+      expect(fakeProxyCore.lastConfig!.security, 'tls');
+      expect(fakeProxyCore.lastConfig!.serverAddr, 'api.example.com');
+      expect(fakeProxyCore.lastConfig!.serverPort, 2083);
+      expect(fakeProxyCore.lastConfig!.host, 'vc.example.com');
+      expect(fakeProxyCore.lastConfig!.path, '/speedtest');
+      expect(fakeProxyCore.lastConfig!.sni, 'vc.example.com');
+      expect(fakeProxyCore.lastListenAddr, '127.0.0.1:19090');
     });
 
     test('passes none security when vless tls is disabled', () async {
-      final fakeServer = _FakeLocalMixedProxyServer();
+      final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
-        localProxyServer: fakeServer,
+        proxyCoreService: fakeProxyCore,
         proxyChannel: channel,
       );
 
@@ -82,15 +82,15 @@ void main() {
 
       await service.applyProxy(settings);
 
-      expect(fakeServer.lastConfig, isNotNull);
-      expect(fakeServer.lastConfig!.security, 'none');
-      expect(fakeServer.lastConfig!.isTlsEnabled, isFalse);
+      expect(fakeProxyCore.lastConfig, isNotNull);
+      expect(fakeProxyCore.lastConfig!.security, 'none');
+      expect(fakeProxyCore.lastConfig!.serverPort, 80);
     });
 
     test('does not restart unchanged vless proxy config', () async {
-      final fakeServer = _FakeLocalMixedProxyServer();
+      final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
-        localProxyServer: fakeServer,
+        proxyCoreService: fakeProxyCore,
         proxyChannel: channel,
       );
 
@@ -107,18 +107,18 @@ void main() {
       );
 
       await service.applyProxy(settings);
-      final firstStartCount = fakeServer.startCount;
+      final firstStartCount = fakeProxyCore.startCount;
 
       await service.applyProxy(settings);
 
-      expect(fakeServer.startCount, firstStartCount);
-      expect(fakeServer.stopCount, 0);
+      expect(fakeProxyCore.startCount, firstStartCount);
+      expect(fakeProxyCore.stopCount, 0);
     });
 
     test('reapplies unchanged vless proxy config to webview proxy', () async {
-      final fakeServer = _FakeLocalMixedProxyServer();
+      final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
-        localProxyServer: fakeServer,
+        proxyCoreService: fakeProxyCore,
         proxyChannel: channel,
       );
 
@@ -138,13 +138,13 @@ void main() {
         (call) => call.method == 'setProxy',
       );
       expect(setProxyCalls.length, 2);
-      expect(fakeServer.startCount, 1);
+      expect(fakeProxyCore.startCount, 1);
     });
 
-    test('passes packetEncoding to VlessConfig', () async {
-      final fakeServer = _FakeLocalMixedProxyServer();
+    test('passes transport host/path to rust VlessConfig', () async {
+      final fakeProxyCore = _FakeProxyCoreService();
       final service = ProxyService(
-        localProxyServer: fakeServer,
+        proxyCoreService: fakeProxyCore,
         proxyChannel: channel,
       );
 
@@ -162,8 +162,9 @@ void main() {
 
       await service.applyProxy(settings);
 
-      expect(fakeServer.lastConfig, isNotNull);
-      expect(fakeServer.lastConfig!.packetEncoding, 'xudp');
+      expect(fakeProxyCore.lastConfig, isNotNull);
+      expect(fakeProxyCore.lastConfig!.host, 'edge.example.com');
+      expect(fakeProxyCore.lastConfig!.path, '/');
     });
 
     test(
@@ -179,12 +180,46 @@ void main() {
         expect(message, contains('SNI'));
       },
     );
+
+    test('passes Hysteria2 config to rust proxy core', () async {
+      final fakeProxyCore = _FakeProxyCoreService();
+      final service = ProxyService(
+        proxyCoreService: fakeProxyCore,
+        proxyChannel: channel,
+      );
+
+      final settings = BrowserSettings.defaults().copyWith(
+        proxyEnabled: true,
+        proxyScheme: BrowserProxyProtocol.hysteria2,
+        proxyHost: 'hy2.example.com',
+        proxyPort: 443,
+        proxyUuid: 'secret-password',
+        proxyServerName: 'sni.example.com',
+        proxyTransportType: 'salamander',
+        proxyTransportHost: 'obfs-secret',
+        proxyTlsInsecure: true,
+        localProxyPort: 19091,
+      );
+
+      await service.applyProxy(settings);
+
+      expect(fakeProxyCore.lastHysteria2Config, isNotNull);
+      expect(fakeProxyCore.lastHysteria2Config!.serverAddr, 'hy2.example.com');
+      expect(fakeProxyCore.lastHysteria2Config!.serverPort, 443);
+      expect(fakeProxyCore.lastHysteria2Config!.password, 'secret-password');
+      expect(fakeProxyCore.lastHysteria2Config!.sni, 'sni.example.com');
+      expect(fakeProxyCore.lastHysteria2Config!.obfs, 'salamander');
+      expect(fakeProxyCore.lastHysteria2Config!.obfsPassword, 'obfs-secret');
+      expect(fakeProxyCore.lastHysteria2Config!.tlsInsecure, isTrue);
+      expect(fakeProxyCore.lastListenAddr, '127.0.0.1:19091');
+    });
   });
 }
 
-class _FakeLocalMixedProxyServer extends LocalMixedProxyServer {
-  VlessConfig? lastConfig;
-  int? lastPreferredPort;
+class _FakeProxyCoreService extends proxy_core.ProxyCoreService {
+  proxy_core.VlessConfig? lastConfig;
+  proxy_core.Hysteria2Config? lastHysteria2Config;
+  String? lastListenAddr;
   bool _running = false;
   int startCount = 0;
   int stopCount = 0;
@@ -193,19 +228,57 @@ class _FakeLocalMixedProxyServer extends LocalMixedProxyServer {
   bool get isRunning => _running;
 
   @override
-  int? get boundPort => 18080;
+  String get listenAddr => lastListenAddr ?? '127.0.0.1:18080';
 
   @override
-  Future<void> start(VlessConfig config, {int? preferredPort}) async {
-    lastConfig = config;
-    lastPreferredPort = preferredPort;
-    _running = true;
-    startCount += 1;
+  Future<int> init({String logLevel = 'info'}) async {
+    return 0;
   }
 
   @override
-  Future<void> stop() async {
+  Future<int> start({
+    String listenAddr = '127.0.0.1:23333',
+    proxy_core.VlessConfig? vlessConfig,
+    proxy_core.Hysteria2Config? hysteria2Config,
+  }) async {
+    lastConfig = vlessConfig;
+    lastHysteria2Config = hysteria2Config;
+    lastListenAddr = listenAddr;
+    _running = true;
+    startCount += 1;
+    return 0;
+  }
+
+  @override
+  Future<int> startWithHysteria2({
+    String logLevel = 'info',
+    String listenAddr = '127.0.0.1:23333',
+    required proxy_core.Hysteria2Config hysteria2Config,
+  }) async {
+    lastHysteria2Config = hysteria2Config;
+    lastListenAddr = listenAddr;
+    _running = true;
+    startCount += 1;
+    return 0;
+  }
+
+  @override
+  Future<int> startWithVless({
+    String logLevel = 'info',
+    String listenAddr = '127.0.0.1:23333',
+    required proxy_core.VlessConfig vlessConfig,
+  }) async {
+    lastConfig = vlessConfig;
+    lastListenAddr = listenAddr;
+    _running = true;
+    startCount += 1;
+    return 0;
+  }
+
+  @override
+  Future<int> stop() async {
     _running = false;
     stopCount += 1;
+    return 0;
   }
 }
