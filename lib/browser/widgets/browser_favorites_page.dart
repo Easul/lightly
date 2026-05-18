@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 import '../../widgets/shared/primary_button.dart';
+import '../browser_settings.dart';
 import '../models/browser_favorite.dart';
 import '../services/browser_favorite_service.dart';
+import '../proxy_service.dart';
 import '../utils/browser_url_utils.dart';
 import 'browser_favorite_icon.dart';
 
@@ -13,10 +15,14 @@ class BrowserFavoritesPage extends StatefulWidget {
   const BrowserFavoritesPage({
     super.key,
     required this.onOpenUrl,
+    required this.settings,
+    required this.proxyService,
     this.onAddFavorite,
   });
 
   final ValueChanged<String> onOpenUrl;
+  final BrowserSettings settings;
+  final ProxyService proxyService;
   final VoidCallback? onAddFavorite;
 
   @override
@@ -448,6 +454,8 @@ class BrowserFavoritesPageState extends State<BrowserFavoritesPage> {
                             child: BrowserFavoriteIcon(
                               url: favorite.url,
                               title: favorite.title,
+                              settings: widget.settings,
+                              proxyService: widget.proxyService,
                               size: 40,
                               onTap: () => widget.onOpenUrl(favorite.url),
                               onLongPress: _reorderMode

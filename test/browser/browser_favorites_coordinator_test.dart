@@ -44,7 +44,6 @@ void main() {
 
       favoritesCoordinator.applyFavoritesHomeState(
         tabCoordinator: tabCoordinator,
-        tabService: tabService,
       );
 
       expect(tabCoordinator.currentUrl, favoritesCoordinator.favoritesPageUrl);
@@ -53,7 +52,7 @@ void main() {
       expect(tabCoordinator.canGoBack, isFalse);
       expect(tabCoordinator.canGoForward, isFalse);
       expect(tabCoordinator.activeTab?.scrollPosition, 0);
-      expect(tabCoordinator.activeTab?.keepAlive, isNull);
+      expect(tabCoordinator.activeTab?.keepAlive, isNotNull);
     });
   });
 }

@@ -252,10 +252,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();
     _resetProgress();
-    _tabCoordinator.trimAllBackgroundKeepAlives();
     _favoritesCoordinator.applyFavoritesHomeState(
       tabCoordinator: _tabCoordinator,
-      tabService: _tabService,
     );
     _initializer.resetFavoritesHomeState();
     _syncAddressBarForCurrentTab();
@@ -296,6 +294,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       isFavoritesPage: _isFavoritesPage(_currentUrl),
       favoritesChild: BrowserFavoritesPage(
         key: _favoritesPageKey,
+        settings: _settings,
+        proxyService: _proxyService,
         onOpenUrl: (url) async {
           await _loadAddress(url);
         },
@@ -1527,7 +1527,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showTabSwitcher() async {
-    _tabCoordinator.trimKeepAlivesForOverlay();
     await Future<void>.delayed(Duration.zero);
     await showBrowserTabSwitcherModal(
       context: context,
@@ -1649,11 +1648,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         await _handleBrowserBack();
       },
       child: Scaffold(
-        onDrawerChanged: (isOpen) {
-          if (isOpen) {
-            _tabCoordinator.trimKeepAlivesForOverlay();
-          }
-        },
         drawer: AppDrawer(onOpenSettings: _openSettings),
         appBar: BrowserPageAppBar(
           addressController: _addressController,
