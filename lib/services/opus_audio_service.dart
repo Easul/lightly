@@ -11,8 +11,9 @@ class OpusAudioService {
   static const int _sampleRate = 16000;
   static const int _channels = 1;
   static const int _frameDurationMs = 20;
-  // Opus 20ms @ 16kHz 单声道 约 60 bytes 带宽 ~24kbps
-  static const int _maxEncodedSize = 80;
+  // Opus 20ms @ 16kHz 单声道 — 输出缓冲从 80 提升到 200
+  // 原值 80 过小，VoIP 模式下某些帧可能超过 80 字节导致截断
+  static const int _maxEncodedSize = 200;
 
   SimpleOpusEncoder? _encoder;
   SimpleOpusDecoder? _decoder;

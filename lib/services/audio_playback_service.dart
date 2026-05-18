@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 class AudioFrame {
@@ -27,10 +28,12 @@ class JitterBuffer {
   // 动态状态
   final List<AudioFrame> _buffer = [];
   final List<int> _networkDelayHistory = []; // 网络延迟历史 (ms)
-  int _currentTargetDelayMs = 60; // 当前目标延迟
+  int _currentTargetDelayMs = 80; // 初始目标延迟从 60→80，减少起播时 underrun
   int _currentMaxSize = 12; // 当前缓冲区大小
   int _nextSequence = 0;
   Timer? _playbackTimer;
+  Uint8List? _lastPlayedFrame; // 丢包时重复上一帧而非插入静音
+  int _consecutiveUnderruns = 0; // 连续缓冲区耗尽次数
 
   final StreamController<Uint8List> _outputController =
       StreamController<Uint8List>.broadcast();
@@ -158,9 +161,10 @@ class JitterBuffer {
 
     // 检查是否需要等待更多数据
     if (!_isPlaying) {
-      // 根据当前目标延迟决定起播阈值
+      // 起播阈值：至少缓冲目标延迟对应的帧数，上限 8 帧
+      // 原上限 6 在网络抖动时容易起播后立即 underrun
       final requiredFrames = (_currentTargetDelayMs / _frameIntervalMs).ceil();
-      if (_buffer.length >= requiredFrames.clamp(2, 6)) {
+      if (_buffer.length >= requiredFrames.clamp(3, 8)) {
         _startPlayback();
       }
     }
@@ -179,10 +183,18 @@ class JitterBuffer {
 
   void _playNextFrame() {
     if (_buffer.isEmpty) {
-      // 缓冲区耗尽, 停止播放等待重新填充
-      _stopPlayback();
+      // 缓冲区耗尽 — 重复上一帧并衰减而非立即停止播放
+      if (_lastPlayedFrame != null) {
+        final faded = _applyFadeOut(_lastPlayedFrame!, 0.5);
+        _outputController.add(faded);
+      }
+      _consecutiveUnderruns++;
+      if (_consecutiveUnderruns >= 3) {
+        _stopPlayback();
+      }
       return;
     }
+    _consecutiveUnderruns = 0;
 
     final frame = _buffer.first;
 
@@ -201,13 +213,30 @@ class JitterBuffer {
     // 处理正常序列
     if (frame.sequence == _nextSequence) {
       _buffer.removeAt(0);
+      _lastPlayedFrame = frame.data;
       _outputController.add(frame.data);
       _nextSequence++;
     } else {
-      // 序列号缺失, 插入静音 (简单的基于前后帧的插值可以后续实现)
-      _outputController.add(Uint8List(frame.data.length));
+      // 序列号缺失 — 重复上一帧并衰减，而非插入全零静音
+      // 全零会产生硬突变咔哒声，重复+衰减更平滑
+      final concealment = _lastPlayedFrame != null
+          ? _applyFadeOut(_lastPlayedFrame!, 0.6)
+          : Uint8List(frame.data.length);
+      _outputController.add(concealment);
       _nextSequence++;
     }
+  }
+
+  /// 对 PCM 帧应用衰减系数（用于丢包隐藏）
+  Uint8List _applyFadeOut(Uint8List pcmData, double factor) {
+    final result = Uint8List.fromList(pcmData);
+    final samples = ByteData.sublistView(result);
+    for (var offset = 0; offset + 1 < result.length; offset += 2) {
+      final sample = samples.getInt16(offset, Endian.little);
+      final attenuated = (sample * factor).round().clamp(-32768, 32767);
+      samples.setInt16(offset, attenuated, Endian.little);
+    }
+    return result;
   }
 
   void _stopPlayback() {

@@ -5,12 +5,14 @@ import 'dart:typed_data';
 import 'package:record/record.dart';
 
 class AudioCaptureService {
-  // AGC 配置
+  // AGC 配置 — 降低增益范围防止裁剪刺啦声
+  // 原值 maxGain=3.5 + playback boost=1.35 → 合计 4.7x，频繁削顶
+  // 现值 maxGain=1.8，playback boost=1.0 → 合计 ≤1.8x，大幅减少裁剪
   static const double _defaultTargetLevel = -16.0; // 目标音量等级 dB
   static const double _minGain = 1.0;
-  static const double _maxGain = 3.5;
-  static const double _agcAttackRate = 0.15; // 增益攻击速率
-  static const double _agcDecayRate = 0.05; // 增益衰减速率
+  static const double _maxGain = 1.8; // 从 3.5 降低，避免与播放端增益叠加削顶
+  static const double _agcAttackRate = 0.08; // 从 0.15 降低，更慢的增益上升减少瞬态裁剪
+  static const double _agcDecayRate = 0.12; // 从 0.05 提高，更快衰减防止持续削顶
 
   final AudioRecorder _recorder = AudioRecorder();
 
@@ -28,7 +30,7 @@ class AudioCaptureService {
   final List<int> _pendingPcmBytes = [];
 
   // AGC 状态
-  double _currentGain = 2.0; // 初始增益提升到 2.0x
+  double _currentGain = 1.0; // 初始增益 1.0x（不再预设放大）
   double _smoothedRms = -60.0; // 平滑 RMS 分贝贝数
   final List<double> _rmsHistory = []; // 历史 RMS 缓冲
   static const int _rmsWindowSize = 10; // RMS 窗口大小
@@ -177,26 +179,37 @@ class AudioCaptureService {
     return math.pow(10, gainDb / 20.0).toDouble();
   }
 
-  /// 应用 AGC 增益
+  /// 应用 AGC 增益（含软削波防止硬裁剪产生刺啦声）
   Uint8List _applyAGCGain(Uint8List pcmData) {
     // 计算当前音量并更新 AGC
     final currentRms = _calculateRms(pcmData);
     _updateAGC(currentRms);
 
-    // 应用增益
+    // 应用增益 + 软削波
     final boosted = Uint8List.fromList(pcmData);
     final samples = ByteData.sublistView(boosted);
+    var clippedCount = 0;
     for (var offset = 0; offset + 1 < boosted.length; offset += 2) {
       final sample = samples.getInt16(offset, Endian.little);
       final amplified = (sample * _currentGain).round();
-      final clamped = amplified.clamp(-32768, 32767);
+      // 软削波：使用 tanh 式压缩，接近边界时平滑过渡而非硬裁剪
+      final softClipped = amplified.abs() > 30000
+          ? (30000 + (amplified.abs() - 30000) * 0.3) * amplified.sign
+          : amplified;
+      final clamped = softClipped.round().clamp(-32768, 32767);
+      if (amplified.abs() > 32767) clippedCount++;
       samples.setInt16(offset, clamped, Endian.little);
+    }
+
+    // 裁剪过多时主动降低增益，防止持续削顶
+    if (clippedCount > boosted.length / 8) {
+      _currentGain = (_currentGain * 0.85).clamp(_minGain, _maxGain);
     }
 
     // 定期记录 AGC 状态 (调试)
     if (_sequence % 100 == 0) {
       developer.log(
-        'AGC: input=${currentRms.toStringAsFixed(1)}dB, gain=${_currentGain.toStringAsFixed(2)}x, output=${(currentRms + 20 * math.log(_currentGain) / math.log(10)).toStringAsFixed(1)}dB',
+        'AGC: input=${currentRms.toStringAsFixed(1)}dB, gain=${_currentGain.toStringAsFixed(2)}x, clipped=$clippedCount/${boosted.length ~/ 2}',
         name: 'AudioCapture',
       );
     }
