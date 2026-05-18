@@ -51,19 +51,86 @@ class ExternalApiVideoSourceResolver extends VideoSourceResolver {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final urls = data['urls'] as List<dynamic>?;
-      if (urls == null || urls.isEmpty) {
-        throw const VideoResolutionException('No playable URLs returned');
+      final data = jsonDecode(response.body);
+      final streamUrl = _extractFirstPlayableUrl(data);
+      if (streamUrl == null || streamUrl.isEmpty) {
+        throw VideoResolutionException(
+          'No playable URLs returned: ${response.body}',
+        );
       }
+
+      final resolvedTitle = _extractTitle(data) ?? videoId;
 
       return ResolvedVideoSource(
         videoId: videoId,
-        title: videoId,
-        streamUrl: urls.first as String,
+        title: resolvedTitle,
+        streamUrl: streamUrl,
       );
     } finally {
       client.close();
     }
+  }
+
+  String? _extractFirstPlayableUrl(dynamic data) {
+    if (data is List) {
+      for (final item in data) {
+        final candidate = _extractFirstPlayableUrl(item);
+        if (candidate != null && candidate.isNotEmpty) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    if (data is String) {
+      return data.isNotEmpty ? data : null;
+    }
+
+    if (data is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final directUrl = data['url'];
+    if (directUrl is String && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final directUrls = data['urls'];
+    if (directUrls is List) {
+      for (final item in directUrls) {
+        if (item is String && item.isNotEmpty) {
+          return item;
+        }
+      }
+    }
+
+    for (final key in const ['data', 'result']) {
+      final nested = _extractFirstPlayableUrl(data[key]);
+      if (nested != null && nested.isNotEmpty) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractTitle(dynamic data) {
+    if (data is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final title = data['title'];
+    if (title is String && title.trim().isNotEmpty) {
+      return title.trim();
+    }
+
+    for (final key in const ['data', 'result']) {
+      final nested = _extractTitle(data[key]);
+      if (nested != null && nested.isNotEmpty) {
+        return nested;
+      }
+    }
+
+    return null;
   }
 }
