@@ -15,8 +15,10 @@ import java.nio.ByteOrder
 class AudioPlayer(private val context: Context) {
     companion object {
         private const val TAG = "AudioPlayer"
-        private const val DEFAULT_PLAYBACK_GAIN = 1.2f
-        private const val RECEIVER_PLAYBACK_BOOST = 1.35f
+        // 播放增益 — 降为 1.0，因为 AGC 已在采集端完成增益控制
+        // 原值 1.2/1.35 与 AGC maxGain=3.5 叠加导致 4.7x 削顶刺啦
+        private const val DEFAULT_PLAYBACK_GAIN = 1.0f
+        private const val RECEIVER_PLAYBACK_BOOST = 1.0f
     }
 
     private var audioTrack: AudioTrack? = null
@@ -42,14 +44,15 @@ class AudioPlayer(private val context: Context) {
 
         val channelConfig = if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
         val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, AudioFormat.ENCODING_PCM_16BIT)
+        // 使用 4x minBufferSize 增加缓冲余量，减少播放 underrun 造成的刺啦声
         val bufferSize = if (minBufferSize > 0) {
-            minBufferSize
+            minBufferSize * 4
         } else {
-            sampleRate / 5
+            sampleRate / 5 * 4
         }
 
         val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build()
 
@@ -81,13 +84,9 @@ class AudioPlayer(private val context: Context) {
         if (isPlaying) return
 
         try {
-            if (audioManager.mode == AudioManager.MODE_IN_COMMUNICATION) {
-                audioManager.mode = AudioManager.MODE_NORMAL
-            }
-            if (audioManager.isSpeakerphoneOn) {
-                audioManager.isSpeakerphoneOn = false
-            }
-            audioTrack?.setVolume(DEFAULT_PLAYBACK_GAIN)
+            // 不再切换 AudioManager mode 和 speakerphone —
+            // 采集端已设置 MODE_IN_COMMUNICATION + speakerphone，
+            // 播放端切换到 MODE_NORMAL 会破坏 AEC/NS 通路并产生路由抖动
             audioTrack?.play()
             isPlaying = true
             Log.i(TAG, "AudioPlayer started")
@@ -129,25 +128,31 @@ class AudioPlayer(private val context: Context) {
         return boosted
     }
 
-    fun stop() {
+fun stop() {
         if (!isPlaying) return
 
         try {
-            audioTrack?.stop()
+            audioTrack?.pause()
+            audioTrack?.flush()
             isPlaying = false
+            // 不再恢复 AudioManager mode/speakerphone —
+            // 采集端负责管理音频路由，播放端不应干扰
             Log.i(TAG, "AudioPlayer stopped")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop AudioPlayer", e)
         }
     }
+    }
 
-    fun release() {
-        stop()
-        audioTrack?.release()
-        audioTrack = null
-        handlerThread?.quitSafely()
-        handlerThread = null
-        handler = null
-        Log.i(TAG, "AudioPlayer released")
+fun release() {
+        try {
+            stop()
+            audioTrack?.release()
+            audioTrack = null
+            // 不再恢复 AudioManager mode — 采集端负责音频路由
+            Log.i(TAG, "AudioPlayer released")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to release AudioPlayer", e)
+        }
     }
 }
