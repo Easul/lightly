@@ -59,5 +59,17 @@ void main() {
       expect(decision.initialUrl, isNull);
       expect(decision.statusMessage, '站点正在延迟创建登录窗口，已改为弹窗继续');
     });
+
+    test('routes empty gesture popup to new tab when enabled', () {
+      final decision = handler.decide(
+        requestedUrl: '',
+        sourceUrl: 'https://example.com',
+        hasGesture: true,
+        openNewWindowInTab: true,
+      );
+
+      expect(decision.action, BrowserPopupWindowAction.openTab);
+      expect(decision.initialUrl, isNull);
+    });
   });
 }

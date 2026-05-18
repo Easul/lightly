@@ -51,6 +51,12 @@ class BrowserPopupWindowHandler {
       );
     }
 
+    if (requestedUrl.isEmpty && hasGesture && openNewWindowInTab) {
+      return const BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.openTab,
+      );
+    }
+
     if (BrowserPopupFilter.shouldSuppressPopupUrl(requestedUrl)) {
       return const BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.ignore,
