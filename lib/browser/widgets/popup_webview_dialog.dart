@@ -172,6 +172,19 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
     return confirmed == true;
   }
 
+  Future<bool> _showNestedPopupWindow({
+    required int? windowId,
+    String? initialUrl,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) =>
+          PopupWebViewDialog(windowId: windowId, initialUrl: initialUrl),
+    );
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -259,7 +272,9 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                   final popupUrl = createWindowAction.request.url?.toString();
                   if ((popupUrl == null || popupUrl.isEmpty) &&
                       _shouldAllowDeferredAuthPopup(createWindowAction)) {
-                    return true;
+                    return _showNestedPopupWindow(
+                      windowId: createWindowAction.windowId,
+                    );
                   }
                   if (_shouldSuppressPopupUrl(popupUrl)) {
                     return false;
@@ -282,8 +297,9 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                       await _externalUrlLauncher.launch(uri!);
                       return false;
                     }
-                    await controller.loadUrl(
-                      urlRequest: URLRequest(url: WebUri(popupUrl)),
+                    return _showNestedPopupWindow(
+                      windowId: createWindowAction.windowId,
+                      initialUrl: popupUrl,
                     );
                   }
                   return false;

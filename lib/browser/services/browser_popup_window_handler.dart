@@ -20,9 +20,9 @@ class BrowserPopupWindowDecision {
 }
 
 class BrowserPopupWindowHandler {
-  bool _isShowingPopupDialog = false;
+  int _popupDialogCount = 0;
 
-  bool get isShowingPopupDialog => _isShowingPopupDialog;
+  bool get isShowingPopupDialog => _popupDialogCount > 0;
 
   BrowserPopupWindowDecision decide({
     required String requestedUrl,
@@ -79,12 +79,7 @@ class BrowserPopupWindowHandler {
     required String? initialUrl,
     required void Function(String) onStatus,
   }) async {
-    if (_isShowingPopupDialog) {
-      onStatus('已有弹窗正在处理中');
-      return;
-    }
-
-    _isShowingPopupDialog = true;
+    _popupDialogCount += 1;
     try {
       await showDialog<void>(
         context: context,
@@ -93,8 +88,11 @@ class BrowserPopupWindowHandler {
             PopupWebViewDialog(windowId: windowId, initialUrl: initialUrl),
       );
     } finally {
-      _isShowingPopupDialog = false;
-      onStatus('');
+      _popupDialogCount -= 1;
+      if (_popupDialogCount <= 0) {
+        _popupDialogCount = 0;
+        onStatus('');
+      }
     }
   }
 }
