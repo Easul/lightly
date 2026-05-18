@@ -95,7 +95,7 @@ void main() {
       expect(prepared.resolvedTitle, 'Resolved title');
     });
 
-    test('skips youtube resolution when parser api setting is empty', () async {
+    test('fails youtube resolution when parser api setting is empty', () async {
       var resolveCalls = 0;
       final service = BrowserVideoPlaybackPreparationService(
         loadSettings: () async => BrowserSettings.defaults().copyWith(
@@ -113,14 +113,21 @@ void main() {
         redactDownloadUrl: (url) => 'redacted:$url',
       );
 
-      final prepared = await service.prepare(
-        requestedUrl: 'https://youtube.com/watch?v=abc123',
-        shouldResolveYoutube: true,
+      await expectLater(
+        service.prepare(
+          requestedUrl: 'https://youtube.com/watch?v=abc123',
+          shouldResolveYoutube: true,
+        ),
+        throwsA(
+          isA<VideoResolutionException>().having(
+            (error) => error.message,
+            'message',
+            '请先在设置中配置 YouTube 解析接口',
+          ),
+        ),
       );
 
       expect(resolveCalls, 0);
-      expect(prepared.playbackUrl, 'https://youtube.com/watch?v=abc123');
-      expect(prepared.downloadUrl, 'https://youtube.com/watch?v=abc123');
     });
   });
 }

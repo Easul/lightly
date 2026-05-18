@@ -58,11 +58,7 @@ class BrowserVideoPlaybackPreparationService {
 
     final settings = await _loadSettings();
     if (settings.normalizedNativeVideoParserApiBaseUrl.isEmpty) {
-      return PreparedVideoPlayback(
-        playbackUrl: playbackUrl,
-        downloadUrl: downloadUrl,
-        displayDownloadUrl: displayDownloadUrl,
-      );
+      throw const VideoResolutionException('请先在设置中配置 YouTube 解析接口');
     }
     final resolved = await _resolveVideoSource(requestedUrl, settings);
     final rawStreamUrl = resolved.streamUrl;

@@ -231,7 +231,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
       setState(() {
         _isInitializing = false;
         _errorMessage = _isYouTubeUrl
-            ? 'YouTube 视频解析失败\n${e.toString()}'
+            ? 'YouTube 视频播放失败\n${e.toString()}'
             : '播放失败: ${e.toString()}';
       });
     }
