@@ -20,6 +20,33 @@ class DownloadConfirmationResult {
   final String fileName;
 }
 
+class _DownloadCancelledException implements Exception {
+  const _DownloadCancelledException();
+}
+
+class _ActiveDownloadSession {
+  _ActiveDownloadSession({required this.client});
+
+  final HttpClient client;
+  IOSink? sink;
+  bool cancelled = false;
+  final Completer<void> done = Completer<void>();
+
+  Future<void> cancel() async {
+    cancelled = true;
+    client.close(force: true);
+    try {
+      await sink?.close();
+    } catch (_) {}
+  }
+
+  void complete() {
+    if (!done.isCompleted) {
+      done.complete();
+    }
+  }
+}
+
 class BrowserDownloadService {
   BrowserDownloadService({
     DateTime Function()? now,
@@ -31,6 +58,27 @@ class BrowserDownloadService {
   final DateTime Function() _now;
   final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService;
   static const int _downloadProgressPersistStepBytes = 256 * 1024;
+  final Map<int, _ActiveDownloadSession> _activeDownloads =
+      <int, _ActiveDownloadSession>{};
+
+  Future<void> cancelDownload(
+    int id, {
+    String? savedPath,
+    bool deletePartialFile = false,
+  }) async {
+    final session = _activeDownloads[id];
+    if (session != null) {
+      await session.cancel();
+      await session.done.future;
+    }
+
+    if (deletePartialFile && savedPath != null && savedPath.trim().isNotEmpty) {
+      final file = File(savedPath.trim());
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+  }
 
   String resolveFileName(DownloadStartRequest request) {
     final suggestedFileName = request.suggestedFilename?.trim();
@@ -185,6 +233,16 @@ class BrowserDownloadService {
     final client = HttpClient();
     client.findProxy = (uri) =>
         proxyService.findProxyForDownload(settings, uri);
+    final id = record.id;
+    if (id == null) {
+      throw ArgumentError.value(
+        record.id,
+        'record.id',
+        'Record id is required.',
+      );
+    }
+    final session = _ActiveDownloadSession(client: client);
+    _activeDownloads[id] = session;
     var currentRecord = record.copyWith(
       status: 'downloading',
       savedPath: savedPath,
@@ -208,9 +266,13 @@ class BrowserDownloadService {
       }
 
       final sink = outputFile.openWrite();
+      session.sink = sink;
       var bytesReceived = 0;
       var lastPersistedBytes = 0;
       await for (final chunk in response) {
+        if (session.cancelled) {
+          throw const _DownloadCancelledException();
+        }
         bytesReceived += chunk.length;
         sink.add(chunk);
         if (lastPersistedBytes == 0 ||
@@ -225,6 +287,9 @@ class BrowserDownloadService {
           await downloadStore.update(currentRecord);
           lastPersistedBytes = bytesReceived;
         }
+      }
+      if (session.cancelled) {
+        throw const _DownloadCancelledException();
       }
       await sink.close();
 
@@ -241,11 +306,15 @@ class BrowserDownloadService {
       // 扫描新下载的文件，让系统文件管理器可以看到
       unawaited(MediaScannerService.scanFile(savedPath));
       onStatus('下载完成：${record.fileName}');
+    } on _DownloadCancelledException {
+      return;
     } catch (_) {
       currentRecord = currentRecord.copyWith(status: 'failed');
       await downloadStore.update(currentRecord);
       onStatus('下载失败：${record.fileName}');
     } finally {
+      _activeDownloads.remove(id);
+      session.complete();
       client.close(force: true);
     }
   }

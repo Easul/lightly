@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/services/browser_download_service.dart';
@@ -90,6 +92,21 @@ void main() {
 
     test('sanitizeFileName uses generated fallback for blank names', () {
       expect(service.sanitizeFileName('   '), 'download_1700000000000.bin');
+    });
+
+    test('cancelDownload removes partial file when requested', () async {
+      final tempDir = await Directory.systemTemp.createTemp('download_test_');
+      final partialFile = File('${tempDir.path}/partial.bin');
+      await partialFile.writeAsString('partial');
+
+      await service.cancelDownload(
+        123,
+        savedPath: partialFile.path,
+        deletePartialFile: true,
+      );
+
+      expect(await partialFile.exists(), isFalse);
+      await tempDir.delete(recursive: true);
     });
   });
 }
