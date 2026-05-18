@@ -128,7 +128,7 @@ class AudioPlayer(private val context: Context) {
         return boosted
     }
 
-fun stop() {
+    fun stop() {
         if (!isPlaying) return
 
         try {
@@ -142,11 +142,14 @@ fun stop() {
             Log.e(TAG, "Failed to stop AudioPlayer", e)
         }
     }
-    }
 
-fun release() {
+    fun release() {
         try {
             stop()
+            handler?.removeCallbacksAndMessages(null)
+            handler = null
+            handlerThread?.quitSafely()
+            handlerThread = null
             audioTrack?.release()
             audioTrack = null
             // 不再恢复 AudioManager mode — 采集端负责音频路由
