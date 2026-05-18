@@ -92,12 +92,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
       }
 
       final savedPath = record.savedPath?.trim();
-      if (savedPath != null && savedPath.isNotEmpty) {
-        final file = File(savedPath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      }
+      await _downloadService.cancelDownload(
+        id,
+        savedPath: savedPath,
+        deletePartialFile: true,
+      );
 
       await _downloadStore.delete(id);
 
