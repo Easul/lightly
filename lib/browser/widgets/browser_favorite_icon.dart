@@ -1,19 +1,10 @@
-import 'dart:io';
-import 'dart:typed_data';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../browser_settings.dart';
-import '../proxy_service.dart';
-
-class BrowserFavoriteIcon extends StatefulWidget {
+class BrowserFavoriteIcon extends StatelessWidget {
   const BrowserFavoriteIcon({
     super.key,
     required this.url,
     required this.title,
-    required this.settings,
-    required this.proxyService,
     this.size = 44,
     this.onTap,
     this.onLongPress,
@@ -21,99 +12,12 @@ class BrowserFavoriteIcon extends StatefulWidget {
 
   final String url;
   final String title;
-  final BrowserSettings settings;
-  final ProxyService proxyService;
   final double size;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  @override
-  State<BrowserFavoriteIcon> createState() => _BrowserFavoriteIconState();
-}
-
-class _BrowserFavoriteIconState extends State<BrowserFavoriteIcon> {
-  static final Map<String, Future<Uint8List?>> _iconFutureCache =
-      <String, Future<Uint8List?>>{};
-
-  late Future<Uint8List?> _iconBytesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _iconBytesFuture = _resolveIconBytes();
-  }
-
-  @override
-  void didUpdateWidget(covariant BrowserFavoriteIcon oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url ||
-        oldWidget.settings.shouldApplyProxy !=
-            widget.settings.shouldApplyProxy) {
-      _iconBytesFuture = _resolveIconBytes();
-    }
-  }
-
-  Future<Uint8List?> _resolveIconBytes() {
-    final cacheKey = '${widget.url}::${widget.settings.shouldApplyProxy}';
-    return _iconFutureCache.putIfAbsent(cacheKey, _fetchIconBytes);
-  }
-
-  Future<Uint8List?> _fetchIconBytes() async {
-    final pageUri = Uri.tryParse(widget.url);
-    if (pageUri == null || pageUri.host.isEmpty) {
-      return null;
-    }
-
-    final candidateUris = <Uri>[
-      pageUri.resolve('/favicon.ico'),
-      Uri.https('www.google.com', '/s2/favicons', {
-        'domain': pageUri.host,
-        'sz': '64',
-      }),
-    ];
-
-    for (final candidate in candidateUris) {
-      final bytes = await _downloadIconBytes(candidate, refererUri: pageUri);
-      if (bytes != null && bytes.isNotEmpty) {
-        return bytes;
-      }
-    }
-
-    return null;
-  }
-
-  Future<Uint8List?> _downloadIconBytes(
-    Uri iconUri, {
-    required Uri refererUri,
-  }) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
-    if (widget.settings.shouldApplyProxy) {
-      client.findProxy = (uri) =>
-          widget.proxyService.findProxyForDownload(widget.settings, uri);
-    }
-
-    try {
-      final request = await client.getUrl(iconUri);
-      if (iconUri.host != 'www.google.com') {
-        request.headers.set(
-          HttpHeaders.refererHeader,
-          '${refererUri.scheme}://${refererUri.host}',
-        );
-      }
-      final response = await request.close();
-      if (response.statusCode != HttpStatus.ok) {
-        return null;
-      }
-      return consolidateHttpClientResponseBytes(response);
-    } catch (_) {
-      return null;
-    } finally {
-      client.close(force: true);
-    }
-  }
-
   Color get _fallbackColor {
-    final hash = widget.url.hashCode.abs();
+    final hash = url.hashCode.abs();
     final colors = [
       const Color(0xFF63B746),
       const Color(0xFF7BCB7A),
@@ -126,7 +30,7 @@ class _BrowserFavoriteIconState extends State<BrowserFavoriteIcon> {
   }
 
   String get _initial {
-    final trimmed = widget.title.trim();
+    final trimmed = title.trim();
     if (trimmed.isEmpty) {
       return '?';
     }
@@ -136,32 +40,19 @@ class _BrowserFavoriteIconState extends State<BrowserFavoriteIcon> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final fallback = Container(
-      color: _fallbackColor,
-      child: Center(
-        child: Text(
-          _initial,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: widget.size * 0.4,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
 
     return GestureDetector(
-      onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
+      onTap: onTap,
+      onLongPress: onLongPress,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: widget.size,
-            height: widget.size,
+            width: size,
+            height: size,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(widget.size * 0.34),
+              borderRadius: BorderRadius.circular(size * 0.34),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.03),
@@ -171,31 +62,27 @@ class _BrowserFavoriteIconState extends State<BrowserFavoriteIcon> {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(widget.size * 0.34),
-              child: FutureBuilder<Uint8List?>(
-                future: _iconBytesFuture,
-                builder: (context, snapshot) {
-                  final bytes = snapshot.data;
-                  if (bytes == null || bytes.isEmpty) {
-                    return fallback;
-                  }
-                  return Image.memory(
-                    bytes,
-                    width: widget.size,
-                    height: widget.size,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.low,
-                    errorBuilder: (context, error, stackTrace) => fallback,
-                  );
-                },
+              borderRadius: BorderRadius.circular(size * 0.34),
+              child: Container(
+                color: _fallbackColor,
+                child: Center(
+                  child: Text(
+                    _initial,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: size * 0.4,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 6),
           SizedBox(
-            width: widget.size + 16,
+            width: size + 16,
             child: Text(
-              widget.title,
+              title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
