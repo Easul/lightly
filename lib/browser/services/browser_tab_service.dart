@@ -65,11 +65,13 @@ class BrowserTabService {
     String title = '',
     bool activate = true,
     bool isExternallyOpened = false,
+    int? popupWindowId,
   }) {
     final tab = _buildTab(
       url: url,
       title: title,
       isExternallyOpened: isExternallyOpened,
+      popupWindowId: popupWindowId,
     );
     _tabs.add(tab);
     if (activate) {
@@ -192,6 +194,8 @@ class BrowserTabService {
   bool updateTab(
     String tabId, {
     String? url,
+    int? popupWindowId,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -206,6 +210,8 @@ class BrowserTabService {
     final current = _tabs[index];
     final next = current.copyWith(
       url: url,
+      popupWindowId: popupWindowId,
+      clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,
       canGoBack: canGoBack,
@@ -214,6 +220,7 @@ class BrowserTabService {
       isExternallyOpened: isExternallyOpened,
     );
     if (next.url == current.url &&
+        next.popupWindowId == current.popupWindowId &&
         next.title == current.title &&
         next.isLoading == current.isLoading &&
         next.canGoBack == current.canGoBack &&
@@ -342,12 +349,16 @@ class BrowserTabService {
     required String url,
     String title = '',
     bool isExternallyOpened = false,
+    int? popupWindowId,
   }) {
     _nextId += 1;
     return BrowserTabSession(
       id: 'tab_$_nextId',
       url: url,
-      keepAlive: url.startsWith('http') ? InAppWebViewKeepAlive() : null,
+      keepAlive: (popupWindowId != null || url.startsWith('http'))
+          ? InAppWebViewKeepAlive()
+          : null,
+      popupWindowId: popupWindowId,
       title: title,
       isExternallyOpened: isExternallyOpened,
     );

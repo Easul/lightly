@@ -5,6 +5,7 @@ class BrowserTabSession {
     required this.id,
     required this.url,
     this.keepAlive,
+    this.popupWindowId,
     this.title = '',
     this.isLoading = false,
     this.canGoBack = false,
@@ -16,6 +17,7 @@ class BrowserTabSession {
   final String id;
   final String url;
   final InAppWebViewKeepAlive? keepAlive;
+  final int? popupWindowId;
   final String title;
   final bool isLoading;
   final bool canGoBack;
@@ -36,6 +38,8 @@ class BrowserTabSession {
     String? url,
     InAppWebViewKeepAlive? keepAlive,
     bool clearKeepAlive = false,
+    int? popupWindowId,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -47,6 +51,9 @@ class BrowserTabSession {
       id: id ?? this.id,
       url: url ?? this.url,
       keepAlive: clearKeepAlive ? null : (keepAlive ?? this.keepAlive),
+      popupWindowId: clearPopupWindowId
+          ? null
+          : (popupWindowId ?? this.popupWindowId),
       title: title ?? this.title,
       isLoading: isLoading ?? this.isLoading,
       canGoBack: canGoBack ?? this.canGoBack,

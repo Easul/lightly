@@ -294,8 +294,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       isFavoritesPage: _isFavoritesPage(_currentUrl),
       favoritesChild: BrowserFavoritesPage(
         key: _favoritesPageKey,
-        settings: _settings,
-        proxyService: _proxyService,
         onOpenUrl: (url) async {
           await _loadAddress(url);
         },
@@ -304,6 +302,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         key: ValueKey('webview-${_activeTabId ?? 'none'}'),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
+        windowId: _activeTab?.popupWindowId,
         keepAlive: _activeTab?.keepAlive,
         isLoading: _isLoading,
         progressListenable: _progressNotifier,
@@ -745,6 +744,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   bool _updateActiveTab({
     String? url,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -754,6 +754,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }) {
     return _tabCoordinator.updateActiveTab(
       url: url,
+      clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,
       canGoBack: canGoBack,
@@ -766,6 +767,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _updateTabById(
     String tabId, {
     String? url,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -775,6 +777,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return _tabCoordinator.updateTabById(
       tabId,
       url: url,
+      clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,
       canGoBack: canGoBack,
@@ -787,6 +790,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _syncUrlForTabIfNeeded(String tabId, String? url) {
     final result = _tabCoordinator.syncUrlForTabIfNeeded(tabId, url);
+    if (result.didChangeUrl) {
+      _updateTabById(tabId, clearPopupWindowId: true);
+    }
     final nextUrl = result.currentUrl;
     if (!result.isActiveTab || nextUrl == null) {
       return;
@@ -1005,6 +1011,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             initialUrl,
             statusMessage: _statusCoordinator.popupOpenedInNewTab(),
           );
+          return false;
+        }
+        final popupWindowId = createWindowAction.windowId;
+        if (popupWindowId != null) {
+          await _openTab(
+            'about:blank',
+            statusMessage: _statusCoordinator.popupOpenedInNewTab(),
+            popupWindowId: popupWindowId,
+          );
+          return true;
         }
         return false;
       case BrowserPopupWindowAction.showPopup:
@@ -1117,11 +1133,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     String title = '',
     String statusMessage = '',
     bool isExternallyOpened = false,
+    int? popupWindowId,
   }) async {
     final tab = _tabCoordinator.openTab(
       url: url,
       title: title,
       isExternallyOpened: isExternallyOpened,
+      popupWindowId: popupWindowId,
     );
     if (!mounted) {
       return;
@@ -1382,6 +1400,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _syncUrlIfNeeded(String? url) {
     final result = _tabCoordinator.syncActiveUrlIfNeeded(url);
+    if (result.didChangeUrl) {
+      _updateActiveTab(clearPopupWindowId: true);
+    }
     final nextUrl = result.currentUrl;
     if (nextUrl == null) {
       return;

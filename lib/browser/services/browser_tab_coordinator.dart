@@ -66,6 +66,8 @@ class BrowserTabCoordinator {
 
   bool updateActiveTab({
     String? url,
+    int? popupWindowId,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -81,6 +83,8 @@ class BrowserTabCoordinator {
     return updateTabById(
       tabId,
       url: url,
+      popupWindowId: popupWindowId,
+      clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,
       canGoBack: canGoBack,
@@ -93,6 +97,8 @@ class BrowserTabCoordinator {
   bool updateTabById(
     String tabId, {
     String? url,
+    int? popupWindowId,
+    bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
     bool? canGoBack,
@@ -103,6 +109,8 @@ class BrowserTabCoordinator {
     return _tabService.updateTab(
       tabId,
       url: url,
+      popupWindowId: popupWindowId,
+      clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,
       canGoBack: canGoBack,
@@ -247,11 +255,13 @@ class BrowserTabCoordinator {
     required String url,
     String title = '',
     bool isExternallyOpened = false,
+    int? popupWindowId,
   }) {
     return _tabService.openTab(
       url: url,
       title: title,
       isExternallyOpened: isExternallyOpened,
+      popupWindowId: popupWindowId,
     );
   }
 
