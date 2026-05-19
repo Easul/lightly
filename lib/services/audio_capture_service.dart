@@ -42,11 +42,6 @@ class AudioCaptureService {
   Future<void> initialize({int sampleRate = 16000, int channels = 1}) async {
     _sampleRate = sampleRate;
     _channels = channels;
-
-    developer.log(
-      'AudioCaptureService initialized: $_sampleRate Hz, $_channels ch',
-      name: 'AudioCapture',
-    );
   }
 
   Future<bool> start() async {
@@ -86,7 +81,6 @@ class AudioCaptureService {
       _isCapturing = true;
       _sequence = 0;
       _pendingPcmBytes.clear();
-      developer.log('Audio capture started', name: 'AudioCapture');
       return true;
     } catch (e) {
       developer.log(
@@ -206,14 +200,6 @@ class AudioCaptureService {
       _currentGain = (_currentGain * 0.85).clamp(_minGain, _maxGain);
     }
 
-    // 定期记录 AGC 状态 (调试)
-    if (_sequence % 100 == 0) {
-      developer.log(
-        'AGC: input=${currentRms.toStringAsFixed(1)}dB, gain=${_currentGain.toStringAsFixed(2)}x, clipped=$clippedCount/${boosted.length ~/ 2}',
-        name: 'AudioCapture',
-      );
-    }
-
     return boosted;
   }
 
@@ -235,7 +221,6 @@ class AudioCaptureService {
       _isCapturing = false;
       _sequence = 0;
       _pendingPcmBytes.clear();
-      developer.log('Audio capture stopped', name: 'AudioCapture');
     } catch (e) {
       developer.log(
         'Failed to stop audio capture: $e',

@@ -106,19 +106,7 @@ class JitterBuffer {
         (_currentTargetDelayMs / _frameIntervalMs).ceil() + 2;
     _currentMaxSize = idealBufferSize.clamp(_minBufferSize, _maxBufferSize);
 
-    // 每5秒打印一次调试信息
-    final now = DateTime.now();
-    if (now.difference(_lastStatsTime).inSeconds >= 5) {
-      _lastStatsTime = now;
-      developer.log(
-        'JitterBuffer: avg=${_avgLatencyMs.toStringAsFixed(1)}ms, '
-        'jitter=${_jitterMs.toStringAsFixed(1)}ms, '
-        'targetDelay=${_currentTargetDelayMs}ms, '
-        'bufferSize=$_currentMaxSize, '
-        'packets=$_totalReceived, drops=$_dropCount, loss=${(_packetLossCount / (_totalReceived + _packetLossCount).clamp(1, 1 << 30) * 100).toStringAsFixed(1)}%',
-        name: 'JitterBuffer',
-      );
-    }
+    _lastStatsTime = DateTime.now();
   }
 
   void addFrame(AudioFrame frame) {
@@ -305,7 +293,6 @@ class AudioPlaybackService {
         'sampleRate': sampleRate,
         'channels': channels,
       });
-      developer.log('AudioPlaybackService initialized', name: 'AudioPlayback');
     } catch (e) {
       developer.log(
         'Failed to initialize audio player: $e',
@@ -341,7 +328,6 @@ class AudioPlaybackService {
       );
 
       _isPlaying = true;
-      developer.log('Audio playback started', name: 'AudioPlayback');
     } catch (e) {
       developer.log(
         'Failed to start audio playback: $e',
@@ -378,7 +364,6 @@ class AudioPlaybackService {
       _isPlaying = false;
 
       await _channel.invokeMethod('stopAudioPlayer');
-      developer.log('Audio playback stopped', name: 'AudioPlayback');
     } catch (e) {
       developer.log(
         'Failed to stop audio playback: $e',

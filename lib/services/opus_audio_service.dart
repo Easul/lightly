@@ -41,10 +41,6 @@ class OpusAudioService {
       );
 
       _isInitialized = true;
-      developer.log(
-        'Opus initialized: sampleRate=$_sampleRate, maxOutputSizeBytes=$_maxEncodedSize',
-        name: 'OpusAudio',
-      );
     } catch (e) {
       developer.log(
         'Failed to initialize Opus: $e',
@@ -93,15 +89,6 @@ class OpusAudioService {
 
       _encodedFrameCount++;
       _totalEncodedBytes += encoded.length;
-
-      if (_encodedFrameCount % 100 == 0) {
-        final avgSize = _totalEncodedBytes / _encodedFrameCount;
-        developer.log(
-          'Opus encode stats: avg=${avgSize.toStringAsFixed(1)} bytes/frame, '
-          'compression=${(expectedBytes / avgSize).toStringAsFixed(1)}x',
-          name: 'OpusAudio',
-        );
-      }
 
       return encoded;
     } catch (e) {
