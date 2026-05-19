@@ -343,7 +343,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                               const SizedBox(height: 4),
                               Text(
                                 record.savedPath?.isNotEmpty == true
-                                    ? record.savedPath!
+                                    ? _displayPath(record.savedPath!)
                                     : record.url,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -385,6 +385,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (record.status == 'downloading' &&
+                                record.id != null)
+                              TextButton(
+                                onPressed: () => _pauseDownload(record),
+                                child: const Text('暂停'),
+                              ),
                             if (canInstall)
                               TextButton(
                                 onPressed: () => _installApk(record),
@@ -460,5 +466,37 @@ class _DownloadsPageState extends State<DownloadsPage> {
       return '正在下载 ${_formatBytes(record.bytesReceived)}';
     }
     return '已下载 ${(progress * 100).toStringAsFixed(0)}%';
+  }
+
+  Future<void> _pauseDownload(BrowserDownloadRecord record) async {
+    final id = record.id;
+    if (id == null) return;
+
+    try {
+      await _downloadService.cancelDownload(
+        id,
+        savedPath: record.savedPath,
+        deletePartialFile: false,
+      );
+      await _downloadStore.update(record.copyWith(status: 'paused'));
+      await _reloadDownloads();
+      if (mounted) {
+        _showToast('已暂停：${record.fileName}');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showToast('暂停失败，请稍后重试');
+      }
+    }
+  }
+
+  /// Hides the common Android shared storage prefix for display.
+  /// `/storage/emulated/0/Download/file.zip` → `Download/file.zip`
+  String _displayPath(String path) {
+    const prefix = '/storage/emulated/0/';
+    if (path.startsWith(prefix)) {
+      return path.substring(prefix.length);
+    }
+    return path;
   }
 }
