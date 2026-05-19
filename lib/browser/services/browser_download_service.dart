@@ -351,7 +351,7 @@ class BrowserDownloadService {
     var candidateName = fileName;
     var suffix = 1;
     while (await File(p.join(directory.path, candidateName)).exists()) {
-      candidateName = '$baseName $suffix$extension';
+      candidateName = '$baseName（$suffix）$extension';
       suffix += 1;
     }
 

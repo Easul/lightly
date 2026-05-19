@@ -48,6 +48,16 @@ class BrowserVideoPlayerCoordinator {
         deriveYouTubeLongPressTargets(url) != null;
   }
 
+  static String? _normalizeFloatingTitle(String? title) {
+    final trimmed = title?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final normalized =
+        BrowserDownloadCoordinator.normalizeFloatingDownloadTitle(trimmed);
+    return normalized?.trim().isNotEmpty == true ? normalized : null;
+  }
+
   Future<void> showFloatingVideoPlayer({
     required BuildContext context,
     required String url,
@@ -56,11 +66,13 @@ class BrowserVideoPlayerCoordinator {
   }) async {
     await closeFloatingVideoPlayer();
     _videoDetectionTracker.setActiveUrl(url);
+    final pageTitle = _normalizeFloatingTitle(currentPageTitle);
+    var floatingTitle = pageTitle ?? '视频播放';
 
     _floatingVideoOverlay = FloatingVideoPlayer.show(
       context: context,
       isLoading: true,
-      title: '视频播放',
+      title: floatingTitle,
       onClose: () {
         unawaited(closeFloatingVideoPlayer());
       },
@@ -83,12 +95,15 @@ class BrowserVideoPlayerCoordinator {
       displayDownloadUrl = preparedPlayback.displayDownloadUrl;
 
       if (shouldResolveYoutube) {
-        final pageTitle =
-            BrowserDownloadCoordinator.normalizeFloatingDownloadTitle(
-              currentPageTitle,
-            );
+        floatingTitle =
+            _normalizeFloatingTitle(preparedPlayback.resolvedTitle) ??
+            pageTitle ??
+            '视频播放';
         suggestedDownloadFileName = _downloadCoordinator
-            .resolveFloatingDownloadFileName(downloadUrl, pageTitle: pageTitle);
+            .resolveFloatingDownloadFileName(
+              downloadUrl,
+              pageTitle: floatingTitle,
+            );
       }
     } catch (error) {
       if (shouldResolveYoutube) {
@@ -97,7 +112,24 @@ class BrowserVideoPlayerCoordinator {
           await closeFloatingVideoPlayer();
           return;
         }
-        _showFloatingErrorOverlay(context: context, message: '视频解析失败: $error');
+        _showFloatingErrorOverlay(
+          context: context,
+          title: floatingTitle,
+          message: '视频解析失败: $error',
+          onDownload: suggestedDownloadFileName == null
+              ? null
+              : () {
+                  unawaited(
+                    _downloadVideo(
+                      context,
+                      settings,
+                      downloadUrl,
+                      displayUrl: displayDownloadUrl,
+                      suggestedFileName: suggestedDownloadFileName,
+                    ),
+                  );
+                },
+        );
         return;
       }
     }
@@ -121,7 +153,7 @@ class BrowserVideoPlayerCoordinator {
       _floatingVideoOverlay = FloatingVideoPlayer.show(
         context: context,
         controller: controller,
-        title: '视频播放',
+        title: floatingTitle,
         onClose: () {
           unawaited(closeFloatingVideoPlayer());
         },
@@ -146,23 +178,41 @@ class BrowserVideoPlayerCoordinator {
         await closeFloatingVideoPlayer();
         return;
       }
-      _showFloatingErrorOverlay(context: context, message: '视频播放失败: $error');
+      _showFloatingErrorOverlay(
+        context: context,
+        title: floatingTitle,
+        message: '视频播放失败: $error',
+        onDownload: () {
+          unawaited(
+            _downloadVideo(
+              context,
+              settings,
+              downloadUrl,
+              displayUrl: displayDownloadUrl,
+              suggestedFileName: suggestedDownloadFileName,
+            ),
+          );
+        },
+      );
     }
   }
 
   void _showFloatingErrorOverlay({
     required BuildContext context,
+    required String title,
     required String message,
+    VoidCallback? onDownload,
   }) {
     _floatingVideoOverlay?.remove();
     _floatingVideoErrorMessage = message;
     _floatingVideoOverlay = FloatingVideoPlayer.show(
       context: context,
-      title: '视频播放',
+      title: title,
       errorMessage: message,
       onClose: () {
         unawaited(closeFloatingVideoPlayer());
       },
+      onDownload: onDownload,
       playerController: _floatingVideoPlayerController,
     );
     _onShowSnackBar(message);

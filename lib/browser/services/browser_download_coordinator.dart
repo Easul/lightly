@@ -43,10 +43,7 @@ class BrowserDownloadCoordinator {
   }) {
     final title = pageTitle?.trim();
     if (title != null && title.isNotEmpty) {
-      final hasExtension = RegExp(r'\.[A-Za-z0-9]{2,5}$').hasMatch(title);
-      return _downloadService.sanitizeFileName(
-        hasExtension ? title : '$title.mp4',
-      );
+      return _downloadService.sanitizeFileName('$title.mp4');
     }
 
     return _downloadService.resolveFileNameFromUrl(downloadUrl);

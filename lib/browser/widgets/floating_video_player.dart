@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:characters/characters.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -82,6 +83,18 @@ class FloatingVideoPlayer extends StatefulWidget {
   final String? errorMessage;
   final ValueChanged<FloatingPlayerMode>? onModeChanged;
   final FloatingVideoPlayerController? playerController;
+
+  static String? shortDisplayTitle(String? title) {
+    final trimmed = title?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final chars = trimmed.characters;
+    if (chars.length <= 6) {
+      return trimmed;
+    }
+    return '${chars.take(6).toString()}…';
+  }
 
   @override
   State<FloatingVideoPlayer> createState() => _FloatingVideoPlayerState();
@@ -260,7 +273,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
     });
   }
 
-  double get _minY => 0.0; // Allow covering status bar
+  double get _minY => MediaQuery.viewPaddingOf(context).top;
 
   double get _playerWidth {
     final screenW = MediaQuery.of(context).size.width;

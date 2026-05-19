@@ -516,6 +516,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
 
   Widget _buildLoadingControls(BuildContext context) {
     final topPadding = 0.0;
+    final displayTitle = FloatingVideoPlayer.shortDisplayTitle(widget.title);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -525,10 +526,10 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
           right: 8,
           child: Row(
             children: [
-              if (widget.title != null)
+              if (displayTitle != null)
                 Expanded(
                   child: Text(
-                    widget.title!,
+                    displayTitle,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _titleFontSize,
@@ -536,23 +537,6 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (widget.onClose != null)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: _modeIconSize,
-                    ),
-                    onPressed: widget.onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: _modeButtonConstraints,
                   ),
                 ),
               if (widget.onLockToggle != null && _isFullscreen)
@@ -569,6 +553,42 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                       size: _modeIconSize,
                     ),
                     onPressed: widget.onLockToggle,
+                    padding: EdgeInsets.zero,
+                    constraints: _modeButtonConstraints,
+                  ),
+                ),
+              if (widget.onDownload != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.download_rounded,
+                      color: Colors.white,
+                      size: _modeIconSize,
+                    ),
+                    onPressed: widget.onDownload,
+                    padding: EdgeInsets.zero,
+                    constraints: _modeButtonConstraints,
+                  ),
+                ),
+              if (widget.onClose != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: _modeIconSize,
+                    ),
+                    onPressed: widget.onClose,
                     padding: EdgeInsets.zero,
                     constraints: _modeButtonConstraints,
                   ),
@@ -604,14 +624,15 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
 
   Widget _buildTopBar(BuildContext context) {
     final topPadding = 0.0;
+    final displayTitle = FloatingVideoPlayer.shortDisplayTitle(widget.title);
     return Container(
       padding: EdgeInsets.fromLTRB(8, topPadding + 4, 8, 4),
       child: Row(
         children: [
-          if (widget.title != null)
+          if (displayTitle != null)
             Expanded(
               child: Text(
-                widget.title!,
+                displayTitle,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: _titleFontSize,
@@ -621,17 +642,6 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          if (widget.onDownload != null && _isFullscreen)
-            IconButton(
-              icon: Icon(
-                Icons.download_rounded,
-                color: Colors.white,
-                size: _modeIconSize,
-              ),
-              onPressed: widget.onDownload,
-              padding: EdgeInsets.zero,
-              constraints: _modeButtonConstraints,
-            ),
           if (widget.onLockToggle != null && _isFullscreen)
             IconButton(
               icon: Icon(
@@ -640,6 +650,17 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 size: _modeIconSize,
               ),
               onPressed: widget.onLockToggle,
+              padding: EdgeInsets.zero,
+              constraints: _modeButtonConstraints,
+            ),
+          if (widget.onDownload != null)
+            IconButton(
+              icon: Icon(
+                Icons.download_rounded,
+                color: Colors.white,
+                size: _modeIconSize,
+              ),
+              onPressed: widget.onDownload,
               padding: EdgeInsets.zero,
               constraints: _modeButtonConstraints,
             ),
