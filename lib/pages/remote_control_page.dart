@@ -13,6 +13,7 @@ import '../services/remote_control_protocol.dart' as protocol;
 import '../services/app_lifecycle_manager.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_network_info_analyzer.dart';
+import '../services/app_toast.dart';
 import '../browser/proxy_service.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/browser_settings.dart';
@@ -55,6 +56,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
+
+  void _showToast(String message) {
+    unawaited(AppToast.show(message));
+  }
 
   @override
   void initState() {
@@ -166,23 +171,13 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _applyPortConfigToInputs(ports);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
-            ),
-            duration: const Duration(seconds: 5),
-          ),
+        _showToast(
+          '被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
         );
       }
     } on RemoteControlPageReceiverStartException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      _showToast(error.message);
       setState(() => _isConnecting = false);
     } catch (e) {
       if (!mounted) return;
@@ -199,9 +194,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     }
     if (_service.state != RemoteControlState.connected) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('请先等待主控端连接后再切换麦克风')));
+        _showToast('请先等待主控端连接后再切换麦克风');
       }
       return;
     }
@@ -218,9 +211,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     if (success) {
       setState(() => _isReceiverAudioEnabled = true);
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('无法启动麦克风，请检查权限')));
+      _showToast('无法启动麦克风，请检查权限');
     }
   }
 
@@ -246,9 +237,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       );
     } on RemoteControlPageConnectionException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        _showToast(error.message);
       }
       setState(() => _isConnecting = false);
       return;
@@ -358,7 +347,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('远程控制')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          MediaQuery.viewPaddingOf(context).bottom + 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
