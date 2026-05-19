@@ -15,6 +15,7 @@ import 'pages/data_management_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/easytier_settings_page.dart';
 import 'pages/remote_control_page.dart';
+import 'services/app_toast.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AppToast.navigatorKey,
       title: '若轻',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
