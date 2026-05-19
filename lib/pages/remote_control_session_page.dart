@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../services/remote_control_protocol.dart' as protocol;
 import '../services/remote_control_protocol.dart' show GlobalAction;
 import '../services/remote_control_service.dart';
+import '../services/app_toast.dart';
 import '../theme/app_theme.dart';
 import '../widgets/remote_control_gesture_overlay.dart';
 import '../widgets/remote_control_screen_viewer.dart';
@@ -41,6 +42,10 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   Offset? _tailOffset;
   bool _isClosingSession = false;
 
+  void _showToast(String message) {
+    unawaited(AppToast.show(message));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,9 +70,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   void _handleStateChange(RemoteControlState state) {
     if (state == RemoteControlState.disconnected && mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('连接已断开')));
+      _showToast('连接已断开');
     }
   }
 
@@ -98,9 +101,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       if (success) {
         setState(() => _isAudioEnabled = true);
       } else if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('无法启动语音，请检查权限')));
+        _showToast('无法启动语音，请检查权限');
       }
     }
   }
@@ -340,6 +341,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: LayoutBuilder(
