@@ -291,6 +291,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final maxY = size.height - _playerHeight - 80;
+    final accentColor = Theme.of(context).colorScheme.primary;
 
     if (!_isFullscreen) {
       _position = _clampedPosition(_position, size, maxY);
@@ -346,7 +347,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
                 color: Colors.black,
                 border: _isDragging
                     ? Border.all(
-                        color: Colors.red.withValues(alpha: 0.5),
+                        color: accentColor.withValues(alpha: 0.55),
                         width: 2,
                       )
                     : null,

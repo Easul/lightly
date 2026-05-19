@@ -658,6 +658,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   Widget _buildBottomBar() {
     final controller = widget.controller;
     if (controller == null) return const SizedBox.shrink();
+    final accentColor = Theme.of(context).colorScheme.primary;
     final value = controller.value;
     final position = value.position;
     final duration = value.duration ?? Duration.zero;
@@ -671,12 +672,10 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
           if (duration > Duration.zero)
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: Colors.red,
-                secondaryActiveTrackColor: Colors.lightBlueAccent.withValues(
-                  alpha: 0.75,
-                ),
+                activeTrackColor: accentColor,
+                secondaryActiveTrackColor: Colors.white.withValues(alpha: 0.92),
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
-                thumbColor: Colors.red,
+                thumbColor: accentColor,
                 trackHeight: 2,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: SliderComponentShape.noOverlay,
