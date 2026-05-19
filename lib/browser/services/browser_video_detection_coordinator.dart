@@ -24,7 +24,7 @@ class BrowserVideoDetectionCoordinator {
   }
 
   bool shouldInjectScript({required bool nativeVideoEnabled}) {
-    return nativeVideoEnabled && !_videoScriptInjected;
+    return false;
   }
 
   void markScriptInjected() {

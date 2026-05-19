@@ -12,14 +12,14 @@ void main() {
       coordinator = BrowserVideoDetectionCoordinator(tracker: tracker);
     });
 
-    test('tracks script injection state and resets it', () {
-      expect(coordinator.shouldInjectScript(nativeVideoEnabled: true), isTrue);
+    test('disables repeated script injection by default', () {
+      expect(coordinator.shouldInjectScript(nativeVideoEnabled: true), isFalse);
 
       coordinator.markScriptInjected();
       expect(coordinator.shouldInjectScript(nativeVideoEnabled: true), isFalse);
 
       coordinator.resetAll();
-      expect(coordinator.shouldInjectScript(nativeVideoEnabled: true), isTrue);
+      expect(coordinator.shouldInjectScript(nativeVideoEnabled: true), isFalse);
     });
 
     test(

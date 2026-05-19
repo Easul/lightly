@@ -77,11 +77,9 @@ class BrowserLongPressHandler {
   Future<void> showActions({
     required BuildContext context,
     required BrowserLongPressRequest request,
-    required bool nativeVideoPlayerEnabled,
     required Future<void> Function(String url) onOpenInNewTab,
     required Future<void> Function(String text) onCopyToClipboard,
     required Future<void> Function(String url) onDownload,
-    required Future<void> Function(String url) onOpenOriginalVideo,
     required void Function(String message) onStatus,
   }) async {
     if (_isShowingDialog) {
@@ -114,11 +112,7 @@ class BrowserLongPressHandler {
                 onStatus('已复制封面图链接');
               },
               onOpenOriginalVideo: () async {
-                if (!nativeVideoPlayerEnabled) {
-                  await onOpenInNewTab(youtubeTargets.desktopWatchUrl);
-                  return;
-                }
-                await onOpenOriginalVideo(youtubeTargets.desktopWatchUrl);
+                await onOpenInNewTab(youtubeTargets.desktopWatchUrl);
               },
             );
           }
