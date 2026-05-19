@@ -1,199 +1,190 @@
 package lightly.tool
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.os.Build
+import android.os.Handler
 import android.os.IBinder
-import android.provider.Settings
-import android.util.TypedValue
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
-import androidx.core.app.NotificationCompat
+import android.widget.ImageView
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodChannel
 
 class ProxyFloatingButtonService : Service() {
-    companion object {
-        const val ACTION_STOP = "lightly.tool.action.STOP_PROXY_FLOATING_BUTTON"
-        private const val CHANNEL_ID = "proxy_floating_button"
-        private const val NOTIFICATION_ID = 1202
-        private const val BUTTON_ALPHA = 0xCC
-        private const val BUTTON_COLOR = 0x63B746
-    }
-
     private var windowManager: WindowManager? = null
-    private var floatingView: View? = null
-    private var initialX = 0
-    private var initialY = 0
-    private var touchX = 0f
-    private var touchY = 0f
-    private var downX = 0f
-    private var downY = 0f
+    private var floatingView: ImageView? = null
+    private var params: WindowManager.LayoutParams? = null
+    private var methodChannel: MethodChannel? = null
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    private val handler = Handler(Looper.getMainLooper())
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
+    // Idle state
+    private var isIdle = false
+    private val idleTimeoutMs = 10_000L
+    private val normalSizeDp = 56
+    private val idleSizeDp = 28
+    private val normalAlpha = 255 // 0-255
+    private val idleAlpha = 51    // 20% of 255
+
+    private val idleRunnable = Runnable {
+        if (!isIdle) {
+            isIdle = true
+            updateButtonAppearance()
         }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
-
-        if (floatingView == null) {
-            showFloatingButton()
-        }
-
-        return START_STICKY
     }
 
-    private fun showFloatingButton() {
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val metrics = resources.displayMetrics
-        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            WindowManager.LayoutParams.TYPE_PHONE
+    private fun resetIdleTimer() {
+        handler.removeCallbacks(idleRunnable)
+        handler.postDelayed(idleRunnable, idleTimeoutMs)
+    }
+
+    private fun exitIdle() {
+        if (isIdle) {
+            isIdle = false
+            updateButtonAppearance()
         }
+        resetIdleTimer()
+    }
 
-        val size = dpToPx(54)
-        val margin = dpToPx(18)
+    private fun updateButtonAppearance() {
+        floatingView?.let { view ->
+            val density = resources.displayMetrics.density
+            val sizeDp = if (isIdle) idleSizeDp else normalSizeDp
+            val sizePx = (sizeDp * density).toInt()
 
-        val params = WindowManager.LayoutParams(
-            size,
-            size,
-            windowType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT,
-        )
-        params.gravity = Gravity.TOP or Gravity.START
-        params.x = metrics.widthPixels - size - margin
-        params.y = (metrics.heightPixels * 0.38f).toInt()
+            view.imageAlpha = if (isIdle) idleAlpha else normalAlpha
 
-        val button = TextView(this).apply {
-            text = "若"
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.argb(BUTTON_ALPHA, 0x63, 0xB7, 0x46))
+            params?.let { p ->
+                p.width = sizePx
+                p.height = sizePx
+                windowManager?.updateViewLayout(view, p)
             }
-            elevation = dpToPx(6).toFloat()
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onCreate() {
+        super.onCreate()
+
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        val density = resources.displayMetrics.density
+        val normalSizePx = (normalSizeDp * density).toInt()
+
+        floatingView = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher_round)
+            imageAlpha = normalAlpha
+            setPadding(4, 4, 4, 4)
+            elevation = 8f
         }
 
-        button.setOnTouchListener { _, event ->
+        params = WindowManager.LayoutParams(
+            normalSizePx,
+            normalSizePx,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 20
+            y = 200
+        }
+
+        setupTouchListener()
+        windowManager?.addView(floatingView, params)
+
+        // Start idle timer
+        resetIdleTimer()
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTouchListener() {
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isDragging = false
+
+        floatingView?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x
-                    initialY = params.y
-                    touchX = event.rawX
-                    touchY = event.rawY
-                    downX = event.rawX
-                    downY = event.rawY
+                    initialX = params?.x ?: 0
+                    initialY = params?.y ?: 0
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isDragging = false
                     true
                 }
-
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = initialX + (event.rawX - touchX).toInt()
-                    params.y = initialY + (event.rawY - touchY).toInt()
-                    windowManager?.updateViewLayout(button, params)
-                    true
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    val dx = kotlin.math.abs(event.rawX - downX)
-                    val dy = kotlin.math.abs(event.rawY - downY)
-                    if (dx < dpToPx(8) && dy < dpToPx(8)) {
-                        restoreApp()
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+                    if (dx * dx + dy * dy > 25) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        params?.x = initialX + dx.toInt()
+                        params?.y = initialY + dy.toInt()
+                        windowManager?.updateViewLayout(floatingView, params)
+                    }
+                    // Any interaction resets idle timer
+                    if (isIdle) {
+                        exitIdle()
+                    } else {
+                        resetIdleTimer()
                     }
                     true
                 }
-
+                MotionEvent.ACTION_UP -> {
+                    if (isIdle) {
+                        // Tap while idle → only restore appearance
+                        exitIdle()
+                        true
+                    } else if (!isDragging) {
+                        // Tap while visible → notify Flutter
+                        resetIdleTimer()
+                        notifyFlutterTap()
+                        true
+                    } else {
+                        resetIdleTimer()
+                        true
+                    }
+                }
                 else -> false
             }
         }
-
-        floatingView = button
-        windowManager?.addView(button, params)
     }
 
-    private fun restoreApp() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
+    private fun notifyFlutterTap() {
+        try {
+            val engine = FlutterEngine(this)
+            engine.dartExecutor.executeDartEntrypoint(
+                DartExecutor.DartEntrypoint.createDefault(),
             )
-        }
-        startActivity(intent)
-        stopSelf()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Proxy Floating Button",
-                NotificationManager.IMPORTANCE_LOW,
+            methodChannel = MethodChannel(
+                engine.dartExecutor.binaryMessenger,
+                "lightly.tool/floating_button",
             )
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            methodChannel?.invokeMethod("onTap", null)
+        } catch (_: Exception) {
+            // Flutter engine may not be available
         }
-    }
-
-    private fun createNotification(): Notification {
-        val restoreIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
-            )
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            restoreIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("若轻代理保持运行")
-            .setContentText("点击恢复应用，Telegram 可继续使用 SOCKS5")
-            .setSmallIcon(android.R.drawable.presence_online)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .setContentIntent(pendingIntent)
-            .build()
-    }
-
-    private fun dpToPx(dp: Int): Int {
-        return (dp * resources.displayMetrics.density).toInt()
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(idleRunnable)
         floatingView?.let {
             windowManager?.removeView(it)
         }
         floatingView = null
+        methodChannel = null
         super.onDestroy()
     }
+
+    override fun onBind(intent: Intent?): IBinder? = null
 }
