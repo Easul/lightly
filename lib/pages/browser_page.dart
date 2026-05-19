@@ -1470,6 +1470,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     await _longPressHandler.showActions(
       context: context,
       request: request,
+      nativeVideoPlayerEnabled: _settings.nativeVideoPlayerEnabled,
       onOpenInNewTab: (url) async {
         if (_isWebScheme(Uri.parse(url).scheme)) {
           final statusMessage = request.isYouTube
@@ -1489,6 +1490,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           url: url,
           settings: _settings,
           onStatus: _showSnackBar,
+        );
+      },
+      onOpenOriginalVideo: (url) async {
+        await _videoPlayerCoordinator.showFloatingVideoPlayer(
+          context: context,
+          url: url,
+          settings: _settings,
+          currentPageTitle: _activeTab?.title ?? '',
         );
       },
       onStatus: _showSnackBar,
