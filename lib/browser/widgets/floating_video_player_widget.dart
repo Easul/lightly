@@ -276,7 +276,10 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 children: [
                   CircularProgressIndicator(color: Colors.white),
                   SizedBox(height: 12),
-                  Text('正在解析视频...', style: TextStyle(color: Colors.white)),
+                  Text(
+                    '正在解析视频...',
+                    style: const TextStyle(color: Colors.white),
+                  ),
                 ],
               ),
             ),
@@ -344,7 +347,10 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
               )
             else if (hasError)
               const Center(
-                child: Text('播放失败', style: TextStyle(color: Colors.white)),
+                child: Text(
+                  '播放失败',
+                  style: const TextStyle(color: Colors.white),
+                ),
               )
             else
               const Center(

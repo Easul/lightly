@@ -180,7 +180,7 @@ class _Game2048PageState extends State<Game2048Page> {
                       ),
                       child: const Text(
                         'New Game',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -210,7 +210,10 @@ class _Game2048PageState extends State<Game2048Page> {
                 const SizedBox(height: 16),
                 const Text(
                   'Swipe to move tiles',
-                  style: TextStyle(color: Color(0xFF776E65), fontSize: 14),
+                  style: const TextStyle(
+                    color: Color(0xFF776E65),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),

@@ -25,7 +25,7 @@ class RemoteControlModeSelectorSection extends StatelessWidget {
           children: [
             const Text(
               '选择模式',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
@@ -86,7 +86,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
           children: [
             const Text(
               '被控端设置',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (portConfig != null) ...[
@@ -155,7 +155,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               '提示：请确保主控端和被控端在同一局域网内（通过 EasyTier 连接）',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -184,7 +184,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
                   children: [
                     Icon(Icons.check_circle, color: Colors.green),
                     SizedBox(width: 8),
-                    Text('已连接', style: TextStyle(color: Colors.green)),
+                    Text('已连接', style: const TextStyle(color: Colors.green)),
                   ],
                 ),
               ),
@@ -248,13 +248,16 @@ class RemoteControlControllerSection extends StatelessWidget {
           children: [
             const Text(
               '主控端设置',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (peers.isNotEmpty) ...[
               const Text(
                 '已发现的设备',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const SizedBox(height: 8),
               ...peers.map(
@@ -355,7 +358,7 @@ class RemoteControlControllerSection extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               '提示：请确保被控端已启动，并输入正确的地址和端口',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
             SizedBox(
