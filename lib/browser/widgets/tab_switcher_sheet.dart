@@ -111,92 +111,96 @@ class TabSwitcherSheet extends StatelessWidget {
                   final tab = tabs[index];
                   final isActive = tab.id == activeTabId;
 
-                  return Material(
-                    color: isActive
-                        ? colorScheme.primaryContainer.withValues(alpha: 0.5)
-                        : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(22),
-                    child: InkWell(
-                      onTap: () => onSelectTab(tab.id),
+                  return RepaintBoundary(
+                    child: Material(
+                      color: isActive
+                          ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                          : colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(22),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isActive
-                                ? colorScheme.primary.withValues(alpha: 0.4)
-                                : colorScheme.outlineVariant.withValues(
-                                    alpha: 0.4,
-                                  ),
-                            width: isActive ? 1.5 : 1,
+                      child: InkWell(
+                        onTap: () => onSelectTab(tab.id),
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: isActive
+                                  ? colorScheme.primary.withValues(alpha: 0.4)
+                                  : colorScheme.outlineVariant.withValues(
+                                      alpha: 0.4,
+                                    ),
+                              width: isActive ? 1.5 : 1,
+                            ),
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? colorScheme.primary.withValues(alpha: 0.1)
-                                    : colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? colorScheme.primary.withValues(
+                                          alpha: 0.1,
+                                        )
+                                      : colorScheme.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  tab.isLoading
+                                      ? Icons.hourglass_top
+                                      : Icons.language,
+                                  size: 18,
+                                  color: isActive
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant,
+                                ),
                               ),
-                              child: Icon(
-                                tab.isLoading
-                                    ? Icons.hourglass_top
-                                    : Icons.language,
-                                size: 18,
-                                color: isActive
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tab.displayTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: isActive
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                      color: colorScheme.onSurface,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tab.displayTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: isActive
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
+                                        color: colorScheme.onSurface,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    tab.url,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colorScheme.onSurfaceVariant,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      tab.url,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              tooltip: '关闭标签页',
-                              onPressed: () => onCloseTab(tab.id),
-                              icon: Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: colorScheme.onSurfaceVariant,
+                              IconButton(
+                                tooltip: '关闭标签页',
+                                onPressed: () => onCloseTab(tab.id),
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                visualDensity: VisualDensity.compact,
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
