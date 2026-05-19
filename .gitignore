@@ -50,6 +50,13 @@ key.properties
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+/android/.gradle/
+/android/captures/
+/android/local.properties
+/android/build/reports/
+/android/build/reports/problems/
+/android/build/reports/problems/problems-report.html
 
 # Proxy core native libraries - generated build outputs, do not commit unless explicitly requested
 /android/app/src/main/jniLibs/*/libproxy_core.so
@@ -60,6 +67,15 @@ key.properties
 # Local scratch workspace
 /temp/*
 !/temp/.gitkeep
+/tmp/
 
 # Sisyphus agent session data
 .sisyphus/
+
+# Local agent / workspace metadata
+/.omo/
+
+# Common generated diagnostics
+*.hprof
+*.orig
+*.rej
