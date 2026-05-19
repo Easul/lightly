@@ -314,7 +314,6 @@ class BrowserTabService {
       if (_tabs.isNotEmpty) {
         _activeTabId = _tabs[activeIndex].id;
         _touch(_activeTabId!);
-        trimAllBackgroundKeepAlives();
       } else {
         _createInitialTab(fallbackUrl);
       }
