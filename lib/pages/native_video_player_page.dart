@@ -167,7 +167,10 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     _playbackCoordinator = NativeVideoPlaybackCoordinator(
       playbackPreparationService: _videoPlaybackPreparationService,
       createVideoController: (playbackUrl) async {
-        return VideoPlayerController.networkUrl(Uri.parse(playbackUrl));
+        return VideoPlayerController.networkUrl(
+          Uri.parse(playbackUrl),
+          videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
+        );
       },
       initializeVideoController: (controller) async {
         await controller.initialize();

@@ -134,7 +134,10 @@ class BrowserVideoPlayerCoordinator {
       }
     }
 
-    final controller = VideoPlayerController.networkUrl(Uri.parse(playbackUrl));
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(playbackUrl),
+      videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
+    );
     _floatingVideoController = controller;
 
     try {
