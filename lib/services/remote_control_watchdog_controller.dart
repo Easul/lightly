@@ -53,23 +53,6 @@ class RemoteControlWatchdogController {
         : now.difference(previousChunkAt).inMilliseconds;
     _lastScreenChunkTime = now;
     _screenChunkCount++;
-
-    if (_screenChunkCount == 1) {
-      log('Received first screen TCP chunk: bytes=${data.length}');
-      return;
-    }
-
-    if (chunkGapMs != null && chunkGapMs >= 250) {
-      final shouldLog =
-          _lastScreenChunkGapLogAt == null ||
-          now.difference(_lastScreenChunkGapLogAt!).inMilliseconds >= 250;
-      if (shouldLog) {
-        _lastScreenChunkGapLogAt = now;
-        log(
-          'Screen TCP chunk gap detected: gap=${chunkGapMs}ms bytes=${data.length} bufferedBefore=$bufferedBefore',
-        );
-      }
-    }
   }
 
   void recordParsedFrame({
@@ -79,21 +62,11 @@ class RemoteControlWatchdogController {
     required void Function() onBitrateAdjustDue,
   }) {
     _screenFrameCount++;
-    if (_screenFrameCount == 1 || frame.type == ScreenFrameType.keyFrame) {
-      log(
-        'Parsed screen frame #$_screenFrameCount: type=${frame.type} bytes=${frame.data.length} remainingBuffer=$remainingBuffer',
-      );
-    }
 
     final now = DateTime.now();
     if (_lastScreenFrameTime != null) {
       final delay = now.difference(_lastScreenFrameTime!).inMilliseconds;
       _frameArrivalDelays.add(delay);
-      if (delay >= 250) {
-        log(
-          'Parsed screen frame gap detected: gap=${delay}ms recentDelays=${_frameArrivalDelays.take(6).toList()} chunkCount=$_screenChunkCount buffer=$remainingBuffer',
-        );
-      }
       if (_frameArrivalDelays.length > 30) {
         _frameArrivalDelays.removeAt(0);
       }
@@ -120,10 +93,6 @@ class RemoteControlWatchdogController {
       maxBitrate: maxBitrate,
       screenFps: screenFps,
     );
-    if (decision.logMessage != null) {
-      log(decision.logMessage!);
-    }
-
     final newBitrate = decision.newBitrate;
     if (newBitrate != null && newBitrate != _currentBitrate) {
       final minBitrateFloor = _recoveryHelper.recommendedMinScreenBitrate(
@@ -145,9 +114,6 @@ class RemoteControlWatchdogController {
   }) {
     stopScreenFrameWatchdog(log: log, bufferLength: 0);
     _screenWatchdogStartedAt = DateTime.now();
-    log(
-      'Starting screen watchdog: threshold=${screenFrameStallThreshold.inMilliseconds}ms cooldown=${screenKeyFrameRequestCooldown.inMilliseconds}ms recoveryCooldown=${screenRecoveryKeyFrameRetryCooldown.inMilliseconds}ms',
-    );
     _screenFrameWatchdogTimer = Timer.periodic(
       const Duration(milliseconds: 250),
       (_) => onTick(),
@@ -158,11 +124,6 @@ class RemoteControlWatchdogController {
     required void Function(String message) log,
     required int bufferLength,
   }) {
-    if (_screenFrameWatchdogTimer != null) {
-      log(
-        'Stopping screen watchdog: lastFrameAgo=${_lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_lastScreenFrameTime!).inMilliseconds}ms'} chunkCount=$_screenChunkCount frameCount=$_screenFrameCount buffer=$bufferLength',
-      );
-    }
     _screenFrameWatchdogTimer?.cancel();
     _screenFrameWatchdogTimer = null;
     _screenWatchdogStartedAt = null;
@@ -197,9 +158,6 @@ class RemoteControlWatchdogController {
       screenFrameCount: _screenFrameCount,
     );
 
-    if (decision.logMessage != null) {
-      log(decision.logMessage!);
-    }
     if (decision.shouldRequestKeyFrame) {
       _awaitingRecoveryKeyFrame = true;
     }

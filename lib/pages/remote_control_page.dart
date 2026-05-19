@@ -146,7 +146,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   void _handleMessage(protocol.ControlMessage message) {
-    developer.log('Received message: ${message.type}', name: 'RemoteControl');
+    if (message is protocol.StatusMessage &&
+        message.action == 'receiver_info') {
+      return;
+    }
   }
 
   Future<void> _startReceiver() async {

@@ -84,7 +84,6 @@ class RemoteControlCommandHelper {
             log('Failed to execute receiver command: $error');
           },
         );
-        log('Executed receiver command: $type');
       }
     } catch (e) {
       log('Failed to dispatch receiver command: $e', error: e);

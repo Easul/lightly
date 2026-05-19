@@ -321,14 +321,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
         _remoteCaptureSize = nextCaptureSize;
       });
       unawaited(_requestKeyFrame());
-      developer.log(
-        'Updated remote screen size to ${width.toInt()}x${height.toInt()} capture=${nextCaptureSize.width.toInt()}x${nextCaptureSize.height.toInt()}',
-        name: 'RemoteControl',
-      );
       return;
     }
-
-    developer.log('Received message: ${message.type}', name: 'RemoteControl');
   }
 
   @override
