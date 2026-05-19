@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
+import '../services/app_toast.dart';
 import '../widgets/app_drawer.dart';
 
 class ClipboardPage extends StatefulWidget {
@@ -35,6 +36,10 @@ class _ClipboardPageState extends State<ClipboardPage>
   final List<String> _redoStack = [];
   bool _canUndo = false;
   bool _canRedo = false;
+
+  void _showToast(String message) {
+    unawaited(AppToast.show(message));
+  }
 
   @override
   void initState() {
@@ -151,15 +156,11 @@ class _ClipboardPageState extends State<ClipboardPage>
     try {
       await _storage.saveContent(text);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已保存到剪贴板')));
+        _showToast('已保存到剪贴板');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+        _showToast('保存失败: $e');
       }
     } finally {
       if (mounted) {
@@ -179,16 +180,12 @@ class _ClipboardPageState extends State<ClipboardPage>
         final newText = current.isEmpty ? text : '$current\n$text';
         _controller.text = newText;
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('已从剪贴板粘贴')));
+          _showToast('已从剪贴板粘贴');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('粘贴失败: $e')));
+        _showToast('粘贴失败: $e');
       }
     }
   }
@@ -199,15 +196,11 @@ class _ClipboardPageState extends State<ClipboardPage>
       final text = data?.text ?? '';
       _controller.text = text;
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已刷新系统剪贴板内容')));
+        _showToast('已刷新系统剪贴板内容');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('刷新失败: $e')));
+        _showToast('刷新失败: $e');
       }
     }
   }
@@ -218,9 +211,7 @@ class _ClipboardPageState extends State<ClipboardPage>
       final port = portText.isEmpty ? null : int.tryParse(portText);
       if (port != null && (port <= 0 || port > 65535)) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('端口范围应为 1-65535')));
+          _showToast('端口范围应为 1-65535');
         }
         return;
       }
@@ -234,9 +225,7 @@ class _ClipboardPageState extends State<ClipboardPage>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('启动服务失败: $e')));
+        _showToast('启动服务失败: $e');
         setState(() {
           _serverEnabled = false;
         });

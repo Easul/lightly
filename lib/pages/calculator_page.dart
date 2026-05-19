@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../services/app_toast.dart';
 import '../widgets/app_drawer.dart';
 import '../calculator/expression_evaluator.dart';
 import '../calculator/calculation_history.dart';
@@ -215,9 +218,7 @@ class _CalculatorPageState extends State<CalculatorPage>
 
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+    unawaited(AppToast.show('已复制到剪贴板'));
   }
 
   String _formatDateTime(DateTime dt) {

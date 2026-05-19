@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../browser/proxy_service.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_shared_services.dart';
+import '../services/app_toast.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -26,6 +28,10 @@ class _DownloadsPageState extends State<DownloadsPage> {
       _sharedServices.settingsService;
   ProxyService get _proxyService => _sharedServices.proxyService;
 
+  void _showToast(String message) {
+    unawaited(AppToast.show(message));
+  }
+
   Future<void> _reloadDownloads() async {
     await _downloadStore.list();
   }
@@ -36,9 +42,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('安装文件路径不存在')));
+      _showToast('安装文件路径不存在');
       return;
     }
 
@@ -48,17 +52,13 @@ class _DownloadsPageState extends State<DownloadsPage> {
         return;
       }
       if (result.type != ResultType.done) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('安装失败：${result.message}')));
+        _showToast('安装失败：${result.message}');
       }
     } catch (_) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('安装失败，请稍后重试')));
+      _showToast('安装失败，请稍后重试');
     }
   }
 
@@ -105,9 +105,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
+      _showToast('删除失败，请稍后重试');
     }
   }
 
@@ -175,9 +173,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
     if (url.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('链接不能为空')));
+      _showToast('链接不能为空');
       return;
     }
 
@@ -185,9 +181,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
     final uri = Uri.tryParse(normalizedUrl);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('链接格式无效')));
+      _showToast('链接格式无效');
       return;
     }
 
@@ -231,9 +225,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       final savedPath = preparedRecord.savedPath;
       if (savedPath == null || savedPath.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('下载失败：无法确定保存路径')));
+        _showToast('下载失败：无法确定保存路径');
         return;
       }
 
@@ -241,9 +233,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       final settings = await _settingsService.loadSettings();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('开始下载：${confirmation.fileName}')));
+      _showToast('开始下载：${confirmation.fileName}');
 
       await _downloadService.startDownload(
         url: url,
@@ -254,17 +244,13 @@ class _DownloadsPageState extends State<DownloadsPage> {
         downloadStore: _downloadStore,
         onStatus: (message) {
           if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(message)));
+          _showToast(message);
         },
       );
       await _reloadDownloads();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('下载失败：$e')));
+      _showToast('下载失败：$e');
     }
   }
 

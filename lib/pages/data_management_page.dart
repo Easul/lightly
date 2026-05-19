@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../browser/services/browser_backup_service.dart';
 import '../services/app_log_service.dart';
+import '../services/app_toast.dart';
 import '../services/shared_downloads_directory_service.dart';
 import '../widgets/shared_download_access_dialog.dart';
 
@@ -65,14 +66,16 @@ class _DataManagementPageState extends State<DataManagementPage> {
     Navigator.pop(context, _result);
   }
 
+  void _showToast(String message) {
+    unawaited(AppToast.show(message));
+  }
+
   Future<void> _exportToClipboard() async {
     setState(() => _busy = true);
     try {
       await _backupService.copyToClipboard();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('备份数据已复制到剪贴板')));
+      _showToast('备份数据已复制到剪贴板');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -90,14 +93,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
         requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已导出到 ${file.path}')));
+      _showToast('已导出到 ${file.path}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('导出备份失败：$e')));
+      _showToast('导出备份失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -211,9 +210,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         : null;
     if (filePath == null || filePath.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('未选择备份文件')));
+        _showToast('未选择备份文件');
       }
       return;
     }
@@ -223,9 +220,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final validationError = _backupService.validateImportJson(jsonText);
     if (validationError != null) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(validationError)));
+        _showToast(validationError);
       }
       return;
     }
@@ -251,14 +246,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
         restoredOrigins: result.restoredOrigins,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('导入完成：$result')));
+      _showToast('导入完成：$result');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('导入失败：$e')));
+      _showToast('导入失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -276,14 +267,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
         requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('日志已导出到 ${file.path}')));
+      _showToast('日志已导出到 ${file.path}');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('导出日志失败：$e')));
+      _showToast('导出日志失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -311,16 +298,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
         final granted = await _sharedDownloadsDirectoryService
             .requestFileAccessPermission();
         if (!granted && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('未获得 Download 授权，将保存到应用目录')),
-          );
+          _showToast('未获得 Download 授权，将保存到应用目录');
         }
         return granted;
       case SharedDownloadAccessChoice.useAppDirectory:
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('已改为保存到应用目录')));
+          _showToast('已改为保存到应用目录');
         }
         return false;
       case SharedDownloadAccessChoice.cancel:
@@ -333,14 +316,10 @@ class _DataManagementPageState extends State<DataManagementPage> {
     try {
       await _appLogService.copyLogToClipboard();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('运行日志已复制到剪贴板')));
+      _showToast('运行日志已复制到剪贴板');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('复制日志失败：$e')));
+      _showToast('复制日志失败：$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -356,16 +335,12 @@ class _DataManagementPageState extends State<DataManagementPage> {
       setState(() {
         _logRecordingEnabled = enabled;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(enabled ? '已开启运行日志记录' : '已关闭运行日志记录')),
-      );
+      _showToast(enabled ? '已开启运行日志记录' : '已关闭运行日志记录');
     } catch (e) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('切换日志记录失败：$e')));
+      _showToast('切换日志记录失败：$e');
     } finally {
       if (mounted) {
         setState(() => _busy = false);
