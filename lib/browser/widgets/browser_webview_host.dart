@@ -216,6 +216,14 @@ class BrowserWebViewHost extends StatelessWidget {
             onLongPressHitTestResult: onLongPressHitTestResult,
             onEnterFullscreen: onEnterFullscreen,
             onExitFullscreen: onExitFullscreen,
+            onRenderProcessGone: (controller, detail) {
+              // WebView renderer crashed — reload the page to recover.
+              // Without this handler, a crash on heavy pages (YouTube) can
+              // leave the WebView in a dead state that causes ANR.
+              if (detail.didCrash) {
+                unawaited(controller.reload());
+              }
+            },
             pullToRefreshController: pullToRefreshController,
             findInteractionController: findInteractionController,
           ),

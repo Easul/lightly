@@ -348,14 +348,22 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Widget _buildBody() {
     final hostedTabId = _activeTabId;
+    final isFavoritesPage = _isFavoritesPage(_currentUrl);
     return BrowserPageBodySection(
-      isFavoritesPage: _isFavoritesPage(_currentUrl),
-      favoritesChild: BrowserFavoritesPage(
-        key: _favoritesPageKey,
-        onOpenUrl: (url) async {
-          await _loadAddress(url);
-        },
-      ),
+      isFavoritesPage: isFavoritesPage,
+      // Only construct the favorites page widget when it's actually visible.
+      // When the WebView is active, creating BrowserFavoritesPage is wasted
+      // work that rebuilds a complex widget tree that won't even be rendered.
+      favoritesChild: isFavoritesPage
+          ? RepaintBoundary(
+              child: BrowserFavoritesPage(
+                key: _favoritesPageKey,
+                onOpenUrl: (url) async {
+                  await _loadAddress(url);
+                },
+              ),
+            )
+          : const SizedBox.shrink(),
       webViewChild: BrowserWebViewHost(
         key: ValueKey('webview-${_activeTabId ?? 'none'}'),
         enabled: widget.enableWebView,
@@ -930,7 +938,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required InAppWebViewController controller,
     required WebUri? url,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
     if (!mounted) {
       return;
     }

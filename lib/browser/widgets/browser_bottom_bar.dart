@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-class BrowserBottomBar extends StatelessWidget {
+class BrowserBottomBar extends StatefulWidget {
   const BrowserBottomBar({
     super.key,
     required this.canGoBack,
@@ -31,23 +31,52 @@ class BrowserBottomBar extends StatelessWidget {
   final VoidCallback? onFindInPage;
 
   @override
+  State<BrowserBottomBar> createState() => _BrowserBottomBarState();
+}
+
+class _BrowserBottomBarState extends State<BrowserBottomBar> {
+  // Cached layout values — only recalculated when screen size changes.
+  Size _lastSize = Size.zero;
+  double _lastPaddingBottom = 0;
+  bool _compactLayout = false;
+  double _barHeight = 98.0;
+  double _horizontalPadding = 12.0;
+  double _buttonSize = 48.0;
+  double _buttonRadius = 18.0;
+  double _iconSize = 22.0;
+  double _verticalPadding = 0;
+
+  void _updateLayoutIfNeeded(Size size, double paddingBottom) {
+    if (size == _lastSize && paddingBottom == _lastPaddingBottom) {
+      return;
+    }
+    _lastSize = size;
+    _lastPaddingBottom = paddingBottom;
+
+    final compact = size.height < 720 || size.shortestSide < 380;
+    _compactLayout = compact;
+    const compactVerticalPadding = 8.0;
+    _barHeight = compact
+        ? 40.0 + compactVerticalPadding * 2 + paddingBottom
+        : 98.0;
+    _horizontalPadding = compact ? 6.0 : 12.0;
+    _buttonSize = compact ? 40.0 : 48.0;
+    _buttonRadius = compact ? 14.0 : 18.0;
+    _iconSize = compact ? 19.0 : 22.0;
+    _verticalPadding = compact ? compactVerticalPadding : 0;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final surfaceColor = colorScheme.surfaceContainerHighest;
     final size = MediaQuery.sizeOf(context);
     final mediaPadding = MediaQuery.paddingOf(context);
-    final compactLayout = size.height < 720 || size.shortestSide < 380;
-    final compactVerticalPadding = 8.0;
-    final barHeight = compactLayout
-        ? 40.0 + compactVerticalPadding * 2 + mediaPadding.bottom
-        : 98.0;
-    final horizontalPadding = compactLayout ? 6.0 : 12.0;
-    final buttonSize = compactLayout ? 40.0 : 48.0;
-    final buttonRadius = compactLayout ? 14.0 : 18.0;
-    final iconSize = compactLayout ? 19.0 : 22.0;
+
+    _updateLayoutIfNeeded(size, mediaPadding.bottom);
 
     return Container(
-      height: barHeight,
+      height: _barHeight,
       decoration: BoxDecoration(
         color: surfaceColor,
         border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
@@ -58,8 +87,8 @@ class BrowserBottomBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: compactLayout ? compactVerticalPadding : 0,
+            horizontal: _horizontalPadding,
+            vertical: _verticalPadding,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -67,51 +96,51 @@ class BrowserBottomBar extends StatelessWidget {
               _DockButton(
                 tooltip: '后退',
                 icon: Icons.arrow_back_rounded,
-                onPressed: canGoBack ? onBack : null,
-                buttonSize: buttonSize,
-                borderRadius: buttonRadius,
-                iconSize: iconSize,
-                color: canGoBack
+                onPressed: widget.canGoBack ? widget.onBack : null,
+                buttonSize: _buttonSize,
+                borderRadius: _buttonRadius,
+                iconSize: _iconSize,
+                color: widget.canGoBack
                     ? colorScheme.onSurface
                     : colorScheme.onSurface.withValues(alpha: 0.3),
               ),
               _DockButton(
                 tooltip: '前进',
                 icon: Icons.arrow_forward_rounded,
-                onPressed: canGoForward ? onForward : null,
-                buttonSize: buttonSize,
-                borderRadius: buttonRadius,
-                iconSize: iconSize,
-                color: canGoForward
+                onPressed: widget.canGoForward ? widget.onForward : null,
+                buttonSize: _buttonSize,
+                borderRadius: _buttonRadius,
+                iconSize: _iconSize,
+                color: widget.canGoForward
                     ? colorScheme.onSurface
                     : colorScheme.onSurface.withValues(alpha: 0.3),
               ),
               _DockButton(
                 tooltip: '主页',
                 icon: Icons.home_rounded,
-                onPressed: onHome,
-                buttonSize: buttonSize,
-                borderRadius: buttonRadius,
-                iconSize: iconSize,
+                onPressed: widget.onHome,
+                buttonSize: _buttonSize,
+                borderRadius: _buttonRadius,
+                iconSize: _iconSize,
                 color: colorScheme.onSurface,
               ),
               _DockButton(
                 tooltip: '标签页',
                 icon: Icons.filter_none_rounded,
-                onPressed: onOpenTabs,
-                buttonSize: buttonSize,
-                borderRadius: buttonRadius,
-                iconSize: iconSize,
+                onPressed: widget.onOpenTabs,
+                buttonSize: _buttonSize,
+                borderRadius: _buttonRadius,
+                iconSize: _iconSize,
                 color: colorScheme.onSurface,
-                badge: tabCount > 0 ? '$tabCount' : null,
+                badge: widget.tabCount > 0 ? '${widget.tabCount}' : null,
               ),
               _DockButton(
                 tooltip: '更多',
                 icon: Icons.more_vert_rounded,
-                onPressed: onOpenMoreActions,
-                buttonSize: buttonSize,
-                borderRadius: buttonRadius,
-                iconSize: iconSize,
+                onPressed: widget.onOpenMoreActions,
+                buttonSize: _buttonSize,
+                borderRadius: _buttonRadius,
+                iconSize: _iconSize,
                 color: colorScheme.onSurface,
               ),
             ],
