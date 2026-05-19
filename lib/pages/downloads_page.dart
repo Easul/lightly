@@ -391,6 +391,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 onPressed: () => _pauseDownload(record),
                                 child: const Text('暂停'),
                               ),
+                            if (record.status == 'paused')
+                              TextButton(
+                                onPressed: () => _resumeDownload(record),
+                                child: const Text('继续'),
+                              ),
                             if (canInstall)
                               TextButton(
                                 onPressed: () => _installApk(record),
@@ -422,6 +427,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
         return Icons.error_outline;
       case 'downloading':
         return Icons.downloading_outlined;
+      case 'paused':
+        return Icons.pause_circle_outline;
       default:
         return Icons.schedule_outlined;
     }
@@ -435,6 +442,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
         return '失败';
       case 'downloading':
         return '下载中';
+      case 'paused':
+        return '已暂停';
       default:
         return '等待中';
     }
@@ -486,6 +495,33 @@ class _DownloadsPageState extends State<DownloadsPage> {
     } catch (_) {
       if (mounted) {
         _showToast('暂停失败，请稍后重试');
+      }
+    }
+  }
+
+  Future<void> _resumeDownload(BrowserDownloadRecord record) async {
+    try {
+      final settings = await _settingsService.loadSettings();
+      final resumedRecord = record.copyWith(status: 'downloading');
+      await _downloadStore.update(resumedRecord);
+      if (!mounted) return;
+      _showToast('继续下载：${record.fileName}');
+      await _downloadService.startDownload(
+        url: record.url,
+        record: resumedRecord,
+        savedPath: record.savedPath ?? '',
+        proxyService: _proxyService,
+        settings: settings,
+        downloadStore: _downloadStore,
+        onStatus: (message) {
+          if (!mounted) return;
+          _showToast(message);
+        },
+      );
+      await _reloadDownloads();
+    } catch (e) {
+      if (mounted) {
+        _showToast('继续下载失败：$e');
       }
     }
   }
