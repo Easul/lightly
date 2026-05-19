@@ -116,7 +116,7 @@ class BrowserSettings {
   factory BrowserSettings.defaults() {
     return const BrowserSettings(
       homepageUrl: 'https://www.google.com',
-      proxyEnabled: true,
+      proxyEnabled: false,
       proxyHost: '',
       proxyPort: null,
       proxyScheme: BrowserProxyProtocol.http,
@@ -130,7 +130,7 @@ class BrowserSettings {
       proxyPacketEncoding: '',
       proxyBypassDomains: '',
       localProxyPort: 23333,
-      localHttpServerEnabled: true,
+      localHttpServerEnabled: false,
       localHttpRootPath: '/storage/emulated/0/Download',
       localHttpServerPort: 3001,
       localHttpBindAllInterfaces: false,

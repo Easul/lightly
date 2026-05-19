@@ -20,6 +20,7 @@ import '../browser/widgets/settings/clear_browsing_data_dialog.dart';
 import '../browser/widgets/settings/general_settings_section.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';
 import '../browser/widgets/settings/video_settings_section.dart';
+import '../services/app_toast.dart';
 import 'settings_page_home_sections.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -227,7 +228,11 @@ class _SettingsPageState extends State<SettingsPage> {
       _showSnackBar(settings.localHttpServerValidationError!);
       return;
     }
-    if (settings.localHttpServerEnabled) {
+    final shouldRequireLocalHttpFileAccess =
+        settings.localHttpServerEnabled &&
+        (!previousSettings.localHttpServerEnabled ||
+            settings.localHttpRootPath != previousSettings.localHttpRootPath);
+    if (shouldRequireLocalHttpFileAccess) {
       final hasPermission = await _ensureLocalHttpFileAccessPermission();
       if (!hasPermission) {
         _showSnackBar('请先授予文件访问权限，才能托管手机目录');
@@ -363,7 +368,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     setState(() {
       _formController.localHttpRootPathController.text = path;
-      _formController.localHttpServerEnabled = true;
     });
     _markSectionDirty();
   }
@@ -372,10 +376,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) {
       return;
     }
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   Future<void> _showClearBrowsingDataDialog() async {
