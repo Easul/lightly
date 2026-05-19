@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,6 +54,8 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   final ValueNotifier<String?> _gestureHintNotifier = ValueNotifier(null);
   bool _lockIndicatorVisible = true;
   Timer? _lockIndicatorTimer;
+  bool _lastIsPlaying = false;
+  bool _lastHasError = false;
 
   /// 是否处于全屏模式
   bool get _isFullscreen => widget.mode == FloatingPlayerMode.fullscreen;
@@ -77,7 +80,38 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   }
 
   void _onControllerUpdate() {
-    if (mounted) setState(() {});
+    final controller = widget.controller;
+    final value = controller?.value;
+    final isPlaying = value?.isPlaying ?? false;
+    final hasError = value?.hasError ?? false;
+
+    final didReachEnd =
+        _lastIsPlaying &&
+        !isPlaying &&
+        value != null &&
+        value.isInitialized &&
+        value.duration > Duration.zero &&
+        value.position >= value.duration - const Duration(milliseconds: 300);
+    final didEnterError = !_lastHasError && hasError;
+
+    _lastIsPlaying = isPlaying;
+    _lastHasError = hasError;
+
+    if (!mounted) {
+      return;
+    }
+
+    if (didReachEnd || didEnterError) {
+      _controlsTimer?.cancel();
+      _lockIndicatorTimer?.cancel();
+      setState(() {
+        _controlsVisible = true;
+        _lockIndicatorVisible = true;
+      });
+      return;
+    }
+
+    setState(() {});
   }
 
   @override
@@ -132,6 +166,20 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
       controller.play();
     }
     _showControlsTemporarily();
+  }
+
+  double _getBufferedPosition(VideoPlayerValue value) {
+    final duration = value.duration;
+    if (!value.isInitialized ||
+        duration <= Duration.zero ||
+        value.buffered.isEmpty) {
+      return 0;
+    }
+
+    final maxBufferedMs = value.buffered.fold<int>(0, (maxValue, range) {
+      return math.max(maxValue, range.end.inMilliseconds);
+    });
+    return maxBufferedMs.clamp(0, duration.inMilliseconds).toDouble();
   }
 
   void _startGesture(DragStartDetails details, double maxWidth) {
@@ -507,6 +555,24 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     constraints: _modeButtonConstraints,
                   ),
                 ),
+              if (widget.onLockToggle != null && _isFullscreen)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      widget.isLocked ? Icons.lock : Icons.lock_open,
+                      color: Colors.white,
+                      size: _modeIconSize,
+                    ),
+                    onPressed: widget.onLockToggle,
+                    padding: EdgeInsets.zero,
+                    constraints: _modeButtonConstraints,
+                  ),
+                ),
             ],
           ),
         ),
@@ -595,6 +661,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     final value = controller.value;
     final position = value.position;
     final duration = value.duration ?? Duration.zero;
+    final bufferedPosition = _getBufferedPosition(value);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -605,6 +672,9 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 activeTrackColor: Colors.red,
+                secondaryActiveTrackColor: Colors.lightBlueAccent.withValues(
+                  alpha: 0.75,
+                ),
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
                 thumbColor: Colors.red,
                 trackHeight: 2,
@@ -616,6 +686,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     .clamp(0, duration.inMilliseconds)
                     .toDouble(),
                 max: duration.inMilliseconds.toDouble(),
+                secondaryTrackValue: bufferedPosition,
                 onChanged: (value) {
                   controller.seekTo(Duration(milliseconds: value.toInt()));
                   _showControlsTemporarily();

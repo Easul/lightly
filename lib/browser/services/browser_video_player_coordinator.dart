@@ -36,6 +36,7 @@ class BrowserVideoPlayerCoordinator {
   VideoPlayerController? _floatingVideoController;
   final FloatingVideoPlayerController _floatingVideoPlayerController =
       FloatingVideoPlayerController();
+  String? _floatingVideoErrorMessage;
 
   OverlayEntry? get floatingVideoOverlay => _floatingVideoOverlay;
   FloatingVideoPlayerController get floatingVideoPlayerController =>
@@ -92,10 +93,11 @@ class BrowserVideoPlayerCoordinator {
     } catch (error) {
       if (shouldResolveYoutube) {
         _onDebugLog('Failed to resolve YouTube video: $error');
-        await closeFloatingVideoPlayer();
-        if (context.mounted) {
-          _onShowSnackBar('视频解析失败: $error');
+        if (!context.mounted) {
+          await closeFloatingVideoPlayer();
+          return;
         }
+        _showFloatingErrorOverlay(context: context, message: '视频解析失败: $error');
         return;
       }
     }
@@ -115,6 +117,7 @@ class BrowserVideoPlayerCoordinator {
       controller.play();
 
       _floatingVideoOverlay?.remove();
+      _floatingVideoErrorMessage = null;
       _floatingVideoOverlay = FloatingVideoPlayer.show(
         context: context,
         controller: controller,
@@ -139,11 +142,30 @@ class BrowserVideoPlayerCoordinator {
       _onDebugLog('Failed to initialize floating video player: $error');
       _floatingVideoController?.dispose();
       _floatingVideoController = null;
-      await closeFloatingVideoPlayer();
-      if (context.mounted) {
-        _onShowSnackBar('视频播放失败: $error');
+      if (!context.mounted) {
+        await closeFloatingVideoPlayer();
+        return;
       }
+      _showFloatingErrorOverlay(context: context, message: '视频播放失败: $error');
     }
+  }
+
+  void _showFloatingErrorOverlay({
+    required BuildContext context,
+    required String message,
+  }) {
+    _floatingVideoOverlay?.remove();
+    _floatingVideoErrorMessage = message;
+    _floatingVideoOverlay = FloatingVideoPlayer.show(
+      context: context,
+      title: '视频播放',
+      errorMessage: message,
+      onClose: () {
+        unawaited(closeFloatingVideoPlayer());
+      },
+      playerController: _floatingVideoPlayerController,
+    );
+    _onShowSnackBar(message);
   }
 
   Future<void> _downloadVideo(
@@ -170,6 +192,7 @@ class BrowserVideoPlayerCoordinator {
     );
     _floatingVideoOverlay?.remove();
     _floatingVideoOverlay = null;
+    _floatingVideoErrorMessage = null;
     await _floatingVideoController?.dispose();
     _floatingVideoController = null;
     _videoDetectionTracker.activeUrl = null;
