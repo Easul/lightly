@@ -44,15 +44,18 @@ void main() {
       },
     );
 
-    test('resolveFloatingDownloadFileName keeps existing extension', () {
-      expect(
-        coordinator.resolveFloatingDownloadFileName(
-          'https://example.com/video-stream',
-          pageTitle: 'Clip.mkv',
-        ),
-        'Clip.mkv',
-      );
-    });
+    test(
+      'resolveFloatingDownloadFileName forces mp4 for titled video downloads',
+      () {
+        expect(
+          coordinator.resolveFloatingDownloadFileName(
+            'https://example.com/video-stream',
+            pageTitle: 'Clip.mkv',
+          ),
+          'Clip.mkv.mp4',
+        );
+      },
+    );
 
     test('redactDownloadUrl removes embedded credentials only', () {
       expect(

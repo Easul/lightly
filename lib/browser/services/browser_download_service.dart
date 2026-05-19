@@ -250,7 +250,23 @@ class BrowserDownloadService {
     await downloadStore.update(currentRecord);
 
     try {
+      final outputFile = File(savedPath);
+      if (!await outputFile.parent.exists()) {
+        await outputFile.parent.create(recursive: true);
+      }
+
+      var resumedFromBytes = 0;
+      if (await outputFile.exists()) {
+        resumedFromBytes = await outputFile.length();
+      }
+
       final httpRequest = await client.getUrl(Uri.parse(url));
+      if (resumedFromBytes > 0) {
+        httpRequest.headers.set(
+          HttpHeaders.rangeHeader,
+          'bytes=$resumedFromBytes-',
+        );
+      }
       final response = await httpRequest.close();
       if (response.statusCode < HttpStatus.ok ||
           response.statusCode >= HttpStatus.multipleChoices) {
@@ -260,15 +276,35 @@ class BrowserDownloadService {
         );
       }
 
-      final outputFile = File(savedPath);
-      if (!await outputFile.parent.exists()) {
-        await outputFile.parent.create(recursive: true);
+      var writeMode = FileMode.write;
+      var bytesReceived = 0;
+      var totalBytes = currentRecord.totalBytes;
+
+      if (resumedFromBytes > 0) {
+        if (response.statusCode == HttpStatus.partialContent) {
+          writeMode = FileMode.append;
+          bytesReceived = resumedFromBytes;
+          totalBytes = _resolveResumedTotalBytes(
+            response: response,
+            resumedFromBytes: resumedFromBytes,
+            fallbackTotalBytes: currentRecord.totalBytes,
+          );
+        } else {
+          await outputFile.writeAsBytes(const <int>[]);
+          resumedFromBytes = 0;
+          totalBytes = response.contentLength > 0
+              ? response.contentLength
+              : currentRecord.totalBytes;
+        }
+      } else {
+        totalBytes = response.contentLength > 0
+            ? response.contentLength
+            : currentRecord.totalBytes;
       }
 
-      final sink = outputFile.openWrite();
+      final sink = outputFile.openWrite(mode: writeMode);
       session.sink = sink;
-      var bytesReceived = 0;
-      var lastPersistedBytes = 0;
+      var lastPersistedBytes = bytesReceived;
       await for (final chunk in response) {
         if (session.cancelled) {
           throw const _DownloadCancelledException();
@@ -280,9 +316,7 @@ class BrowserDownloadService {
                 _downloadProgressPersistStepBytes) {
           currentRecord = currentRecord.copyWith(
             bytesReceived: bytesReceived,
-            totalBytes: response.contentLength > 0
-                ? response.contentLength
-                : currentRecord.totalBytes,
+            totalBytes: totalBytes,
           );
           await downloadStore.update(currentRecord);
           lastPersistedBytes = bytesReceived;
@@ -293,9 +327,7 @@ class BrowserDownloadService {
       }
       await sink.close();
 
-      final totalBytes = response.contentLength > 0
-          ? response.contentLength
-          : (record.totalBytes > 0 ? record.totalBytes : bytesReceived);
+      totalBytes = totalBytes > 0 ? totalBytes : bytesReceived;
       currentRecord = currentRecord.copyWith(
         status: 'completed',
         totalBytes: totalBytes,
@@ -376,5 +408,26 @@ class BrowserDownloadService {
       caseSensitive: false,
     ).firstMatch(value);
     return filenameMatch?.group(1);
+  }
+
+  int _resolveResumedTotalBytes({
+    required HttpClientResponse response,
+    required int resumedFromBytes,
+    required int fallbackTotalBytes,
+  }) {
+    final contentRange = response.headers.value(HttpHeaders.contentRangeHeader);
+    if (contentRange != null) {
+      final match = RegExp(r'bytes\s+\d+-\d+/(\d+)').firstMatch(contentRange);
+      final total = int.tryParse(match?.group(1) ?? '');
+      if (total != null && total > 0) {
+        return total;
+      }
+    }
+
+    if (response.contentLength > 0) {
+      return resumedFromBytes + response.contentLength;
+    }
+
+    return fallbackTotalBytes;
   }
 }
