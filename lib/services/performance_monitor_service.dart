@@ -132,8 +132,6 @@ class PerformanceMonitorService {
       const Duration(seconds: _reportIntervalSeconds),
       (_) => _generateReport(),
     );
-
-    print('[PerformanceMonitor] Monitor started');
   }
 
   void _resetSessionState() {
@@ -157,7 +155,6 @@ class PerformanceMonitorService {
     _isMonitoring = false;
     _reportTimer?.cancel();
     _reportTimer = null;
-    print('[PerformanceMonitor] Monitor stopped');
   }
 
   /// 记录设备发现路径
@@ -189,11 +186,6 @@ class PerformanceMonitorService {
     if (_discoveryPaths.length > 10) {
       _discoveryPaths.removeAt(0);
     }
-
-    print(
-      '设备发现: $selectedHost [${_currentConnectionType}] '
-      '备选: ${availableHosts.length}个, 耗时: ${selectionDelayMs}ms',
-    );
   }
 
   /// 记录视频帧信息
@@ -241,15 +233,6 @@ class PerformanceMonitorService {
     if (_videoStatsHistory.length > _maxStatsWindow) {
       _videoStatsHistory.removeAt(0);
     }
-
-    // 每50帧记录一次详细日志
-    if (_frameCount % 50 == 0) {
-      print(
-        '视频统计: FPS=${_currentFps.toStringAsFixed(1)}, '
-        '码率=${(_currentBitrate / 1000).toStringAsFixed(0)}kbps, '
-        '帧大小=$frameSize bytes, ${isKeyFrame ? "I帧" : "P帧"}',
-      );
-    }
   }
 
   /// 记录音频包信息
@@ -283,18 +266,6 @@ class PerformanceMonitorService {
     if (_audioStatsHistory.length > _maxStatsWindow) {
       _audioStatsHistory.removeAt(0);
     }
-
-    // 每100包记录一次
-    if (_audioPacketCount % 100 == 0) {
-      final lossRate =
-          _audioLossCount / math.max(1, _audioPacketCount + _audioLossCount);
-      print(
-        '音频统计: 序列=$sequence, 包大小=$packetSize, '
-        '${jitterBufferDelayMs != null ? "抖动延迟=${jitterBufferDelayMs}ms, " : ""}'
-        '${currentGain != null ? "增益=${currentGain.toStringAsFixed(2)}x, " : ""}'
-        '丢包率=${(lossRate * 100).toStringAsFixed(1)}%',
-      );
-    }
   }
 
   /// 记录网络延迟 (测试 ping)
@@ -312,8 +283,6 @@ class PerformanceMonitorService {
     if (_latencyHistory.length > _maxStatsWindow) {
       _latencyHistory.removeAt(0);
     }
-
-    print('网络延迟: ${latencyMs}ms [${_currentConnectionType}]');
   }
 
   /// 生成性能报告
@@ -322,11 +291,6 @@ class PerformanceMonitorService {
 
     final report = getCurrentStats();
     _statsController.add(report);
-
-    print(
-      '【性能报告】\n'
-      '${_formatStats(report)}',
-    );
   }
 
   /// 获取当前统计
