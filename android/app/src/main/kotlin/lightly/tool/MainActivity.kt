@@ -52,6 +52,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        stopProxyFloatingButtonService()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val attributes = window.attributes
@@ -64,12 +65,18 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        stopProxyFloatingButtonService()
         val url = handleIntent(intent)
         if (url != null && browserProxyChannel != null) {
             mainHandler.post {
                 browserProxyChannel?.invokeMethod("onNewIntentUrl", mapOf("url" to url))
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        stopProxyFloatingButtonService()
     }
 
     private fun handleIntent(intent: Intent?): String? {
@@ -116,6 +123,15 @@ class MainActivity : FlutterActivity() {
         }
 
         return "https://www.google.com/search?q=${Uri.encode(sharedText)}"
+    }
+
+    private fun stopProxyFloatingButtonService() {
+        runCatching {
+            val intent = Intent(this, ProxyFloatingButtonService::class.java).apply {
+                action = ProxyFloatingButtonService.ACTION_STOP
+            }
+            startService(intent)
+        }
     }
 
     private fun importContentUriToPrivateFile(uriString: String): String? {
@@ -454,6 +470,28 @@ class MainActivity : FlutterActivity() {
                             Log.e(logTag, "Failed to cleanup imported private files", e)
                             result.error("CLEANUP_FAILED", e.message, null)
                         }
+                    }
+
+                    "startProxyFloatingButtonMode" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                            val permissionIntent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName"),
+                            )
+                            startActivity(permissionIntent)
+                            result.success("permission_required")
+                            return@setMethodCallHandler
+                        }
+
+                        val serviceIntent = Intent(this, ProxyFloatingButtonService::class.java)
+                        ContextCompat.startForegroundService(this, serviceIntent)
+                        moveTaskToBack(true)
+                        result.success("started")
+                    }
+
+                    "stopProxyFloatingButtonMode" -> {
+                        stopProxyFloatingButtonService()
+                        result.success(true)
                     }
 
                     else -> result.notImplemented()

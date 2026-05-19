@@ -167,6 +167,11 @@
             android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="true" />
         <service
+            android:name=".ProxyFloatingButtonService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false" />
+        <service
             android:name=".EasyTierVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="true"
