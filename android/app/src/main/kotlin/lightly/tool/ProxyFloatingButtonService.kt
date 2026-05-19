@@ -4,12 +4,9 @@ import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import io.flutter.embedding.engine.FlutterEngine
@@ -22,51 +19,8 @@ class ProxyFloatingButtonService : Service() {
     private var params: WindowManager.LayoutParams? = null
     private var methodChannel: MethodChannel? = null
 
-    private val handler = Handler(Looper.getMainLooper())
-
-    // Idle state
-    private var isIdle = false
-    private val idleTimeoutMs = 10_000L
-    private val normalSizeDp = 56
-    private val idleSizeDp = 28
-    private val normalAlpha = 255 // 0-255
-    private val idleAlpha = 51    // 20% of 255
-
-    private val idleRunnable = Runnable {
-        if (!isIdle) {
-            isIdle = true
-            updateButtonAppearance()
-        }
-    }
-
-    private fun resetIdleTimer() {
-        handler.removeCallbacks(idleRunnable)
-        handler.postDelayed(idleRunnable, idleTimeoutMs)
-    }
-
-    private fun exitIdle() {
-        if (isIdle) {
-            isIdle = false
-            updateButtonAppearance()
-        }
-        resetIdleTimer()
-    }
-
-    private fun updateButtonAppearance() {
-        floatingView?.let { view ->
-            val density = resources.displayMetrics.density
-            val sizeDp = if (isIdle) idleSizeDp else normalSizeDp
-            val sizePx = (sizeDp * density).toInt()
-
-            view.imageAlpha = if (isIdle) idleAlpha else normalAlpha
-
-            params?.let { p ->
-                p.width = sizePx
-                p.height = sizePx
-                windowManager?.updateViewLayout(view, p)
-            }
-        }
-    }
+    private val buttonSizeDp = 40
+    private val buttonAlpha = 128
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate() {
@@ -75,18 +29,18 @@ class ProxyFloatingButtonService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
         val density = resources.displayMetrics.density
-        val normalSizePx = (normalSizeDp * density).toInt()
+        val buttonSizePx = (buttonSizeDp * density).toInt()
 
         floatingView = ImageView(this).apply {
             setImageResource(R.mipmap.ic_launcher_round)
-            imageAlpha = normalAlpha
+            imageAlpha = buttonAlpha
             setPadding(4, 4, 4, 4)
             elevation = 8f
         }
 
         params = WindowManager.LayoutParams(
-            normalSizePx,
-            normalSizePx,
+            buttonSizePx,
+            buttonSizePx,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
@@ -98,9 +52,6 @@ class ProxyFloatingButtonService : Service() {
 
         setupTouchListener()
         windowManager?.addView(floatingView, params)
-
-        // Start idle timer
-        resetIdleTimer()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -132,26 +83,14 @@ class ProxyFloatingButtonService : Service() {
                         params?.y = initialY + dy.toInt()
                         windowManager?.updateViewLayout(floatingView, params)
                     }
-                    // Any interaction resets idle timer
-                    if (isIdle) {
-                        exitIdle()
-                    } else {
-                        resetIdleTimer()
-                    }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (isIdle) {
-                        // Tap while idle → only restore appearance
-                        exitIdle()
-                        true
-                    } else if (!isDragging) {
+                    if (!isDragging) {
                         // Tap while visible → notify Flutter
-                        resetIdleTimer()
                         notifyFlutterTap()
                         true
                     } else {
-                        resetIdleTimer()
                         true
                     }
                 }
@@ -177,7 +116,6 @@ class ProxyFloatingButtonService : Service() {
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(idleRunnable)
         floatingView?.let {
             windowManager?.removeView(it)
         }

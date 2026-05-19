@@ -127,10 +127,7 @@ class MainActivity : FlutterActivity() {
 
     private fun stopProxyFloatingButtonService() {
         runCatching {
-            val intent = Intent(this, ProxyFloatingButtonService::class.java).apply {
-                action = ProxyFloatingButtonService.ACTION_STOP
-            }
-            startService(intent)
+            stopService(Intent(this, ProxyFloatingButtonService::class.java))
         }
     }
 
