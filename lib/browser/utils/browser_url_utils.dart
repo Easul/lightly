@@ -1,3 +1,10 @@
+const _legacyImportedDocumentPrefixes = <String>[
+  '/data/user/0/lightly.tool/files/imported_documents/',
+  '/data/data/lightly.tool/files/imported_documents/',
+];
+const _externalImportedDocumentPrefix =
+    '/storage/emulated/0/Android/data/lightly.tool/files/Documents/imported_documents/';
+
 String? normalizeBrowserUrl(String rawValue) {
   final trimmed = rawValue.trim();
   if (trimmed.isEmpty) {
@@ -13,7 +20,7 @@ String? normalizeBrowserUrl(String rawValue) {
       if (directUri.path.isEmpty) {
         return null;
       }
-      return directUri.toString();
+      return remapImportedDocumentFileUrl(directUri.toString());
     }
     if (scheme == 'content') {
       return directUri.toString();
@@ -46,6 +53,29 @@ String? normalizeBrowserUrl(String rawValue) {
   }
 
   return uri.toString();
+}
+
+String remapImportedDocumentFileUrl(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri?.scheme.toLowerCase() != 'file') {
+    return url;
+  }
+
+  final path = uri?.path;
+  if (path == null || path.isEmpty) {
+    return url;
+  }
+
+  for (final prefix in _legacyImportedDocumentPrefixes) {
+    if (path.startsWith(prefix)) {
+      final relativePath = path.substring(prefix.length);
+      return Uri.file(
+        '$_externalImportedDocumentPrefix$relativePath',
+      ).toString();
+    }
+  }
+
+  return url;
 }
 
 String _normalizeAndroidFileUrl(String rawValue) {

@@ -140,7 +140,7 @@ class MainActivity : FlutterActivity() {
             return uriString
         }
 
-        val importsDir = File(filesDir, "imported_documents")
+        val importsDir = resolveImportedDocumentsDir()
         if (!importsDir.exists()) {
             importsDir.mkdirs()
         }
@@ -158,6 +158,14 @@ class MainActivity : FlutterActivity() {
         } ?: return null
 
         return Uri.fromFile(targetFile).toString()
+    }
+
+    private fun resolveImportedDocumentsDir(): File {
+        val externalDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+        if (externalDir != null) {
+            return File(externalDir, "imported_documents")
+        }
+        return File(filesDir, "imported_documents")
     }
 
     private fun queryContentDisplayName(uri: Uri): String? {
@@ -204,12 +212,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun cleanupImportedPrivateFiles(retainedUrls: List<String>): Boolean {
-        val importsDir = File(filesDir, "imported_documents")
-        if (!importsDir.exists()) {
-            return true
-        }
+        val importRoots = listOf(
+            File(filesDir, "imported_documents"),
+            resolveImportedDocumentsDir(),
+        ).map { it.canonicalFile }.distinctBy { it.path }
 
-        val importsRoot = importsDir.canonicalFile
         val retainedFiles = retainedUrls.mapNotNull { retainedUrl ->
             try {
                 val uri = Uri.parse(retainedUrl)
@@ -218,20 +225,24 @@ class MainActivity : FlutterActivity() {
                 }
                 val path = uri.path ?: return@mapNotNull null
                 val file = File(path).canonicalFile
-                if (file.path.startsWith(importsRoot.path + File.separator)) {
-                    file.path
-                } else {
-                    null
+                val matchingRoot = importRoots.firstOrNull { root ->
+                    file.path.startsWith(root.path + File.separator)
                 }
+                if (matchingRoot != null) file.path else null
             } catch (_: Exception) {
                 null
             }
         }.toSet()
 
-        importsRoot.listFiles()?.forEach { child ->
-            val canonicalChild = child.canonicalFile
-            if (!retainedFiles.contains(canonicalChild.path)) {
-                canonicalChild.delete()
+        importRoots.forEach { importsRoot ->
+            if (!importsRoot.exists()) {
+                return@forEach
+            }
+            importsRoot.listFiles()?.forEach { child ->
+                val canonicalChild = child.canonicalFile
+                if (!retainedFiles.contains(canonicalChild.path)) {
+                    canonicalChild.delete()
+                }
             }
         }
 

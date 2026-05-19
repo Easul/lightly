@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../data/browser_database.dart';
 import '../models/browser_favorite.dart';
+import '../utils/browser_url_utils.dart';
 
 class BrowserFavoriteService {
   BrowserFavoriteService({BrowserDatabase? database})
@@ -10,7 +11,7 @@ class BrowserFavoriteService {
   final BrowserDatabase _database;
 
   String _normalizeComparableUrl(String url) {
-    final trimmed = url.trim();
+    final trimmed = remapImportedDocumentFileUrl(url.trim());
     final uri = Uri.tryParse(trimmed);
     if (uri == null) {
       return trimmed;
