@@ -30,35 +30,44 @@ void main() {
       expect(prepared.resolvedTitle, isNull);
     });
 
-    test('uses resolved stream directly when proxy is disabled', () async {
-      final service = BrowserVideoPlaybackPreparationService(
-        loadSettings: () async =>
-            BrowserSettings.defaults().copyWith(proxyEnabled: false),
-        resolveVideoSource: (_, __) async => const ResolvedVideoSource(
-          videoId: 'abc123',
-          title: 'Resolved title',
-          streamUrl: 'https://cdn.example.com/stream.m3u8',
-        ),
-        ensureProxyServer: (_) async {
-          throw StateError('should not start proxy');
-        },
-        buildProxyPlaybackUrl: (url) => 'proxy:$url',
-        redactDownloadUrl: (url) => 'redacted:$url',
-      );
+    test(
+      'uses local proxy playback url for youtube even when proxy is disabled',
+      () async {
+        var proxyStarted = false;
+        final service = BrowserVideoPlaybackPreparationService(
+          loadSettings: () async =>
+              BrowserSettings.defaults().copyWith(proxyEnabled: false),
+          resolveVideoSource: (_, __) async => const ResolvedVideoSource(
+            videoId: 'abc123',
+            title: 'Resolved title',
+            streamUrl: 'https://cdn.example.com/stream.m3u8',
+          ),
+          ensureProxyServer: (_) async {
+            proxyStarted = true;
+          },
+          buildProxyPlaybackUrl: (url) =>
+              'http://127.0.0.1:12345/proxy?url=${Uri.encodeComponent(url)}',
+          redactDownloadUrl: (url) => 'redacted:$url',
+        );
 
-      final prepared = await service.prepare(
-        requestedUrl: 'https://youtube.com/watch?v=abc123',
-        shouldResolveYoutube: true,
-      );
+        final prepared = await service.prepare(
+          requestedUrl: 'https://youtube.com/watch?v=abc123',
+          shouldResolveYoutube: true,
+        );
 
-      expect(prepared.playbackUrl, 'https://cdn.example.com/stream.m3u8');
-      expect(prepared.downloadUrl, 'https://cdn.example.com/stream.m3u8');
-      expect(
-        prepared.displayDownloadUrl,
-        'redacted:https://youtube.com/watch?v=abc123',
-      );
-      expect(prepared.resolvedTitle, 'Resolved title');
-    });
+        expect(proxyStarted, isTrue);
+        expect(
+          prepared.playbackUrl,
+          'http://127.0.0.1:12345/proxy?url=https%3A%2F%2Fcdn.example.com%2Fstream.m3u8',
+        );
+        expect(prepared.downloadUrl, 'https://cdn.example.com/stream.m3u8');
+        expect(
+          prepared.displayDownloadUrl,
+          'redacted:https://youtube.com/watch?v=abc123',
+        );
+        expect(prepared.resolvedTitle, 'Resolved title');
+      },
+    );
 
     test('uses local proxy playback url when proxy is enabled', () async {
       var proxyStarted = false;

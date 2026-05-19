@@ -66,13 +66,9 @@ class BrowserVideoPlaybackPreparationService {
     downloadUrl = rawStreamUrl;
     displayDownloadUrl = _redactDownloadUrl(requestedUrl);
 
-    if (settings.shouldApplyProxy) {
-      await _ensureProxyServer(settings);
-      playbackUrl = _buildProxyPlaybackUrl(rawStreamUrl);
-      _onDebugLog?.call('VideoPlayback: proxying through $playbackUrl');
-    } else {
-      playbackUrl = rawStreamUrl;
-    }
+    await _ensureProxyServer(settings);
+    playbackUrl = _buildProxyPlaybackUrl(rawStreamUrl);
+    _onDebugLog?.call('VideoPlayback: proxying through $playbackUrl');
 
     return PreparedVideoPlayback(
       playbackUrl: playbackUrl,
