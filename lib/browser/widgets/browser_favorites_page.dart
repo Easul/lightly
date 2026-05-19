@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../services/app_toast.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/shared/primary_button.dart';
 import '../models/browser_favorite.dart';
@@ -169,9 +170,7 @@ class BrowserFavoritesPageState extends State<BrowserFavoritesPage> {
         await _loadFavorites();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
+          unawaited(AppToast.show('操作失败: $e'));
         }
       }
     }

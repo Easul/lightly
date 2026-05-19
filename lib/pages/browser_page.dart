@@ -38,6 +38,7 @@ import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/utils/browser_popup_filter.dart';
 import '../browser/services/video_proxy_server.dart';
+import '../services/app_toast.dart';
 import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/widgets/browser_favorites_page.dart';
@@ -1447,9 +1448,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (result == null || !mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(result.message)));
+    _showSnackBar(result.message);
   }
 
   void _resetVideoDetectionState() {
@@ -1658,10 +1657,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   Future<void> _recordHistory(WebUri? url, String title) async {

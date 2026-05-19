@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../services/app_toast.dart';
 import '../theme/app_theme.dart';
 import 'shared/sidebar_item.dart';
 
@@ -198,12 +201,7 @@ class _VersionFooterState extends State<_VersionFooter> {
     if (_version.isNotEmpty) {
       final versionText = '若轻 v$_displayVersion';
       Clipboard.setData(ClipboardData(text: versionText));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('版本信息已复制'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      unawaited(AppToast.show('版本信息已复制'));
     }
   }
 

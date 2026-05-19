@@ -19,6 +19,7 @@ import '../browser/services/external_api_video_source_resolver.dart';
 import '../browser/services/video_proxy_server.dart';
 import '../browser/services/video_source_resolver.dart';
 import '../browser/utils/youtube_long_press_utils.dart';
+import '../services/app_toast.dart';
 import '../widgets/native_video/native_video_overlay.dart';
 import 'native_video_download_coordinator.dart';
 import 'native_video_gesture_controller.dart';
@@ -318,8 +319,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     if (!mounted) {
       return;
     }
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   @override
