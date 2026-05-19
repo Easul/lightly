@@ -56,6 +56,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
+  StreamSubscription<ProxyState>? _proxyStateSubscription;
 
   void _showToast(String message) {
     unawaited(AppToast.show(message));
@@ -81,7 +82,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       });
     }
     // 监听代理状态变化
-    _proxyService.stateStream.listen((state) {
+    _proxyStateSubscription = _proxyService.stateStream.listen((state) {
       if (mounted) {
         setState(() {
           _isProxyRunning = state == ProxyState.started;
@@ -92,11 +93,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   @override
   void dispose() {
-    // 不在页面退出时自动断开连接，保持后台服务运行
-    _hostController.dispose();
-    _controlPortController.dispose();
-    _screenPortController.dispose();
-    _audioPortController.dispose();
+    _proxyStateSubscription?.cancel();
     _stateSubscription.cancel();
     _messageSubscription.cancel();
     super.dispose();
