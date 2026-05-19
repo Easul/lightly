@@ -11,6 +11,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
     required this.onOpenDataManagement,
     required this.onCloseTab,
     required this.onOpenSettings,
+    required this.onEnterFloatingWindowMode,
     required this.onExitApp,
     this.onOpenFavoritesMenu,
     this.onFindInPage,
@@ -24,6 +25,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   final VoidCallback onOpenDataManagement;
   final VoidCallback onCloseTab;
   final VoidCallback onOpenSettings;
+  final VoidCallback onEnterFloatingWindowMode;
   final VoidCallback onExitApp;
   final VoidCallback? onOpenFavoritesMenu;
   final VoidCallback? onFindInPage;
@@ -123,6 +125,14 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   onOpenSettings();
+                },
+              ),
+              _ActionItem(
+                icon: Icons.circle_rounded,
+                label: '悬浮按钮模式',
+                onTap: () {
+                  Navigator.pop(context);
+                  onEnterFloatingWindowMode();
                 },
               ),
               _ActionItem(

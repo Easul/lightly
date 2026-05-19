@@ -1571,6 +1571,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onOpenDataManagement: _openDataManagement,
       onCloseTab: _closeCurrentTab,
       onOpenSettings: _openSettings,
+      onEnterFloatingWindowMode: _enterFloatingButtonMode,
       onExitApp: () async {
         await AppLifecycleManager().shutdownAllServices();
         await SystemNavigator.pop();
@@ -1580,6 +1581,25 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           : null,
       onFindInPage: _showFindInPage,
     );
+  }
+
+  Future<void> _enterFloatingButtonMode() async {
+    final result = await _proxyService.startFloatingButtonMode();
+    if (!mounted) {
+      return;
+    }
+
+    switch (result) {
+      case 'started':
+        _statusMessage = '已缩为悬浮按钮，可在其他应用继续使用代理';
+        break;
+      case 'permission_required':
+        _showSnackBar('请授予悬浮窗权限后重试');
+        break;
+      default:
+        _showSnackBar('启动悬浮按钮失败');
+        break;
+    }
   }
 
   Future<void> _openDataManagement() async {

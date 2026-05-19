@@ -280,6 +280,19 @@ class ProxyService {
       testUrl: testUrl,
     );
   }
+
+  Future<String> startFloatingButtonMode() async {
+    final result = await _proxyChannel.invokeMethod<String>(
+      'startProxyFloatingButtonMode',
+    );
+    return result ?? 'unknown';
+  }
+
+  Future<void> stopFloatingButtonMode() async {
+    try {
+      await _proxyChannel.invokeMethod('stopProxyFloatingButtonMode');
+    } catch (_) {}
+  }
 }
 
 enum ProxyState { starting, started, stopping, stopped }
