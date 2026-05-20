@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../utils/browser_auth_url_detector.dart';
 import '../utils/browser_popup_filter.dart';

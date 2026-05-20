@@ -36,7 +36,6 @@ class BrowserVideoPlayerCoordinator {
   VideoPlayerController? _floatingVideoController;
   final FloatingVideoPlayerController _floatingVideoPlayerController =
       FloatingVideoPlayerController();
-  String? _floatingVideoErrorMessage;
 
   OverlayEntry? get floatingVideoOverlay => _floatingVideoOverlay;
   FloatingVideoPlayerController get floatingVideoPlayerController =>
@@ -65,6 +64,9 @@ class BrowserVideoPlayerCoordinator {
     required String currentPageTitle,
   }) async {
     await closeFloatingVideoPlayer();
+    if (!context.mounted) {
+      return;
+    }
     _videoDetectionTracker.setActiveUrl(url);
     final pageTitle = _normalizeFloatingTitle(currentPageTitle);
     var floatingTitle = pageTitle ?? '视频播放';
@@ -152,7 +154,6 @@ class BrowserVideoPlayerCoordinator {
       controller.play();
 
       _floatingVideoOverlay?.remove();
-      _floatingVideoErrorMessage = null;
       _floatingVideoOverlay = FloatingVideoPlayer.show(
         context: context,
         controller: controller,
@@ -207,7 +208,6 @@ class BrowserVideoPlayerCoordinator {
     VoidCallback? onDownload,
   }) {
     _floatingVideoOverlay?.remove();
-    _floatingVideoErrorMessage = message;
     _floatingVideoOverlay = FloatingVideoPlayer.show(
       context: context,
       title: title,
@@ -245,7 +245,6 @@ class BrowserVideoPlayerCoordinator {
     );
     _floatingVideoOverlay?.remove();
     _floatingVideoOverlay = null;
-    _floatingVideoErrorMessage = null;
     await _floatingVideoController?.dispose();
     _floatingVideoController = null;
     _videoDetectionTracker.activeUrl = null;

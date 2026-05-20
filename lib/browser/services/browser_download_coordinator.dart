@@ -92,6 +92,9 @@ class BrowserDownloadCoordinator {
     }
 
     final confirmedFileName = confirmation.fileName;
+    if (!context.mounted) {
+      return;
+    }
     final useSystemDownloads = await _resolveSystemDownloadsPreference(
       context,
       onStatus: onStatus,
@@ -164,6 +167,9 @@ class BrowserDownloadCoordinator {
     }
 
     final confirmedFileName = confirmation.fileName;
+    if (!context.mounted) {
+      return;
+    }
     final useSystemDownloads = await _resolveSystemDownloadsPreference(
       context,
       onStatus: onStatus,
@@ -211,6 +217,9 @@ class BrowserDownloadCoordinator {
     if (hasPermission) {
       return true;
     }
+    if (!context.mounted) {
+      return null;
+    }
 
     final choice = await showSharedDownloadAccessDialog(
       context,
@@ -243,9 +252,6 @@ class BrowserDownloadCoordinator {
     }
 
     final overlay = Overlay.of(context);
-    if (overlay == null) {
-      return _downloadService.showConfirmDialog(context, record);
-    }
 
     final completer = Completer<DownloadConfirmationResult?>();
     final fileNameController = TextEditingController(text: record.fileName);
