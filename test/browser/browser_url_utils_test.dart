@@ -63,7 +63,7 @@ void main() {
         normalizeBrowserUrl(
           'file:///data/user/0/lightly.tool/files/imported_documents/note.txt',
         ),
-        'file:///data/user/0/lightly.tool/files/imported_documents/note.txt',
+        'file:///storage/emulated/0/Android/data/lightly.tool/files/Documents/imported_documents/note.txt',
       );
     });
 

@@ -36,7 +36,7 @@ void main() {
           isA<BrowserNodeLinkParserException>().having(
             (error) => error.message,
             'message',
-            '无法解析该链接，仅支持 vless:// 和 http:// 格式',
+            '无法解析该链接，仅支持 vless://、hysteria2:// 和 http:// 格式',
           ),
         ),
       );

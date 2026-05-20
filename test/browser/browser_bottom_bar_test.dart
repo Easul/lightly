@@ -164,6 +164,7 @@ void main() {
                       onOpenDataManagement: () {},
                       onCloseTab: () {},
                       onOpenSettings: () {},
+                      onEnterFloatingWindowMode: () {},
                       onExitApp: () {},
                     ),
                   );

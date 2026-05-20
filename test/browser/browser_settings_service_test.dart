@@ -15,12 +15,13 @@ void main() {
       final settings = await service.loadSettings();
 
       expect(settings.homepageUrl, 'https://www.google.com');
-      expect(settings.proxyEnabled, isTrue);
+      expect(settings.proxyEnabled, isFalse);
       expect(settings.proxyHost, '');
       expect(settings.proxyPort, isNull);
       expect(settings.localProxyPort, 23333);
       expect(settings.proxyScheme, BrowserProxyProtocol.http);
       expect(settings.nativeVideoPlayerEnabled, isFalse);
+      expect(settings.localHttpServerEnabled, isFalse);
       expect(settings.localHttpRootPath, '/storage/emulated/0/Download');
       expect(
         settings.nativeVideoParserApiBaseUrl,

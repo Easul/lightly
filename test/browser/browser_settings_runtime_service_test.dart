@@ -41,6 +41,7 @@ void main() {
       () async {
         final previous = BrowserSettings.defaults().copyWith(
           proxyEnabled: false,
+          localHttpServerEnabled: true,
         );
         final next = previous.copyWith(
           proxyEnabled: true,

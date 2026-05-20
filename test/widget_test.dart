@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:lightly/main.dart';
 import 'package:lightly/pages/calculator_page.dart';
@@ -12,6 +13,8 @@ void main() {
 
   setUpAll(() {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
     binding.window.physicalSizeTestValue = const Size(1080, 2400);
     binding.window.devicePixelRatioTestValue = 1.0;
   });
