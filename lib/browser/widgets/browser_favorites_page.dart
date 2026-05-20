@@ -162,7 +162,7 @@ class BrowserFavoritesPageState extends State<BrowserFavoritesPage> {
       try {
         if (isEditing) {
           await _favoriteService.update(
-            favorite!.copyWith(title: title, url: url),
+            favorite.copyWith(title: title, url: url),
           );
         } else {
           await _favoriteService.insert(title: title, url: url);

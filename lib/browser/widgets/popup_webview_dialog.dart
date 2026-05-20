@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../services/browser_auth_dialog_service.dart';
 import '../services/browser_external_url_launcher_service.dart';
@@ -11,7 +10,11 @@ import '../utils/browser_popup_filter.dart';
 import '../utils/ui_update_thresholds.dart';
 
 class PopupWebViewDialog extends StatefulWidget {
-  const PopupWebViewDialog({this.windowId, required this.initialUrl});
+  const PopupWebViewDialog({
+    super.key,
+    this.windowId,
+    required this.initialUrl,
+  });
 
   final int? windowId;
   final String? initialUrl;
@@ -21,7 +24,6 @@ class PopupWebViewDialog extends StatefulWidget {
 }
 
 class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
-  InAppWebViewController? _controller;
   final BrowserExternalUrlLauncherService _externalUrlLauncher =
       BrowserExternalUrlLauncherService();
   String _title = '登录窗口';
@@ -60,8 +62,9 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
   void _updatePopupState({String? currentUrl, int? progress}) {
     final nextUrl = currentUrl ?? _currentUrl;
     final nextProgress = progress ?? _progress;
-    if (!mounted || (_currentUrl == nextUrl && _progress == nextProgress))
+    if (!mounted || (_currentUrl == nextUrl && _progress == nextProgress)) {
       return;
+    }
     setState(() {
       _currentUrl = nextUrl;
       _progress = nextProgress;
@@ -79,10 +82,6 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
 
   bool _isTrustedAuthPopup(String popupUrl) {
     return BrowserAuthUrlDetector.isTrustedAuthPopupUrl(popupUrl);
-  }
-
-  bool _looksLikeAuthUrl(String? url) {
-    return BrowserAuthUrlDetector.looksLikeAuthUrl(url);
   }
 
   bool _shouldAllowDeferredAuthPopup(CreateWindowAction createWindowAction) {
@@ -250,7 +249,6 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     ? URLRequest(url: WebUri(widget.initialUrl!))
                     : null,
                 initialSettings: _popupSettings,
-                onWebViewCreated: (controller) => _controller = controller,
                 shouldOverrideUrlLoading: (_, navigationAction) =>
                     _handleShouldOverrideUrlLoading(navigationAction),
                 onCloseWindow: (_) => _closeDialog(),

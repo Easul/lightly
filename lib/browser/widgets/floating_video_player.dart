@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:characters/characters.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -210,9 +209,6 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
 
   /// 是否处于全屏模式
   bool get _isFullscreen => _mode == FloatingPlayerMode.fullscreen;
-
-  /// 是否处于小窗口模式
-  bool get _isMini => _mode == FloatingPlayerMode.mini;
 
   /// 切换模式按钮点击处理
   /// 按钮逻辑：默认窗 <-> 横屏，小窗 -> 默认窗

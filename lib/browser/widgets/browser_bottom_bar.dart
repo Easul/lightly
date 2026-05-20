@@ -38,7 +38,6 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
   // Cached layout values — only recalculated when screen size changes.
   Size _lastSize = Size.zero;
   double _lastPaddingBottom = 0;
-  bool _compactLayout = false;
   double _barHeight = 98.0;
   double _horizontalPadding = 12.0;
   double _buttonSize = 48.0;
@@ -54,7 +53,6 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     _lastPaddingBottom = paddingBottom;
 
     final compact = size.height < 720 || size.shortestSide < 380;
-    _compactLayout = compact;
     const compactVerticalPadding = 8.0;
     _barHeight = compact
         ? 40.0 + compactVerticalPadding * 2 + paddingBottom

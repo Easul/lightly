@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:video_player/video_player.dart';
 import 'package:volume_controller/volume_controller.dart';
@@ -50,7 +49,6 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   double _brightness = 0.5;
   double _volume = 0.5;
   _GestureControlSide? _gestureSide;
-  double _gestureBaseValue = 0.5;
   final ValueNotifier<String?> _gestureHintNotifier = ValueNotifier(null);
   bool _lockIndicatorVisible = true;
   Timer? _lockIndicatorTimer;
@@ -276,10 +274,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 children: [
                   CircularProgressIndicator(color: Colors.white),
                   SizedBox(height: 12),
-                  Text(
-                    '正在解析视频...',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                  Text('正在解析视频...', style: TextStyle(color: Colors.white)),
                 ],
               ),
             ),
@@ -347,10 +342,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
               )
             else if (hasError)
               const Center(
-                child: Text(
-                  '播放失败',
-                  style: const TextStyle(color: Colors.white),
-                ),
+                child: Text('播放失败', style: TextStyle(color: Colors.white)),
               )
             else
               const Center(
@@ -688,7 +680,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     final accentColor = Theme.of(context).colorScheme.primary;
     final value = controller.value;
     final position = value.position;
-    final duration = value.duration ?? Duration.zero;
+    final duration = value.duration;
     final bufferedPosition = _getBufferedPosition(value);
 
     return Container(
