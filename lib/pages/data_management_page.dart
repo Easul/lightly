@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../browser/services/browser_backup_service.dart';
@@ -287,6 +286,9 @@ class _DataManagementPageState extends State<DataManagementPage> {
         .hasFileAccessPermission();
     if (hasPermission) {
       return true;
+    }
+    if (!mounted) {
+      return null;
     }
 
     final choice = await showSharedDownloadAccessDialog(

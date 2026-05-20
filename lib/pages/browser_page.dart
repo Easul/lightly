@@ -62,7 +62,6 @@ import 'browser_page_tab_flow_coordinator.dart';
 import 'browser_page_webview_lifecycle_helper.dart';
 import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
-import 'browser_site_security_dialogs.dart';
 import 'browser_site_data_manager.dart';
 import '../services/app_lifecycle_manager.dart';
 
@@ -998,8 +997,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final resolvedTitle = (results[0] as String?) ?? '';
     final canGoBack = results[1] as bool;
     final canGoForward = results[2] as bool;
-    final previousTitle = _tabCoordinator.tabById(hostedTabId)?.title ?? '';
-    final didChangeTitle = previousTitle != resolvedTitle;
     final didChangeNavigation = _updateTabById(
       hostedTabId,
       title: resolvedTitle,
@@ -1108,15 +1105,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           return false;
         }
         final popupWindowId = createWindowAction.windowId;
-        if (popupWindowId != null) {
-          await _openTab(
-            'about:blank',
-            statusMessage: _statusCoordinator.popupOpenedInNewTab(),
-            popupWindowId: popupWindowId,
-          );
-          return true;
-        }
-        return false;
+        await _openTab(
+          'about:blank',
+          statusMessage: _statusCoordinator.popupOpenedInNewTab(),
+          popupWindowId: popupWindowId,
+        );
+        return true;
       case BrowserPopupWindowAction.showPopup:
         await _popupWindowHandler.showPopupWindow(
           context: context,

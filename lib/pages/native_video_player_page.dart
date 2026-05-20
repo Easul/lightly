@@ -9,7 +9,6 @@ import 'package:video_player/video_player.dart';
 import 'package:volume_controller/volume_controller.dart';
 
 import '../browser/browser_settings_service.dart';
-import '../browser/models/browser_download_record.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';

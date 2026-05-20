@@ -9,7 +9,6 @@ import '../models/easytier_config.dart';
 import '../models/easytier_network_profile.dart';
 import '../services/easytier_network_info_analyzer.dart';
 import '../services/easytier_profile_coordinator.dart';
-import '../services/easytier_profile_service.dart';
 import '../services/easytier_runtime_status_controller.dart';
 import '../services/easytier_service_access_coordinator.dart';
 import '../services/easytier_service.dart';
