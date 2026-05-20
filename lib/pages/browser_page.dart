@@ -331,6 +331,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _addressController.text = nextText;
   }
 
+  BrowserPageTabTransitionDeps get _tabTransitionDeps {
+    return BrowserPageTabTransitionDeps(
+      detachCurrentController: () {
+        _webViewController = null;
+      },
+      unfocusAddressBar: _addressFocusNode.unfocus,
+      syncAddressBar: _syncAddressBarForCurrentTab,
+      checkFavoriteStatus: _checkFavoriteStatus,
+      resetProgress: _resetProgress,
+    );
+  }
+
   Future<void> _showFavoritesHome({bool resetNavigationState = true}) async {
     _addressFocusNode.unfocus();
     _resetVideoDetectionState();
@@ -1232,16 +1244,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
     await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
-      clearWebViewController: () {
-        _webViewController = null;
-      },
-      unfocusAddressBar: _addressFocusNode.unfocus,
+      deps: _tabTransitionDeps,
       resetVideoDetectionState: _resetVideoDetectionState,
-      syncAddressBar: _syncAddressBarForCurrentTab,
-      checkFavoriteStatus: _checkFavoriteStatus,
       url: tab.url,
-      resetProgress: _resetProgress,
-      clearStatus: () {
+      applyStatusAfterTransition: () {
         if (mounted) {
           setState(() {
             _statusMessage = statusMessage;
@@ -1277,16 +1283,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
     await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
-      clearWebViewController: () {
-        _webViewController = null;
-      },
-      unfocusAddressBar: _addressFocusNode.unfocus,
+      deps: _tabTransitionDeps,
       resetVideoDetectionState: _resetVideoDetectionState,
-      syncAddressBar: _syncAddressBarForCurrentTab,
-      checkFavoriteStatus: _checkFavoriteStatus,
       url: _currentUrl,
-      resetProgress: _resetProgress,
-      clearStatus: () {
+      applyStatusAfterTransition: () {
         if (mounted) {
           setState(() {
             _statusMessage = _statusCoordinator.cleared();
@@ -1306,15 +1306,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
     await _tabTransitionHelper.prepareClosedTab(
-      clearWebViewController: () {
-        _webViewController = null;
-      },
-      unfocusAddressBar: _addressFocusNode.unfocus,
-      syncAddressBar: _syncAddressBarForCurrentTab,
-      checkFavoriteStatus: _checkFavoriteStatus,
+      deps: _tabTransitionDeps,
       url: nextTab.url,
-      resetProgress: _resetProgress,
-      clearStatus: () {
+      applyStatusAfterTransition: () {
         if (mounted) {
           setState(() {
             _statusMessage = _statusCoordinator.cleared();
@@ -1415,12 +1409,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
     await _tabTransitionHelper.prepareCloseAllTabs(
-      unfocusAddressBar: _addressFocusNode.unfocus,
-      syncAddressBar: _syncAddressBarForCurrentTab,
-      checkFavoriteStatus: _checkFavoriteStatus,
+      deps: _tabTransitionDeps,
       url: _currentUrl,
-      resetProgress: _resetProgress,
-      clearStatus: () {
+      applyStatusAfterTransition: () {
         if (mounted) {
           setState(() {
             _statusMessage = _statusCoordinator.cleared();
