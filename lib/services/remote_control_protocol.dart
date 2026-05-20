@@ -42,12 +42,6 @@ abstract class ControlMessage {
         return AckMessage.fromJson(json);
       case ControlMessageType.error:
         return ErrorMessage.fromJson(json);
-      default:
-        return ErrorMessage(
-          id: json['id'] as int? ?? 0,
-          timestamp: json['ts'] as int? ?? 0,
-          message: 'Unknown message type: ${json['type']}',
-        );
     }
   }
 }

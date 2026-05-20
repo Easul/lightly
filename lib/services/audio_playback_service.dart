@@ -47,7 +47,6 @@ class JitterBuffer {
   int _lastReceivedSequence = -1;
 
   // 调试信息
-  DateTime _lastStatsTime = DateTime.now();
   double _avgLatencyMs = 0;
   double _jitterMs = 0;
 
@@ -105,8 +104,6 @@ class JitterBuffer {
     final idealBufferSize =
         (_currentTargetDelayMs / _frameIntervalMs).ceil() + 2;
     _currentMaxSize = idealBufferSize.clamp(_minBufferSize, _maxBufferSize);
-
-    _lastStatsTime = DateTime.now();
   }
 
   void addFrame(AudioFrame frame) {

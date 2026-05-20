@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:flutter/services.dart';
 
@@ -18,7 +19,7 @@ class ProxyCoreService {
       });
       return result ?? -1;
     } on PlatformException catch (e) {
-      print('ProxyCore init error: ${e.message}');
+      developer.log('ProxyCore init error: ${e.message}', name: 'ProxyCore');
       return -1;
     }
   }
@@ -47,7 +48,7 @@ class ProxyCoreService {
 
       return result ?? -1;
     } on PlatformException catch (e) {
-      print('ProxyCore start error: ${e.message}');
+      developer.log('ProxyCore start error: ${e.message}', name: 'ProxyCore');
       return -1;
     }
   }
@@ -64,7 +65,7 @@ class ProxyCoreService {
       }
       return result ?? -1;
     } on PlatformException catch (e) {
-      print('ProxyCore stop error: ${e.message}');
+      developer.log('ProxyCore stop error: ${e.message}', name: 'ProxyCore');
       return -1;
     }
   }

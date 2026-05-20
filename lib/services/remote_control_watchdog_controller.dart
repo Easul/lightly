@@ -18,7 +18,6 @@ class RemoteControlWatchdogController {
   DateTime? _screenWatchdogStartedAt;
   DateTime? _lastKeyFrameRequestAt;
   DateTime? _lastScreenChunkTime;
-  DateTime? _lastScreenChunkGapLogAt;
   int _screenChunkCount = 0;
   int _screenFrameCount = 0;
   bool _awaitingRecoveryKeyFrame = false;
@@ -46,12 +45,7 @@ class RemoteControlWatchdogController {
     required int bufferedBefore,
     required void Function(String message) log,
   }) {
-    final now = DateTime.now();
-    final previousChunkAt = _lastScreenChunkTime;
-    final chunkGapMs = previousChunkAt == null
-        ? null
-        : now.difference(previousChunkAt).inMilliseconds;
-    _lastScreenChunkTime = now;
+    _lastScreenChunkTime = DateTime.now();
     _screenChunkCount++;
   }
 
@@ -130,7 +124,6 @@ class RemoteControlWatchdogController {
     _lastKeyFrameRequestAt = null;
     _lastScreenFrameTime = null;
     _lastScreenChunkTime = null;
-    _lastScreenChunkGapLogAt = null;
     _screenChunkCount = 0;
     _screenFrameCount = 0;
     _awaitingRecoveryKeyFrame = false;

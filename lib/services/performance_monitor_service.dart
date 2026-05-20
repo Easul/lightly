@@ -98,7 +98,6 @@ class PerformanceMonitorService {
   // 实时计数器
   int _frameCount = 0;
   int _totalFrameBytes = 0;
-  int _keyFrameCount = 0;
   DateTime? _lastFrameTime;
   double _currentFps = 0;
   int _currentBitrate = 0;
@@ -140,7 +139,6 @@ class PerformanceMonitorService {
     _audioStatsHistory.clear();
     _frameCount = 0;
     _totalFrameBytes = 0;
-    _keyFrameCount = 0;
     _lastFrameTime = null;
     _currentFps = 0;
     _currentBitrate = 0;
@@ -199,7 +197,6 @@ class PerformanceMonitorService {
     final now = DateTime.now();
     _frameCount++;
     _totalFrameBytes += frameSize;
-    if (isKeyFrame) _keyFrameCount++;
 
     if (_lastFrameTime != null) {
       final intervalMs = now.difference(_lastFrameTime!).inMilliseconds;
@@ -355,13 +352,13 @@ class PerformanceMonitorService {
         'avgFps': avgFps.toStringAsFixed(1),
         'avgFrameSize': avgFrameSize,
         'currentBitrateKbps': (_currentBitrate / 1000).toStringAsFixed(0),
-        'keyFrameRatio': (keyFrameRatio * 100).toStringAsFixed(1) + '%',
+        'keyFrameRatio': '${(keyFrameRatio * 100).toStringAsFixed(1)}%',
         'totalFrames': _frameCount,
       },
       'audio': {
         'avgPacketSize': avgAudioSize,
         'totalPackets': _audioPacketCount,
-        'lossRate': (audioLossRate * 100).toStringAsFixed(2) + '%',
+        'lossRate': '${(audioLossRate * 100).toStringAsFixed(2)}%',
         'avgJitterDelayMs': avgJitterDelay,
         'totalBytesKB': (_totalAudioBytes / 1024).toStringAsFixed(1),
       },
@@ -486,7 +483,6 @@ class PerformanceMonitorService {
     _discoveryPaths.clear();
     _frameCount = 0;
     _totalFrameBytes = 0;
-    _keyFrameCount = 0;
     _audioPacketCount = 0;
     _totalAudioBytes = 0;
     _audioLossCount = 0;
