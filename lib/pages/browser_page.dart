@@ -171,7 +171,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _isInitialized = false;
   bool _proxySupported = false;
   bool _isProxyActive = false;
-  bool _isOverlayOpen = false;
+  int _overlayDepth = 0;
   int _progress = 0;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
@@ -239,6 +239,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         state == AppLifecycleState.detached) {
       unawaited(_tabService.saveSessions());
       unawaited(_importedDocumentService.cleanupUnfavoritedImportedFiles());
+    } else if (state == AppLifecycleState.resumed) {
+      // Defensive: if the app went to background while an overlay was open,
+      // the overlay may have been dismissed by the system without calling
+      // _handleOverlayClosed. Force-resume timers so browsing isn't stuck.
+      if (_overlayDepth > 0) {
+        _overlayDepth = 0;
+        _resumeWebViewFromOverlay();
+      }
     }
   }
 
@@ -264,21 +272,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _handleOverlayOpened() {
-    if (_isOverlayOpen) {
-      return;
+    _overlayDepth++;
+    if (_overlayDepth == 1) {
+      _pauseWebViewForOverlay();
     }
-    _isOverlayOpen = true;
-    _pauseWebViewForOverlay();
   }
 
   void _handleOverlayClosed() {
-    if (!_isOverlayOpen) {
-      return;
+    if (_overlayDepth > 0) {
+      _overlayDepth--;
     }
-    _isOverlayOpen = false;
-    _resumeWebViewFromOverlay();
-    if (mounted) {
-      setState(() {});
+    if (_overlayDepth == 0) {
+      _resumeWebViewFromOverlay();
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -286,7 +294,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// During overlay animations (drawer, bottom sheet), skipping rebuilds
   /// reduces jank by preventing the entire BrowserPage widget tree from
   /// rebuilding while the GPU is already busy compositing the overlay.
-  bool get _shouldSkipRebuild => _isOverlayOpen;
+  bool get _shouldSkipRebuild => _overlayDepth > 0;
 
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
