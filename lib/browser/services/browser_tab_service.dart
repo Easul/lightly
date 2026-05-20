@@ -299,15 +299,16 @@ class BrowserTabService {
       final tabList = (data['tabs'] as List<dynamic>?) ?? [];
       final activeIndex =
           (data['activeIndex'] as int?)?.clamp(0, tabList.length - 1) ?? 0;
-      _tabs.clear();
-      _usageOrder.clear();
-      _lastActiveTimes.clear();
-      _nextId = 0;
+      _resetRuntimeTabs();
       for (int i = 0; i < tabList.length; i++) {
         final item = tabList[i] as Map<String, dynamic>;
         final url = item['url'] as String? ?? fallbackUrl;
         final title = item['title'] as String? ?? '';
-        final tab = _buildTab(url: url, title: title);
+        final tab = _buildTab(
+          url: url,
+          title: title,
+          withKeepAlive: i == activeIndex,
+        );
         _tabs.add(tab);
         _usageOrder.add(tab.id);
       }
@@ -323,14 +324,22 @@ class BrowserTabService {
   }
 
   void _createInitialTab(String url) {
-    _tabs.clear();
-    _usageOrder.clear();
-    _lastActiveTimes.clear();
-    _nextId = 0;
+    _resetRuntimeTabs();
     final tab = _buildTab(url: url);
     _tabs.add(tab);
     _activeTabId = tab.id;
     _touch(tab.id);
+  }
+
+  void _resetRuntimeTabs() {
+    for (final tab in _tabs) {
+      _disposeKeepAlive(tab.keepAlive);
+    }
+    _tabs.clear();
+    _usageOrder.clear();
+    _lastActiveTimes.clear();
+    _activeTabId = null;
+    _nextId = 0;
   }
 
   BrowserTabSession _ensureAtLeastOneTab() {
@@ -349,12 +358,14 @@ class BrowserTabService {
     String title = '',
     bool isExternallyOpened = false,
     int? popupWindowId,
+    bool withKeepAlive = true,
   }) {
     _nextId += 1;
     return BrowserTabSession(
       id: 'tab_$_nextId',
       url: url,
-      keepAlive: (popupWindowId != null || url.startsWith('http'))
+      keepAlive:
+          withKeepAlive && (popupWindowId != null || url.startsWith('http'))
           ? InAppWebViewKeepAlive()
           : null,
       popupWindowId: popupWindowId,

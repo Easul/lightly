@@ -103,6 +103,32 @@ void main() {
       expect(backgroundTabs.single.keepAlive, isNull);
     });
 
+    test(
+      'restoring sessions replaces previous runtime keepAlive state',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'browser_tab_sessions_v1':
+              '{"tabs":[{"url":"https://restored.example","title":"Restored"},{"url":"https://active.example","title":"Active"}],"activeIndex":1}',
+        });
+        final service = BrowserTabService.test(maxTabs: 4);
+        service.initialize('https://initial.example');
+        service.openTab(url: 'https://stale.example');
+
+        await service.restoreSessions('https://fallback.example');
+
+        expect(service.tabs.map((tab) => tab.url).toList(), <String>[
+          'https://restored.example',
+          'https://active.example',
+        ]);
+        expect(service.activeTab?.url, 'https://active.example');
+        final backgroundTabs = service.tabs
+            .where((tab) => tab.id != service.activeTab?.id)
+            .toList(growable: false);
+        expect(backgroundTabs, hasLength(1));
+        expect(backgroundTabs.single.keepAlive, isNull);
+      },
+    );
+
     test('switching tabs keeps recently opened web tabs alive by default', () {
       final service = BrowserTabService.test(maxTabs: 4);
       service.initialize('https://one.example');
@@ -125,7 +151,7 @@ void main() {
       expect(secondTabAfterSwitch.keepAlive, isNotNull);
     });
 
-    test('overlay trimming retains two recent background tabs', () {
+    test('overlay trimming retains three recent background tabs', () {
       final service = BrowserTabService.test(maxTabs: 5);
       service.initialize('https://one.example');
       final second = service.openTab(url: 'https://two.example');
@@ -138,7 +164,7 @@ void main() {
 
       final trimmed = service.trimKeepAlivesForOverlay();
 
-      expect(trimmed, 1);
+      expect(trimmed, 0);
       final firstTab = service.tabs.firstWhere(
         (tab) => tab.url == 'https://one.example',
       );
@@ -152,7 +178,7 @@ void main() {
         (tab) => tab.url == 'https://four.example',
       );
 
-      expect(firstTab.keepAlive, isNull);
+      expect(firstTab.keepAlive, isNotNull);
       expect(secondTab.keepAlive, isNotNull);
       expect(thirdTab.keepAlive, isNotNull);
       expect(fourthTab.keepAlive, isNotNull);

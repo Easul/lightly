@@ -385,6 +385,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             return;
           }
           _webViewController = controller;
+          if (_overlayDepth == 0) {
+            _resumeWebViewFromOverlay();
+          }
           unawaited(_reapplyProxyAfterWebViewCreated());
         },
         shouldOverrideUrlLoading: _handleShouldOverrideUrlLoading,
