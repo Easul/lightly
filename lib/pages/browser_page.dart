@@ -51,6 +51,7 @@ import '../widgets/app_drawer.dart';
 import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_favorite_helper.dart';
+import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_actions.dart';
 import 'browser_page_settings_helper.dart';
 import 'browser_page_site_security_helper.dart';
@@ -58,6 +59,7 @@ import 'browser_page_shell_widgets.dart';
 import 'browser_page_status_coordinator.dart';
 import 'browser_page_tab_transition_helper.dart';
 import 'browser_page_tab_flow_coordinator.dart';
+import 'browser_page_webview_lifecycle_helper.dart';
 import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
 import 'browser_site_security_dialogs.dart';
@@ -113,6 +115,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageExternalIntentHelper();
   final BrowserPageFavoriteHelper _favoriteHelper =
       const BrowserPageFavoriteHelper();
+  final BrowserPageLifecycleCoordinator _lifecycleCoordinator =
+      const BrowserPageLifecycleCoordinator();
+  final BrowserPageWebViewLifecycleHelper _webViewLifecycleHelper =
+      const BrowserPageWebViewLifecycleHelper();
 
   void _logDebug(String message) {
     if (kDebugMode) {
@@ -243,7 +249,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       // Defensive: if the app went to background while an overlay was open,
       // the overlay may have been dismissed by the system without calling
       // _handleOverlayClosed. Force-resume timers so browsing isn't stuck.
-      if (_overlayDepth > 0) {
+      if (_lifecycleCoordinator.shouldRecoverFromAppResume(
+        overlayDepth: _overlayDepth,
+      )) {
         _overlayDepth = 0;
         _resumeWebViewFromOverlay();
       }
@@ -251,38 +259,46 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _pauseWebViewForOverlay() {
-    _webViewController?.pauseTimers();
-    // Pause video decoding to reduce GPU contention during overlay animations.
-    // This stops the biggest source of continuous GPU work on heavy pages like YouTube.
-    _webViewController?.evaluateJavascript(
-      source:
-          "var v=document.querySelector('video'); if(v&&!v.paused){v.pause();window.__lightlyOverlayPausedVideo=true;}",
+    _webViewLifecycleHelper.pauseForOverlay(
+      pauseTimers: () {
+        _webViewController?.pauseTimers();
+      },
+      evaluateJavascript: (source) {
+        _webViewController?.evaluateJavascript(source: source);
+      },
+      trimKeepAlives: () {
+        _tabCoordinator.trimKeepAlivesForOverlay();
+      },
     );
-    _tabCoordinator.trimKeepAlivesForOverlay();
   }
 
   void _resumeWebViewFromOverlay() {
-    _webViewController?.resumeTimers();
-    // Resume video that was paused by the overlay, but only if the user didn't
-    // manually pause it before the overlay opened.
-    _webViewController?.evaluateJavascript(
-      source:
-          "if(window.__lightlyOverlayPausedVideo){var v=document.querySelector('video'); if(v)v.play();window.__lightlyOverlayPausedVideo=false;}",
+    _webViewLifecycleHelper.resumeFromOverlay(
+      resumeTimers: () {
+        _webViewController?.resumeTimers();
+      },
+      evaluateJavascript: (source) {
+        _webViewController?.evaluateJavascript(source: source);
+      },
     );
   }
 
   void _handleOverlayOpened() {
-    _overlayDepth++;
-    if (_overlayDepth == 1) {
+    final decision = _lifecycleCoordinator.handleOverlayOpened(
+      overlayDepth: _overlayDepth,
+    );
+    _overlayDepth = decision.overlayDepth;
+    if (decision.shouldPauseWebView) {
       _pauseWebViewForOverlay();
     }
   }
 
   void _handleOverlayClosed() {
-    if (_overlayDepth > 0) {
-      _overlayDepth--;
-    }
-    if (_overlayDepth == 0) {
+    final decision = _lifecycleCoordinator.handleOverlayClosed(
+      overlayDepth: _overlayDepth,
+    );
+    _overlayDepth = decision.overlayDepth;
+    if (decision.shouldResumeWebView) {
       _resumeWebViewFromOverlay();
       if (mounted) {
         setState(() {});
@@ -294,7 +310,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// During overlay animations (drawer, bottom sheet), skipping rebuilds
   /// reduces jank by preventing the entire BrowserPage widget tree from
   /// rebuilding while the GPU is already busy compositing the overlay.
-  bool get _shouldSkipRebuild => _overlayDepth > 0;
+  bool get _shouldSkipRebuild =>
+      _lifecycleCoordinator.shouldSkipRebuild(overlayDepth: _overlayDepth);
 
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
@@ -385,7 +402,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             return;
           }
           _webViewController = controller;
-          if (_overlayDepth == 0) {
+          if (_lifecycleCoordinator.shouldResumeControllerOnAttach(
+            overlayDepth: _overlayDepth,
+          )) {
             _resumeWebViewFromOverlay();
           }
           unawaited(_reapplyProxyAfterWebViewCreated());
