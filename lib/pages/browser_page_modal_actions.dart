@@ -15,6 +15,7 @@ Future<void> showBrowserTabSwitcherModal({
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     builder: (sheetContext) => TabSwitcherSheet(
       tabs: tabs,
       activeTabId: activeTabId,
@@ -55,6 +56,7 @@ Future<void> showBrowserMoreActionsModal({
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     builder: (sheetContext) => BrowserMoreActionsSheet(
       proxyEnabled: proxyEnabled,
       isFavorited: isFavorited,

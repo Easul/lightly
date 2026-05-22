@@ -168,6 +168,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final TextEditingController _addressController = TextEditingController();
   final FocusNode _addressFocusNode = FocusNode();
   final ValueNotifier<int> _progressNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<bool> _isLoadingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _canGoBackNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _canGoForwardNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _isSecureNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<int> _tabCountNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<String> _statusMessageNotifier = ValueNotifier<String>(
+    '',
+  );
   late final BrowserFavoriteActionCoordinator _favoriteActionCoordinator;
 
   InAppWebViewController? _webViewController;
@@ -332,6 +340,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _applyDeferredOverlayRebuild() {
     if (_hasDeferredOverlayRebuild) {
       _hasDeferredOverlayRebuild = false;
+      _syncNotifiers();
       setState(() {});
     }
   }
@@ -353,6 +362,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (_shouldSkipRebuild) {
       _hasDeferredOverlayRebuild = true;
     } else if (mounted) {
+      _syncNotifiers();
       setState(() {});
     }
   }
@@ -360,9 +370,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void _updateStateWhenVisible(VoidCallback fn) {
     if (_shouldSkipRebuild) {
       fn();
+      _syncNotifiers();
       _hasDeferredOverlayRebuild = true;
     } else if (mounted) {
-      setState(fn);
+      fn();
+      _syncNotifiers();
+      setState(() {});
     }
   }
 
@@ -378,6 +391,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// State data is always updated; only the rebuild is deferred.
   void _setStateIfVisible(VoidCallback fn) {
     _updateStateWhenVisible(fn);
+  }
+
+  void _syncNotifiers() {
+    _isLoadingNotifier.value = _isLoading;
+    _canGoBackNotifier.value = _canGoBack;
+    _canGoForwardNotifier.value = _canGoForward;
+    _isSecureNotifier.value = _isSecure;
+    _tabCountNotifier.value = _tabService.tabCount;
+    _statusMessageNotifier.value = _statusMessage;
   }
 
   void _syncAddressBarForCurrentTab() {
@@ -430,6 +452,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _addressController.dispose();
     _addressFocusNode.dispose();
     _progressNotifier.dispose();
+    _isLoadingNotifier.dispose();
+    _canGoBackNotifier.dispose();
+    _canGoForwardNotifier.dispose();
+    _isSecureNotifier.dispose();
+    _tabCountNotifier.dispose();
+    _statusMessageNotifier.dispose();
     _favoriteStatusTracker.currentStatus.removeListener(
       _handleFavoriteStatusChanged,
     );
@@ -646,7 +674,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         pullToRefreshController: _pullToRefreshController,
         findInteractionController: _findController.interactionController,
       ),
-      statusMessage: _statusMessage,
+      statusMessage: _statusMessageNotifier,
     );
   }
 
@@ -1835,6 +1863,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    _syncNotifiers();
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -1853,7 +1882,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         appBar: BrowserPageAppBar(
           addressController: _addressController,
           addressFocusNode: _addressFocusNode,
-          isSecure: _isSecure,
+          isSecure: _isSecureNotifier,
           suggestionService: _suggestionService,
           onSecurityPressed: _showSiteSecurityDialog,
           onClear: _addressController.clear,
@@ -1862,7 +1891,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             await _loadAddress(value);
             _addressFocusNode.unfocus();
           },
-          isLoading: _isLoading,
+          isLoading: _isLoadingNotifier,
           onRefresh: () async {
             if (_isLoading) {
               await _webViewController?.stopLoading();
@@ -1882,10 +1911,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ),
         bottomNavigationBar: RepaintBoundary(
           child: BrowserPageBottomBar(
-            canGoBack: _canGoBack,
-            canGoForward: _canGoForward,
-            isLoading: _isLoading,
-            tabCount: _tabService.tabCount,
+            canGoBack: _canGoBackNotifier,
+            canGoForward: _canGoForwardNotifier,
+            isLoading: _isLoadingNotifier,
+            tabCount: _tabCountNotifier,
             proxyEnabled: _settings.shouldApplyProxy,
             onBack: _handleBrowserBack,
             onForward: () async => _webViewController?.goForward(),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../browser/services/browser_suggestion_service.dart';
@@ -42,17 +43,19 @@ class BrowserPageAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onSubmitted,
     required this.isLoading,
     required this.onRefresh,
+    this.onChanged,
   });
 
   final TextEditingController addressController;
   final FocusNode addressFocusNode;
-  final bool isSecure;
+  final ValueListenable<bool> isSecure;
   final BrowserSuggestionService suggestionService;
   final VoidCallback onSecurityPressed;
   final VoidCallback onClear;
   final String currentUrl;
   final Future<void> Function(String value) onSubmitted;
-  final bool isLoading;
+  final ValueChanged<String>? onChanged;
+  final ValueListenable<bool> isLoading;
   final Future<void> Function() onRefresh;
 
   @override
@@ -63,19 +66,29 @@ class BrowserPageAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       automaticallyImplyLeading: true,
       toolbarHeight: 52,
-      title: BrowserAddressBar(
-        controller: addressController,
-        focusNode: addressFocusNode,
-        isSecure: isSecure,
-        suggestionService: suggestionService,
-        onSecurityPressed: onSecurityPressed,
-        onChanged: (_) {},
-        onClear: onClear,
-        currentUrl: currentUrl,
-        onEditingComplete: addressFocusNode.unfocus,
-        onSubmitted: onSubmitted,
-        isLoading: isLoading,
-        onRefresh: onRefresh,
+      title: ValueListenableBuilder<bool>(
+        valueListenable: isSecure,
+        builder: (context, isSecureValue, _) {
+          return ValueListenableBuilder<bool>(
+            valueListenable: isLoading,
+            builder: (context, isLoadingValue, _) {
+              return BrowserAddressBar(
+                controller: addressController,
+                focusNode: addressFocusNode,
+                isSecure: isSecureValue,
+                suggestionService: suggestionService,
+                onSecurityPressed: onSecurityPressed,
+                onChanged: onChanged ?? (_) {},
+                onClear: onClear,
+                currentUrl: currentUrl,
+                onEditingComplete: addressFocusNode.unfocus,
+                onSubmitted: onSubmitted,
+                isLoading: isLoadingValue,
+                onRefresh: onRefresh,
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -97,10 +110,10 @@ class BrowserPageBottomBar extends StatelessWidget {
     required this.onFindInPage,
   });
 
-  final bool canGoBack;
-  final bool canGoForward;
-  final bool isLoading;
-  final int tabCount;
+  final ValueListenable<bool> canGoBack;
+  final ValueListenable<bool> canGoForward;
+  final ValueListenable<bool> isLoading;
+  final ValueListenable<int> tabCount;
   final bool proxyEnabled;
   final Future<void> Function() onBack;
   final Future<void> Function() onForward;
@@ -111,18 +124,38 @@ class BrowserPageBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BrowserBottomBar(
-      canGoBack: canGoBack,
-      canGoForward: canGoForward,
-      isLoading: isLoading,
-      tabCount: tabCount,
-      proxyEnabled: proxyEnabled,
-      onBack: onBack,
-      onForward: onForward,
-      onHome: onHome,
-      onOpenTabs: onOpenTabs,
-      onOpenMoreActions: onOpenMoreActions,
-      onFindInPage: onFindInPage,
+    return ValueListenableBuilder<bool>(
+      valueListenable: isLoading,
+      builder: (context, isLoadingValue, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: canGoBack,
+          builder: (context, canGoBackValue, _) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: canGoForward,
+              builder: (context, canGoForwardValue, _) {
+                return ValueListenableBuilder<int>(
+                  valueListenable: tabCount,
+                  builder: (context, tabCountValue, _) {
+                    return BrowserBottomBar(
+                      canGoBack: canGoBackValue,
+                      canGoForward: canGoForwardValue,
+                      isLoading: isLoadingValue,
+                      tabCount: tabCountValue,
+                      proxyEnabled: proxyEnabled,
+                      onBack: onBack,
+                      onForward: onForward,
+                      onHome: onHome,
+                      onOpenTabs: onOpenTabs,
+                      onOpenMoreActions: onOpenMoreActions,
+                      onFindInPage: onFindInPage,
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -139,7 +172,7 @@ class BrowserPageBodySection extends StatelessWidget {
   final bool isFavoritesPage;
   final Widget favoritesChild;
   final Widget webViewChild;
-  final String statusMessage;
+  final ValueListenable<String> statusMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -150,8 +183,15 @@ class BrowserPageBodySection extends StatelessWidget {
     return Column(
       children: [
         Expanded(child: webViewChild),
-        if (statusMessage.isNotEmpty)
-          BrowserPageStatusBanner(message: statusMessage),
+        ValueListenableBuilder<String>(
+          valueListenable: statusMessage,
+          builder: (context, statusMessageValue, _) {
+            if (statusMessageValue.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return BrowserPageStatusBanner(message: statusMessageValue);
+          },
+        ),
       ],
     );
   }
