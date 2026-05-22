@@ -87,6 +87,15 @@ These patterns were introduced to eliminate jank during normal browsing. Do not 
   - `onProgressChanged` must NOT update `isLoading`. Only `onLoadStart` / `onLoadStop` / error handlers should toggle it.
   - This prevents the bottom-bar reload icon from flickering during every progress update.
 
+- **Overlay animations must not compete with BrowserPage rebuilds.**
+  - While drawer / bottom sheets are opening or closing, defer non-critical `setState()` calls and batch one rebuild after the overlay settles.
+  - WebView callbacks, favorite-status notifications, secure-state changes, and load-stop follow-ups can still arrive behind overlays; do not let them rebuild the full BrowserPage during the animation.
+  - Resume WebView timers/video after the overlay settle delay rather than synchronously in the same frame that dismisses the overlay.
+
+- **Tab switcher layout must stay cheap during sheet animation.**
+  - Avoid `shrinkWrap` in the tab switcher list when it is already inside a bounded `Flexible`/sheet container.
+  - Prefer stable item extents for tab rows so Flutter does not remeasure every tab card while the bottom sheet animates.
+
 - **Address bar typing must not trigger parent rebuilds.**
   - `BrowserAddressBar` already manages its own internal state and overlay. `BrowserPage` passes empty `onChanged` / `onClear` callbacks instead of `setState(() {})`.
 
