@@ -178,6 +178,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _isProxyActive = false;
   int _overlayDepth = 0;
   int _progress = 0;
+  Timer? _overlaySettledTimer;
+  bool _hasDeferredOverlayRebuild = false;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
   VideoProxyServer get _videoProxyServer => _services.videoProxyServer;
@@ -251,8 +253,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       if (_lifecycleCoordinator.shouldRecoverFromAppResume(
         overlayDepth: _overlayDepth,
       )) {
+        _overlaySettledTimer?.cancel();
+        _overlaySettledTimer = null;
         _overlayDepth = 0;
         _resumeWebViewFromOverlay();
+        _applyDeferredOverlayRebuild();
       }
     }
   }
@@ -283,6 +288,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _handleOverlayOpened() {
+    _overlaySettledTimer?.cancel();
+    _overlaySettledTimer = null;
     final decision = _lifecycleCoordinator.handleOverlayOpened(
       overlayDepth: _overlayDepth,
     );
@@ -298,10 +305,58 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
     _overlayDepth = decision.overlayDepth;
     if (decision.shouldResumeWebView) {
-      _resumeWebViewFromOverlay();
-      if (mounted) {
-        setState(() {});
+      _scheduleOverlaySettledWork(resumeWebView: true);
+    }
+  }
+
+  void _scheduleOverlaySettledWork({required bool resumeWebView}) {
+    _overlaySettledTimer?.cancel();
+    _overlaySettledTimer = Timer(const Duration(milliseconds: 160), () {
+      _overlaySettledTimer = null;
+      if (!mounted || _overlayDepth > 0) {
+        return;
       }
+      if (resumeWebView) {
+        _resumeWebViewFromOverlay();
+      }
+      _applyDeferredOverlayRebuild();
+    });
+  }
+
+  void _applyDeferredOverlayRebuild() {
+    if (_hasDeferredOverlayRebuild) {
+      _hasDeferredOverlayRebuild = false;
+      setState(() {});
+    }
+  }
+
+  Future<T> _runTrackedOverlay<T>(Future<T> Function() action) async {
+    _handleOverlayOpened();
+    try {
+      return await action();
+    } finally {
+      _handleOverlayClosed();
+    }
+  }
+
+  Future<void> _runTrackedOverlayAction(Future<void> Function() action) async {
+    await _runTrackedOverlay<void>(action);
+  }
+
+  void _rebuildWhenVisible() {
+    if (_shouldSkipRebuild) {
+      _hasDeferredOverlayRebuild = true;
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _updateStateWhenVisible(VoidCallback fn) {
+    if (_shouldSkipRebuild) {
+      fn();
+      _hasDeferredOverlayRebuild = true;
+    } else if (mounted) {
+      setState(fn);
     }
   }
 
@@ -310,16 +365,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// reduces jank by preventing the entire BrowserPage widget tree from
   /// rebuilding while the GPU is already busy compositing the overlay.
   bool get _shouldSkipRebuild =>
-      _lifecycleCoordinator.shouldSkipRebuild(overlayDepth: _overlayDepth);
+      _lifecycleCoordinator.shouldSkipRebuild(overlayDepth: _overlayDepth) ||
+      _overlaySettledTimer != null;
 
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
   void _setStateIfVisible(VoidCallback fn) {
-    if (_shouldSkipRebuild) {
-      fn();
-    } else if (mounted) {
-      setState(fn);
-    }
+    _updateStateWhenVisible(fn);
   }
 
   void _syncAddressBarForCurrentTab() {
@@ -375,6 +427,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _favoriteStatusTracker.currentStatus.removeListener(
       _handleFavoriteStatusChanged,
     );
+    _overlaySettledTimer?.cancel();
     _favoriteStatusTracker.dispose();
     unawaited(_videoPlayerCoordinator.dispose());
     _findController.dispose();
@@ -897,9 +950,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _addressController.text = nextUrl;
     }
     _checkFavoriteStatus(nextUrl);
-    if (mounted && result.didChangeSecureState && !_shouldSkipRebuild) {
-      setState(() {});
+    if (!mounted || !result.didChangeSecureState) {
+      return;
     }
+    _rebuildWhenVisible();
   }
 
   bool _updateProgressIfNeeded(int progress) {
@@ -947,7 +1001,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
 
     _updateActiveTab(canGoBack: canGoBack, canGoForward: canGoForward);
-    setState(() {});
+    _rebuildWhenVisible();
   }
 
   Future<void> _refreshNavigationStateForTab(
@@ -970,7 +1024,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       canGoForward: canGoForward,
     );
     if (changed && _activeTabId == tabId) {
-      setState(() {});
+      _rebuildWhenVisible();
     }
   }
 
@@ -1112,14 +1166,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         );
         return true;
       case BrowserPopupWindowAction.showPopup:
-        await _popupWindowHandler.showPopupWindow(
-          context: context,
-          windowId: createWindowAction.windowId,
-          initialUrl: decision.initialUrl,
-          onStatus: (message) {
-            _setStatusMessage(message);
-          },
-        );
+        await _runTrackedOverlayAction(() async {
+          await _popupWindowHandler.showPopupWindow(
+            context: context,
+            windowId: createWindowAction.windowId,
+            initialUrl: decision.initialUrl,
+            onStatus: (message) {
+              _setStatusMessage(message);
+            },
+          );
+        });
         final statusMessage = decision.statusMessage;
         _setStatusMessage(
           _statusCoordinator.nextExternalStatus(
@@ -1243,7 +1299,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       url: tab.url,
       applyStatusAfterTransition: () {
         if (mounted) {
-          setState(() {
+          _setStateIfVisible(() {
             _statusMessage = statusMessage;
           });
         }
@@ -1258,7 +1314,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted || _statusMessage == message) {
       return;
     }
-    setState(() {
+    _setStateIfVisible(() {
       _statusMessage = message;
     });
   }
@@ -1282,7 +1338,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       url: _currentUrl,
       applyStatusAfterTransition: () {
         if (mounted) {
-          setState(() {
+          _setStateIfVisible(() {
             _statusMessage = _statusCoordinator.cleared();
           });
         }
@@ -1304,7 +1360,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       url: nextTab.url,
       applyStatusAfterTransition: () {
         if (mounted) {
-          setState(() {
+          _setStateIfVisible(() {
             _statusMessage = _statusCoordinator.cleared();
           });
         }
@@ -1313,7 +1369,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     final previousId = previousActiveId;
     if (previousId == null) {
-      setState(() {});
+      _rebuildWhenVisible();
       return;
     }
     final decision = _tabFlowCoordinator.decideCloseTabFollowUp(
@@ -1324,7 +1380,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       await _switchToTab(decision.nextTabId);
       return;
     }
-    setState(() {});
+    _rebuildWhenVisible();
   }
 
   Future<void> _handleBrowserBack() async {
@@ -1407,7 +1463,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       url: _currentUrl,
       applyStatusAfterTransition: () {
         if (mounted) {
-          setState(() {
+          _setStateIfVisible(() {
             _statusMessage = _statusCoordinator.cleared();
           });
         }
@@ -1432,7 +1488,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     _updateActiveTab(isLoading: true, canGoBack: false, canGoForward: false);
     if (mounted) {
-      setState(() {});
+      _rebuildWhenVisible();
     }
 
     await controller.loadUrl(
@@ -1485,18 +1541,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _addressController.text = nextUrl;
     }
     _checkFavoriteStatus(nextUrl);
-    if (mounted && result.didChangeSecureState && !_shouldSkipRebuild) {
-      setState(() {});
+    if (!mounted || !result.didChangeSecureState) {
+      return;
     }
+    _rebuildWhenVisible();
   }
 
   void _handleFavoriteStatusChanged() {
     if (!mounted) {
       return;
     }
-    if (!_shouldSkipRebuild) {
-      setState(() {});
-    }
+    _rebuildWhenVisible();
   }
 
   Future<void> _checkFavoriteStatus(String url) async {
@@ -1554,41 +1609,43 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    await _longPressHandler.showActions(
-      context: context,
-      request: request,
-      nativeVideoPlayerEnabled: _settings.nativeVideoPlayerEnabled,
-      onOpenInNewTab: (url) async {
-        if (_isWebScheme(Uri.parse(url).scheme)) {
-          final statusMessage = request.isYouTube
-              ? (url == request.youtubeTargets?.mobileWatchUrl
-                    ? '已在新标签页打开视频链接'
-                    : url == request.youtubeTargets?.thumbnailUrl
-                    ? '已在新标签页打开封面图'
-                    : '已在新标签页打开原始视频链接')
-              : '已在新标签页打开';
-          await _openTab(url, statusMessage: statusMessage);
-        }
-      },
-      onCopyToClipboard: _longPressHandler.copyToClipboard,
-      onDownload: (url) async {
-        await _downloadCoordinator.startDownloadFromUrl(
-          context: context,
-          url: url,
-          settings: _settings,
-          onStatus: _showSnackBar,
-        );
-      },
-      onOpenOriginalVideo: (url) async {
-        await _videoPlayerCoordinator.showFloatingVideoPlayer(
-          context: context,
-          url: url,
-          settings: _settings,
-          currentPageTitle: _activeTab?.title ?? '',
-        );
-      },
-      onStatus: _showSnackBar,
-    );
+    await _runTrackedOverlayAction(() async {
+      await _longPressHandler.showActions(
+        context: context,
+        request: request,
+        nativeVideoPlayerEnabled: _settings.nativeVideoPlayerEnabled,
+        onOpenInNewTab: (url) async {
+          if (_isWebScheme(Uri.parse(url).scheme)) {
+            final statusMessage = request.isYouTube
+                ? (url == request.youtubeTargets?.mobileWatchUrl
+                      ? '已在新标签页打开视频链接'
+                      : url == request.youtubeTargets?.thumbnailUrl
+                      ? '已在新标签页打开封面图'
+                      : '已在新标签页打开原始视频链接')
+                : '已在新标签页打开';
+            await _openTab(url, statusMessage: statusMessage);
+          }
+        },
+        onCopyToClipboard: _longPressHandler.copyToClipboard,
+        onDownload: (url) async {
+          await _downloadCoordinator.startDownloadFromUrl(
+            context: context,
+            url: url,
+            settings: _settings,
+            onStatus: _showSnackBar,
+          );
+        },
+        onOpenOriginalVideo: (url) async {
+          await _videoPlayerCoordinator.showFloatingVideoPlayer(
+            context: context,
+            url: url,
+            settings: _settings,
+            currentPageTitle: _activeTab?.title ?? '',
+          );
+        },
+        onStatus: _showSnackBar,
+      );
+    });
   }
 
   Future<NavigationActionPolicy> _handleShouldOverrideUrlLoading(
@@ -1704,7 +1761,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       rebuild: () {
         if (mounted) {
-          setState(() {});
+          _rebuildWhenVisible();
         }
       },
     );
@@ -1805,7 +1862,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
               await _webViewController?.stopLoading();
               _updateActiveTab(isLoading: false);
               if (mounted) {
-                setState(() {});
+                _rebuildWhenVisible();
               }
               return;
             }
