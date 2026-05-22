@@ -12,7 +12,7 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.4'
+        default: 'v1.0.5'
 
 jobs:
   build-android:
@@ -201,20 +201,19 @@ jobs:
           3. 安装 APK
           
           ### 🚀 功能特性
-          
-          - 浏览器代理运行时已统一到 Rust proxy-core，减少旧 Dart 代理实现负担
-          - HTTP / SOCKS5 / VLESS 内部 relay 与 VLESS outbound 已完成结构性拆分与去重
-          - 浏览器页面与远程控制页面的低频 orchestration/helper 已进一步模块化
-          - 远程屏幕控制、音频流与 EasyTier VPN 相关功能继续保留
-          - 视频播放器、下载、收藏夹与站点数据管理功能继续保留
+
+          - 浏览器页面重构后保留完整标签页、下载、收藏、视频播放与站点数据管理能力
+          - 浏览器覆盖层、底栏与 WebView 刷新链路进一步优化，减少重建和动画卡顿
+          - 远程控制、音频流、代理与 EasyTier VPN 相关能力继续保留
+          - 代理浮动按钮、下载恢复/暂停和浏览器辅助交互继续可用
 
           ### 🔄 本次修改说明
 
-          - 清理并移除了旧的 Dart VLESS / mixed proxy 运行时残留
-          - 将代理配置、复用策略、延迟探测、WebView 代理桥接等逻辑拆分为独立 helper
-          - 将 Rust inbound/outbound 关键路径拆分为更小模块，降低后续维护风险
-          - 对 pool/mux 未使用路径进行了默认 feature-gate 清理，减少误导性复杂度
-          - 对 BrowserPage / RemoteControlPage 做了多轮低风险拆分，减少页面职责密度
+          - 拆分 BrowserPage 生命周期、标签切换与 WebView 协调逻辑，降低页面职责密度
+          - 优化抽屉、标签页切换器与更多菜单等覆盖层期间的重建与渲染节奏，减少浏览时卡顿
+          - 补强下载暂停/恢复、浮动按钮模式、收藏/弹窗/YouTube 相关浏览器交互
+          - 修复并清理远程控制音频、后台播放和 Android 侧服务/日志问题
+          - 本次补充将标签页面板和更多菜单改为更短高度，内容过多时在面板内部滚动
           
           ### 📝 版本信息
           
