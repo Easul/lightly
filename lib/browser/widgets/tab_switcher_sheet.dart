@@ -23,6 +23,7 @@ class TabSwitcherSheet extends StatelessWidget {
   static const double _tabTileHeight = 68;
   static const double _tabTileSpacing = 8;
   static const double _tabListItemExtent = _tabTileHeight + _tabTileSpacing;
+  static const double _sheetMaxHeightFactor = 0.35;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +32,7 @@ class TabSwitcherSheet extends StatelessWidget {
     return SafeArea(
       child: Container(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
+          maxHeight: MediaQuery.of(context).size.height * _sheetMaxHeightFactor,
         ),
         decoration: BoxDecoration(
           color: colorScheme.surface,
