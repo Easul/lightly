@@ -9,18 +9,22 @@ class BrowserPageWebViewLifecycleHelper {
 
   void pauseForOverlay({
     required void Function() pauseTimers,
+    required void Function() pauseWebView,
     required void Function(String source) evaluateJavascript,
     required void Function() trimKeepAlives,
   }) {
     pauseTimers();
+    pauseWebView();
     evaluateJavascript(pauseVideoForOverlayScript);
     trimKeepAlives();
   }
 
   void resumeFromOverlay({
     required void Function() resumeTimers,
+    required void Function() resumeWebView,
     required void Function(String source) evaluateJavascript,
   }) {
+    resumeWebView();
     resumeTimers();
     evaluateJavascript(resumeVideoFromOverlayScript);
   }

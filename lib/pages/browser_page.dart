@@ -267,6 +267,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       pauseTimers: () {
         _webViewController?.pauseTimers();
       },
+      pauseWebView: () {
+        _webViewController?.pause();
+      },
       evaluateJavascript: (source) {
         _webViewController?.evaluateJavascript(source: source);
       },
@@ -280,6 +283,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _webViewLifecycleHelper.resumeFromOverlay(
       resumeTimers: () {
         _webViewController?.resumeTimers();
+      },
+      resumeWebView: () {
+        _webViewController?.resume();
       },
       evaluateJavascript: (source) {
         _webViewController?.evaluateJavascript(source: source);
@@ -311,7 +317,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   void _scheduleOverlaySettledWork({required bool resumeWebView}) {
     _overlaySettledTimer?.cancel();
-    _overlaySettledTimer = Timer(const Duration(milliseconds: 160), () {
+    _overlaySettledTimer = Timer(const Duration(milliseconds: 300), () {
       _overlaySettledTimer = null;
       if (!mounted || _overlayDepth > 0) {
         return;
