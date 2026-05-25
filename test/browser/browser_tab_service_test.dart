@@ -194,5 +194,19 @@ void main() {
       expect(didReset, isTrue);
       expect(service.activeTab?.keepAlive, isNull);
     });
+
+    test('tabs getter reuses cached unmodifiable view until tabs change', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+
+      final firstRead = service.tabs;
+      final secondRead = service.tabs;
+      expect(identical(firstRead, secondRead), isTrue);
+
+      service.openTab(url: 'https://two.example');
+      final thirdRead = service.tabs;
+      expect(identical(secondRead, thirdRead), isFalse);
+      expect(thirdRead, hasLength(2));
+    });
   });
 }

@@ -270,7 +270,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
-  void _pauseWebViewForOverlay() {
+  void _pauseWebViewForOverlay({bool trimKeepAlives = true}) {
     _webViewLifecycleHelper.pauseForOverlay(
       pauseTimers: () {
         _webViewController?.pauseTimers();
@@ -282,7 +282,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _webViewController?.evaluateJavascript(source: source);
       },
       trimKeepAlives: () {
-        _tabCoordinator.trimKeepAlivesForOverlay();
+        if (trimKeepAlives) {
+          _tabCoordinator.trimKeepAlivesForOverlay();
+        }
       },
     );
   }
@@ -301,7 +303,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  void _handleOverlayOpened() {
+  void _handleOverlayOpened({bool trimKeepAlives = true}) {
     _overlaySettledTimer?.cancel();
     _overlaySettledTimer = null;
     final decision = _lifecycleCoordinator.handleOverlayOpened(
@@ -309,7 +311,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
     _overlayDepth = decision.overlayDepth;
     if (decision.shouldPauseWebView) {
-      _pauseWebViewForOverlay();
+      _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
     }
   }
 
@@ -394,12 +396,34 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _syncNotifiers() {
-    _isLoadingNotifier.value = _isLoading;
-    _canGoBackNotifier.value = _canGoBack;
-    _canGoForwardNotifier.value = _canGoForward;
-    _isSecureNotifier.value = _isSecure;
-    _tabCountNotifier.value = _tabService.tabCount;
-    _statusMessageNotifier.value = _statusMessage;
+    final nextIsLoading = _isLoading;
+    if (_isLoadingNotifier.value != nextIsLoading) {
+      _isLoadingNotifier.value = nextIsLoading;
+    }
+
+    final nextCanGoBack = _canGoBack;
+    if (_canGoBackNotifier.value != nextCanGoBack) {
+      _canGoBackNotifier.value = nextCanGoBack;
+    }
+
+    final nextCanGoForward = _canGoForward;
+    if (_canGoForwardNotifier.value != nextCanGoForward) {
+      _canGoForwardNotifier.value = nextCanGoForward;
+    }
+
+    final nextIsSecure = _isSecure;
+    if (_isSecureNotifier.value != nextIsSecure) {
+      _isSecureNotifier.value = nextIsSecure;
+    }
+
+    final nextTabCount = _tabService.tabCount;
+    if (_tabCountNotifier.value != nextTabCount) {
+      _tabCountNotifier.value = nextTabCount;
+    }
+
+    if (_statusMessageNotifier.value != _statusMessage) {
+      _statusMessageNotifier.value = _statusMessage;
+    }
   }
 
   void _syncAddressBarForCurrentTab() {
@@ -1729,7 +1753,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showTabSwitcher() async {
-    _handleOverlayOpened();
+    _handleOverlayOpened(trimKeepAlives: false);
     try {
       await showBrowserTabSwitcherModal(
         context: context,
@@ -1881,7 +1905,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    _syncNotifiers();
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
