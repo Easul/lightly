@@ -88,4 +88,19 @@ void main() {
     expect(origins, isNot(contains('https://static.example.com')));
     expect(origins.length, 6);
   });
+
+  test('normalizeCookieLookupUrl keeps path but strips query and fragment', () {
+    final service = BrowserBackupService();
+
+    expect(
+      service.normalizeCookieLookupUrlForTesting(
+        'https://api.dwaiai.com/oauth/callback?code=123#done',
+      ),
+      'https://api.dwaiai.com/oauth/callback',
+    );
+    expect(
+      service.normalizeCookieLookupUrlForTesting('https://api.picpi.top'),
+      'https://api.picpi.top/',
+    );
+  });
 }

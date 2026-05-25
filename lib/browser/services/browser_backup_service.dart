@@ -230,12 +230,12 @@ class BrowserBackupService {
     final easyTierProfiles = await _easyTierProfileService.loadProfiles();
     final selectedEasyTierProfileId = await _easyTierProfileService
         .getSelectedProfileId();
-    final cookieOrigins = _collectCookieOrigins(
+    final cookieUrls = _collectCookieUrls(
       history: history,
       favorites: favorites,
       homepageUrl: settings.homepageUrl,
     );
-    final cookies = await _exportCookies(origins: cookieOrigins);
+    final cookies = await _exportCookies(urls: cookieUrls);
     final webStorageOrigins = _collectWebStorageOrigins(
       history: history,
       favorites: favorites,
@@ -426,24 +426,24 @@ class BrowserBackupService {
     }
   }
 
-  Set<String> _collectCookieOrigins({
+  Set<String> _collectCookieUrls({
     required List<BrowserHistoryEntry> history,
     required List<BrowserFavorite> favorites,
     required String homepageUrl,
   }) {
-    final origins = <String>{};
+    final urls = <String>{};
     for (final rawUrl in <String>{
       homepageUrl,
       ...history.map((entry) => entry.url),
       ...favorites.map((entry) => entry.url),
       ..._supplementalCookieOrigins,
     }) {
-      final origin = _normalizeOrigin(rawUrl);
-      if (origin != null) {
-        origins.add(origin);
+      final cookieUrl = _normalizeCookieLookupUrl(rawUrl);
+      if (cookieUrl != null) {
+        urls.add(cookieUrl);
       }
     }
-    return origins;
+    return urls;
   }
 
   Set<String> _collectWebStorageOrigins({
@@ -505,14 +505,33 @@ class BrowserBackupService {
     return uri.origin;
   }
 
+  String? _normalizeCookieLookupUrl(String rawUrl) {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+      return null;
+    }
+    final path = uri.path.isEmpty ? '/' : uri.path;
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: path,
+    ).toString();
+  }
+
+  @visibleForTesting
+  String? normalizeCookieLookupUrlForTesting(String rawUrl) {
+    return _normalizeCookieLookupUrl(rawUrl);
+  }
+
   Future<List<Map<String, dynamic>>> _exportCookies({
-    required Set<String> origins,
+    required Set<String> urls,
   }) async {
     final cookieManager = CookieManager.instance();
     final exported = <String, Map<String, dynamic>>{};
 
-    for (final origin in origins) {
-      final uri = Uri.tryParse(origin);
+    for (final lookupUrl in urls) {
+      final uri = Uri.tryParse(lookupUrl);
       if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
         continue;
       }
@@ -533,7 +552,7 @@ class BrowserBackupService {
           };
         }
       } catch (e) {
-        _logDebug('Skip cookie export for $origin: $e');
+        _logDebug('Skip cookie export for $lookupUrl: $e');
       }
     }
     return exported.values.toList();
