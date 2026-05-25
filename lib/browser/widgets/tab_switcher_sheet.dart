@@ -109,12 +109,15 @@ class TabSwitcherSheet extends StatelessWidget {
                   vertical: 8,
                 ),
                 itemExtent: _tabListItemExtent,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: false,
                 itemCount: tabs.length,
                 itemBuilder: (context, index) {
                   final tab = tabs[index];
                   final isActive = tab.id == activeTabId;
 
                   return Padding(
+                    key: ValueKey(tab.id),
                     padding: const EdgeInsets.only(bottom: _tabTileSpacing),
                     child: RepaintBoundary(
                       child: Material(

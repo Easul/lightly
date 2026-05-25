@@ -63,30 +63,26 @@ class BrowserPageAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mergedListenable = Listenable.merge([isSecure, isLoading]);
     return AppBar(
       automaticallyImplyLeading: true,
       toolbarHeight: 52,
-      title: ValueListenableBuilder<bool>(
-        valueListenable: isSecure,
-        builder: (context, isSecureValue, _) {
-          return ValueListenableBuilder<bool>(
-            valueListenable: isLoading,
-            builder: (context, isLoadingValue, _) {
-              return BrowserAddressBar(
-                controller: addressController,
-                focusNode: addressFocusNode,
-                isSecure: isSecureValue,
-                suggestionService: suggestionService,
-                onSecurityPressed: onSecurityPressed,
-                onChanged: onChanged ?? (_) {},
-                onClear: onClear,
-                currentUrl: currentUrl,
-                onEditingComplete: addressFocusNode.unfocus,
-                onSubmitted: onSubmitted,
-                isLoading: isLoadingValue,
-                onRefresh: onRefresh,
-              );
-            },
+      title: AnimatedBuilder(
+        animation: mergedListenable,
+        builder: (context, _) {
+          return BrowserAddressBar(
+            controller: addressController,
+            focusNode: addressFocusNode,
+            isSecure: isSecure.value,
+            suggestionService: suggestionService,
+            onSecurityPressed: onSecurityPressed,
+            onChanged: onChanged ?? (_) {},
+            onClear: onClear,
+            currentUrl: currentUrl,
+            onEditingComplete: addressFocusNode.unfocus,
+            onSubmitted: onSubmitted,
+            isLoading: isLoading.value,
+            onRefresh: onRefresh,
           );
         },
       ),
@@ -124,36 +120,27 @@ class BrowserPageBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: isLoading,
-      builder: (context, isLoadingValue, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: canGoBack,
-          builder: (context, canGoBackValue, _) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: canGoForward,
-              builder: (context, canGoForwardValue, _) {
-                return ValueListenableBuilder<int>(
-                  valueListenable: tabCount,
-                  builder: (context, tabCountValue, _) {
-                    return BrowserBottomBar(
-                      canGoBack: canGoBackValue,
-                      canGoForward: canGoForwardValue,
-                      isLoading: isLoadingValue,
-                      tabCount: tabCountValue,
-                      proxyEnabled: proxyEnabled,
-                      onBack: onBack,
-                      onForward: onForward,
-                      onHome: onHome,
-                      onOpenTabs: onOpenTabs,
-                      onOpenMoreActions: onOpenMoreActions,
-                      onFindInPage: onFindInPage,
-                    );
-                  },
-                );
-              },
-            );
-          },
+    final mergedListenable = Listenable.merge([
+      isLoading,
+      canGoBack,
+      canGoForward,
+      tabCount,
+    ]);
+    return AnimatedBuilder(
+      animation: mergedListenable,
+      builder: (context, _) {
+        return BrowserBottomBar(
+          canGoBack: canGoBack.value,
+          canGoForward: canGoForward.value,
+          isLoading: isLoading.value,
+          tabCount: tabCount.value,
+          proxyEnabled: proxyEnabled,
+          onBack: onBack,
+          onForward: onForward,
+          onHome: onHome,
+          onOpenTabs: onOpenTabs,
+          onOpenMoreActions: onOpenMoreActions,
+          onFindInPage: onFindInPage,
         );
       },
     );
