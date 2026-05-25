@@ -10,6 +10,7 @@ import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../services/app_toast.dart';
+import 'downloads_page_sections.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -279,7 +280,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       ),
       body: ValueListenableBuilder<int>(
         valueListenable: _downloadStore.changes,
-        builder: (context, _, __) {
+        builder: (context, value, child) {
           return FutureBuilder<List<BrowserDownloadRecord>>(
             future: _downloadStore.list(),
             builder: (context, snapshot) {
@@ -291,189 +292,22 @@ class _DownloadsPageState extends State<DownloadsPage> {
               final downloads =
                   snapshot.data ?? const <BrowserDownloadRecord>[];
               if (downloads.isEmpty) {
-                return RefreshIndicator(
-                  onRefresh: _reloadDownloads,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 120),
-                      Icon(
-                        Icons.download_outlined,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      const Center(child: Text('暂无下载记录')),
-                    ],
-                  ),
-                );
+                return DownloadsEmptyState(onRefresh: _reloadDownloads);
               }
 
-              return RefreshIndicator(
+              return DownloadsList(
+                downloads: downloads,
                 onRefresh: _reloadDownloads,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: downloads.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final record = downloads[index];
-                    final canInstall =
-                        record.status == 'completed' &&
-                        record.fileName.toLowerCase().endsWith('.apk');
-                    return Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        leading: CircleAvatar(
-                          child: Icon(_statusIcon(record.status)),
-                        ),
-                        title: Text(
-                          record.fileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('状态：${_statusLabel(record.status)}'),
-                              const SizedBox(height: 4),
-                              Text(
-                                record.savedPath?.isNotEmpty == true
-                                    ? _displayPath(record.savedPath!)
-                                    : record.url,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '大小：${_formatBytes(record.bytesReceived)}'
-                                '${record.totalBytes > 0 ? ' / ${_formatBytes(record.totalBytes)}' : ''}',
-                              ),
-                              if (record.status == 'downloading') ...[
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    minHeight: 8,
-                                    value: _progressValue(record),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.downloading_rounded,
-                                      size: 16,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(_progressLabel(record)),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              Text('时间：${record.createdAt.toLocal()}'),
-                            ],
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (record.status == 'downloading' &&
-                                record.id != null)
-                              TextButton(
-                                onPressed: () => _pauseDownload(record),
-                                child: const Text('暂停'),
-                              ),
-                            if (record.status == 'paused')
-                              TextButton(
-                                onPressed: () => _resumeDownload(record),
-                                child: const Text('继续'),
-                              ),
-                            if (canInstall)
-                              TextButton(
-                                onPressed: () => _installApk(record),
-                                child: const Text('安装'),
-                              ),
-                            TextButton(
-                              onPressed: () => _deleteRecord(record),
-                              child: const Text('删除'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                onPause: (record) => unawaited(_pauseDownload(record)),
+                onResume: (record) => unawaited(_resumeDownload(record)),
+                onInstall: (record) => unawaited(_installApk(record)),
+                onDelete: (record) => unawaited(_deleteRecord(record)),
               );
             },
           );
         },
       ),
     );
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'completed':
-        return Icons.check_circle_outline;
-      case 'failed':
-        return Icons.error_outline;
-      case 'downloading':
-        return Icons.downloading_outlined;
-      case 'paused':
-        return Icons.pause_circle_outline;
-      default:
-        return Icons.schedule_outlined;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'completed':
-        return '已完成';
-      case 'failed':
-        return '失败';
-      case 'downloading':
-        return '下载中';
-      case 'paused':
-        return '已暂停';
-      default:
-        return '等待中';
-    }
-  }
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) {
-      return '${bytes}B';
-    }
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)}KB';
-    }
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
-  }
-
-  double? _progressValue(BrowserDownloadRecord record) {
-    if (record.totalBytes <= 0 || record.bytesReceived <= 0) {
-      return null;
-    }
-    return (record.bytesReceived / record.totalBytes).clamp(0.0, 1.0);
-  }
-
-  String _progressLabel(BrowserDownloadRecord record) {
-    final progress = _progressValue(record);
-    if (progress == null) {
-      return '正在下载 ${_formatBytes(record.bytesReceived)}';
-    }
-    return '已下载 ${(progress * 100).toStringAsFixed(0)}%';
   }
 
   Future<void> _pauseDownload(BrowserDownloadRecord record) async {
@@ -523,15 +357,5 @@ class _DownloadsPageState extends State<DownloadsPage> {
         _showToast('继续下载失败：$e');
       }
     }
-  }
-
-  /// Hides the common Android shared storage prefix for display.
-  /// `/storage/emulated/0/Download/file.zip` → `Download/file.zip`
-  String _displayPath(String path) {
-    const prefix = '/storage/emulated/0/';
-    if (path.startsWith(prefix)) {
-      return path.substring(prefix.length);
-    }
-    return path;
   }
 }
