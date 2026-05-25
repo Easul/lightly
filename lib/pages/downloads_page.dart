@@ -10,6 +10,7 @@ import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../services/app_toast.dart';
+import 'downloads_page_dialogs.dart';
 import 'downloads_page_sections.dart';
 
 class DownloadsPage extends StatefulWidget {
@@ -110,66 +111,13 @@ class _DownloadsPageState extends State<DownloadsPage> {
   }
 
   Future<void> _showUrlDownloadDialog() async {
-    final urlController = TextEditingController();
-    final fileNameController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('下载文件'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: urlController,
-              decoration: const InputDecoration(
-                labelText: '文件链接',
-                hintText: 'https://example.com/file.zip',
-              ),
-              keyboardType: TextInputType.url,
-              autofocus: true,
-              onChanged: (value) {
-                final uri = Uri.tryParse(value.trim());
-                if (uri != null && uri.pathSegments.isNotEmpty) {
-                  final segment = uri.pathSegments.last;
-                  if (segment.isNotEmpty && fileNameController.text.isEmpty) {
-                    fileNameController.text = segment;
-                  }
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: fileNameController,
-              decoration: const InputDecoration(
-                labelText: '文件名',
-                hintText: 'file.zip',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('下载'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) {
-      urlController.dispose();
-      fileNameController.dispose();
+    final request = await showManualDownloadDialog(context);
+    if (request == null) {
       return;
     }
 
-    final url = urlController.text.trim();
-    final fileName = fileNameController.text.trim();
-    urlController.dispose();
-    fileNameController.dispose();
+    final url = request.url;
+    final fileName = request.fileName;
 
     if (url.isEmpty) {
       if (!mounted) return;
