@@ -142,7 +142,7 @@ class BrowserTabService {
         continue;
       }
       _disposeKeepAlive(tab.keepAlive);
-      _tabs[i] = tab.copyWith(clearKeepAlive: true);
+      _tabs[i] = tab.copyWith(clearKeepAlive: true, hasAttachedWebView: false);
       _invalidateTabsCache();
       trimmedCount += 1;
     }
@@ -174,7 +174,10 @@ class BrowserTabService {
     if (current.keepAlive != null || !current.url.startsWith('http')) {
       return false;
     }
-    _tabs[index] = current.copyWith(keepAlive: InAppWebViewKeepAlive());
+    _tabs[index] = current.copyWith(
+      keepAlive: InAppWebViewKeepAlive(),
+      hasAttachedWebView: false,
+    );
     _invalidateTabsCache();
     return true;
   }
@@ -191,6 +194,7 @@ class BrowserTabService {
           ? InAppWebViewKeepAlive()
           : null,
       clearKeepAlive: !recreate,
+      hasAttachedWebView: false,
     );
     _invalidateTabsCache();
     return true;

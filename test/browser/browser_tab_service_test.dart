@@ -69,6 +69,10 @@ void main() {
       final second = service.openTab(url: 'https://two.example');
       service.openTab(url: 'https://three.example');
 
+      for (final tab in service.tabs) {
+        service.updateTab(tab.id, hasAttachedWebView: true);
+      }
+
       service.activateTab(second.id);
       final trimmed = service.trimInactiveKeepAlives(
         inactiveThreshold: Duration.zero,
@@ -81,6 +85,12 @@ void main() {
         service.tabs
             .where((tab) => tab.id != service.activeTab?.id)
             .every((tab) => tab.keepAlive == null),
+        isTrue,
+      );
+      expect(
+        service.tabs
+            .where((tab) => tab.id != service.activeTab?.id)
+            .every((tab) => tab.hasAttachedWebView == false),
         isTrue,
       );
     });
@@ -189,10 +199,12 @@ void main() {
       service.initialize('https://one.example');
 
       final activeTabId = service.activeTab!.id;
+      service.updateTab(activeTabId, hasAttachedWebView: true);
       final didReset = service.resetKeepAlive(activeTabId, recreate: false);
 
       expect(didReset, isTrue);
       expect(service.activeTab?.keepAlive, isNull);
+      expect(service.activeTab?.hasAttachedWebView, isFalse);
     });
 
     test('tabs getter reuses cached unmodifiable view until tabs change', () {
@@ -217,6 +229,10 @@ void main() {
         final second = service.openTab(url: 'https://two.example');
         service.openTab(url: 'https://three.example');
 
+        for (final tab in service.tabs) {
+          service.updateTab(tab.id, hasAttachedWebView: true);
+        }
+
         service.activateTab(second.id);
         final trimmed = service.trimAllBackgroundKeepAlives();
 
@@ -228,7 +244,28 @@ void main() {
               .every((tab) => tab.keepAlive == null),
           isTrue,
         );
+        expect(
+          service.tabs
+              .where((tab) => tab.id != activeId)
+              .every((tab) => tab.hasAttachedWebView == false),
+          isTrue,
+        );
       },
     );
+
+    test('ensureKeepAlive resets attached state for recreated webview', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      final activeTabId = service.activeTab!.id;
+
+      service.updateTab(activeTabId, hasAttachedWebView: true);
+      service.resetKeepAlive(activeTabId, recreate: false);
+
+      final recreated = service.ensureKeepAlive(activeTabId);
+
+      expect(recreated, isTrue);
+      expect(service.activeTab?.keepAlive, isNotNull);
+      expect(service.activeTab?.hasAttachedWebView, isFalse);
+    });
   });
 }
