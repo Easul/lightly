@@ -142,3 +142,28 @@ bool isDirectHostInput(String host) {
   }
   return normalized.contains('.');
 }
+
+bool isLocalBrowserUrl(String? rawUrl) {
+  if (rawUrl == null || rawUrl.trim().isEmpty) {
+    return false;
+  }
+
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null) {
+    return false;
+  }
+
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme == 'file' || scheme == 'content') {
+    return true;
+  }
+  if (!(scheme == 'http' || scheme == 'https')) {
+    return false;
+  }
+
+  final host = uri.host.toLowerCase();
+  if (host.isEmpty) {
+    return false;
+  }
+  return host == 'localhost' || host == '::1' || _isPrivateIpv4(host);
+}

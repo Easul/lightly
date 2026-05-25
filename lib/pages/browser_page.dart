@@ -37,6 +37,7 @@ import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/utils/browser_popup_filter.dart';
+import '../browser/utils/browser_url_utils.dart';
 import '../browser/services/video_proxy_server.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/browser_url_utils.dart';
@@ -434,8 +435,28 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _addressController.text = nextText;
   }
 
+  bool _shouldPauseCurrentWebViewOnTabSwitch(String url) {
+    return isLocalBrowserUrl(url);
+  }
+
   BrowserPageTabTransitionDeps get _tabTransitionDeps {
     return BrowserPageTabTransitionDeps(
+      pauseCurrentWebView: () {
+        if (!_shouldPauseCurrentWebViewOnTabSwitch(_currentUrl)) {
+          return;
+        }
+        final controller = _webViewController;
+        if (controller == null) {
+          return;
+        }
+        controller.pause();
+        unawaited(
+          controller.evaluateJavascript(
+            source:
+                BrowserPageWebViewLifecycleHelper.pauseVideoForOverlayScript,
+          ),
+        );
+      },
       detachCurrentController: () {
         _webViewController = null;
       },
@@ -561,6 +582,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             overlayDepth: _overlayDepth,
           )) {
             _resumeWebViewFromOverlay();
+          } else {
+            controller.resume();
           }
           unawaited(_reapplyProxyAfterWebViewCreated());
         },
