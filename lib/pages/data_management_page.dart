@@ -107,7 +107,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     bool importHistory = true;
     bool importClipboard = true;
     bool importCalculatorHistory = true;
-    bool importCookies = true;
+    bool importWebData = true;
     bool importEasyTierProfiles = true;
 
     final confirmed = await showDialog<bool>(
@@ -163,11 +163,11 @@ class _DataManagementPageState extends State<DataManagementPage> {
                 ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('导入登录数据 (Cookie)'),
-                  subtitle: const Text('恢复大多数网站的登录状态，不含 Telegram Web 等特殊站点'),
-                  value: importCookies,
+                  title: const Text('导入登录数据 (Cookie 与站点存储)'),
+                  subtitle: const Text('恢复大多数网站的登录状态，包括 Cookie 与 localStorage'),
+                  value: importWebData,
                   onChanged: (value) => setDialogState(() {
-                    importCookies = value ?? true;
+                    importWebData = value ?? true;
                   }),
                 ),
                 CheckboxListTile(
@@ -234,14 +234,15 @@ class _DataManagementPageState extends State<DataManagementPage> {
         importHistory: importHistory,
         importClipboard: importClipboard,
         importCalculatorHistory: importCalculatorHistory,
-        importCookies: importCookies,
+        importWebData: importWebData,
         importEasyTierProfiles: importEasyTierProfiles,
       );
       _result = DataManagementPageResult(
         changed: true,
         favoritesChanged: result.favoritesImported > 0,
         settingsChanged: importSettings,
-        webDataChanged: result.cookiesImported > 0,
+        webDataChanged:
+            result.cookiesImported > 0 || result.webStorageImported > 0,
         restoredOrigins: result.restoredOrigins,
       );
       if (!mounted) return;
