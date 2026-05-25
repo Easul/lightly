@@ -2,6 +2,7 @@ import 'dart:async';
 
 class BrowserPageTabTransitionDeps {
   const BrowserPageTabTransitionDeps({
+    required this.pauseCurrentWebView,
     required this.detachCurrentController,
     required this.unfocusAddressBar,
     required this.syncAddressBar,
@@ -10,6 +11,7 @@ class BrowserPageTabTransitionDeps {
     required this.trimBackgroundKeepAlives,
   });
 
+  final void Function() pauseCurrentWebView;
   final void Function() detachCurrentController;
   final void Function() unfocusAddressBar;
   final void Function() syncAddressBar;
@@ -29,6 +31,7 @@ class BrowserPageTabTransitionHelper {
     required void Function() syncTrackedScrollPosition,
     required bool syncTrackedScroll,
   }) async {
+    deps.pauseCurrentWebView();
     deps.detachCurrentController();
     deps.unfocusAddressBar();
     resetVideoDetectionState();
@@ -46,6 +49,7 @@ class BrowserPageTabTransitionHelper {
     required String url,
     required void Function() applyStatusAfterTransition,
   }) async {
+    deps.pauseCurrentWebView();
     deps.detachCurrentController();
     deps.unfocusAddressBar();
     deps.syncAddressBar();

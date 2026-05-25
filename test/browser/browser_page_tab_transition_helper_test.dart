@@ -7,6 +7,7 @@ void main() {
 
     BrowserPageTabTransitionDeps buildDeps(List<String> calls) {
       return BrowserPageTabTransitionDeps(
+        pauseCurrentWebView: () => calls.add('pauseCurrentWebView'),
         detachCurrentController: () => calls.add('detachCurrentController'),
         unfocusAddressBar: () => calls.add('unfocusAddressBar'),
         syncAddressBar: () => calls.add('syncAddressBar'),
@@ -32,6 +33,7 @@ void main() {
           syncTrackedScroll: true,
         );
 
+        expect(calls.first, 'pauseCurrentWebView');
         expect(calls, isNot(contains('trimBackgroundKeepAlives')));
       },
     );
@@ -46,6 +48,7 @@ void main() {
             calls.add('applyStatusAfterTransition'),
       );
 
+      expect(calls.first, 'pauseCurrentWebView');
       expect(calls, contains('trimBackgroundKeepAlives'));
     });
 
