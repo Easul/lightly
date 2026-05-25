@@ -7,6 +7,73 @@ import '../theme/app_theme.dart';
 import '../widgets/remote_control_gesture_overlay.dart';
 import '../widgets/remote_control_screen_viewer.dart';
 
+Rect computeRemoteSessionFittedRect(Size viewportSize, Size remoteSize) {
+  final widthScale = viewportSize.width / remoteSize.width;
+  final heightScale = viewportSize.height / remoteSize.height;
+  final scale = widthScale < heightScale ? widthScale : heightScale;
+  final fittedWidth = remoteSize.width * scale;
+  final fittedHeight = remoteSize.height * scale;
+  final left = (viewportSize.width - fittedWidth) / 2;
+  final top = (viewportSize.height - fittedHeight) / 2;
+  return Rect.fromLTWH(left, top, fittedWidth, fittedHeight);
+}
+
+Offset resolveRemoteTailOffset({
+  required Rect fittedRect,
+  required BoxConstraints constraints,
+  required Offset? currentOffset,
+  required bool isPopupVisible,
+}) {
+  final tailLeft = (fittedRect.center.dx - 28).clamp(
+    8.0,
+    constraints.maxWidth - 64,
+  );
+  final tailTop = (fittedRect.top + 8).clamp(8.0, constraints.maxHeight - 40);
+  final resolvedOffset = currentOffset ?? Offset(tailLeft, tailTop);
+  final tailWidth = isPopupVisible ? 248.0 : 56.0;
+  final tailHeight = isPopupVisible ? 220.0 : 36.0;
+  return Offset(
+    resolvedOffset.dx.clamp(8.0, constraints.maxWidth - tailWidth),
+    resolvedOffset.dy.clamp(8.0, constraints.maxHeight - tailHeight),
+  );
+}
+
+class RemoteSessionScaffold extends StatelessWidget {
+  const RemoteSessionScaffold({
+    super.key,
+    required this.onCloseSession,
+    required this.builder,
+  });
+
+  final VoidCallback onCloseSession;
+  final Widget Function(BuildContext context, BoxConstraints constraints)
+  builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          onCloseSession();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          minimum: EdgeInsets.only(
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: LayoutBuilder(builder: builder),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class RemoteSessionViewport extends StatelessWidget {
   const RemoteSessionViewport({
     super.key,

@@ -234,115 +234,70 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          unawaited(_closeSession());
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          minimum: EdgeInsets.only(
-            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final fittedRect = _computeFittedRect(
-                  constraints.biggest,
-                  _remoteCaptureSize,
-                );
-                final tailLeft = (fittedRect.center.dx - 28).clamp(
-                  8.0,
-                  constraints.maxWidth - 64,
-                );
-                final tailTop = (fittedRect.top + 8).clamp(
-                  8.0,
-                  constraints.maxHeight - 40,
-                );
-                final resolvedTailOffset =
-                    _tailOffset ?? Offset(tailLeft, tailTop);
-                final tailWidth = _isActionPopupVisible ? 248.0 : 56.0;
-                final tailHeight = _isActionPopupVisible ? 220.0 : 36.0;
-                final clampedTailOffset = Offset(
-                  resolvedTailOffset.dx.clamp(
-                    8.0,
-                    constraints.maxWidth - tailWidth,
-                  ),
-                  resolvedTailOffset.dy.clamp(
-                    8.0,
-                    constraints.maxHeight - tailHeight,
-                  ),
-                );
+    return RemoteSessionScaffold(
+      onCloseSession: () => unawaited(_closeSession()),
+      builder: (context, constraints) {
+        final fittedRect = computeRemoteSessionFittedRect(
+          constraints.biggest,
+          _remoteCaptureSize,
+        );
+        final tailOffset = resolveRemoteTailOffset(
+          fittedRect: fittedRect,
+          constraints: constraints,
+          currentOffset: _tailOffset,
+          isPopupVisible: _isActionPopupVisible,
+        );
 
-                return Stack(
-                  children: [
-                    RemoteSessionViewport(
-                      displayRect: fittedRect,
-                      frameStream: widget.service.screenFrameStream,
-                      remoteCaptureSize: _remoteCaptureSize,
-                      remoteScreenSize: _remoteScreenSize,
-                      initialSps: widget.service.latestScreenSps,
-                      initialPps: widget.service.latestScreenPps,
-                      latestSpsProvider: () => widget.service.latestScreenSps,
-                      latestPpsProvider: () => widget.service.latestScreenPps,
-                      onViewerReady: _requestKeyFrame,
-                      onGesture: _handleGesture,
-                      onInteraction: _handleRemoteSurfaceInteraction,
-                    ),
-                    if (_isControlsVisible || _isActionPopupVisible)
-                      Positioned(
-                        left: clampedTailOffset.dx,
-                        top: clampedTailOffset.dy,
-                        child: FloatingTailControls(
-                          remoteHost: widget.remoteHost,
-                          isAudioEnabled: _isAudioEnabled,
-                          isReceiverMode:
-                              widget.service.mode == RemoteControlMode.receiver,
-                          isPopupVisible: _isActionPopupVisible,
-                          onTailTap: _toggleTailPopup,
-                          onTailDragUpdate: (details) =>
-                              _moveTail(details, constraints.biggest),
-                          onAudioTap: _toggleAudio,
-                          onKeyboardTap: _showKeyboardSheet,
-                          onRefreshTap: _requestKeyFrame,
-                          onBackTap: () => _handleGlobalAction('back'),
-                          onHomeTap: () => _handleGlobalAction('home'),
-                          onRecentsTap: () => _handleGlobalAction('recents'),
-                          onCloseTap: _closeSession,
-                        ),
-                      )
-                    else
-                      Positioned(
-                        top: clampedTailOffset.dy,
-                        left: clampedTailOffset.dx,
-                        child: HiddenTailHandle(
-                          onTap: _restoreControls,
-                          onDragUpdate: (details) =>
-                              _moveTail(details, constraints.biggest),
-                        ),
-                      ),
-                  ],
-                );
-              },
+        return Stack(
+          children: [
+            RemoteSessionViewport(
+              displayRect: fittedRect,
+              frameStream: widget.service.screenFrameStream,
+              remoteCaptureSize: _remoteCaptureSize,
+              remoteScreenSize: _remoteScreenSize,
+              initialSps: widget.service.latestScreenSps,
+              initialPps: widget.service.latestScreenPps,
+              latestSpsProvider: () => widget.service.latestScreenSps,
+              latestPpsProvider: () => widget.service.latestScreenPps,
+              onViewerReady: _requestKeyFrame,
+              onGesture: _handleGesture,
+              onInteraction: _handleRemoteSurfaceInteraction,
             ),
-          ),
-        ),
-      ),
+            if (_isControlsVisible || _isActionPopupVisible)
+              Positioned(
+                left: tailOffset.dx,
+                top: tailOffset.dy,
+                child: FloatingTailControls(
+                  remoteHost: widget.remoteHost,
+                  isAudioEnabled: _isAudioEnabled,
+                  isReceiverMode:
+                      widget.service.mode == RemoteControlMode.receiver,
+                  isPopupVisible: _isActionPopupVisible,
+                  onTailTap: _toggleTailPopup,
+                  onTailDragUpdate: (details) =>
+                      _moveTail(details, constraints.biggest),
+                  onAudioTap: _toggleAudio,
+                  onKeyboardTap: _showKeyboardSheet,
+                  onRefreshTap: _requestKeyFrame,
+                  onBackTap: () => _handleGlobalAction('back'),
+                  onHomeTap: () => _handleGlobalAction('home'),
+                  onRecentsTap: () => _handleGlobalAction('recents'),
+                  onCloseTap: _closeSession,
+                ),
+              )
+            else
+              Positioned(
+                top: tailOffset.dy,
+                left: tailOffset.dx,
+                child: HiddenTailHandle(
+                  onTap: _restoreControls,
+                  onDragUpdate: (details) =>
+                      _moveTail(details, constraints.biggest),
+                ),
+              ),
+          ],
+        );
+      },
     );
-  }
-
-  Rect _computeFittedRect(Size viewportSize, Size remoteSize) {
-    final widthScale = viewportSize.width / remoteSize.width;
-    final heightScale = viewportSize.height / remoteSize.height;
-    final scale = widthScale < heightScale ? widthScale : heightScale;
-    final fittedWidth = remoteSize.width * scale;
-    final fittedHeight = remoteSize.height * scale;
-    final left = (viewportSize.width - fittedWidth) / 2;
-    final top = (viewportSize.height - fittedHeight) / 2;
-    return Rect.fromLTWH(left, top, fittedWidth, fittedHeight);
   }
 }
