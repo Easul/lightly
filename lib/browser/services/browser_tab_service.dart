@@ -199,6 +199,7 @@ class BrowserTabService {
   bool updateTab(
     String tabId, {
     String? url,
+    bool? hasAttachedWebView,
     int? popupWindowId,
     bool clearPopupWindowId = false,
     String? title,
@@ -215,6 +216,7 @@ class BrowserTabService {
     final current = _tabs[index];
     final next = current.copyWith(
       url: url,
+      hasAttachedWebView: hasAttachedWebView,
       popupWindowId: popupWindowId,
       clearPopupWindowId: clearPopupWindowId,
       title: title,
@@ -225,6 +227,7 @@ class BrowserTabService {
       isExternallyOpened: isExternallyOpened,
     );
     if (next.url == current.url &&
+        next.hasAttachedWebView == current.hasAttachedWebView &&
         next.popupWindowId == current.popupWindowId &&
         next.title == current.title &&
         next.isLoading == current.isLoading &&

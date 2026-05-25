@@ -97,6 +97,7 @@ class BrowserTabCoordinator {
   bool updateTabById(
     String tabId, {
     String? url,
+    bool? hasAttachedWebView,
     int? popupWindowId,
     bool clearPopupWindowId = false,
     String? title,
@@ -109,6 +110,7 @@ class BrowserTabCoordinator {
     return _tabService.updateTab(
       tabId,
       url: url,
+      hasAttachedWebView: hasAttachedWebView,
       popupWindowId: popupWindowId,
       clearPopupWindowId: clearPopupWindowId,
       title: title,
