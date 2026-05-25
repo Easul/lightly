@@ -9,6 +9,7 @@ import '../services/app_log_service.dart';
 import '../services/app_toast.dart';
 import '../services/shared_downloads_directory_service.dart';
 import '../widgets/shared_download_access_dialog.dart';
+import 'data_management_page_sections.dart';
 
 class DataManagementPageResult {
   const DataManagementPageResult({
@@ -374,74 +375,26 @@ class _DataManagementPageState extends State<DataManagementPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('导出', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: _busy ? null : _exportToDownloads,
-                    icon: const Icon(Icons.download),
-                    label: const Text('导出到 Download/ruoqing-年月日.json'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _exportToClipboard,
-                    icon: const Icon(Icons.copy),
-                    label: const Text('复制到剪贴板'),
-                  ),
-                ],
+              DataExportSection(
+                busy: _busy,
+                onExportToDownloads: () => unawaited(_exportToDownloads()),
+                onExportToClipboard: () => unawaited(_exportToClipboard()),
               ),
               const SizedBox(height: 24),
-              Text('日志', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _logRecordingEnabled,
-                title: const Text('启用运行日志记录'),
-                subtitle: Text(
-                  _logRecordingEnabled
-                      ? '已记录运行错误与关键事件，复现下载失败后可导出日志给我分析'
-                      : '关闭时不再追加新日志；开启后再复现问题可帮助排查下载失败',
-                ),
-                onChanged: _busy ? null : _setLogRecordingEnabled,
-              ),
-              if (_appLogService.logPath != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '日志文件：${_appLogService.logPath}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: _busy ? null : _exportLogsToDownloads,
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text('导出运行日志到 Download'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _copyLogsToClipboard,
-                    icon: const Icon(Icons.copy),
-                    label: const Text('复制运行日志到剪贴板'),
-                  ),
-                ],
+              DataLogSection(
+                busy: _busy,
+                logRecordingEnabled: _logRecordingEnabled,
+                logPath: _appLogService.logPath,
+                onSetLogRecordingEnabled: (enabled) =>
+                    unawaited(_setLogRecordingEnabled(enabled)),
+                onExportLogsToDownloads: () =>
+                    unawaited(_exportLogsToDownloads()),
+                onCopyLogsToClipboard: () => unawaited(_copyLogsToClipboard()),
               ),
               const SizedBox(height: 24),
-              Text('导入', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              const Text('通过选择备份文件恢复数据。导入设置后会在返回浏览器时自动重载相关运行配置。'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _busy ? null : _importFromFile,
-                icon: const Icon(Icons.upload_file),
-                label: const Text('选择备份文件并导入'),
+              DataImportSection(
+                busy: _busy,
+                onImportFromFile: () => unawaited(_importFromFile()),
               ),
             ],
           ),
