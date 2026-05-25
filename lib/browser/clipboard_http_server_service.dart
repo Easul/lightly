@@ -202,6 +202,7 @@ class ClipboardHttpServerService {
 <div id="status"></div>
 <script>
   let isEditing = false;
+  let refreshTimer = null;
   const textarea = document.getElementById('content');
   textarea.addEventListener('focus', () => { isEditing = true; });
   textarea.addEventListener('blur', () => { isEditing = false; });
@@ -232,7 +233,7 @@ class ClipboardHttpServerService {
   }
 
   async function refreshContent() {
-    if (isEditing) return;
+    if (isEditing || document.hidden) return;
     try {
       const res = await fetch('/');
       const html = await res.text();
@@ -247,7 +248,25 @@ class ClipboardHttpServerService {
     }
   }
 
-  setInterval(refreshContent, 3000);
+  function restartRefreshTimer() {
+    if (refreshTimer !== null) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+    if (!document.hidden) {
+      refreshTimer = setInterval(refreshContent, 8000);
+    }
+  }
+
+  document.addEventListener('visibilitychange', restartRefreshTimer);
+  window.addEventListener('focus', restartRefreshTimer);
+  window.addEventListener('blur', () => {
+    if (refreshTimer !== null) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  });
+  restartRefreshTimer();
 </script>
 </body>
 </html>
