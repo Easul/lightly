@@ -857,6 +857,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final controller = _webViewController;
     if (!wasFavoritesPage && controller != null) {
       await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
+      return;
+    }
+
+    if (!wasFavoritesPage && activeTabId != null) {
+      _tabService.resetKeepAlive(activeTabId, recreate: false);
+      if (mounted) {
+        _rebuildWhenVisible();
+      }
     }
   }
 
@@ -1185,6 +1193,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         return false;
       case BrowserPopupWindowAction.openTab:
         final initialUrl = decision.initialUrl;
+        final popupWindowId = createWindowAction.windowId;
+        if (popupWindowId != null) {
+          await _openTab(
+            initialUrl != null && initialUrl.isNotEmpty
+                ? initialUrl
+                : 'about:blank',
+            statusMessage: _statusCoordinator.popupOpenedInNewTab(),
+            popupWindowId: popupWindowId,
+          );
+          return true;
+        }
         if (initialUrl != null && initialUrl.isNotEmpty) {
           await _openTab(
             initialUrl,
@@ -1192,7 +1211,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           );
           return false;
         }
-        final popupWindowId = createWindowAction.windowId;
         await _openTab(
           'about:blank',
           statusMessage: _statusCoordinator.popupOpenedInNewTab(),

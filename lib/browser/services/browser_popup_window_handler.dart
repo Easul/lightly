@@ -45,8 +45,8 @@ class BrowserPopupWindowHandler {
         hasGesture &&
         BrowserAuthUrlDetector.looksLikeAuthUrl(sourceUrl)) {
       return const BrowserPopupWindowDecision(
-        action: BrowserPopupWindowAction.showPopup,
-        statusMessage: '站点正在延迟创建登录窗口，已改为弹窗继续',
+        action: BrowserPopupWindowAction.openTab,
+        statusMessage: '站点正在延迟创建登录窗口，已改为新标签页继续',
       );
     }
 
@@ -65,7 +65,7 @@ class BrowserPopupWindowHandler {
     final isTrustedAuthPopup = BrowserAuthUrlDetector.isTrustedAuthPopupUrl(
       requestedUrl,
     );
-    if (openNewWindowInTab && !isTrustedAuthPopup) {
+    if (openNewWindowInTab || isTrustedAuthPopup) {
       return BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.openTab,
         initialUrl: requestedUrl,

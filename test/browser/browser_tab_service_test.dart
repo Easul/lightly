@@ -183,5 +183,16 @@ void main() {
       expect(thirdTab.keepAlive, isNotNull);
       expect(fourthTab.keepAlive, isNotNull);
     });
+
+    test('resetKeepAlive clears retained webview state for active tab', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+
+      final activeTabId = service.activeTab!.id;
+      final didReset = service.resetKeepAlive(activeTabId, recreate: false);
+
+      expect(didReset, isTrue);
+      expect(service.activeTab?.keepAlive, isNull);
+    });
   });
 }
