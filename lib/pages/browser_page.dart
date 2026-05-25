@@ -443,7 +443,31 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       syncAddressBar: _syncAddressBarForCurrentTab,
       checkFavoriteStatus: _checkFavoriteStatus,
       resetProgress: _resetProgress,
+      trimBackgroundKeepAlives: () {
+        _tabCoordinator.trimInactiveKeepAlives(
+          inactiveThreshold: Duration.zero,
+          maxRetainedBackgroundTabs: 1,
+        );
+      },
     );
+  }
+
+  Future<void> _restoreSavedScrollPosition(
+    InAppWebViewController controller,
+    String tabId,
+  ) async {
+    final savedScroll = _tabCoordinator.tabById(tabId)?.scrollPosition ?? 0;
+    if (savedScroll <= 0) {
+      return;
+    }
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted || !_isActiveTabId(tabId)) {
+        return;
+      }
+      await controller.scrollTo(x: 0, y: savedScroll.toInt(), animated: false);
+    } catch (_) {}
   }
 
   Future<void> _showFavoritesHome({bool resetNavigationState = true}) async {
@@ -524,6 +548,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             return;
           }
           _webViewController = controller;
+          if (hostedTabId != null) {
+            final adoptedPopupWindowId = _tabCoordinator
+                .tabById(hostedTabId)
+                ?.popupWindowId;
+            if (adoptedPopupWindowId != null) {
+              _updateTabById(hostedTabId, clearPopupWindowId: true);
+            }
+            unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
+          }
           if (_lifecycleCoordinator.shouldResumeControllerOnAttach(
             overlayDepth: _overlayDepth,
           )) {
@@ -604,17 +637,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ),
           );
 
-          final savedScroll =
-              _tabCoordinator.tabById(hostedTabId)?.scrollPosition ?? 0;
-          if (savedScroll > 0) {
-            unawaited(
-              controller.scrollTo(
-                x: 0,
-                y: savedScroll.toInt(),
-                animated: false,
-              ),
-            );
-          }
+          unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
         },
         onProgressChanged: (controller, progress) {
           if (_isActiveTabId(hostedTabId)) {

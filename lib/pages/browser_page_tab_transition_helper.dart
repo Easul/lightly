@@ -7,6 +7,7 @@ class BrowserPageTabTransitionDeps {
     required this.syncAddressBar,
     required this.checkFavoriteStatus,
     required this.resetProgress,
+    required this.trimBackgroundKeepAlives,
   });
 
   final void Function() detachCurrentController;
@@ -14,6 +15,7 @@ class BrowserPageTabTransitionDeps {
   final void Function() syncAddressBar;
   final Future<void> Function(String url) checkFavoriteStatus;
   final void Function() resetProgress;
+  final void Function() trimBackgroundKeepAlives;
 }
 
 class BrowserPageTabTransitionHelper {
@@ -49,6 +51,7 @@ class BrowserPageTabTransitionHelper {
     deps.syncAddressBar();
     await deps.checkFavoriteStatus(url);
     deps.resetProgress();
+    deps.trimBackgroundKeepAlives();
     applyStatusAfterTransition();
   }
 
@@ -61,6 +64,7 @@ class BrowserPageTabTransitionHelper {
     deps.syncAddressBar();
     await deps.checkFavoriteStatus(url);
     deps.resetProgress();
+    deps.trimBackgroundKeepAlives();
     applyStatusAfterTransition();
   }
 }
