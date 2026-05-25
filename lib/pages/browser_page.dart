@@ -12,8 +12,6 @@ import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_tab_session.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_download_coordinator.dart';
-import '../browser/services/browser_download_service.dart';
-import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_external_app_handler.dart';
 import '../browser/services/browser_external_url_launcher_service.dart';
 import '../browser/services/browser_favorite_action_coordinator.dart';
@@ -23,7 +21,6 @@ import '../browser/services/browser_favorites_coordinator.dart';
 import '../browser/services/browser_find_controller.dart';
 import '../browser/services/browser_fullscreen_manager.dart';
 import '../browser/services/browser_history_recorder.dart';
-import '../browser/services/browser_history_service.dart';
 import '../browser/services/browser_imported_document_service.dart';
 import '../browser/services/browser_long_press_handler.dart';
 import '../browser/services/browser_page_initializer.dart';
@@ -34,13 +31,8 @@ import '../browser/services/browser_tab_coordinator.dart';
 import '../browser/services/browser_tab_service.dart';
 import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
-import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
-import '../browser/utils/browser_popup_filter.dart';
-import '../browser/utils/browser_url_utils.dart';
-import '../browser/services/video_proxy_server.dart';
 import '../services/app_toast.dart';
-import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_favorites_menu_sheet.dart';
@@ -49,17 +41,22 @@ import '../browser/widgets/browser_webview_host.dart';
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
 import '../widgets/app_drawer.dart';
+import 'browser_page_address_sync.dart';
 import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_favorite_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_actions.dart';
+import 'browser_page_notifier_sync.dart';
 import 'browser_page_settings_helper.dart';
 import 'browser_page_site_security_helper.dart';
 import 'browser_page_shell_widgets.dart';
+import 'browser_page_input_resolver.dart';
+import 'browser_page_state_predicates.dart';
 import 'browser_page_status_coordinator.dart';
 import 'browser_page_tab_transition_helper.dart';
 import 'browser_page_tab_flow_coordinator.dart';
+import 'browser_page_url_filter_helper.dart';
 import 'browser_page_webview_lifecycle_helper.dart';
 import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
@@ -73,20 +70,6 @@ class BrowserPage extends StatefulWidget {
 
   @override
   State<BrowserPage> createState() => _BrowserPageState();
-}
-
-class _AppliedBrowserSettings {
-  const _AppliedBrowserSettings({
-    required this.settings,
-    required this.proxySupported,
-    required this.isProxyActive,
-    required this.proxyStatusMessage,
-  });
-
-  final BrowserSettings settings;
-  final bool proxySupported;
-  final bool isProxyActive;
-  final String proxyStatusMessage;
 }
 
 class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
@@ -119,6 +102,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageLifecycleCoordinator();
   final BrowserPageWebViewLifecycleHelper _webViewLifecycleHelper =
       const BrowserPageWebViewLifecycleHelper();
+  final BrowserPageUrlFilterHelper _urlFilterHelper =
+      const BrowserPageUrlFilterHelper();
+  final BrowserPageStatePredicates _statePredicates =
+      const BrowserPageStatePredicates();
+  final BrowserPageInputResolver _inputResolver =
+      const BrowserPageInputResolver();
+  final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
+  final BrowserPageAddressSync _addressSync = const BrowserPageAddressSync();
 
   void _logDebug(String message) {
     if (kDebugMode) {
@@ -131,11 +122,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   BrowserFavoritesCoordinator get _favoritesCoordinator =>
       _services.favoritesCoordinator;
   ProxyService get _proxyService => _services.proxyService;
-  BrowserHistoryService get _historyService => _services.historyService;
   BrowserImportedDocumentService get _importedDocumentService =>
       _services.importedDocumentService;
-  BrowserDownloadService get _downloadService => _services.downloadService;
-  BrowserDownloadStore get _downloadStore => _services.downloadStore;
   BrowserExternalUrlLauncherService get _externalUrlLauncher =>
       _services.externalUrlLauncher;
   BrowserDownloadCoordinator get _downloadCoordinator =>
@@ -156,8 +144,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _services.videoDetectionCoordinator;
   BrowserVideoPlayerCoordinator get _videoPlayerCoordinator =>
       _services.videoPlayerCoordinator;
-  BrowserVideoPlaybackPreparationService get _videoPlaybackPreparationService =>
-      _services.videoPlaybackPreparationService;
   BrowserFavoriteService get _favoriteService => _services.favoriteService;
   LocalHttpFileServerService get _localHttpFileServerService =>
       _services.localHttpFileServerService;
@@ -191,7 +177,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _hasDeferredOverlayRebuild = false;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
-  VideoProxyServer get _videoProxyServer => _services.videoProxyServer;
   PullToRefreshController? _pullToRefreshController;
   BrowserTabSession? get _activeTab => _tabCoordinator.activeTab;
   String? get _activeTabId => _tabCoordinator.activeTabId;
@@ -202,8 +187,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool get _canGoForward => _tabCoordinator.canGoForward;
   bool get _isSecure => _tabCoordinator.isSecure;
 
-  bool _isFavoritesPage(String? url) =>
-      _favoritesCoordinator.isFavoritesPage(url);
+  bool _isFavoritesPage(String? url) => _statePredicates.isFavoritesPage(
+    favoritesCoordinator: _favoritesCoordinator,
+    url: url,
+  );
 
   @override
   void initState() {
@@ -397,46 +384,31 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _syncNotifiers() {
-    final nextIsLoading = _isLoading;
-    if (_isLoadingNotifier.value != nextIsLoading) {
-      _isLoadingNotifier.value = nextIsLoading;
-    }
-
-    final nextCanGoBack = _canGoBack;
-    if (_canGoBackNotifier.value != nextCanGoBack) {
-      _canGoBackNotifier.value = nextCanGoBack;
-    }
-
-    final nextCanGoForward = _canGoForward;
-    if (_canGoForwardNotifier.value != nextCanGoForward) {
-      _canGoForwardNotifier.value = nextCanGoForward;
-    }
-
-    final nextIsSecure = _isSecure;
-    if (_isSecureNotifier.value != nextIsSecure) {
-      _isSecureNotifier.value = nextIsSecure;
-    }
-
-    final nextTabCount = _tabService.tabCount;
-    if (_tabCountNotifier.value != nextTabCount) {
-      _tabCountNotifier.value = nextTabCount;
-    }
-
-    if (_statusMessageNotifier.value != _statusMessage) {
-      _statusMessageNotifier.value = _statusMessage;
-    }
+    _notifierSync.sync(
+      isLoadingNotifier: _isLoadingNotifier,
+      isLoading: _isLoading,
+      canGoBackNotifier: _canGoBackNotifier,
+      canGoBack: _canGoBack,
+      canGoForwardNotifier: _canGoForwardNotifier,
+      canGoForward: _canGoForward,
+      isSecureNotifier: _isSecureNotifier,
+      isSecure: _isSecure,
+      tabCountNotifier: _tabCountNotifier,
+      tabCount: _tabService.tabCount,
+      statusMessageNotifier: _statusMessageNotifier,
+      statusMessage: _statusMessage,
+    );
   }
 
   void _syncAddressBarForCurrentTab() {
-    final nextText = _tabCoordinator.addressBarTextForCurrentTab();
-    if (_addressController.text == nextText) {
-      return;
-    }
-    _addressController.text = nextText;
+    _addressSync.syncForCurrentTab(
+      tabCoordinator: _tabCoordinator,
+      addressController: _addressController,
+    );
   }
 
   bool _shouldPauseCurrentWebViewOnTabSwitch(String url) {
-    return isLocalBrowserUrl(url);
+    return _statePredicates.shouldPauseCurrentWebViewOnTabSwitch(url);
   }
 
   BrowserPageTabTransitionDeps get _tabTransitionDeps {
@@ -949,19 +921,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   String _resolveInput(String input) {
-    final maybeUrl = normalizeBrowserUrl(input);
-    if (maybeUrl != null) {
-      return maybeUrl;
-    }
-
-    final engine = _isProxyActive
-        ? 'https://www.google.com/search?q='
-        : 'https://www.baidu.com/s?wd=';
-    return engine + Uri.encodeComponent(input);
+    return _inputResolver.resolve(input, isProxyActive: _isProxyActive);
   }
 
   bool _shouldOpenNativeVideoFromUrl(String url) {
-    return _videoPlayerCoordinator.shouldOpenNativeVideoFromUrl(url, _settings);
+    return _statePredicates.shouldOpenNativeVideoFromUrl(
+      videoPlayerCoordinator: _videoPlayerCoordinator,
+      url: url,
+      settings: _settings,
+    );
   }
 
   Future<bool> _tryHandleExplicitYoutubeInput(String url) async {
@@ -994,7 +962,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _shouldUseProxy([BrowserSettings? settings, bool? proxySupported]) {
     final effectiveSettings = settings ?? _settings;
     final effectiveProxySupported = proxySupported ?? _proxySupported;
-    return effectiveSettings.shouldApplyProxy && effectiveProxySupported;
+    return _statePredicates.shouldUseProxy(
+      settings: effectiveSettings,
+      proxySupported: effectiveProxySupported,
+    );
   }
 
   void _replaceSuggestionService() {
@@ -1091,12 +1062,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _resetProgress() {
-    _progress = 0;
-    _progressNotifier.value = 0;
-  }
-
-  void _updateScrollPositionIfNeeded(double scrollPosition) {
-    _tabCoordinator.updateActiveScrollPositionIfNeeded(scrollPosition);
+    _notifierSync.resetProgress(
+      progressNotifier: _progressNotifier,
+      setProgress: (value) {
+        _progress = value;
+      },
+    );
   }
 
   void _updateScrollPositionForTabIfNeeded(
@@ -1126,30 +1097,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     _updateActiveTab(canGoBack: canGoBack, canGoForward: canGoForward);
     _rebuildWhenVisible();
-  }
-
-  Future<void> _refreshNavigationStateForTab(
-    String tabId,
-    InAppWebViewController controller,
-  ) async {
-    if (!mounted) {
-      return;
-    }
-
-    final canGoBack = await controller.canGoBack();
-    final canGoForward = await controller.canGoForward();
-    if (!mounted) {
-      return;
-    }
-
-    final changed = _updateTabById(
-      tabId,
-      canGoBack: canGoBack,
-      canGoForward: canGoForward,
-    );
-    if (changed && _activeTabId == tabId) {
-      _rebuildWhenVisible();
-    }
   }
 
   Future<void> _completeLoadStopFollowUp({
@@ -1275,28 +1222,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         return false;
       case BrowserPopupWindowAction.openTab:
         final initialUrl = decision.initialUrl;
-        final popupWindowId = createWindowAction.windowId;
-        if (popupWindowId != null) {
-          await _openTab(
-            initialUrl != null && initialUrl.isNotEmpty
-                ? initialUrl
-                : 'about:blank',
-            statusMessage: _statusCoordinator.popupOpenedInNewTab(),
-            popupWindowId: popupWindowId,
-          );
-          return true;
-        }
-        if (initialUrl != null && initialUrl.isNotEmpty) {
-          await _openTab(
-            initialUrl,
-            statusMessage: _statusCoordinator.popupOpenedInNewTab(),
-          );
-          return false;
-        }
         await _openTab(
-          'about:blank',
+          initialUrl != null && initialUrl.isNotEmpty
+              ? initialUrl
+              : 'about:blank',
           statusMessage: _statusCoordinator.popupOpenedInNewTab(),
-          popupWindowId: popupWindowId,
+          popupWindowId: createWindowAction.windowId,
         );
         return true;
       case BrowserPopupWindowAction.showPopup:
@@ -1606,60 +1537,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     unawaited(_tabService.saveSessions());
   }
 
-  Future<void> _loadActiveTabIntoWebView() async {
-    final controller = _webViewController;
-    final activeTab = _activeTab;
-    if (controller == null || activeTab == null) {
-      return;
-    }
-
-    if (_tabFlowCoordinator.shouldShowFavoritesInsteadOfLoading(
-      isFavoritesPage: _isFavoritesPage(activeTab.url),
-    )) {
-      await _showFavoritesHome(resetNavigationState: false);
-      return;
-    }
-
-    _updateActiveTab(isLoading: true, canGoBack: false, canGoForward: false);
-    if (mounted) {
-      _rebuildWhenVisible();
-    }
-
-    await controller.loadUrl(
-      urlRequest: URLRequest(url: WebUri(activeTab.url)),
-    );
-  }
-
-  Future<void> _handleVideoDetected(String? url) async {
-    await _videoDetectionCoordinator.handleDetectedVideo(
-      url,
-      nativeVideoEnabled: _settings.nativeVideoPlayerEnabled,
-      onOpenVideo: (normalizedUrl) async {
-        _webViewController?.evaluateJavascript(
-          source: "var v=document.querySelector('video'); if(v) v.pause();",
-        );
-        await _videoPlayerCoordinator.showFloatingVideoPlayer(
-          context: context,
-          url: normalizedUrl,
-          settings: _settings,
-          currentPageTitle: _activeTab?.title ?? '',
-        );
-      },
-    );
-  }
-
-  void _injectVideoDetectionScript(InAppWebViewController controller) {
-    if (!_videoDetectionCoordinator.shouldInjectScript(
-      nativeVideoEnabled: _settings.nativeVideoPlayerEnabled,
-    )) {
-      return;
-    }
-    _videoDetectionCoordinator.markScriptInjected();
-    controller.evaluateJavascript(
-      source: _videoDetectionCoordinator.buildInjectionScript(),
-    );
-  }
-
   void _syncUrlIfNeeded(String? url) {
     final result = _tabCoordinator.syncActiveUrlIfNeeded(url);
     if (result.didChangeUrl) {
@@ -1719,11 +1596,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   bool _isWebScheme(String? scheme) {
-    return BrowserPopupFilter.isWebScheme(scheme);
+    return _urlFilterHelper.isWebScheme(scheme);
   }
 
   bool _shouldSuppressPopupUrl(String? url) {
-    return BrowserPopupFilter.shouldSuppressPopupUrl(url);
+    return _urlFilterHelper.shouldSuppressPopupUrl(url);
   }
 
   Future<void> _handleLongPressHitTestResult(
