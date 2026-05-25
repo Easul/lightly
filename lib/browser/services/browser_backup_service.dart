@@ -666,7 +666,12 @@ class BrowserBackupService {
     }
 
     headlessWebView = HeadlessInAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(origin)),
+      initialData: InAppWebViewInitialData(
+        data:
+            '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>',
+        baseUrl: WebUri(origin),
+        historyUrl: WebUri(origin),
+      ),
       onLoadStop: (controller, url) async {
         await runTask(controller);
       },

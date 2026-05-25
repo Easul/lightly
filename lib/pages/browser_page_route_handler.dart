@@ -36,12 +36,8 @@ class BrowserPageRouteHandler {
     required bool isFavoritesPage,
   }) {
     if (result is DataManagementPageResult && result.changed) {
-      final currentOrigin = Uri.tryParse(currentUrl)?.origin;
       final shouldReloadCurrentWebView =
-          currentOrigin != null &&
-          result.webDataChanged &&
-          result.restoredOrigins.contains(currentOrigin) &&
-          !isFavoritesPage;
+          result.webDataChanged && !isFavoritesPage;
       return BrowserPageDataManagementActionPlan(
         reloadSettings: true,
         showFavoritesHome: result.favoritesChanged,
