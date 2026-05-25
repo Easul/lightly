@@ -511,6 +511,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
+  void _markTabWebViewAttached(String tabId) {
+    final tab = _tabCoordinator.tabById(tabId);
+    if (tab == null || tab.hasAttachedWebView) {
+      return;
+    }
+    _updateTabById(tabId, hasAttachedWebView: true);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -560,6 +568,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         key: ValueKey('webview-${_activeTabId ?? 'none'}'),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
+        shouldLoadInitialUrl: !(_activeTab?.hasAttachedWebView ?? false),
         windowId: _activeTab?.popupWindowId,
         keepAlive: _activeTab?.keepAlive,
         isLoading: _isLoading,
@@ -570,6 +579,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           }
           _webViewController = controller;
           if (hostedTabId != null) {
+            _markTabWebViewAttached(hostedTabId);
             final adoptedPopupWindowId = _tabCoordinator
                 .tabById(hostedTabId)
                 ?.popupWindowId;
@@ -1026,6 +1036,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _updateTabById(
     String tabId, {
     String? url,
+    bool? hasAttachedWebView,
     bool clearPopupWindowId = false,
     String? title,
     bool? isLoading,
@@ -1036,6 +1047,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return _tabCoordinator.updateTabById(
       tabId,
       url: url,
+      hasAttachedWebView: hasAttachedWebView,
       clearPopupWindowId: clearPopupWindowId,
       title: title,
       isLoading: isLoading,

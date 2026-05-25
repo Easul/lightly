@@ -15,6 +15,7 @@ class BrowserWebViewHost extends StatelessWidget {
     super.key,
     required this.enabled,
     required this.initialUrl,
+    required this.shouldLoadInitialUrl,
     this.windowId,
     this.keepAlive,
     required this.isLoading,
@@ -40,6 +41,7 @@ class BrowserWebViewHost extends StatelessWidget {
 
   final bool enabled;
   final String initialUrl;
+  final bool shouldLoadInitialUrl;
   final int? windowId;
   final InAppWebViewKeepAlive? keepAlive;
   final bool isLoading;
@@ -148,7 +150,7 @@ class BrowserWebViewHost extends StatelessWidget {
         RepaintBoundary(
           child: InAppWebView(
             windowId: windowId,
-            initialUrlRequest: windowId == null
+            initialUrlRequest: windowId == null && shouldLoadInitialUrl
                 ? URLRequest(url: WebUri(initialUrl))
                 : null,
             keepAlive: keepAlive,
