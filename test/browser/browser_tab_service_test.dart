@@ -208,5 +208,27 @@ void main() {
       expect(identical(secondRead, thirdRead), isFalse);
       expect(thirdRead, hasLength(2));
     });
+
+    test(
+      'trimAllBackgroundKeepAlives removes all inactive retained webviews',
+      () {
+        final service = BrowserTabService.test(maxTabs: 4);
+        service.initialize('https://one.example');
+        final second = service.openTab(url: 'https://two.example');
+        service.openTab(url: 'https://three.example');
+
+        service.activateTab(second.id);
+        final trimmed = service.trimAllBackgroundKeepAlives();
+
+        expect(trimmed, 2);
+        final activeId = service.activeTab?.id;
+        expect(
+          service.tabs
+              .where((tab) => tab.id != activeId)
+              .every((tab) => tab.keepAlive == null),
+          isTrue,
+        );
+      },
+    );
   });
 }
