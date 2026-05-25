@@ -364,17 +364,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
               _buildControllerSection(),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
+              RemoteControlErrorBanner(message: _errorMessage!),
             ],
           ],
         ),
