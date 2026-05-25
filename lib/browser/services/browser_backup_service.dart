@@ -181,6 +181,8 @@ class BrowserBackupService {
     'https://www.duckcoding.ai',
     'https://muyuan.do',
     'https://new-api.abrdns.com',
+    'https://free.linggan10s.shop',
+    'https://up.x666.me',
   };
   static const Duration _webStorageExportTimeout = Duration(seconds: 4);
 
@@ -492,7 +494,7 @@ class BrowserBackupService {
     if (name == null || name.isEmpty) {
       return false;
     }
-    return name.contains('session');
+    return name.contains('session') || name.contains('linuxdo_oauth_intent');
   }
 
   String? _normalizeOrigin(String rawUrl) {

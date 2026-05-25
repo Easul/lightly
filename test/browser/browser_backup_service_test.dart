@@ -70,6 +70,10 @@ void main() {
           'url': 'https://www.duckcoding.ai',
           'name': 'SessionId',
         },
+        <String, dynamic>{
+          'url': 'https://linux.do',
+          'name': 'linuxdo_oauth_intent',
+        },
         <String, dynamic>{'url': 'https://static.example.com', 'name': 'token'},
       ],
     );
@@ -77,8 +81,11 @@ void main() {
     expect(origins, isNot(contains('https://start.example.com')));
     expect(origins, contains('https://muyuan.do'));
     expect(origins, contains('https://www.duckcoding.ai'));
+    expect(origins, contains('https://linux.do'));
     expect(origins, contains('https://new-api.abrdns.com'));
+    expect(origins, contains('https://free.linggan10s.shop'));
+    expect(origins, contains('https://up.x666.me'));
     expect(origins, isNot(contains('https://static.example.com')));
-    expect(origins.length, 3);
+    expect(origins.length, 6);
   });
 }
