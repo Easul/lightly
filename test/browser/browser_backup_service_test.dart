@@ -77,7 +77,8 @@ void main() {
     expect(origins, isNot(contains('https://start.example.com')));
     expect(origins, contains('https://muyuan.do'));
     expect(origins, contains('https://www.duckcoding.ai'));
+    expect(origins, contains('https://new-api.abrdns.com'));
     expect(origins, isNot(contains('https://static.example.com')));
-    expect(origins.length, 2);
+    expect(origins.length, 3);
   });
 }

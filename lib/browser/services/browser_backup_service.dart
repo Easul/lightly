@@ -168,10 +168,19 @@ class ImportResult {
 
 class BrowserBackupService {
   static const Set<String> _supplementalCookieOrigins = <String>{
+    'https://hax.co.id',
     'https://oauth.telegram.org',
+    'https://www.duckcoding.ai',
+    'https://muyuan.do',
+    'https://new-api.abrdns.com',
     'https://accounts.google.com',
     'https://login.microsoftonline.com',
     'https://appleid.apple.com',
+  };
+  static const Set<String> _supplementalWebStorageOrigins = <String>{
+    'https://www.duckcoding.ai',
+    'https://muyuan.do',
+    'https://new-api.abrdns.com',
   };
   static const Duration _webStorageExportTimeout = Duration(seconds: 4);
 
@@ -454,6 +463,10 @@ class BrowserBackupService {
       if (_cookieSuggestsWebStorage(cookie)) {
         addOrigin(cookie['url'] as String?);
       }
+    }
+
+    for (final origin in _supplementalWebStorageOrigins) {
+      addOrigin(origin);
     }
 
     return origins;
