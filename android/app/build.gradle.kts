@@ -77,6 +77,10 @@ android {
         debug {
             applicationIdSuffix = ".test"
         }
+        getByName("profile") {
+            applicationIdSuffix = ".profile"
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             val releaseConfig = signingConfigs.findByName("release")
             val keystoreExists = releaseConfig?.storeFile?.exists() ?: false
