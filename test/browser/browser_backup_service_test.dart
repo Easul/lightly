@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
+import 'package:lightly/browser/models/browser_favorite.dart';
+import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 
 void main() {
@@ -53,5 +55,29 @@ void main() {
 
     expect(result.toString(), contains('2 个 Cookie'));
     expect(result.toString(), contains('1 个站点存储'));
+  });
+
+  test('collectWebStorageOriginsForTesting selects session-cookie origins', () {
+    final service = BrowserBackupService();
+
+    final origins = service.collectWebStorageOriginsForTesting(
+      history: const <BrowserHistoryEntry>[],
+      favorites: const <BrowserFavorite>[],
+      homepageUrl: 'https://start.example.com',
+      cookies: const [
+        <String, dynamic>{'url': 'https://muyuan.do', 'name': 'session'},
+        <String, dynamic>{
+          'url': 'https://www.duckcoding.ai',
+          'name': 'SessionId',
+        },
+        <String, dynamic>{'url': 'https://static.example.com', 'name': 'token'},
+      ],
+    );
+
+    expect(origins, isNot(contains('https://start.example.com')));
+    expect(origins, contains('https://muyuan.do'));
+    expect(origins, contains('https://www.duckcoding.ai'));
+    expect(origins, isNot(contains('https://static.example.com')));
+    expect(origins.length, 2);
   });
 }

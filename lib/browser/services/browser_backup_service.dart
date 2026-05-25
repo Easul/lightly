@@ -173,6 +173,7 @@ class BrowserBackupService {
     'https://login.microsoftonline.com',
     'https://appleid.apple.com',
   };
+  static const Duration _webStorageExportTimeout = Duration(seconds: 4);
 
   BrowserBackupService({
     BrowserFavoriteService? favoriteService,
@@ -218,13 +219,19 @@ class BrowserBackupService {
     final easyTierProfiles = await _easyTierProfileService.loadProfiles();
     final selectedEasyTierProfileId = await _easyTierProfileService
         .getSelectedProfileId();
-    final webOrigins = _collectWebOrigins(
+    final cookieOrigins = _collectCookieOrigins(
       history: history,
       favorites: favorites,
       homepageUrl: settings.homepageUrl,
     );
-    final cookies = await _exportCookies(origins: webOrigins);
-    final webStorage = await _exportWebStorage(origins: webOrigins);
+    final cookies = await _exportCookies(origins: cookieOrigins);
+    final webStorageOrigins = _collectWebStorageOrigins(
+      history: history,
+      favorites: favorites,
+      homepageUrl: settings.homepageUrl,
+      cookies: cookies,
+    );
+    final webStorage = await _exportWebStorage(origins: webStorageOrigins);
 
     return BrowserBackupData(
       favorites: favorites,
@@ -408,7 +415,7 @@ class BrowserBackupService {
     }
   }
 
-  Set<String> _collectWebOrigins({
+  Set<String> _collectCookieOrigins({
     required List<BrowserHistoryEntry> history,
     required List<BrowserFavorite> favorites,
     required String homepageUrl,
@@ -426,6 +433,53 @@ class BrowserBackupService {
       }
     }
     return origins;
+  }
+
+  Set<String> _collectWebStorageOrigins({
+    required List<BrowserHistoryEntry> history,
+    required List<BrowserFavorite> favorites,
+    required String homepageUrl,
+    required List<Map<String, dynamic>> cookies,
+  }) {
+    final origins = <String>{};
+
+    void addOrigin(String? rawUrl) {
+      final origin = rawUrl == null ? null : _normalizeOrigin(rawUrl);
+      if (origin != null) {
+        origins.add(origin);
+      }
+    }
+
+    for (final cookie in cookies) {
+      if (_cookieSuggestsWebStorage(cookie)) {
+        addOrigin(cookie['url'] as String?);
+      }
+    }
+
+    return origins;
+  }
+
+  @visibleForTesting
+  Set<String> collectWebStorageOriginsForTesting({
+    required List<BrowserHistoryEntry> history,
+    required List<BrowserFavorite> favorites,
+    required String homepageUrl,
+    required List<Map<String, dynamic>> cookies,
+  }) {
+    return _collectWebStorageOrigins(
+      history: history,
+      favorites: favorites,
+      homepageUrl: homepageUrl,
+      cookies: cookies,
+    );
+  }
+
+  bool _cookieSuggestsWebStorage(Map<String, dynamic> cookie) {
+    final name = cookie['name']?.toString().toLowerCase();
+    if (name == null || name.isEmpty) {
+      return false;
+    }
+    return name.contains('session');
   }
 
   String? _normalizeOrigin(String rawUrl) {
@@ -631,7 +685,7 @@ class BrowserBackupService {
     try {
       await headlessWebView.run();
       return await completer.future.timeout(
-        const Duration(seconds: 15),
+        _webStorageExportTimeout,
         onTimeout: () => null,
       );
     } finally {
