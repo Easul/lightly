@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../services/proxy_core_service.dart' as proxy_core;
 import '../browser_settings.dart';
 import 'proxy_config_mapper.dart';
@@ -16,7 +18,7 @@ class ProxyRuntimeLauncher {
     required proxy_core.ProxyCoreService proxyCoreService,
     required BrowserSettings settings,
     required String listenAddr,
-    String logLevel = 'debug',
+    String logLevel = kReleaseMode ? 'warn' : 'debug',
   }) {
     if (settings.proxyProtocol == BrowserProxyProtocol.hysteria2) {
       return proxyCoreService.startWithHysteria2(

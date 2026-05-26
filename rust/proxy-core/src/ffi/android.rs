@@ -24,19 +24,22 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeInit(
 ) -> jint {
     let level: String = match env.get_string(&log_level) {
         Ok(s) => s.into(),
-        Err(_) => "debug".to_string(),
+        Err(_) => "info".to_string(),
     };
+    let level_filter = parse_log_level(&level);
 
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     android_logger::init_once(
         android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Debug)
+            .with_max_level(level_filter)
             .with_tag("ProxyCore"),
     );
 
     std::panic::set_hook(Box::new(|info| {
-        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
             .unwrap_or_else(|| "unknown location".to_string());
         let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
             s.to_string()
@@ -54,6 +57,18 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeInit(
     );
     log::debug!("RustProxy: Debug logging enabled");
     0
+}
+
+fn parse_log_level(level: &str) -> log::LevelFilter {
+    match level.trim().to_ascii_lowercase().as_str() {
+        "off" => log::LevelFilter::Off,
+        "error" => log::LevelFilter::Error,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "info" => log::LevelFilter::Info,
+        "debug" => log::LevelFilter::Debug,
+        "trace" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Info,
+    }
 }
 
 #[no_mangle]
