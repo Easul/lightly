@@ -30,6 +30,10 @@ class BrowserPageStatePredicates {
     return true;
   }
 
+  bool shouldRebuildAfterAddressLoad({required bool wasFavoritesPage}) {
+    return wasFavoritesPage;
+  }
+
   bool shouldOpenNativeVideoFromUrl({
     required BrowserVideoPlayerCoordinator videoPlayerCoordinator,
     required String url,

@@ -925,6 +925,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
+    if (_statePredicates.shouldRebuildAfterAddressLoad(
+      wasFavoritesPage: wasFavoritesPage,
+    )) {
+      if (mounted) {
+        _rebuildWhenVisible();
+      }
+      return;
+    }
+
     if (!wasFavoritesPage && activeTabId != null) {
       _tabService.resetKeepAlive(activeTabId, recreate: false);
       if (mounted) {

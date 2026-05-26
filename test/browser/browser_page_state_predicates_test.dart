@@ -60,5 +60,21 @@ void main() {
         expect(predicates.shouldLoadInitialUrlForTab(tab), isTrue);
       });
     });
+
+    group('shouldRebuildAfterAddressLoad', () {
+      test('rebuilds when loading from favorites page into WebView', () {
+        expect(
+          predicates.shouldRebuildAfterAddressLoad(wasFavoritesPage: true),
+          isTrue,
+        );
+      });
+
+      test('does not require rebuild when WebView can load directly', () {
+        expect(
+          predicates.shouldRebuildAfterAddressLoad(wasFavoritesPage: false),
+          isFalse,
+        );
+      });
+    });
   });
 }
