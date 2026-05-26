@@ -430,7 +430,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         );
       },
       detachCurrentController: () {
+        final currentTabId = _activeTabId;
         _webViewController = null;
+        if (currentTabId != null) {
+          _updateTabById(currentTabId, hasAttachedWebView: false);
+        }
       },
       unfocusAddressBar: _addressFocusNode.unfocus,
       syncAddressBar: _syncAddressBarForCurrentTab,
@@ -520,6 +524,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Widget _buildBody() {
     final hostedTabId = _activeTabId;
+    final activeTab = _activeTab;
     final isFavoritesPage = _isFavoritesPage(_currentUrl);
     return BrowserPageBodySection(
       isFavoritesPage: isFavoritesPage,
@@ -540,9 +545,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         key: ValueKey('webview-${_activeTabId ?? 'none'}'),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
-        shouldLoadInitialUrl: !(_activeTab?.hasAttachedWebView ?? false),
-        windowId: _activeTab?.popupWindowId,
-        keepAlive: _activeTab?.keepAlive,
+        shouldLoadInitialUrl: _statePredicates.shouldLoadInitialUrlForTab(
+          activeTab,
+        ),
+        windowId: activeTab?.popupWindowId,
+        keepAlive: activeTab?.keepAlive,
         isLoading: _isLoading,
         progressListenable: _progressNotifier,
         onWebViewCreated: (controller) {
