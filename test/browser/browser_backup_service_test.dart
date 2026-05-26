@@ -3,6 +3,8 @@ import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/models/browser_favorite.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
+import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('BrowserBackupData round-trips webStorage entries', () {
@@ -103,4 +105,24 @@ void main() {
       'https://api.picpi.top/',
     );
   });
+
+  test(
+    'collectCookieUrlsForTesting uses WebView origin index, not history',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final originService = BrowserCookieOriginService(
+        preferences: preferences,
+      );
+      await originService.recordUrl('https://session-only.example.com/account');
+
+      final service = BrowserBackupService(cookieOriginService: originService);
+
+      final urls = await service.collectCookieUrlsForTesting();
+
+      expect(urls, contains('https://session-only.example.com/'));
+      expect(urls, contains('https://muyuan.do/'));
+      expect(urls, isNot(contains('https://start.example.com/')));
+    },
+  );
 }

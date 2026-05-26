@@ -5,6 +5,7 @@ import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_download_store.dart';
 import 'package:lightly/browser/services/browser_favorite_service.dart';
 import 'package:lightly/browser/services/browser_download_service.dart';
+import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
 import 'package:lightly/browser/services/browser_history_service.dart';
 import 'package:lightly/browser/services/browser_suggestion_service.dart';
 import 'package:lightly/browser/services/browser_settings_action_handler.dart';
@@ -61,6 +62,35 @@ void main() {
       expect(clipboardStorage.cleared, isTrue);
       expect(calculatorHistoryService.cleared, isTrue);
     });
+
+    test(
+      'clearBrowsingData clears cookie origin index with site data',
+      () async {
+        final cookieOriginService = _FakeBrowserCookieOriginService();
+        var cookiesCleared = false;
+        var webStorageCleared = false;
+        final handler = BrowserSettingsActionHandler(
+          historyService: _FakeBrowserHistoryService(),
+          cookieOriginService: cookieOriginService,
+          downloadService: _FakeBrowserDownloadService(),
+          suggestionService: _FakeBrowserSuggestionService(),
+          deleteAllCookies: () async {
+            cookiesCleared = true;
+          },
+          deleteAllWebStorage: () async {
+            webStorageCleared = true;
+          },
+        );
+
+        await handler.clearBrowsingData(
+          const BrowserClearDataSelection(cookiesAndSiteData: true),
+        );
+
+        expect(cookiesCleared, isTrue);
+        expect(webStorageCleared, isTrue);
+        expect(cookieOriginService.cleared, isTrue);
+      },
+    );
 
     test('clearBrowsingData skips work when selection is empty', () async {
       final historyService = _FakeBrowserHistoryService();
@@ -154,6 +184,15 @@ class _FakeBrowserHistoryService extends BrowserHistoryService {
     DateTime? visitedAt,
   }) {
     throw UnimplementedError();
+  }
+}
+
+class _FakeBrowserCookieOriginService extends BrowserCookieOriginService {
+  bool cleared = false;
+
+  @override
+  Future<void> clearOrigins() async {
+    cleared = true;
   }
 }
 

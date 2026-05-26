@@ -35,7 +35,7 @@ void main() {
       test('does not reload a tab that already has an attached WebView', () {
         const tab = BrowserTabSession(
           id: 'tab_1',
-          url: 'https://agentrouter.org/login',
+          url: 'https://example.com/login',
           hasAttachedWebView: true,
         );
         expect(predicates.shouldLoadInitialUrlForTab(tab), isFalse);

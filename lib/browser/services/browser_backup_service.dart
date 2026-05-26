@@ -19,6 +19,7 @@ import '../models/browser_favorite.dart';
 import '../models/browser_history_entry.dart';
 import 'browser_favorite_service.dart';
 import 'browser_history_service.dart';
+import 'browser_cookie_origin_service.dart';
 
 class BrowserBackupData {
   const BrowserBackupData({
@@ -190,6 +191,7 @@ class BrowserBackupService {
     BrowserFavoriteService? favoriteService,
     BrowserSettingsService? settingsService,
     BrowserHistoryService? historyService,
+    BrowserCookieOriginService? cookieOriginService,
     HistoryService? calculatorHistoryService,
     ClipboardStorageService? clipboardStorageService,
     EasyTierProfileService? easyTierProfileService,
@@ -197,6 +199,8 @@ class BrowserBackupService {
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _settingsService = settingsService ?? BrowserSettingsService(),
        _historyService = historyService ?? BrowserHistoryService(),
+       _cookieOriginService =
+           cookieOriginService ?? BrowserCookieOriginService(),
        _calculatorHistoryService = calculatorHistoryService ?? HistoryService(),
        _clipboardStorageService =
            clipboardStorageService ?? ClipboardStorageService(),
@@ -208,6 +212,7 @@ class BrowserBackupService {
   final BrowserFavoriteService _favoriteService;
   final BrowserSettingsService _settingsService;
   final BrowserHistoryService _historyService;
+  final BrowserCookieOriginService _cookieOriginService;
   final HistoryService _calculatorHistoryService;
   final ClipboardStorageService _clipboardStorageService;
   final EasyTierProfileService _easyTierProfileService;
@@ -230,11 +235,7 @@ class BrowserBackupService {
     final easyTierProfiles = await _easyTierProfileService.loadProfiles();
     final selectedEasyTierProfileId = await _easyTierProfileService
         .getSelectedProfileId();
-    final cookieUrls = _collectCookieUrls(
-      history: history,
-      favorites: favorites,
-      homepageUrl: settings.homepageUrl,
-    );
+    final cookieUrls = await _collectCookieUrls();
     final cookies = await _exportCookies(urls: cookieUrls);
     final webStorageOrigins = _collectWebStorageOrigins(
       history: history,
@@ -426,16 +427,11 @@ class BrowserBackupService {
     }
   }
 
-  Set<String> _collectCookieUrls({
-    required List<BrowserHistoryEntry> history,
-    required List<BrowserFavorite> favorites,
-    required String homepageUrl,
-  }) {
+  Future<Set<String>> _collectCookieUrls() async {
     final urls = <String>{};
+    final recordedOrigins = await _cookieOriginService.loadOrigins();
     for (final rawUrl in <String>{
-      homepageUrl,
-      ...history.map((entry) => entry.url),
-      ...favorites.map((entry) => entry.url),
+      ...recordedOrigins,
       ..._supplementalCookieOrigins,
     }) {
       final cookieUrl = _normalizeCookieLookupUrl(rawUrl);
@@ -444,6 +440,11 @@ class BrowserBackupService {
       }
     }
     return urls;
+  }
+
+  @visibleForTesting
+  Future<Set<String>> collectCookieUrlsForTesting() {
+    return _collectCookieUrls();
   }
 
   Set<String> _collectWebStorageOrigins({

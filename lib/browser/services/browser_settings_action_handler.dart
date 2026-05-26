@@ -5,6 +5,7 @@ import '../../calculator/history_service.dart' as calculator;
 import '../clipboard_storage_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
+import 'browser_cookie_origin_service.dart';
 import 'browser_favorite_service.dart';
 import 'browser_history_service.dart';
 import 'browser_suggestion_service.dart';
@@ -51,13 +52,18 @@ class BrowserClearDataSelection {
 class BrowserSettingsActionHandler {
   BrowserSettingsActionHandler({
     BrowserHistoryService? historyService,
+    BrowserCookieOriginService? cookieOriginService,
     BrowserDownloadService? downloadService,
     BrowserSuggestionService? suggestionService,
     BrowserDownloadStore? downloadStore,
     BrowserFavoriteService? favoriteService,
     ClipboardStorageService? clipboardStorage,
     calculator.HistoryService? calculatorHistoryService,
+    Future<void> Function()? deleteAllCookies,
+    Future<void> Function()? deleteAllWebStorage,
   }) : _historyService = historyService ?? BrowserHistoryService(),
+       _cookieOriginService =
+           cookieOriginService ?? BrowserCookieOriginService(),
        _downloadService = downloadService ?? BrowserDownloadService(),
        _suggestionService =
            suggestionService ??
@@ -66,15 +72,24 @@ class BrowserSettingsActionHandler {
        _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _clipboardStorage = clipboardStorage ?? ClipboardStorageService(),
        _calculatorHistoryService =
-           calculatorHistoryService ?? calculator.HistoryService();
+           calculatorHistoryService ?? calculator.HistoryService(),
+       _deleteAllCookies =
+           deleteAllCookies ??
+           (() => CookieManager.instance().deleteAllCookies()),
+       _deleteAllWebStorage =
+           deleteAllWebStorage ??
+           (() => WebStorageManager.instance().deleteAllData());
 
   final BrowserHistoryService _historyService;
+  final BrowserCookieOriginService _cookieOriginService;
   final BrowserDownloadService _downloadService;
   final BrowserSuggestionService _suggestionService;
   final BrowserDownloadStore _downloadStore;
   final BrowserFavoriteService _favoriteService;
   final ClipboardStorageService _clipboardStorage;
   final calculator.HistoryService _calculatorHistoryService;
+  final Future<void> Function() _deleteAllCookies;
+  final Future<void> Function() _deleteAllWebStorage;
 
   Future<void> clearHistory() async {
     await _historyService.clearHistory();
@@ -90,8 +105,9 @@ class BrowserSettingsActionHandler {
       await clearHistory();
     }
     if (selection.cookiesAndSiteData) {
-      await CookieManager.instance().deleteAllCookies();
-      await WebStorageManager.instance().deleteAllData();
+      await _deleteAllCookies();
+      await _deleteAllWebStorage();
+      await _cookieOriginService.clearOrigins();
     }
     if (selection.cache) {
       await InAppWebViewController.clearAllCache(includeDiskFiles: true);

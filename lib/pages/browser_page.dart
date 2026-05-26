@@ -12,6 +12,7 @@ import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_tab_session.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_download_coordinator.dart';
+import '../browser/services/browser_cookie_origin_service.dart';
 import '../browser/services/browser_external_app_handler.dart';
 import '../browser/services/browser_external_url_launcher_service.dart';
 import '../browser/services/browser_favorite_action_coordinator.dart';
@@ -136,6 +137,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   BrowserFullscreenManager get _fullscreenManager =>
       _services.fullscreenManager;
   BrowserHistoryRecorder get _historyRecorder => _services.historyRecorder;
+  BrowserCookieOriginService get _cookieOriginService =>
+      _services.cookieOriginService;
   BrowserLongPressHandler get _longPressHandler => _services.longPressHandler;
   BrowserPopupWindowHandler get _popupWindowHandler =>
       _services.popupWindowHandler;
@@ -592,6 +595,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (hostedTabId == null) {
             return;
           }
+          unawaited(_recordCookieOrigin(url));
           final didChangeLoading = _updateTabById(hostedTabId, isLoading: true);
           final didChangeProgress = _isActiveTabId(hostedTabId)
               ? _updateProgressIfNeeded(0)
@@ -617,6 +621,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             return;
           }
           _pullToRefreshController?.endRefreshing();
+          unawaited(_recordCookieOrigin(url));
           final didChangeLoading = _updateTabById(
             hostedTabId,
             isLoading: false,
@@ -720,6 +725,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           if (_webViewCoordinator.shouldHandleVisitedHistoryForActiveTab(
             isActiveTab: _isActiveTabId(hostedTabId),
           )) {
+            unawaited(_recordCookieOrigin(url));
             unawaited(_handleVisitedHistoryUpdate(controller, url));
           } else if (url != null &&
               _webViewCoordinator.shouldSyncVisitedHistoryForBackgroundTab(
@@ -1831,6 +1837,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _recordHistory(WebUri? url, String title) async {
     await _historyRecorder.recordHistory(url, title);
+  }
+
+  Future<void> _recordCookieOrigin(WebUri? url) async {
+    await _cookieOriginService.recordUrl(url?.toString());
   }
 
   Future<void> _handleDownloadStart(

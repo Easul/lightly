@@ -384,6 +384,13 @@ The browser supports clearing different categories of data independently:
 - **Clipboard**: Stored clipboard content
 - **Calculator History**: Calculator expression history
 
+### Cookie export origin tracking
+
+- Android WebView does not provide a supported full-cookie enumeration API in the current `flutter_inappwebview` Android implementation.
+- Do not derive cookie export targets from browsing history; users can clear history while cookies remain, causing `session` cookies to be skipped.
+- Cookie export should use the independent WebView cookie-origin index maintained from real WebView navigation events, plus documented supplemental origins, before calling `CookieManager.getCookies(url)`.
+- Clearing cookies/site data should clear this origin index; clearing history alone should not.
+
 ### Important: Favorite status tracker cache invalidation
 
 When clearing favorites from Settings, `BrowserFavoriteStatusTracker` maintains an in-memory `_statusCache` that can become stale. Always:
