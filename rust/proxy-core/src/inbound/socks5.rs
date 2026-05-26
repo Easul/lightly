@@ -176,7 +176,7 @@ pub async fn handle_socks5(
                 let client_input_done_for_c2v = client_input_done.clone();
                 let client_input_done_for_v2c = client_input_done.clone();
 
-                let (mut client_r, mut client_w) = stream.split();
+                let (client_r, client_w) = stream.split();
 
                 log::info!("[SOCKS5] {} ↔ Starting bidirectional relay", peer_addr);
 
@@ -207,10 +207,7 @@ pub async fn handle_socks5(
                     |error, _| {
                         client_input_done_for_c2v.store(true, Ordering::Relaxed);
                         if is_expected_client_read_close(error) {
-                            log::info!(
-                                "[SOCKS5] Client → VLESS: Peer closed input ({})",
-                                error
-                            );
+                            log::info!("[SOCKS5] Client → VLESS: Peer closed input ({})", error);
                         } else {
                             log::warn!("[SOCKS5] Client → VLESS: Read error {}", error);
                         }
@@ -266,13 +263,8 @@ pub async fn handle_socks5(
                     },
                 );
 
-                relay::run_vless_relay_session(
-                    c2v,
-                    v2c,
-                    std::future::ready(()),
-                    cleanup_outbound,
-                )
-                .await;
+                relay::run_vless_relay_session(c2v, v2c, std::future::ready(()), cleanup_outbound)
+                    .await;
                 log::info!("[SOCKS5] {} ↔ Bidirectional relay completed", peer_addr);
             }
             Err(e) => {

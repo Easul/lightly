@@ -48,7 +48,7 @@ pub async fn handle_http(
                     let fallback_outbound = outbound_stream.clone();
                     let cleanup_outbound = outbound_stream.clone();
 
-                    let (mut client_r, mut client_w) = stream.split();
+                    let (client_r, client_w) = stream.split();
 
                     let c2v = relay::relay_client_to_vless(
                         client_r,
@@ -163,7 +163,7 @@ pub async fn handle_http(
                     let outbound_download = outbound_stream.clone();
                     let cleanup_outbound = outbound_stream.clone();
 
-                    let (mut client_r, mut client_w) = stream.split();
+                    let (client_r, client_w) = stream.split();
 
                     let c2v = relay::relay_client_to_vless(
                         client_r,
@@ -221,7 +221,7 @@ pub async fn handle_http(
                 }
             },
             None => {
-                let mut target = TcpStream::connect(format!("{}:{}", addr, port)).await?;
+                let target = TcpStream::connect(format!("{}:{}", addr, port)).await?;
                 let remaining = reader.buffer().to_vec();
 
                 let mut stream = reader.into_inner();

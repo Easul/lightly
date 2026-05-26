@@ -35,7 +35,7 @@ impl InboundServer {
 }
 
 async fn handle_connection(
-    mut socket: tokio::net::TcpStream,
+    socket: tokio::net::TcpStream,
     pool: Arc<OutboundClientRegistry>,
 ) -> Result<()> {
     let peer_addr = socket

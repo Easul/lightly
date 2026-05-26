@@ -142,12 +142,16 @@ impl Hysteria2Client {
                 s
             }
             Err(e) => {
-                log::warn!("Hysteria2 bind 0.0.0.0:0 failed ({}), trying 127.0.0.1:0", e);
-                std::net::UdpSocket::bind("127.0.0.1:0")
-                    .map_err(|e2| Error::Network(format!(
+                log::warn!(
+                    "Hysteria2 bind 0.0.0.0:0 failed ({}), trying 127.0.0.1:0",
+                    e
+                );
+                std::net::UdpSocket::bind("127.0.0.1:0").map_err(|e2| {
+                    Error::Network(format!(
                         "Failed to bind UDP socket (0.0.0.0:0 → {}, 127.0.0.1:0 → {})",
                         e, e2
-                    )))?
+                    ))
+                })?
             }
         };
 
@@ -214,7 +218,10 @@ async fn authenticate_hysteria2(
     password: &str,
     obfs: &Option<String>,
     obfs_password: &Option<String>,
-) -> Result<(h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>, tokio::task::JoinHandle<()>)> {
+) -> Result<(
+    h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>,
+    tokio::task::JoinHandle<()>,
+)> {
     let h3_connection = h3_quinn::Connection::new(connection.clone());
     let (mut driver, mut sender) = h3::client::builder()
         .build::<_, _, Bytes>(h3_connection)
@@ -330,9 +337,11 @@ fn build_quinn_client_config(_sni: &Option<String>, tls_insecure: bool) -> Resul
         .map_err(|e| Error::Network(format!("Invalid TLS config: {}", e)))?;
 
     let mut transport = TransportConfig::default();
-    transport.max_idle_timeout(Some(Duration::from_secs(30).try_into().map_err(|e| {
-        Error::Network(format!("Invalid idle timeout: {}", e))
-    })?));
+    transport.max_idle_timeout(Some(
+        Duration::from_secs(30)
+            .try_into()
+            .map_err(|e| Error::Network(format!("Invalid idle timeout: {}", e)))?,
+    ));
     transport.keep_alive_interval(Some(Duration::from_secs(10)));
 
     let mut config = ClientConfig::new(Arc::new(quic_config));
