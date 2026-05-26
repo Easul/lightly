@@ -19,6 +19,8 @@ class BrowserPopupWindowDecision {
 }
 
 class BrowserPopupWindowHandler {
+  static const Set<String> _popupRequiredAuthHosts = {'agentrouter.org'};
+
   int _popupDialogCount = 0;
 
   bool get isShowingPopupDialog => _popupDialogCount > 0;
@@ -41,6 +43,14 @@ class BrowserPopupWindowHandler {
       );
     }
 
+    if (_shouldPreservePopupWindow(sourceUrl) ||
+        _shouldPreservePopupWindow(requestedUrl)) {
+      return BrowserPopupWindowDecision(
+        action: BrowserPopupWindowAction.showPopup,
+        initialUrl: requestedUrl.isEmpty ? null : requestedUrl,
+      );
+    }
+
     if (requestedUrl.isEmpty &&
         hasGesture &&
         BrowserAuthUrlDetector.looksLikeAuthUrl(sourceUrl)) {
@@ -51,6 +61,11 @@ class BrowserPopupWindowHandler {
     }
 
     if (requestedUrl.isEmpty && hasGesture && openNewWindowInTab) {
+      if (_shouldPreservePopupWindow(sourceUrl)) {
+        return const BrowserPopupWindowDecision(
+          action: BrowserPopupWindowAction.showPopup,
+        );
+      }
       return const BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.openTab,
       );
@@ -75,6 +90,19 @@ class BrowserPopupWindowHandler {
     return BrowserPopupWindowDecision(
       action: BrowserPopupWindowAction.showPopup,
       initialUrl: requestedUrl.isEmpty ? null : requestedUrl,
+    );
+  }
+
+  bool _shouldPreservePopupWindow(String? url) {
+    if (url == null || url.isEmpty) {
+      return false;
+    }
+    final host = Uri.tryParse(url)?.host.toLowerCase();
+    if (host == null || host.isEmpty) {
+      return false;
+    }
+    return _popupRequiredAuthHosts.any(
+      (authHost) => host == authHost || host.endsWith('.$authHost'),
     );
   }
 

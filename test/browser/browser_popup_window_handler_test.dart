@@ -71,5 +71,35 @@ void main() {
       expect(decision.action, BrowserPopupWindowAction.openTab);
       expect(decision.initialUrl, isNull);
     });
+
+    test('keeps agentrouter deferred login popups as popups', () {
+      final decision = handler.decide(
+        requestedUrl: '',
+        sourceUrl: 'https://agentrouter.org/login',
+        hasGesture: true,
+        openNewWindowInTab: true,
+      );
+
+      expect(decision.action, BrowserPopupWindowAction.showPopup);
+      expect(decision.initialUrl, isNull);
+    });
+
+    test(
+      'keeps agentrouter auth urls as popups even when tab setting enabled',
+      () {
+        final decision = handler.decide(
+          requestedUrl: 'https://agentrouter.org/oauth/callback?code=abc',
+          sourceUrl: 'https://agentrouter.org/login',
+          hasGesture: true,
+          openNewWindowInTab: true,
+        );
+
+        expect(decision.action, BrowserPopupWindowAction.showPopup);
+        expect(
+          decision.initialUrl,
+          'https://agentrouter.org/oauth/callback?code=abc',
+        );
+      },
+    );
   });
 }
