@@ -19,7 +19,18 @@ class BrowserPageStatePredicates {
   }
 
   bool shouldLoadInitialUrlForTab(BrowserTabSession? tab) {
-    return !(tab?.hasAttachedWebView == true && tab?.keepAlive != null);
+    if (tab == null) return true;
+    // If the tab has already loaded real content (non-blank URL), never
+    // force a reload of the initial URL — the WebView can recover via
+    // keepAlive or a fresh InAppWebView with no initialUrlRequest.
+    // Only brand-new tabs (about:blank or empty URL) should load the
+    // initial URL request.
+    if (tab.url.isNotEmpty && tab.url != 'about:blank') {
+      return false;
+    }
+    // For tabs that have never loaded real content, load the initial URL
+    // unless a retained WebView is still attached.
+    return !(tab.hasAttachedWebView && tab.keepAlive != null);
   }
 
   bool shouldOpenNativeVideoFromUrl({
