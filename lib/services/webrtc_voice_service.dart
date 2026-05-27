@@ -8,6 +8,21 @@ typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
 typedef WebRtcLogCallback = void Function(String message, {Object? error});
 
 class WebRtcVoiceService {
+  static const Map<String, dynamic> _audioConstraints = {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    // 关闭软件 AGC，避免把远控通话放得过大；保留系统 AEC/NS。
+    'autoGainControl': false,
+    'googEchoCancellation': true,
+    'googNoiseSuppression': true,
+    'googAutoGainControl': false,
+    'googHighpassFilter': true,
+    'googTypingNoiseDetection': true,
+    'channelCount': 1,
+    'sampleRate': 48000,
+    'sampleSize': 16,
+  };
+
   WebRtcVoiceService({
     required WebRtcSignalSender sendSignal,
     required Future<void> Function() ensureDiagnosticsLogging,
@@ -26,6 +41,8 @@ class WebRtcVoiceService {
   bool _localAudioEnabled = false;
   bool _isController = false;
   final bool _speakerphoneEnabled = true;
+  bool _hasRemoteDescription = false;
+  final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
 
   bool get isLocalAudioEnabled => _localAudioEnabled;
   bool get isPrepared => _peerConnection != null;
@@ -91,11 +108,7 @@ class WebRtcVoiceService {
     };
 
     final localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
+      'audio': _audioConstraints,
       'video': false,
     });
     final audioTracks = localStream.getAudioTracks();
@@ -113,6 +126,8 @@ class WebRtcVoiceService {
     _localStream = localStream;
     _localAudioTrack = localAudioTrack;
     _localAudioEnabled = false;
+    _hasRemoteDescription = false;
+    _pendingRemoteCandidates.clear();
 
     _log(
       'webrtc-prepared: controller=$_isController track=${localAudioTrack.id}',
@@ -159,6 +174,8 @@ class WebRtcVoiceService {
     }
     _localStream = null;
     _localAudioTrack = null;
+    _hasRemoteDescription = false;
+    _pendingRemoteCandidates.clear();
 
     final peerConnection = _peerConnection;
     if (peerConnection != null) {
@@ -206,6 +223,8 @@ class WebRtcVoiceService {
     }
 
     await peerConnection.setRemoteDescription(RTCSessionDescription(sdp, type));
+    _hasRemoteDescription = true;
+    await _flushPendingRemoteCandidates();
     final answer = await peerConnection.createAnswer({
       'mandatory': {'OfferToReceiveAudio': true, 'OfferToReceiveVideo': false},
       'optional': <Map<String, dynamic>>[],
@@ -230,6 +249,8 @@ class WebRtcVoiceService {
       return;
     }
     await peerConnection.setRemoteDescription(RTCSessionDescription(sdp, type));
+    _hasRemoteDescription = true;
+    await _flushPendingRemoteCandidates();
     _log('webrtc-answer-applied');
   }
 
@@ -244,13 +265,32 @@ class WebRtcVoiceService {
       return;
     }
 
-    await peerConnection.addCandidate(
-      RTCIceCandidate(
-        candidate,
-        message.data['sdpMid'] as String?,
-        message.data['sdpMLineIndex'] as int?,
-      ),
+    final remoteCandidate = RTCIceCandidate(
+      candidate,
+      message.data['sdpMid'] as String?,
+      message.data['sdpMLineIndex'] as int?,
     );
+    if (!_hasRemoteDescription) {
+      _pendingRemoteCandidates.add(remoteCandidate);
+      _log('webrtc-candidate-queued: count=${_pendingRemoteCandidates.length}');
+      return;
+    }
+
+    await peerConnection.addCandidate(remoteCandidate);
     _log('webrtc-candidate-applied');
+  }
+
+  Future<void> _flushPendingRemoteCandidates() async {
+    final peerConnection = _peerConnection;
+    if (peerConnection == null || _pendingRemoteCandidates.isEmpty) {
+      return;
+    }
+
+    final pending = List<RTCIceCandidate>.from(_pendingRemoteCandidates);
+    _pendingRemoteCandidates.clear();
+    for (final candidate in pending) {
+      await peerConnection.addCandidate(candidate);
+    }
+    _log('webrtc-candidate-flush: count=${pending.length}');
   }
 }
