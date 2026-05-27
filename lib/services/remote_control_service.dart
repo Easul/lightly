@@ -266,11 +266,8 @@ class RemoteControlService {
       await _channel.invokeMethod('startReceiver', {
         'controlPort': ports.controlPort,
         'screenPort': ports.screenPort,
-        'audioPort': ports.audioPort,
         'screenFps': _config!.screenFps,
         'screenBitrate': _config!.screenBitrate,
-        'audioSampleRate': _config!.audioSampleRate,
-        'audioBitrate': _config!.audioBitrate,
       });
 
       _controlServer = await ServerSocket.bind(
@@ -289,7 +286,7 @@ class RemoteControlService {
 
       _updateState(RemoteControlState.idle);
       developer.log(
-        'Receiver started on ports ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
+        'Receiver started on ports ${ports.controlPort}/${ports.screenPort}',
         name: 'RemoteControl',
       );
       return ports;
@@ -356,10 +353,7 @@ class RemoteControlService {
         _controllerControlSocket = connection.controlSocket;
         _controllerScreenSocket = connection.screenSocket;
 
-        await _channel.invokeMethod('startController', {
-          'host': host,
-          'audioPort': ports.audioPort,
-        });
+        await _channel.invokeMethod('startController', {'host': host});
         nativeControllerStarted = true;
         await _prepareVoiceSession(isController: true);
 
@@ -798,16 +792,12 @@ class RemoteControlService {
       message: message,
       onScreenInfo: (info) => _latestRemoteScreenInfo = info,
       markConnectionReady: _markConnectionReady,
-      onAudioPort: (_) {},
       onPortConfig: (ports) {
         _config = RemoteControlConfig(
           ports: ports,
-          enableAudio: _config?.enableAudio ?? true,
           enableScreen: _config?.enableScreen ?? true,
           screenFps: _config?.screenFps ?? 15,
           screenBitrate: _config?.screenBitrate ?? 2000000,
-          audioSampleRate: _config?.audioSampleRate ?? 16000,
-          audioBitrate: _config?.audioBitrate ?? 24000,
         );
       },
     );

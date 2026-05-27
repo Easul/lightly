@@ -46,7 +46,6 @@ abstract class ControlMessage {
   }
 }
 
-/// 手势指令
 class GestureCommand extends ControlMessage {
   final GestureAction action;
   final double? x;
@@ -62,8 +61,8 @@ class GestureCommand extends ControlMessage {
 
   GestureCommand({
     required this.action,
-    required int id,
-    required int timestamp,
+    required super.id,
+    required super.timestamp,
     this.x,
     this.y,
     this.startX,
@@ -74,9 +73,8 @@ class GestureCommand extends ControlMessage {
     this.centerY,
     this.scale,
     this.duration = 100,
-  }) : super(type: ControlMessageType.gesture, id: id, timestamp: timestamp);
+  }) : super(type: ControlMessageType.gesture);
 
-  /// 创建点击指令
   factory GestureCommand.tap({
     required double x,
     required double y,
@@ -92,7 +90,6 @@ class GestureCommand extends ControlMessage {
     );
   }
 
-  /// 创建滑动指令
   factory GestureCommand.swipe({
     required double startX,
     required double startY,
@@ -112,7 +109,6 @@ class GestureCommand extends ControlMessage {
     );
   }
 
-  /// 创建长按指令
   factory GestureCommand.longPress({
     required double x,
     required double y,
@@ -128,7 +124,6 @@ class GestureCommand extends ControlMessage {
     );
   }
 
-  /// 创建缩放指令
   factory GestureCommand.pinch({
     required double centerX,
     required double centerY,
@@ -210,19 +205,17 @@ class GestureCommand extends ControlMessage {
   }
 }
 
-/// 键盘指令
 class KeyboardCommand extends ControlMessage {
   final String? text;
   final int? keyCode;
 
   KeyboardCommand({
-    required int id,
-    required int timestamp,
+    required super.id,
+    required super.timestamp,
     this.text,
     this.keyCode,
-  }) : super(type: ControlMessageType.keyboard, id: id, timestamp: timestamp);
+  }) : super(type: ControlMessageType.keyboard);
 
-  /// 创建文本输入指令
   factory KeyboardCommand.text({required String text}) {
     return KeyboardCommand(
       id: DateTime.now().millisecondsSinceEpoch,
@@ -231,7 +224,6 @@ class KeyboardCommand extends ControlMessage {
     );
   }
 
-  /// 创建按键指令
   factory KeyboardCommand.key({required int keyCode}) {
     return KeyboardCommand(
       id: DateTime.now().millisecondsSinceEpoch,
@@ -262,10 +254,9 @@ class KeyboardCommand extends ControlMessage {
   }
 }
 
-/// 心跳消息
 class HeartbeatMessage extends ControlMessage {
-  HeartbeatMessage({required int id, required int timestamp})
-    : super(type: ControlMessageType.heartbeat, id: id, timestamp: timestamp);
+  HeartbeatMessage({required super.id, required super.timestamp})
+    : super(type: ControlMessageType.heartbeat);
 
   factory HeartbeatMessage.now() {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -285,7 +276,6 @@ class HeartbeatMessage extends ControlMessage {
   }
 }
 
-/// 状态消息
 class StatusMessage extends ControlMessage {
   final String action;
   final Map<String, dynamic> data;
@@ -293,11 +283,10 @@ class StatusMessage extends ControlMessage {
   StatusMessage({
     required this.action,
     required this.data,
-    required int id,
-    required int timestamp,
-  }) : super(type: ControlMessageType.status, id: id, timestamp: timestamp);
+    required super.id,
+    required super.timestamp,
+  }) : super(type: ControlMessageType.status);
 
-  /// 创建屏幕信息消息
   factory StatusMessage.screenInfo({
     required int width,
     required int height,
@@ -322,27 +311,13 @@ class StatusMessage extends ControlMessage {
     );
   }
 
-  factory StatusMessage.audioPort({required int port}) {
-    return StatusMessage(
-      action: 'audio_port',
-      data: {'port': port},
-      id: DateTime.now().millisecondsSinceEpoch,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-    );
-  }
-
   factory StatusMessage.portConfig({
     required int controlPort,
     required int screenPort,
-    required int audioPort,
   }) {
     return StatusMessage(
       action: 'port_config',
-      data: {
-        'controlPort': controlPort,
-        'screenPort': screenPort,
-        'audioPort': audioPort,
-      },
+      data: {'controlPort': controlPort, 'screenPort': screenPort},
       id: DateTime.now().millisecondsSinceEpoch,
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
@@ -387,7 +362,6 @@ class StatusMessage extends ControlMessage {
   }
 }
 
-/// 确认消息
 class AckMessage extends ControlMessage {
   final bool success;
   final String? error;
@@ -395,9 +369,9 @@ class AckMessage extends ControlMessage {
   AckMessage({
     required this.success,
     this.error,
-    required int id,
-    required int timestamp,
-  }) : super(type: ControlMessageType.ack, id: id, timestamp: timestamp);
+    required super.id,
+    required super.timestamp,
+  }) : super(type: ControlMessageType.ack);
 
   @override
   Map<String, dynamic> toJson() {
@@ -420,12 +394,14 @@ class AckMessage extends ControlMessage {
   }
 }
 
-/// 错误消息
 class ErrorMessage extends ControlMessage {
   final String message;
 
-  ErrorMessage({required this.message, required int id, required int timestamp})
-    : super(type: ControlMessageType.error, id: id, timestamp: timestamp);
+  ErrorMessage({
+    required this.message,
+    required super.id,
+    required super.timestamp,
+  }) : super(type: ControlMessageType.error);
 
   @override
   Map<String, dynamic> toJson() {
@@ -441,24 +417,20 @@ class ErrorMessage extends ControlMessage {
   }
 }
 
-/// 协议编码器
 class RemoteControlCodec {
-  /// 编码消息为 JSON 字符串（带换行分隔）
   static String encode(ControlMessage message) {
     return jsonEncode(message.toJson());
   }
 
-  /// 解码 JSON 字符串为消息
   static ControlMessage? decode(String json) {
     try {
       final map = jsonDecode(json) as Map<String, dynamic>;
       return ControlMessage.fromJson(map);
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
 
-  /// 批量解码（处理可能的多条消息）
   static List<ControlMessage> decodeMultiple(String data) {
     final messages = <ControlMessage>[];
     final lines = data.split('\n');
