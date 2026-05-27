@@ -49,7 +49,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     _remoteScreenSize =
         widget.service.latestRemoteScreenSize ?? _remoteScreenSize;
     _remoteCaptureSize = _remoteScreenSize;
-    _isAudioEnabled = widget.service.audioCaptureService.isCapturing;
+    _isAudioEnabled = widget.service.isLocalAudioEnabled;
     _stateSubscription = widget.service.stateStream.listen(_handleStateChange);
     _messageSubscription = widget.service.messageStream.listen(_handleMessage);
   }

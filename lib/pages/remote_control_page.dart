@@ -131,7 +131,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     if (!mounted) return;
     setState(() {
       _isConnecting = state == RemoteControlState.connecting;
-      _isReceiverAudioEnabled = _service.audioCaptureService.isCapturing;
+      _isReceiverAudioEnabled = _service.isLocalAudioEnabled;
       if (state == RemoteControlState.connected) {
         _errorMessage = null;
       } else if (state == RemoteControlState.error) {
