@@ -31,7 +31,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();
-  final TextEditingController _audioPortController = TextEditingController();
   final EasyTierService _easyTierService = EasyTierService();
   final ProxyService _proxyService = ProxyService();
   final BrowserSettingsService _settingsService = BrowserSettingsService();
@@ -171,9 +170,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _applyPortConfigToInputs(ports);
 
       if (mounted) {
-        _showToast(
-          '被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
-        );
+        _showToast('被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}');
       }
     } on RemoteControlPageReceiverStartException catch (error) {
       if (!mounted) return;
@@ -337,7 +334,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _portConfigHelper.applyPortConfigToInputs(
       controlPortController: _controlPortController,
       screenPortController: _screenPortController,
-      audioPortController: _audioPortController,
       ports: ports,
     );
   }
@@ -408,7 +404,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       hostController: _hostController,
       controlPortController: _controlPortController,
       screenPortController: _screenPortController,
-      audioPortController: _audioPortController,
       portConfig: _portConfig,
       isConnecting: _isConnecting,
       useInternalProxy: _useInternalProxy,
@@ -425,12 +420,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         setState(() {
           _portsManuallyEdited = true;
           _portConfig = _portConfigHelper.updateScreenPort(_portConfig, value);
-        });
-      },
-      onAudioPortChanged: (value) {
-        setState(() {
-          _portsManuallyEdited = true;
-          _portConfig = _portConfigHelper.updateAudioPort(_portConfig, value);
         });
       },
       onUseInternalProxyChanged: (value) {

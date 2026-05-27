@@ -98,10 +98,6 @@ class RemoteControlReceiverSection extends StatelessWidget {
                 label: '屏幕端口',
                 value: '${portConfig!.screenPort}',
               ),
-              RemoteControlInfoRow(
-                label: '语音端口',
-                value: '${portConfig!.audioPort}',
-              ),
               const SizedBox(height: 16),
             ],
             Container(
@@ -203,7 +199,6 @@ class RemoteControlControllerSection extends StatelessWidget {
   final TextEditingController hostController;
   final TextEditingController controlPortController;
   final TextEditingController screenPortController;
-  final TextEditingController audioPortController;
   final RemoteControlPortConfig? portConfig;
   final bool isConnecting;
   final bool useInternalProxy;
@@ -212,7 +207,6 @@ class RemoteControlControllerSection extends StatelessWidget {
   final void Function(Map<String, String> peer) onSelectPeer;
   final ValueChanged<int> onControlPortChanged;
   final ValueChanged<int> onScreenPortChanged;
-  final ValueChanged<int> onAudioPortChanged;
   final ValueChanged<bool> onUseInternalProxyChanged;
   final VoidCallback onConnect;
 
@@ -224,7 +218,6 @@ class RemoteControlControllerSection extends StatelessWidget {
     required this.hostController,
     required this.controlPortController,
     required this.screenPortController,
-    required this.audioPortController,
     required this.portConfig,
     required this.isConnecting,
     required this.useInternalProxy,
@@ -233,7 +226,6 @@ class RemoteControlControllerSection extends StatelessWidget {
     required this.onSelectPeer,
     required this.onControlPortChanged,
     required this.onScreenPortChanged,
-    required this.onAudioPortChanged,
     required this.onUseInternalProxyChanged,
     required this.onConnect,
   });
@@ -346,15 +338,9 @@ class RemoteControlControllerSection extends StatelessWidget {
               controller: screenPortController,
               onChanged: onScreenPortChanged,
             ),
-            const SizedBox(height: 8),
-            RemoteControlPortInput(
-              label: '语音端口',
-              controller: audioPortController,
-              onChanged: onAudioPortChanged,
-            ),
             const SizedBox(height: 16),
             const Text(
-              '提示：请确保被控端已启动，并输入正确的地址和端口',
+              '提示：请确保被控端已启动，并输入正确的地址和端口；语音会通过 WebRTC 自动协商',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
