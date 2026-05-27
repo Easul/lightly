@@ -35,6 +35,7 @@ import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/ui_update_thresholds.dart';
+import '../browser/utils/browser_site_compatibility_script.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_favorites_menu_sheet.dart';
 import '../browser/widgets/browser_find_in_page_sheet.dart';
@@ -304,6 +305,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (decision.shouldPauseWebView) {
       _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
     }
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _handleOverlayClosed() {
@@ -313,6 +317,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _overlayDepth = decision.overlayDepth;
     if (decision.shouldResumeWebView) {
       _scheduleOverlaySettledWork(resumeWebView: true);
+    }
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -327,6 +334,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _resumeWebViewFromOverlay();
       }
       _applyDeferredOverlayRebuild();
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
@@ -379,6 +389,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool get _shouldSkipRebuild =>
       _lifecycleCoordinator.shouldSkipRebuild(overlayDepth: _overlayDepth) ||
       _overlaySettledTimer != null;
+
+  bool get _shouldFreezeWebViewForOverlay =>
+      _overlayDepth > 0 || _overlaySettledTimer != null;
 
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
@@ -531,6 +544,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final isFavoritesPage = _isFavoritesPage(_currentUrl);
     return BrowserPageBodySection(
       isFavoritesPage: isFavoritesPage,
+      freezeWebViewForOverlay: _shouldFreezeWebViewForOverlay,
       // Only construct the favorites page widget when it's actually visible.
       // When the WebView is active, creating BrowserFavoritesPage is wasted
       // work that rebuilds a complex widget tree that won't even be rendered.
@@ -622,6 +636,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           }
           _pullToRefreshController?.endRefreshing();
           unawaited(_recordCookieOrigin(url));
+          unawaited(_injectSiteCompatibilityFixes(controller, url));
           final didChangeLoading = _updateTabById(
             hostedTabId,
             isLoading: false,
@@ -1161,6 +1176,24 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     if (didChangeNavigation && _activeTabId == hostedTabId) {
       _setStateIfVisible(() {});
+    }
+  }
+
+  Future<void> _injectSiteCompatibilityFixes(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
+    final script = BrowserSiteCompatibilityScript.bottomNavigationFixForUrl(
+      url?.toString(),
+    );
+    if (script == null) {
+      return;
+    }
+    try {
+      await controller.evaluateJavascript(source: script);
+    } catch (_) {
+      // Best-effort compatibility CSS only. Navigation must not fail because a
+      // site rejects script execution during early load transitions.
     }
   }
 

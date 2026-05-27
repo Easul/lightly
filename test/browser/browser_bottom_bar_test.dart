@@ -131,6 +131,32 @@ void main() {
     expect(find.text('3'), findsOneWidget);
   });
 
+  testWidgets('uses content-driven height on normal phone screens', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildBottomBar());
+
+    expect(tester.getSize(find.byType(BrowserBottomBar)).height, 60);
+  });
+
+  testWidgets('uses compact height on narrow screens', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildBottomBar());
+
+    expect(tester.getSize(find.byType(BrowserBottomBar)).height, 56);
+  });
+
   testWidgets('more button triggers callback', (WidgetTester tester) async {
     var tapped = false;
 

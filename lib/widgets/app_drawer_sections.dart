@@ -146,6 +146,7 @@ class DrawerVersionFooter extends StatefulWidget {
 class _DrawerVersionFooterState extends State<DrawerVersionFooter> {
   static PackageInfo? _cachedPackageInfo;
   static Future<PackageInfo>? _loadingPackageInfo;
+  static const Duration _drawerOpenSettleDelay = Duration(milliseconds: 360);
 
   String _version = '';
   String _buildNumber = '';
@@ -174,6 +175,11 @@ class _DrawerVersionFooterState extends State<DrawerVersionFooter> {
           _cachedPackageInfo ??
           await (_loadingPackageInfo ??= PackageInfo.fromPlatform());
       _cachedPackageInfo = packageInfo;
+      if (_version.isEmpty) {
+        // Avoid rebuilding the drawer footer while the drawer slide animation is
+        // still competing with the platform WebView surface underneath.
+        await Future<void>.delayed(_drawerOpenSettleDelay);
+      }
       if (mounted) {
         setState(() {
           _version = packageInfo.version;

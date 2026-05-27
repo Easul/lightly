@@ -153,12 +153,14 @@ class BrowserPageBodySection extends StatelessWidget {
     required this.isFavoritesPage,
     required this.favoritesChild,
     required this.webViewChild,
+    required this.freezeWebViewForOverlay,
     required this.statusMessage,
   });
 
   final bool isFavoritesPage;
   final Widget favoritesChild;
   final Widget webViewChild;
+  final bool freezeWebViewForOverlay;
   final ValueListenable<String> statusMessage;
 
   @override
@@ -169,7 +171,15 @@ class BrowserPageBodySection extends StatelessWidget {
 
     return Column(
       children: [
-        Expanded(child: webViewChild),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: Theme.of(context).colorScheme.surface),
+              Offstage(offstage: freezeWebViewForOverlay, child: webViewChild),
+            ],
+          ),
+        ),
         ValueListenableBuilder<String>(
           valueListenable: statusMessage,
           builder: (context, statusMessageValue, _) {
