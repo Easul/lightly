@@ -270,8 +270,6 @@ class MainActivity : FlutterActivity() {
     private var screenTextureSurface: Surface? = null
     private var pendingDecoderSps: ByteArray? = null
     private var pendingDecoderPps: ByteArray? = null
-    private var audioPlayer: AudioPlayer? = null
-    private var remoteAudioPlaybackUsesSpeakerphone = false
 
     private fun shutdownRemoteControlResources() {
         try {
@@ -280,13 +278,6 @@ class MainActivity : FlutterActivity() {
             Log.w(remoteControlChannelName, "Failed to stop remote control service", e)
         }
         remoteControlService = null
-
-        try {
-            audioPlayer?.release()
-        } catch (e: Exception) {
-            Log.w(remoteControlChannelName, "Failed to release audio player", e)
-        }
-        audioPlayer = null
 
         releaseScreenDecoder()
     }
@@ -695,7 +686,6 @@ class MainActivity : FlutterActivity() {
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
-                            remoteAudioPlaybackUsesSpeakerphone = true
                             remoteControlService!!.startReceiver(
                                 controlPort, screenPort, audioPort,
                                 screenFps, screenBitrate,
@@ -715,7 +705,6 @@ class MainActivity : FlutterActivity() {
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
-                            remoteAudioPlaybackUsesSpeakerphone = false
                             remoteControlService!!.startController(host, audioPort)
                             result.success(true)
                         } catch (e: Exception) {
@@ -727,7 +716,6 @@ class MainActivity : FlutterActivity() {
                         try {
                             remoteControlService?.stop()
                             remoteControlService = null
-                            remoteAudioPlaybackUsesSpeakerphone = false
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -891,66 +879,6 @@ class MainActivity : FlutterActivity() {
                             } else {
                                 result.error("INVALID_ARGS", "Data required", null)
                             }
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "initAudioPlayer" -> {
-                        try {
-                            val sampleRate = call.argument<Int>("sampleRate") ?: 16000
-                            val ch = call.argument<Int>("channels") ?: 1
-                            if (audioPlayer == null) {
-                                audioPlayer = AudioPlayer(this)
-                            }
-                            audioPlayer!!.initialize(
-                                sampleRate = sampleRate,
-                                channels = ch,
-                                useSpeakerphone = remoteAudioPlaybackUsesSpeakerphone,
-                            )
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "startAudioPlayer" -> {
-                        try {
-                            audioPlayer?.start()
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "stopAudioPlayer" -> {
-                        try {
-                            audioPlayer?.stop()
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "playAudio" -> {
-                        try {
-                            val data = call.argument<ByteArray>("data")
-                            if (data != null) {
-                                audioPlayer?.play(data)
-                                result.success(true)
-                            } else {
-                                result.error("INVALID_ARGS", "Audio data required", null)
-                            }
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "releaseAudioPlayer" -> {
-                        try {
-                            audioPlayer?.release()
-                            audioPlayer = null
-                            result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
                         }
