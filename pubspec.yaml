@@ -55,7 +55,7 @@ dependencies:
   # Remote Control dependencies
   record: ^6.2.0
   opus_dart: ^3.0.1
-  opus_flutter: ^3.0.3
+  opus_flutter_android: ^3.0.1
 
 dev_dependencies:
   flutter_test:
