@@ -97,6 +97,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  dart_webrtc:
+    dependency: transitive
+    description:
+      name: dart_webrtc
+      sha256: f6d615bddea5e458ce180a914f3055c234ffb52fb7397a51b3491e76d6d7edb2
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.8.1"
   dbus:
     dependency: transitive
     description:
@@ -240,6 +248,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_webrtc:
+    dependency: "direct main"
+    description:
+      name: flutter_webrtc
+      sha256: "23af761bb812e6f32c34263e62df48aaf26bb08582c8be8cc3170e2a018d1155"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.13.1+hotfix.1"
   glob:
     dependency: transitive
     description:
@@ -408,30 +424,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.7.0"
-  opus_dart:
-    dependency: "direct main"
-    description:
-      name: opus_dart
-      sha256: e8ab4774409997af33cbfdfe91a186854ed6458b2fec66b0e52f4434b1af2f7c
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.1"
-  opus_flutter_android:
-    dependency: "direct main"
-    description:
-      name: opus_flutter_android
-      sha256: "9e5b71f5d959e1ee3b5faf7e1e893aabe7955d3a234c83f02462d801a5218497"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.1"
-  opus_flutter_platform_interface:
-    dependency: transitive
-    description:
-      name: opus_flutter_platform_interface
-      sha256: "41180b74f1dacc131270d49815fd4eb46bd7cc5ad57aac84eab748d08de59138"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
   package_config:
     dependency: transitive
     description:
@@ -552,70 +544,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  record:
-    dependency: "direct main"
-    description:
-      name: record
-      sha256: d5b6b334f3ab02460db6544e08583c942dbf23e3504bf1e14fd4cbe3d9409277
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.2.0"
-  record_android:
-    dependency: transitive
-    description:
-      name: record_android
-      sha256: "94783f08403aed33ffb68797bf0715b0812eb852f3c7985644c945faea462ba1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.1"
-  record_ios:
-    dependency: transitive
-    description:
-      name: record_ios
-      sha256: "8df7c136131bd05efc19256af29b2ba6ccc000ccc2c80d4b6b6d7a8d21a3b5a9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.0"
-  record_linux:
-    dependency: transitive
-    description:
-      name: record_linux
-      sha256: c31a35cc158cd666fc6395f7f56fc054f31685571684be6b97670a27649ce5c7
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.0"
-  record_macos:
-    dependency: transitive
-    description:
-      name: record_macos
-      sha256: "084902e63fc9c0c224c29203d6c75f0bdf9b6a40536c9d916393c8f4c4256488"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.1"
-  record_platform_interface:
-    dependency: transitive
-    description:
-      name: record_platform_interface
-      sha256: "8a81dbc4e14e1272a285bbfef6c9136d070a47d9b0d1f40aa6193516253ee2f6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.0"
-  record_web:
-    dependency: transitive
-    description:
-      name: record_web
-      sha256: "7e9846981c1f2d111d86f0ae3309071f5bba8b624d1c977316706f08fc31d16d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.3.0"
-  record_windows:
-    dependency: transitive
-    description:
-      name: record_windows
-      sha256: "223258060a1d25c62bae18282c16783f28581ec19401d17e56b5205b9f039d78"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.7"
   screen_brightness:
     dependency: "direct main"
     description:
@@ -1021,14 +949,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  web_ffi:
+  webrtc_interface:
     dependency: transitive
     description:
-      name: web_ffi
-      sha256: "48ef8037f7bc051d11b88d0f2903e02bec21092c51833d37c3361c36e3edc4f7"
+      name: webrtc_interface
+      sha256: c6f100eac5057d9a817a60473126f9828c796d42884d498af4f339c97b21014f
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.2"
+    version: "1.5.1"
   win32:
     dependency: transitive
     description:
