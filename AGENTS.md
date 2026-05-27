@@ -371,6 +371,16 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
   - from `https://example-site.com/login`, tapping the Telegram button should open the auth popup
   - linux.do avatar/image links should remain suppressed
 
+## X / YouTube WebView Mobile Layout Compatibility
+
+- `x.com` / `twitter.com` and `youtube.com` / `youtu.be` should prefer the mobile WebView layout in this app.
+- Keep the browser WebView policy using the mobile user agent for these hosts, and disable `useWideViewPort` plus `loadWithOverviewMode` for them. The wide/desktop-style viewport path can make their internal bottom navigation areas render with excessive blank height in fullscreen.
+- There is also a site-specific compatibility CSS injection path (`BrowserSiteCompatibilityScript`) used to clamp the internal bottom navigation height for X and YouTube after load. Re-test these hosts before removing it.
+- Related files:
+  - `lib/browser/widgets/browser_webview_host.dart`
+  - `lib/browser/utils/browser_site_compatibility_script.dart`
+  - `lib/pages/browser_page.dart`
+
 ## Selective Browsing Data Clearing
 
 The browser supports clearing different categories of data independently:
