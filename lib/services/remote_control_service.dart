@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_command_helper.dart';
@@ -14,10 +14,9 @@ import 'remote_control_screen_pipeline_helper.dart';
 import 'remote_control_status_bridge.dart';
 import 'remote_control_watchdog_controller.dart';
 import 'screen_capture_manager.dart';
-import 'audio_capture_service.dart';
-import 'audio_playback_service.dart';
-import 'opus_audio_service.dart';
+import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
+import 'webrtc_voice_service.dart';
 
 enum RemoteControlMode { controller, receiver }
 
@@ -30,12 +29,16 @@ class RemoteControlService {
   factory RemoteControlService() => _instance;
   RemoteControlService._internal() {
     _setupMethodCallHandler();
+    _voiceService = WebRtcVoiceService(
+      sendSignal: _sendWebRtcSignal,
+      ensureDiagnosticsLogging: _ensureAudioDiagnosticsLogging,
+      log: _logMessage,
+    );
   }
 
   RemoteControlMode _mode = RemoteControlMode.controller;
   RemoteControlState _state = RemoteControlState.idle;
   RemoteControlConfig? _config;
-  String? _remoteHost;
 
   Socket? _controllerControlSocket;
   Socket? _receiverControlSocket;
@@ -43,7 +46,6 @@ class RemoteControlService {
   Socket? _controllerScreenSocket;
   Socket? _receiverScreenSocket;
   ServerSocket? _screenServer;
-  RawDatagramSocket? _audioSocket;
 
   final StreamController<RemoteControlState> _stateController =
       StreamController<RemoteControlState>.broadcast();
@@ -51,13 +53,8 @@ class RemoteControlService {
       StreamController<ControlMessage>.broadcast();
   final StreamController<ScreenFrame> _screenFrameController =
       StreamController<ScreenFrame>.broadcast();
-  final StreamController<Uint8List> _audioFrameController =
-      StreamController<Uint8List>.broadcast();
 
   final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager();
-  final AudioCaptureService _audioCaptureService = AudioCaptureService();
-  final AudioPlaybackService _audioPlaybackService = AudioPlaybackService();
-  final OpusAudioService _opusService = OpusAudioService();
   final PerformanceMonitorService _performanceMonitor =
       PerformanceMonitorService();
   final RemoteControlCommandHelper _commandHelper =
@@ -74,11 +71,8 @@ class RemoteControlService {
       const RemoteControlStatusBridge();
   final RemoteControlWatchdogController _watchdogController =
       RemoteControlWatchdogController();
-  bool _useOpus = true; // 默认启用 Opus 编码
+  late final WebRtcVoiceService _voiceService;
 
-  static const Duration _receiverCaptureSuppressAfterPlayback = Duration(
-    milliseconds: 180,
-  );
   static const Duration _screenFrameStallThreshold = Duration(
     milliseconds: 700,
   );
@@ -88,10 +82,6 @@ class RemoteControlService {
   static const Duration _screenRecoveryKeyFrameRetryCooldown = Duration(
     milliseconds: 450,
   );
-  static const int _pcmAudioMarker = 0x00;
-  static const int _opusAudioMarker = 0x01;
-  static const int _maxPcmPayloadBytes = 640;
-  static const int _maxOpusPayloadBytes = 256;
   static const int _latestFrameBatchThreshold = 3;
 
   final List<int> _screenDataBuffer = [];
@@ -100,13 +90,10 @@ class RemoteControlService {
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
-  StreamSubscription<Uint8List>? _audioCaptureSubscription;
   Completer<void>? _connectionReadyCompleter;
   final StringBuffer _controllerControlBuffer = StringBuffer();
   final StringBuffer _receiverControlBuffer = StringBuffer();
-  String? _expectedAudioPeerHost;
-  int? _expectedAudioPeerPort;
-  DateTime? _lastIncomingAudioAt;
+  bool _audioDiagnosticsLoggingReady = false;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -115,10 +102,8 @@ class RemoteControlService {
   Stream<RemoteControlState> get stateStream => _stateController.stream;
   Stream<ControlMessage> get messageStream => _messageController.stream;
   Stream<ScreenFrame> get screenFrameStream => _screenFrameController.stream;
-  Stream<Uint8List> get audioFrameStream => _audioFrameController.stream;
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
-  AudioCaptureService get audioCaptureService => _audioCaptureService;
-  AudioPlaybackService get audioPlaybackService => _audioPlaybackService;
+  bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
 
   RemoteControlState get state => _state;
   RemoteControlMode get mode => _mode;
@@ -138,6 +123,31 @@ class RemoteControlService {
   }
 
   int _nextMessageId() => ++_messageIdCounter;
+
+  void _logMessage(String message, {Object? error}) {
+    developer.log(message, name: 'RemoteControl', error: error);
+    unawaited(
+      AppLogService.instance.log('[RemoteControl] $message', error: error),
+    );
+  }
+
+  Future<void> _ensureAudioDiagnosticsLogging() async {
+    if (_audioDiagnosticsLoggingReady) {
+      return;
+    }
+    if (kProfileMode && !AppLogService.instance.isEnabled) {
+      await AppLogService.instance.setEnabled(true);
+    }
+    _audioDiagnosticsLoggingReady = true;
+    await AppLogService.instance.log(
+      '[RemoteControl] audio diagnostics logging ready',
+      metadata: <String, Object?>{
+        'mode': _mode.name,
+        'profile': kProfileMode,
+        'logPath': AppLogService.instance.logPath,
+      },
+    );
+  }
 
   void _markConnectionReady() {
     final completer = _connectionReadyCompleter;
@@ -277,18 +287,6 @@ class RemoteControlService {
         _screenServer!.listen(_handleScreenConnection);
       }
 
-      if (_config!.enableAudio) {
-        _audioSocket = await RawDatagramSocket.bind(
-          InternetAddress.anyIPv4,
-          ports.audioPort,
-        );
-        _audioSocket!.listen(_handleAudioPacket);
-        await startAudioPlayback(
-          sampleRate: _config!.audioSampleRate,
-          channels: 1,
-        );
-      }
-
       _updateState(RemoteControlState.idle);
       developer.log(
         'Receiver started on ports ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
@@ -317,10 +315,7 @@ class RemoteControlService {
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
-    _remoteHost = host;
     _config = RemoteControlConfig(ports: ports);
-    _expectedAudioPeerHost = host;
-    _expectedAudioPeerPort = ports.audioPort;
 
     // 记录设备发现路径
     _performanceMonitor.recordDiscoveryPath(
@@ -357,19 +352,16 @@ class RemoteControlService {
             socket: socket,
             mode: RemoteControlMode.controller,
           ),
-          onAudioPacket: _handleAudioPacket,
-          startAudioPlayback: startAudioPlayback,
-          sendAudioPortStatus: _sendAudioPortStatus,
         );
         _controllerControlSocket = connection.controlSocket;
         _controllerScreenSocket = connection.screenSocket;
-        _audioSocket = connection.audioSocket;
 
         await _channel.invokeMethod('startController', {
           'host': host,
           'audioPort': ports.audioPort,
         });
         nativeControllerStarted = true;
+        await _prepareVoiceSession(isController: true);
 
         _startScreenFrameWatchdog();
         _startHeartbeat();
@@ -417,44 +409,37 @@ class RemoteControlService {
 
   Future<void> _resetControllerConnection({required bool stopNative}) async {
     developer.log(
-      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} audioSocket=${_audioSocket != null} buffer=${_screenDataBuffer.length}',
+      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} buffer=${_screenDataBuffer.length}',
       name: 'RemoteControl',
     );
     await _cleanupHelper.resetControllerConnection(
       stopNative: stopNative,
       controllerControlSocket: _controllerControlSocket,
       controllerScreenSocket: _controllerScreenSocket,
-      audioSocket: _audioSocket,
       screenDataBuffer: _screenDataBuffer,
       controllerControlBuffer: _controllerControlBuffer,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
-      stopAudioPlayback: stopAudioPlayback,
+      closeVoiceSession: _voiceService.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _controllerControlSocket = null;
     _controllerScreenSocket = null;
-    _audioSocket = null;
-    _expectedAudioPeerPort = _mode == RemoteControlMode.controller
-        ? _config?.ports.audioPort
-        : null;
   }
 
   Future<void> _rollbackReceiverStartup() async {
     await _cleanupHelper.rollbackReceiverStartup(
       receiverControlSocket: _receiverControlSocket,
       receiverScreenSocket: _receiverScreenSocket,
-      audioSocket: _audioSocket,
       controlServer: _controlServer,
       screenServer: _screenServer,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopAudioCapture: stopAudioCapture,
-      stopAudioPlayback: stopAudioPlayback,
+      closeVoiceSession: _voiceService.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _receiverControlSocket = null;
     _receiverScreenSocket = null;
-    _audioSocket = null;
     _controlServer = null;
     _screenServer = null;
   }
@@ -481,34 +466,6 @@ class RemoteControlService {
     if (_controllerControlSocket == null) return;
     final data = utf8.encode('${jsonEncode(json)}\n');
     _controllerControlSocket!.add(data);
-  }
-
-  Future<void> sendAudioFrame(Uint8List opusData, int sequence) async {
-    if (_audioSocket == null || _remoteHost == null) return;
-    final destinationPort = switch (_mode) {
-      RemoteControlMode.controller => _config?.ports.audioPort,
-      RemoteControlMode.receiver => _expectedAudioPeerPort,
-    };
-    if (destinationPort == null) return;
-    final header = ByteData(6);
-    header.setUint16(0, sequence, Endian.big);
-    header.setUint32(
-      2,
-      DateTime.now().millisecondsSinceEpoch & 0xFFFFFFFF,
-      Endian.big,
-    );
-    final packet = Uint8List.fromList([
-      ...header.buffer.asUint8List(),
-      ...opusData,
-    ]);
-    _audioSocket!.send(packet, InternetAddress(_remoteHost!), destinationPort);
-  }
-
-  Future<void> _sendAudioPortStatus(int port) async {
-    await _statusBridge.sendAudioPortStatus(
-      controllerControlSocket: _controllerControlSocket,
-      port: port,
-    );
   }
 
   Future<bool> startScreenCapture({int fps = 12, int bitrate = 2500000}) async {
@@ -601,54 +558,11 @@ class RemoteControlService {
     int channels = 1,
   }) async {
     try {
-      await _audioCaptureSubscription?.cancel();
-      await _audioCaptureService.initialize(
-        sampleRate: sampleRate,
-        channels: channels,
+      await _prepareVoiceSession(
+        isController: _mode == RemoteControlMode.controller,
       );
-
-      // 初始化 Opus 如果启用
-      if (_useOpus) {
-        try {
-          await _opusService.initialize();
-          developer.log('Opus encoding enabled', name: 'RemoteControl');
-        } catch (e) {
-          developer.log(
-            'Failed to initialize Opus, falling back to PCM: $e',
-            name: 'RemoteControl',
-          );
-          _useOpus = false;
-        }
-      }
-
-      _audioCaptureSubscription = _audioCaptureService.frameStream.listen((
-        pcmData,
-      ) {
-        if (_shouldSuppressOutgoingCapturedAudio()) {
-          return;
-        }
-        if (_useOpus) {
-          // Opus 编码: 16kHz 采样率下 20ms 帧 = 640 bytes PCM -> ~60 bytes Opus
-          final encoded = _opusService.encodeFrame(pcmData);
-          if (encoded != null) {
-            final packet = Uint8List(encoded.length + 1);
-            packet[0] = _opusAudioMarker;
-            packet.setAll(1, encoded);
-            sendAudioFrame(packet, _audioCaptureService.sequence);
-          } else {
-            final packet = Uint8List(pcmData.length + 1);
-            packet[0] = _pcmAudioMarker;
-            packet.setAll(1, pcmData);
-            sendAudioFrame(packet, _audioCaptureService.sequence);
-          }
-        } else {
-          final packet = Uint8List(pcmData.length + 1);
-          packet[0] = _pcmAudioMarker;
-          packet.setAll(1, pcmData);
-          sendAudioFrame(packet, _audioCaptureService.sequence);
-        }
-      });
-      return await _audioCaptureService.start();
+      await _voiceService.setLocalAudioEnabled(true);
+      return true;
     } catch (e) {
       developer.log(
         'Failed to start audio capture: $e',
@@ -660,43 +574,20 @@ class RemoteControlService {
   }
 
   Future<void> stopAudioCapture() async {
-    await _audioCaptureSubscription?.cancel();
-    _audioCaptureSubscription = null;
-    await _audioCaptureService.stop();
+    await _voiceService.setLocalAudioEnabled(false);
   }
 
   Future<void> startAudioPlayback({
     int sampleRate = 16000,
     int channels = 1,
   }) async {
-    try {
-      if (_audioPlaybackService.isPlaying) {
-        return;
-      }
-      try {
-        await _opusService.initialize();
-      } catch (e) {
-        developer.log(
-          'Opus decode unavailable, playback will accept PCM only: $e',
-          name: 'RemoteControl',
-        );
-      }
-      await _audioPlaybackService.initialize(
-        sampleRate: sampleRate,
-        channels: channels,
-      );
-      await _audioPlaybackService.start();
-    } catch (e) {
-      developer.log(
-        'Failed to start audio playback: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
-    }
+    await _prepareVoiceSession(
+      isController: _mode == RemoteControlMode.controller,
+    );
   }
 
   Future<void> stopAudioPlayback() async {
-    await _audioPlaybackService.stop();
+    await _voiceService.close();
   }
 
   void _handleControlConnection(Socket client) {
@@ -705,12 +596,10 @@ class RemoteControlService {
       name: 'RemoteControl',
     );
     _receiverControlSocket = client;
-    _remoteHost = client.remoteAddress.address;
-    _expectedAudioPeerHost = client.remoteAddress.address;
-    _expectedAudioPeerPort = null;
     _updateState(RemoteControlState.connected);
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
+    unawaited(_prepareVoiceSession(isController: false));
 
     _lifecycleHelper.attachReceiverControlClient(
       client: client,
@@ -720,8 +609,8 @@ class RemoteControlService {
       onDone: () {
         developer.log('Control client disconnected', name: 'RemoteControl');
         unawaited(stopAudioCapture());
+        unawaited(_voiceService.close());
         _receiverControlSocket = null;
-        _expectedAudioPeerPort = null;
         _updateState(RemoteControlState.disconnected);
         _stopScreenFrameWatchdog();
         _stopHeartbeat();
@@ -865,112 +754,28 @@ class RemoteControlService {
     }
   }
 
-  void _handleAudioPacket(RawSocketEvent event) {
-    if (event == RawSocketEvent.read) {
-      while (true) {
-        final datagram = _audioSocket!.receive();
-        if (datagram == null) return;
-        final remoteHost = _expectedAudioPeerHost;
-        if (remoteHost != null && datagram.address.address != remoteHost) {
-          continue;
-        }
-        final expectedPort = _expectedAudioPeerPort;
-        if (expectedPort != null && datagram.port != expectedPort) {
-          continue;
-        }
-        _expectedAudioPeerPort ??= datagram.port;
-        final packet = _decodeAudioPacket(datagram.data);
-        final decodedAudio = _decodeIncomingAudioPayload(packet.data);
-        if (decodedAudio == null) {
-          continue;
-        }
-        _lastIncomingAudioAt = DateTime.now();
-
-        _performanceMonitor.recordAudioPacket(
-          packetSize: datagram.data.length,
-          sequence: packet.sequence,
-        );
-
-        _audioFrameController.add(decodedAudio);
-        if (_audioPlaybackService.isPlaying) {
-          _audioPlaybackService.feedFrame(
-            decodedAudio,
-            packet.sequence,
-            packet.timestamp,
-          );
-        }
-      }
-    }
+  Future<void> _prepareVoiceSession({required bool isController}) async {
+    await _voiceService.prepare(isController: isController);
   }
 
-  ({Uint8List data, int sequence, int timestamp}) _decodeAudioPacket(
-    Uint8List packet,
-  ) {
-    if (packet.length < 6) {
-      return (data: packet, sequence: 0, timestamp: 0);
+  Future<void> _sendWebRtcSignal(StatusMessage message) async {
+    final socket = switch (_mode) {
+      RemoteControlMode.controller => _controllerControlSocket,
+      RemoteControlMode.receiver => _receiverControlSocket,
+    };
+    if (socket == null) {
+      _logMessage(
+        'Skipping WebRTC signal without control socket: ${message.action}',
+      );
+      return;
     }
-
-    final header = ByteData.sublistView(packet, 0, 6);
-    final sequence = header.getUint16(0, Endian.big);
-    final timestamp = header.getUint32(2, Endian.big);
-    return (
-      data: Uint8List.sublistView(packet, 6),
-      sequence: sequence,
-      timestamp: timestamp,
-    );
+    socket.add(utf8.encode('${RemoteControlCodec.encode(message)}\n'));
   }
 
-  Uint8List? _decodeIncomingAudioPayload(Uint8List payload) {
-    if (payload.isEmpty) {
-      return null;
-    }
-
-    final marker = payload[0];
-    if (marker == _opusAudioMarker) {
-      final opusPayload = Uint8List.sublistView(payload, 1);
-      if (opusPayload.isEmpty || opusPayload.length > _maxOpusPayloadBytes) {
-        developer.log(
-          'Dropping audio packet: invalid Opus payload length=${opusPayload.length}',
-          name: 'RemoteControl',
-        );
-        return null;
-      }
-      final decoded = _opusService.decodeFrame(opusPayload);
-      if (decoded == null) {
-        developer.log(
-          'Dropping audio packet: failed to decode Opus payload',
-          name: 'RemoteControl',
-        );
-      }
-      return decoded;
-    }
-
-    if (marker == _pcmAudioMarker) {
-      final pcmPayload = Uint8List.sublistView(payload, 1);
-      if (pcmPayload.isEmpty || pcmPayload.length > _maxPcmPayloadBytes) {
-        developer.log(
-          'Dropping audio packet: invalid PCM payload length=${pcmPayload.length}',
-          name: 'RemoteControl',
-        );
-        return null;
-      }
-      return pcmPayload;
-    }
-
-    // Backward compatibility for older PCM packets without codec marker.
-    return payload;
-  }
-
-  bool _shouldSuppressOutgoingCapturedAudio() {
-    if (_mode == RemoteControlMode.controller) {
-      return false;
-    }
-    final lastIncomingAudioAt = _lastIncomingAudioAt;
-    if (lastIncomingAudioAt == null || !_audioPlaybackService.isPlaying) {
-      return false;
-    }
-    return DateTime.now().difference(lastIncomingAudioAt) <=
-        _receiverCaptureSuppressAfterPlayback;
+  bool _isWebRtcSignal(StatusMessage message) {
+    return message.action == 'webrtc_offer' ||
+        message.action == 'webrtc_answer' ||
+        message.action == 'webrtc_candidate';
   }
 
   void _handleControlData(Uint8List data) {
@@ -985,11 +790,15 @@ class RemoteControlService {
   }
 
   void _recordStatusMessage(ControlMessage message) {
+    if (message is StatusMessage && _isWebRtcSignal(message)) {
+      unawaited(_voiceService.handleSignal(message));
+      return;
+    }
     _statusBridge.recordStatusMessage(
       message: message,
       onScreenInfo: (info) => _latestRemoteScreenInfo = info,
       markConnectionReady: _markConnectionReady,
-      onAudioPort: (port) => _expectedAudioPeerPort = port,
+      onAudioPort: (_) {},
       onPortConfig: (ports) {
         _config = RemoteControlConfig(
           ports: ports,
@@ -1130,8 +939,6 @@ class RemoteControlService {
     _controllerScreenSocket = null;
     _receiverScreenSocket?.destroy();
     _receiverScreenSocket = null;
-    _audioSocket?.close();
-    _audioSocket = null;
     _controlServer?.close();
     _controlServer = null;
     _screenServer?.close();
@@ -1142,10 +949,7 @@ class RemoteControlService {
     _latestRemoteSps = null;
     _latestRemotePps = null;
     _latestRemoteScreenInfo = null;
-    _lastIncomingAudioAt = null;
     _connectionReadyCompleter = null;
-    _expectedAudioPeerHost = null;
-    _expectedAudioPeerPort = null;
 
     try {
       await _channel.invokeMethod('stop');
@@ -1157,7 +961,6 @@ class RemoteControlService {
       );
     }
 
-    _remoteHost = null;
     _updateState(RemoteControlState.disconnected);
   }
 
@@ -1177,6 +980,5 @@ class RemoteControlService {
     _stateController.close();
     _messageController.close();
     _screenFrameController.close();
-    _audioFrameController.close();
   }
 }

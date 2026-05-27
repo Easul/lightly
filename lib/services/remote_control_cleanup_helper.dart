@@ -7,20 +7,18 @@ class RemoteControlCleanupHelper {
     required bool stopNative,
     required Socket? controllerControlSocket,
     required Socket? controllerScreenSocket,
-    required RawDatagramSocket? audioSocket,
     required List<int> screenDataBuffer,
     required StringBuffer controllerControlBuffer,
     required void Function() stopScreenFrameWatchdog,
     required void Function() stopHeartbeat,
-    required Future<void> Function() stopAudioPlayback,
+    required Future<void> Function() closeVoiceSession,
     required Future<void> Function() stopNativeService,
   }) async {
     stopScreenFrameWatchdog();
     stopHeartbeat();
     controllerControlSocket?.destroy();
     controllerScreenSocket?.destroy();
-    audioSocket?.close();
-    await stopAudioPlayback();
+    await closeVoiceSession();
     screenDataBuffer.clear();
     controllerControlBuffer.clear();
     if (stopNative) {
@@ -31,20 +29,18 @@ class RemoteControlCleanupHelper {
   Future<void> rollbackReceiverStartup({
     required Socket? receiverControlSocket,
     required Socket? receiverScreenSocket,
-    required RawDatagramSocket? audioSocket,
     required ServerSocket? controlServer,
     required ServerSocket? screenServer,
     required void Function() stopScreenFrameWatchdog,
     required Future<void> Function() stopAudioCapture,
-    required Future<void> Function() stopAudioPlayback,
+    required Future<void> Function() closeVoiceSession,
     required Future<void> Function() stopNativeService,
   }) async {
     stopScreenFrameWatchdog();
     await stopAudioCapture();
-    await stopAudioPlayback();
+    await closeVoiceSession();
     receiverControlSocket?.destroy();
     receiverScreenSocket?.destroy();
-    audioSocket?.close();
     await controlServer?.close();
     await screenServer?.close();
     await stopNativeService();
