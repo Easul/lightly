@@ -677,19 +677,15 @@ class MainActivity : FlutterActivity() {
                         try {
                             val controlPort = call.argument<Int>("controlPort") ?: 18080
                             val screenPort = call.argument<Int>("screenPort") ?: 18081
-                            val audioPort = call.argument<Int>("audioPort") ?: 18082
                             val screenFps = call.argument<Int>("screenFps") ?: 15
                             val screenBitrate = call.argument<Int>("screenBitrate") ?: 2000000
-                            val audioSampleRate = call.argument<Int>("audioSampleRate") ?: 16000
-                            val audioBitrate = call.argument<Int>("audioBitrate") ?: 24000
 
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
                             remoteControlService!!.startReceiver(
-                                controlPort, screenPort, audioPort,
+                                controlPort, screenPort,
                                 screenFps, screenBitrate,
-                                audioSampleRate, audioBitrate,
                             )
                             result.success(true)
                         } catch (e: Exception) {
@@ -700,12 +696,11 @@ class MainActivity : FlutterActivity() {
                     "startController" -> {
                         try {
                             val host = call.argument<String>("host") ?: ""
-                            val audioPort = call.argument<Int>("audioPort") ?: 18082
 
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
-                            remoteControlService!!.startController(host, audioPort)
+                            remoteControlService!!.startController(host)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)

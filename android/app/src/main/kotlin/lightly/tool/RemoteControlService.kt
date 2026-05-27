@@ -28,17 +28,14 @@ class RemoteControlService(private val context: Context) {
     fun startReceiver(
         controlPort: Int,
         screenPort: Int,
-        audioPort: Int,
         screenFps: Int,
         screenBitrate: Int,
-        audioSampleRate: Int,
-        audioBitrate: Int,
     ) {
-        Log.i(TAG, "startReceiver: control=$controlPort screen=$screenPort audio=$audioPort")
+        Log.i(TAG, "startReceiver: control=$controlPort screen=$screenPort")
     }
 
-    fun startController(host: String, audioPort: Int) {
-        Log.i(TAG, "startController: host=$host audio=$audioPort")
+    fun startController(host: String) {
+        Log.i(TAG, "startController: host=$host")
     }
 
     fun stop() {
