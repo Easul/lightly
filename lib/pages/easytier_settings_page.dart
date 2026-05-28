@@ -40,7 +40,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
 
   bool _dhcp = false;
   bool _enableP2p = true;
-  bool _needP2p = true;
   List<String> _peers = [];
   bool _isRunning = false;
   bool _isLoading = false;
@@ -100,7 +99,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       dhcp: _dhcp,
       peers: List<String>.from(_peers),
       enableP2p: _enableP2p,
-      needP2p: _needP2p,
       hostname: _hostnameController.text.trim().isEmpty
           ? null
           : _hostnameController.text.trim(),
@@ -134,7 +132,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     _ipv4Controller.text = profile.config.ipv4 ?? '';
     _hostnameController.text = profile.config.hostname ?? '';
     _enableP2p = profile.config.enableP2p;
-    _needP2p = profile.config.needP2p;
     _peers = List<String>.from(profile.config.peers);
     _selectedProfileId = profile.id;
     _isApplyingProfile = false;
@@ -467,7 +464,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
         ipv4Controller: _ipv4Controller,
         hostnameController: _hostnameController,
         enableP2p: _enableP2p,
-        needP2p: _needP2p,
         peerController: _peerController,
         peers: _peers,
         onSelectProfile: (profileId) => unawaited(_selectProfile(profileId)),
@@ -487,12 +483,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
         onEnableP2pChanged: (value) {
           setState(() {
             _enableP2p = value;
-          });
-          unawaited(_persistCurrentProfile());
-        },
-        onNeedP2pChanged: (value) {
-          setState(() {
-            _needP2p = value;
           });
           unawaited(_persistCurrentProfile());
         },
