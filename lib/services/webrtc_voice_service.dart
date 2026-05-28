@@ -4,12 +4,15 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'webrtc_candidate_filter.dart';
 import 'remote_control_protocol.dart';
+import 'webrtc_stats_summary.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
 typedef WebRtcLogCallback = void Function(String message, {Object? error});
 
 class WebRtcVoiceService {
   static const WebRtcSdpSummary _sdpSummary = WebRtcSdpSummary();
+  static const WebRtcStatsSummaryBuilder _statsSummary =
+      WebRtcStatsSummaryBuilder();
 
   static const Map<String, dynamic> _audioConstraints = {
     'echoCancellation': true,
@@ -431,49 +434,12 @@ class WebRtcVoiceService {
     }
     try {
       final reports = await peerConnection.getStats();
-      final selectedPairs = <String>[];
-      final audioReports = <String>[];
-      for (final report in reports) {
-        final values = report.values;
-        final type = report.type;
-        if (type == 'candidate-pair' && _isSelectedCandidatePair(values)) {
-          selectedPairs.add(
-            'pair=${report.id} state=${_stat(values, 'state')} nominated=${_stat(values, 'nominated')} local=${_stat(values, 'localCandidateId')} remote=${_stat(values, 'remoteCandidateId')} sent=${_stat(values, 'bytesSent')} recv=${_stat(values, 'bytesReceived')} rtt=${_stat(values, 'currentRoundTripTime')}',
-          );
-        }
-        if (_isAudioStatsReport(type, values)) {
-          audioReports.add(
-            '$type id=${report.id} kind=${_stat(values, 'kind')} media=${_stat(values, 'mediaType')} packetsSent=${_stat(values, 'packetsSent')} packetsRecv=${_stat(values, 'packetsReceived')} bytesSent=${_stat(values, 'bytesSent')} bytesRecv=${_stat(values, 'bytesReceived')} audioLevel=${_stat(values, 'audioLevel')} totalAudioEnergy=${_stat(values, 'totalAudioEnergy')}',
-          );
-        }
-      }
+      final summary = _statsSummary.build(reports);
       _log(
-        'webrtc-stats: selected=${selectedPairs.isEmpty ? 'none' : selectedPairs.join(' | ')} audio=${audioReports.isEmpty ? 'none' : audioReports.take(6).join(' | ')} localEnabled=$_localAudioEnabled trackEnabled=${_localAudioTrack?.enabled} trackMuted=${_localAudioTrack?.muted}',
+        'webrtc-stats: selected=${summary.selected} audio=${summary.audio} localEnabled=$_localAudioEnabled trackEnabled=${_localAudioTrack?.enabled} trackMuted=${_localAudioTrack?.muted}',
       );
     } catch (error) {
       _log('webrtc-stats-error', error: error);
     }
-  }
-
-  bool _isSelectedCandidatePair(Map<dynamic, dynamic> values) {
-    final selected = values['selected'];
-    final nominated = values['nominated'];
-    final state = values['state'];
-    return selected == true || (nominated == true && state == 'succeeded');
-  }
-
-  bool _isAudioStatsReport(String type, Map<dynamic, dynamic> values) {
-    final kind = values['kind']?.toString();
-    final mediaType = values['mediaType']?.toString();
-    return kind == 'audio' ||
-        mediaType == 'audio' ||
-        type == 'media-source' ||
-        type == 'inbound-rtp' ||
-        type == 'outbound-rtp';
-  }
-
-  String _stat(Map<dynamic, dynamic> values, String key) {
-    final value = values[key];
-    return value == null ? '-' : value.toString();
   }
 }
