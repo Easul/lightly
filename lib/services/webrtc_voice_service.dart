@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-import '../models/remote_control_config.dart';
 import 'remote_control_protocol.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
@@ -59,7 +58,6 @@ class WebRtcVoiceService {
   final bool _speakerphoneEnabled = true;
   bool _hasRemoteDescription = false;
   final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
-  WebRtcIceConfig _activeIceConfig = const WebRtcIceConfig();
   WebRtcNetworkPreference _networkPreference = const WebRtcNetworkPreference();
   Timer? _statsTimer;
 
@@ -68,11 +66,9 @@ class WebRtcVoiceService {
 
   Future<void> prepare({
     required bool isController,
-    required WebRtcIceConfig iceConfig,
     WebRtcNetworkPreference networkPreference = const WebRtcNetworkPreference(),
   }) async {
     _isController = isController;
-    _activeIceConfig = iceConfig;
     _networkPreference = networkPreference;
     if (_peerConnection != null) {
       return;
@@ -81,26 +77,13 @@ class WebRtcVoiceService {
     await _ensureDiagnosticsLogging();
     await Helper.setSpeakerphoneOn(_speakerphoneEnabled);
 
-    final iceServers = <Map<String, dynamic>>[
-      for (final stunUrl in iceConfig.stunUrls)
-        if (stunUrl.trim().isNotEmpty) {'urls': stunUrl.trim()},
-      if (iceConfig.hasTurnServer)
-        {
-          'urls': iceConfig.turnUrl!.trim(),
-          if ((iceConfig.username ?? '').trim().isNotEmpty)
-            'username': iceConfig.username!.trim(),
-          if ((iceConfig.credential ?? '').trim().isNotEmpty)
-            'credential': iceConfig.credential!.trim(),
-        },
-    ];
     final configuration = <String, dynamic>{
-      'iceServers': iceServers,
+      'iceServers': const [
+        {'urls': 'stun:stun.l.google.com:19302'},
+        {'urls': 'stun:stun1.l.google.com:19302'},
+      ],
       'sdpSemantics': 'unified-plan',
-      if (iceConfig.forceRelay) 'iceTransportPolicy': 'relay',
     };
-    if (iceConfig.forceRelay && !iceConfig.hasTurnServer) {
-      _log('webrtc-warning: relay forced without TURN server');
-    }
     final constraints = <String, dynamic>{
       'mandatory': <String, dynamic>{},
       'optional': [
@@ -186,7 +169,7 @@ class WebRtcVoiceService {
     _pendingRemoteCandidates.clear();
 
     _log(
-      'webrtc-prepared: controller=$_isController track=${localAudioTrack.id} relay=${iceConfig.forceRelay} turn=${iceConfig.hasTurnServer} preferenceHost=${networkPreference.preferredHost ?? 'none'} overlayPrefix=${networkPreference.preferredOverlayPrefix ?? 'none'} preferOverlay=${networkPreference.preferOverlayHostCandidates}',
+      'webrtc-prepared: controller=$_isController track=${localAudioTrack.id} preferenceHost=${networkPreference.preferredHost ?? 'none'} overlayPrefix=${networkPreference.preferredOverlayPrefix ?? 'none'} preferOverlay=${networkPreference.preferOverlayHostCandidates}',
     );
     if (_isController) {
       await _createAndSendOffer();
@@ -195,6 +178,9 @@ class WebRtcVoiceService {
 
   Future<void> setLocalAudioEnabled(bool enabled) async {
     if (_peerConnection == null) {
+      if (!enabled) {
+        return;
+      }
       throw StateError('WebRTC voice session not prepared');
     }
     _localAudioEnabled = enabled;
@@ -271,11 +257,7 @@ class WebRtcVoiceService {
   }
 
   Future<void> _handleOffer(StatusMessage message) async {
-    await prepare(
-      isController: false,
-      iceConfig: _activeIceConfig,
-      networkPreference: _networkPreference,
-    );
+    await prepare(isController: false, networkPreference: _networkPreference);
     final peerConnection = _peerConnection;
     if (peerConnection == null) {
       return;

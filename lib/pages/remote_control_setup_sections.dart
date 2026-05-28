@@ -253,6 +253,8 @@ class RemoteControlControllerSection extends StatelessWidget {
                 (peer) => RemoteControlPeerTile(
                   name: peer['name'] ?? '未命名设备',
                   ip: peer['ip'] ?? '',
+                  mode: peer['mode'] ?? '',
+                  latency: peer['latency'] ?? '',
                   onTap: () => onSelectPeer(peer),
                 ),
               ),
@@ -340,7 +342,7 @@ class RemoteControlControllerSection extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              '提示：请确保被控端已启动，并输入正确的地址和端口；语音会通过 WebRTC 自动协商',
+              '提示：点击连接会先自动检测可用端口；使用内置代理连接时仅支持屏幕控制，语音会自动关闭。',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
@@ -357,97 +359,6 @@ class RemoteControlControllerSection extends StatelessWidget {
                     : const Icon(Icons.link),
                 label: Text(isConnecting ? '连接中...' : '连接'),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class RemoteControlWebRtcRelaySection extends StatelessWidget {
-  final TextEditingController turnUrlController;
-  final TextEditingController turnUsernameController;
-  final TextEditingController turnCredentialController;
-  final bool forceRelay;
-  final bool useInternalProxy;
-  final ValueChanged<String> onTurnUrlChanged;
-  final ValueChanged<String> onTurnUsernameChanged;
-  final ValueChanged<String> onTurnCredentialChanged;
-  final ValueChanged<bool> onForceRelayChanged;
-
-  const RemoteControlWebRtcRelaySection({
-    super.key,
-    required this.turnUrlController,
-    required this.turnUsernameController,
-    required this.turnCredentialController,
-    required this.forceRelay,
-    required this.useInternalProxy,
-    required this.onTurnUrlChanged,
-    required this.onTurnUsernameChanged,
-    required this.onTurnCredentialChanged,
-    required this.onForceRelayChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'WebRTC 中继设置',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              useInternalProxy
-                  ? '当前启用了内置代理。代理只转发控制信令，跨网络语音通常需要配置 TURN 才能稳定出声。'
-                  : '同局域网通常不需要 TURN；跨网络、跨 NAT 或代理场景建议配置 TURN。',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: turnUrlController,
-              decoration: const InputDecoration(
-                labelText: 'TURN 地址（可选）',
-                hintText: '例如: turn:turn.example.com:3478?transport=udp',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
-              onChanged: onTurnUrlChanged,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: turnUsernameController,
-              decoration: const InputDecoration(
-                labelText: 'TURN 用户名（可选）',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: onTurnUsernameChanged,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: turnCredentialController,
-              decoration: const InputDecoration(
-                labelText: 'TURN 密码（可选）',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-              onChanged: onTurnCredentialChanged,
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('优先走中继（Relay）'),
-              subtitle: const Text(
-                '适合跨网络或代理场景；会牺牲一点延迟换稳定性。',
-                style: TextStyle(fontSize: 12),
-              ),
-              value: forceRelay,
-              onChanged: onForceRelayChanged,
             ),
           ],
         ),
@@ -614,12 +525,16 @@ class RemoteControlPortInput extends StatelessWidget {
 class RemoteControlPeerTile extends StatelessWidget {
   final String name;
   final String ip;
+  final String mode;
+  final String latency;
   final VoidCallback onTap;
 
   const RemoteControlPeerTile({
     super.key,
     required this.name,
     required this.ip,
+    required this.mode,
+    required this.latency,
     required this.onTap,
   });
 
@@ -628,7 +543,14 @@ class RemoteControlPeerTile extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.phone_android),
       title: Text(name),
-      subtitle: Text(ip),
+      subtitle: Text(
+        [
+          ip,
+          if (mode.isNotEmpty) mode,
+          if (latency.isNotEmpty) latency,
+        ].join(' · '),
+      ),
+      trailing: const Icon(Icons.input_rounded),
       onTap: onTap,
       dense: true,
       contentPadding: EdgeInsets.zero,

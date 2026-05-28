@@ -19,16 +19,8 @@ class RemoteControlPageReceiverHelper {
     required MethodChannel channel,
     required RemoteControlService service,
     required Future<bool> Function() ensureVpnForRemoteControl,
-    required WebRtcIceConfig iceConfig,
   }) async {
-    final defaultConfig = await RemoteControlConfig.defaultConfig();
-    final config = RemoteControlConfig(
-      ports: defaultConfig.ports,
-      enableScreen: defaultConfig.enableScreen,
-      screenFps: defaultConfig.screenFps,
-      screenBitrate: defaultConfig.screenBitrate,
-      iceConfig: iceConfig,
-    );
+    final config = await RemoteControlConfig.defaultConfig();
 
     final vpnStarted = await ensureVpnForRemoteControl();
     if (!vpnStarted) {
