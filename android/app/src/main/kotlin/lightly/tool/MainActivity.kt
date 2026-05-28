@@ -278,7 +278,6 @@ class MainActivity : FlutterActivity() {
             Log.w(remoteControlChannelName, "Failed to stop remote control service", e)
         }
         remoteControlService = null
-
         releaseScreenDecoder()
     }
 
