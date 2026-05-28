@@ -42,6 +42,7 @@ import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
 import '../widgets/app_drawer.dart';
 import 'browser_page_address_sync.dart';
+import 'browser_page_address_bar_coordinator.dart';
 import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
@@ -79,6 +80,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       GlobalKey<BrowserFavoritesPageState>();
   final BrowserPageActionCoordinator _actionCoordinator =
       const BrowserPageActionCoordinator();
+  final BrowserPageAddressBarCoordinator _addressBarCoordinator =
+      const BrowserPageAddressBarCoordinator();
   final BrowserPageModalCoordinator _modalCoordinator =
       const BrowserPageModalCoordinator();
   final BrowserPageStatusCoordinator _statusCoordinator =
@@ -106,8 +109,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageUrlFilterHelper();
   final BrowserPageStatePredicates _statePredicates =
       const BrowserPageStatePredicates();
-  final BrowserPageInputResolver _inputResolver =
-      const BrowserPageInputResolver();
   final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
   final BrowserPageAddressSync _addressSync = const BrowserPageAddressSync();
   late final BrowserPageOverlayStateManager _overlayStateManager;
@@ -845,17 +846,26 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadAddress(String rawValue) async {
-    final trimmed = rawValue.trim();
-    if (trimmed.isEmpty) {
+    final resolvedInput = _resolveInput(rawValue.trim());
+    final plan = _addressBarCoordinator.buildLoadPlan(
+      rawValue: rawValue,
+      isProxyActive: _isProxyActive,
+      isFavoritesPage: _isFavoritesPage(_currentUrl),
+      hasWebViewController: _webViewController != null,
+      shouldOpenNativeVideo:
+          resolvedInput.isNotEmpty &&
+          _shouldOpenNativeVideoFromUrl(resolvedInput),
+    );
+    final target = plan.target;
+    if (target == null) {
       return;
     }
 
-    final target = _resolveInput(trimmed);
-    if (await _tryHandleExplicitYoutubeInput(target)) {
+    if (plan.shouldOpenNativeVideo) {
+      await _handleExplicitYoutubeInput(target);
       return;
     }
 
-    final wasFavoritesPage = _isFavoritesPage(_currentUrl);
     _addressController.text = target;
     final didChangeUrl = _updateActiveTab(
       url: target,
@@ -867,7 +877,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     _checkFavoriteStatus(target);
     if (_statusCoordinator.shouldClearAfterAddressLoad(
-      wasFavoritesPage: wasFavoritesPage,
+      wasFavoritesPage: plan.wasFavoritesPage,
       didChangeUrl: didChangeUrl,
       currentStatusMessage: _statusMessage,
     )) {
@@ -877,21 +887,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
 
     final controller = _webViewController;
-    if (!wasFavoritesPage && controller != null) {
+    if (plan.shouldLoadInCurrentWebView && controller != null) {
       await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
       return;
     }
 
-    if (_statePredicates.shouldRebuildAfterAddressLoad(
-      wasFavoritesPage: wasFavoritesPage,
-    )) {
+    if (plan.shouldRebuildAfterAddressLoad) {
       if (mounted) {
         _rebuildWhenVisible();
       }
       return;
     }
 
-    if (!wasFavoritesPage && activeTabId != null) {
+    if (plan.shouldResetKeepAliveAfterAddressLoad && activeTabId != null) {
       _tabService.resetKeepAlive(activeTabId, recreate: false);
       if (mounted) {
         _rebuildWhenVisible();
@@ -900,7 +908,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   String _resolveInput(String input) {
-    return _inputResolver.resolve(input, isProxyActive: _isProxyActive);
+    if (input.trim().isEmpty) {
+      return '';
+    }
+    return BrowserPageInputResolver().resolve(
+      input,
+      isProxyActive: _isProxyActive,
+    );
   }
 
   bool _shouldOpenNativeVideoFromUrl(String url) {
@@ -911,11 +925,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<bool> _tryHandleExplicitYoutubeInput(String url) async {
-    if (!_shouldOpenNativeVideoFromUrl(url)) {
-      return false;
-    }
-
+  Future<void> _handleExplicitYoutubeInput(String url) async {
     _addressFocusNode.unfocus();
     if (mounted &&
         _statusCoordinator.shouldShowYoutubeResolving(_statusMessage)) {
@@ -935,7 +945,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         _statusMessage = _statusCoordinator.cleared();
       });
     }
-    return true;
   }
 
   bool _shouldUseProxy([BrowserSettings? settings, bool? proxySupported]) {
