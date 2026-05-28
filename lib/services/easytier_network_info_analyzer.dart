@@ -102,7 +102,7 @@ class EasyTierNetworkInfoAnalyzer {
           .toList();
     }
 
-    final peers = <Map<String, String>>[];
+    final peerById = <int, Map<String, dynamic>>{};
     for (final peer in rawPeers) {
       if (peer is! Map) {
         continue;
@@ -113,24 +113,30 @@ class EasyTierNetworkInfoAnalyzer {
       if (peerId == null) {
         continue;
       }
+      peerById[peerId] = peerMap;
+    }
 
-      final routeMap = routeByPeerId[peerId];
-      if (routeMap == null) {
+    final peers = <Map<String, String>>[];
+    for (final routeMap in routeByPeerId.values) {
+      final peerId = (routeMap['peer_id'] as num?)?.toInt();
+      if (peerId == null) {
         continue;
       }
-
       final featureFlag = routeMap['feature_flag'];
       if (featureFlag is Map && featureFlag['is_public_server'] == true) {
         continue;
       }
 
+      final peerMap = peerById[peerId];
       final hostname = (routeMap['hostname'] as String?)?.trim();
       final ipv4 = decodeIpv4(
         routeMap['ipv4_addr'] is Map
             ? Map<String, dynamic>.from(routeMap['ipv4_addr'] as Map)
             : null,
       );
-      final mode = _describePeerMode(peerMap, routeMap, routeByPeerId);
+      final mode = peerMap == null
+          ? _describeRouteMode(routeMap, routeByPeerId)
+          : _describePeerMode(peerMap, routeMap, routeByPeerId);
       final status = _describePeerHealth(churnByPeerId[peerId]);
       peers.add(<String, String>{
         'name': (hostname == null || hostname.isEmpty) ? '未命名设备' : hostname,
@@ -138,6 +144,7 @@ class EasyTierNetworkInfoAnalyzer {
         'latency': '${routeMap['path_latency'] ?? '-'} ms',
         'mode': mode,
         'status': status,
+        'peerId': '$peerId',
       });
     }
 
