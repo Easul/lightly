@@ -82,7 +82,7 @@ class EasyTierProfilesCard extends StatelessWidget {
             Text('网络配置档案', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: selectedProfileId,
+              initialValue: selectedProfileId,
               items: profileItems,
               onChanged: isLoading ? null : onSelected,
               decoration: const InputDecoration(
@@ -342,10 +342,12 @@ class EasyTierConfigurationSection extends StatelessWidget {
     required this.ipv4Controller,
     required this.hostnameController,
     required this.enableP2p,
+    required this.needP2p,
     required this.peerController,
     required this.peers,
     required this.onDhcpChanged,
     required this.onEnableP2pChanged,
+    required this.onNeedP2pChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
   });
@@ -357,10 +359,12 @@ class EasyTierConfigurationSection extends StatelessWidget {
   final TextEditingController ipv4Controller;
   final TextEditingController hostnameController;
   final bool enableP2p;
+  final bool needP2p;
   final TextEditingController peerController;
   final List<String> peers;
   final ValueChanged<bool> onDhcpChanged;
   final ValueChanged<bool> onEnableP2pChanged;
+  final ValueChanged<bool> onNeedP2pChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
 
@@ -441,6 +445,12 @@ class EasyTierConfigurationSection extends StatelessWidget {
           subtitle: const Text('允许与其他节点直接连接'),
           value: enableP2p,
           onChanged: onEnableP2pChanged,
+        ),
+        SwitchListTile(
+          title: const Text('要求尝试 P2P 直连'),
+          subtitle: const Text('写入 need_p2p，帮助 TL-XDR6088 等环境下优先尝试直连'),
+          value: needP2p,
+          onChanged: onNeedP2pChanged,
         ),
         const SizedBox(height: 16),
         Text('节点地址 (Peers)', style: Theme.of(context).textTheme.titleMedium),

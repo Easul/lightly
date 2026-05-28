@@ -28,6 +28,7 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.ipv4Controller,
     required this.hostnameController,
     required this.enableP2p,
+    required this.needP2p,
     required this.peerController,
     required this.peers,
     required this.onSelectProfile,
@@ -40,6 +41,7 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.onStopVpn,
     required this.onDhcpChanged,
     required this.onEnableP2pChanged,
+    required this.onNeedP2pChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
   });
@@ -66,6 +68,7 @@ class EasyTierSettingsBody extends StatelessWidget {
   final TextEditingController ipv4Controller;
   final TextEditingController hostnameController;
   final bool enableP2p;
+  final bool needP2p;
   final TextEditingController peerController;
   final List<String> peers;
   final ValueChanged<String?> onSelectProfile;
@@ -78,6 +81,7 @@ class EasyTierSettingsBody extends StatelessWidget {
   final VoidCallback onStopVpn;
   final ValueChanged<bool> onDhcpChanged;
   final ValueChanged<bool> onEnableP2pChanged;
+  final ValueChanged<bool> onNeedP2pChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
 
@@ -155,10 +159,12 @@ class EasyTierSettingsBody extends StatelessWidget {
                 ipv4Controller: ipv4Controller,
                 hostnameController: hostnameController,
                 enableP2p: enableP2p,
+                needP2p: needP2p,
                 peerController: peerController,
                 peers: peers,
                 onDhcpChanged: onDhcpChanged,
                 onEnableP2pChanged: onEnableP2pChanged,
+                onNeedP2pChanged: onNeedP2pChanged,
                 onAddPeer: onAddPeer,
                 onRemovePeer: onRemovePeer,
               ),
