@@ -179,6 +179,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   int _progress = 0;
   Timer? _overlaySettledTimer;
   bool _hasDeferredOverlayRebuild = false;
+  bool _showFindInPageAfterMoreActionsCloses = false;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
   PullToRefreshController? _pullToRefreshController;
@@ -1785,10 +1786,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
             ? _showFavoritesMenu
             : null,
-        onFindInPage: _showFindInPage,
+        onFindInPage: () {
+          _showFindInPageAfterMoreActionsCloses = true;
+        },
       );
     } finally {
       _handleOverlayClosed();
+      if (_showFindInPageAfterMoreActionsCloses) {
+        _showFindInPageAfterMoreActionsCloses = false;
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (mounted) {
+          await _showFindInPage();
+        }
+      }
     }
   }
 
@@ -1855,6 +1865,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showFindInPage() async {
+    if (_isFavoritesPage(_currentUrl)) {
+      await _loadAddress(_settings.homepageUrl);
+      if (!mounted) {
+        return;
+      }
+      _rebuildWhenVisible();
+      if (!mounted) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted || _isFavoritesPage(_currentUrl)) {
+        return;
+      }
+    }
+
     if (!_actionCoordinator.canShowFindInPage(
       isFindAvailable: _findController.isAvailable,
       isFavoritesPage: _isFavoritesPage(_currentUrl),
