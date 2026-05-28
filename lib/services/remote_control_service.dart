@@ -96,6 +96,7 @@ class RemoteControlService {
   final StringBuffer _controllerControlBuffer = StringBuffer();
   final StringBuffer _receiverControlBuffer = StringBuffer();
   bool _audioDiagnosticsLoggingReady = false;
+  bool _remoteMicrophoneEnabled = false;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -107,6 +108,7 @@ class RemoteControlService {
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
   bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
   bool get isVoiceEnabled => _config?.enableVoice ?? true;
+  bool get isRemoteMicrophoneEnabled => _remoteMicrophoneEnabled;
 
   RemoteControlState get state => _state;
   RemoteControlMode get mode => _mode;
@@ -456,6 +458,23 @@ class RemoteControlService {
     if (_controllerControlSocket == null) return;
     final data = utf8.encode('${RemoteControlCodec.encode(command)}\n');
     _controllerControlSocket!.add(data);
+  }
+
+  Future<void> sendOverlayText(String text) async {
+    final normalized = text.trim();
+    if (normalized.isEmpty || _controllerControlSocket == null) return;
+    final message = StatusMessage.overlayText(text: normalized);
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+  }
+
+  Future<void> setReceiverMicrophoneEnabled(bool enabled) async {
+    if (!isVoiceEnabled || _controllerControlSocket == null) return;
+    final message = StatusMessage.receiverMicrophone(enabled: enabled);
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
   }
 
   Future<void> sendGlobalAction(GlobalAction action) async {
@@ -827,6 +846,17 @@ class RemoteControlService {
       unawaited(_voiceService.handleSignal(message));
       return;
     }
+    if (message is StatusMessage && message.action == 'receiver_microphone') {
+      final enabled = message.data['enabled'] == true;
+      unawaited(_applyReceiverMicrophone(enabled));
+      return;
+    }
+    if (message is StatusMessage &&
+        message.action == 'receiver_microphone_status') {
+      _remoteMicrophoneEnabled = message.data['enabled'] == true;
+      _messageController.add(message);
+      return;
+    }
     _statusBridge.recordStatusMessage(
       message: message,
       onScreenInfo: (info) => _latestRemoteScreenInfo = info,
@@ -841,6 +871,30 @@ class RemoteControlService {
         );
       },
     );
+  }
+
+  Future<void> _applyReceiverMicrophone(bool enabled) async {
+    try {
+      if (!isVoiceEnabled) {
+        final status = StatusMessage.receiverMicrophoneStatus(enabled: false);
+        _remoteMicrophoneEnabled = false;
+        _messageController.add(status);
+        _receiverControlSocket?.add(
+          utf8.encode('${RemoteControlCodec.encode(status)}\n'),
+        );
+        return;
+      }
+      await _prepareVoiceSession(isController: false);
+      await _voiceService.setLocalAudioEnabled(enabled);
+      final status = StatusMessage.receiverMicrophoneStatus(enabled: enabled);
+      _remoteMicrophoneEnabled = enabled;
+      _messageController.add(status);
+      _receiverControlSocket?.add(
+        utf8.encode('${RemoteControlCodec.encode(status)}\n'),
+      );
+    } catch (error) {
+      _logMessage('Failed to set receiver microphone: $error', error: error);
+    }
   }
 
   void _handleReceiverControlData(Uint8List data) {

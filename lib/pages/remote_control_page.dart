@@ -141,9 +141,14 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   void _handleMessage(protocol.ControlMessage message) {
-    if (message is protocol.StatusMessage &&
-        message.action == 'receiver_info') {
+    if (message is! protocol.StatusMessage) {
       return;
+    }
+    if (message.action == 'receiver_microphone_status') {
+      final enabled = message.data['enabled'] == true;
+      if (mounted && _isReceiverAudioEnabled != enabled) {
+        setState(() => _isReceiverAudioEnabled = enabled);
+      }
     }
   }
 

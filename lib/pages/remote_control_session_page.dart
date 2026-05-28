@@ -35,6 +35,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   Size _remoteCaptureSize = const Size(1080, 2340);
   bool _isAudioEnabled = false;
   bool _isVoiceEnabled = true;
+  bool _isRemoteMicEnabled = false;
   bool _isControlsVisible = true;
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
@@ -52,6 +53,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     _remoteCaptureSize = _remoteScreenSize;
     _isAudioEnabled = widget.service.isLocalAudioEnabled;
     _isVoiceEnabled = widget.service.isVoiceEnabled;
+    _isRemoteMicEnabled = widget.service.isRemoteMicrophoneEnabled;
     _stateSubscription = widget.service.stateStream.listen(_handleStateChange);
     _messageSubscription = widget.service.messageStream.listen(_handleMessage);
   }
@@ -106,6 +108,14 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       } else if (mounted) {
         _showToast('无法启动语音，请检查权限');
       }
+    }
+  }
+
+  Future<void> _toggleRemoteMicrophone() async {
+    final enabled = !_isRemoteMicEnabled;
+    await widget.service.setReceiverMicrophoneEnabled(enabled);
+    if (mounted) {
+      setState(() => _isRemoteMicEnabled = enabled);
     }
   }
 
@@ -205,6 +215,26 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     }
   }
 
+  Future<void> _showOverlayTextSheet() async {
+    final controller = TextEditingController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFF111827),
+        builder: (context) => RemoteOverlayTextSheet(
+          controller: controller,
+          onSendText: (text) async {
+            await widget.service.sendOverlayText(text);
+            if (context.mounted) Navigator.pop(context);
+          },
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
   void _handleMessage(protocol.ControlMessage message) {
     if (message is protocol.StatusMessage && message.action == 'screen_info') {
       final width = (message.data['width'] as num?)?.toDouble();
@@ -234,6 +264,22 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
         _remoteCaptureSize = nextCaptureSize;
       });
       unawaited(_requestKeyFrame());
+      return;
+    }
+    if (message is protocol.StatusMessage &&
+        message.action == 'receiver_microphone_status') {
+      final enabled = message.data['enabled'] == true;
+      if (mounted &&
+          (enabled != _isRemoteMicEnabled ||
+              (widget.service.mode == RemoteControlMode.receiver &&
+                  enabled != _isAudioEnabled))) {
+        setState(() {
+          _isRemoteMicEnabled = enabled;
+          if (widget.service.mode == RemoteControlMode.receiver) {
+            _isAudioEnabled = enabled;
+          }
+        });
+      }
       return;
     }
   }
@@ -277,6 +323,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   remoteHost: widget.remoteHost,
                   isAudioEnabled: _isAudioEnabled,
                   isVoiceEnabled: _isVoiceEnabled,
+                  isRemoteMicEnabled: _isRemoteMicEnabled,
                   isReceiverMode:
                       widget.service.mode == RemoteControlMode.receiver,
                   isPopupVisible: _isActionPopupVisible,
@@ -284,6 +331,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   onTailDragUpdate: (details) =>
                       _moveTail(details, constraints.biggest),
                   onAudioTap: _toggleAudio,
+                  onRemoteMicTap: _toggleRemoteMicrophone,
+                  onOverlayTextTap: _showOverlayTextSheet,
                   onKeyboardTap: _showKeyboardSheet,
                   onRefreshTap: _requestKeyFrame,
                   onBackTap: () => _handleGlobalAction('back'),

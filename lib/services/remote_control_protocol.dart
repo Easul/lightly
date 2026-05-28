@@ -341,6 +341,33 @@ class StatusMessage extends ControlMessage {
     );
   }
 
+  factory StatusMessage.receiverMicrophone({required bool enabled}) {
+    return StatusMessage(
+      action: 'receiver_microphone',
+      data: {'enabled': enabled},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  factory StatusMessage.receiverMicrophoneStatus({required bool enabled}) {
+    return StatusMessage(
+      action: 'receiver_microphone_status',
+      data: {'enabled': enabled},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  factory StatusMessage.overlayText({required String text}) {
+    return StatusMessage(
+      action: 'overlay_text',
+      data: {'text': text},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   @override
   Map<String, dynamic> toJson() {
     return {

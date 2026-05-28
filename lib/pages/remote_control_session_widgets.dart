@@ -152,11 +152,14 @@ class FloatingTailControls extends StatelessWidget {
     required this.remoteHost,
     required this.isAudioEnabled,
     required this.isVoiceEnabled,
+    required this.isRemoteMicEnabled,
     required this.isReceiverMode,
     required this.isPopupVisible,
     required this.onTailTap,
     required this.onTailDragUpdate,
     required this.onAudioTap,
+    required this.onRemoteMicTap,
+    required this.onOverlayTextTap,
     required this.onKeyboardTap,
     required this.onRefreshTap,
     required this.onBackTap,
@@ -168,11 +171,14 @@ class FloatingTailControls extends StatelessWidget {
   final String remoteHost;
   final bool isAudioEnabled;
   final bool isVoiceEnabled;
+  final bool isRemoteMicEnabled;
   final bool isReceiverMode;
   final bool isPopupVisible;
   final VoidCallback onTailTap;
   final ValueChanged<DragUpdateDetails> onTailDragUpdate;
   final VoidCallback onAudioTap;
+  final VoidCallback onRemoteMicTap;
+  final VoidCallback onOverlayTextTap;
   final VoidCallback onKeyboardTap;
   final VoidCallback onRefreshTap;
   final VoidCallback onBackTap;
@@ -247,6 +253,24 @@ class FloatingTailControls extends StatelessWidget {
                               label: audioLabel,
                               accentColor: audioAccentColor,
                               onTap: onAudioTap,
+                            ),
+                          if (isVoiceEnabled && !isReceiverMode)
+                            TailActionChip(
+                              icon: isRemoteMicEnabled
+                                  ? Icons.record_voice_over
+                                  : Icons.voice_over_off,
+                              label: isRemoteMicEnabled ? '关远端麦' : '开远端麦',
+                              accentColor: isRemoteMicEnabled
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF4B5563),
+                              onTap: onRemoteMicTap,
+                            ),
+                          if (!isReceiverMode)
+                            TailActionChip(
+                              icon: Icons.text_fields_rounded,
+                              label: '文字提示',
+                              accentColor: const Color(0xFF7C3AED),
+                              onTap: onOverlayTextTap,
                             ),
                           TailActionChip(
                             icon: Icons.keyboard_alt_outlined,
@@ -361,6 +385,69 @@ class TailActionChip extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RemoteOverlayTextSheet extends StatelessWidget {
+  const RemoteOverlayTextSheet({
+    super.key,
+    required this.controller,
+    required this.onSendText,
+  });
+
+  final TextEditingController controller;
+  final Future<void> Function(String text) onSendText;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '发送文字提示到被控端',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 4,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: '输入要显示在被控端屏幕上方的文字',
+                hintStyle: const TextStyle(color: Colors.white54),
+                filled: true,
+                fillColor: const Color(0xFF1F2937),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () => onSendText(controller.text),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('发送'),
             ),
           ],
         ),
