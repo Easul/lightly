@@ -56,6 +56,7 @@ import 'browser_page_input_resolver.dart';
 import 'browser_page_state_predicates.dart';
 import 'browser_page_status_coordinator.dart';
 import 'browser_page_tab_transition_helper.dart';
+import 'browser_page_tab_transition_coordinator.dart';
 import 'browser_page_tab_flow_coordinator.dart';
 import 'browser_page_url_filter_helper.dart';
 import 'browser_page_webview_lifecycle_helper.dart';
@@ -92,8 +93,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageSiteSecurityHelper();
   final BrowserPageTabFlowCoordinator _tabFlowCoordinator =
       const BrowserPageTabFlowCoordinator();
-  final BrowserPageTabTransitionHelper _tabTransitionHelper =
-      const BrowserPageTabTransitionHelper();
+  final BrowserPageTabTransitionCoordinator _tabTransitionCoordinator =
+      const BrowserPageTabTransitionCoordinator();
   final BrowserPageWebViewCoordinator _webViewCoordinator =
       const BrowserPageWebViewCoordinator();
   final BrowserPageRouteHandler _routeHandler = const BrowserPageRouteHandler();
@@ -1364,7 +1365,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
+    await _tabTransitionCoordinator.prepareOpenedTab(
       deps: _tabTransitionDeps,
       resetVideoDetectionState: _resetVideoDetectionState,
       url: tab.url,
@@ -1377,7 +1378,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       syncTrackedScrollPosition:
           _tabCoordinator.syncTrackedScrollPositionWithActiveTab,
-      syncTrackedScroll: false,
     );
   }
 
@@ -1403,7 +1403,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    await _tabTransitionHelper.prepareOpenedOrSwitchedTab(
+    await _tabTransitionCoordinator.prepareSwitchedTab(
       deps: _tabTransitionDeps,
       resetVideoDetectionState: _resetVideoDetectionState,
       url: _currentUrl,
@@ -1416,7 +1416,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       },
       syncTrackedScrollPosition:
           _tabCoordinator.syncTrackedScrollPositionWithActiveTab,
-      syncTrackedScroll: true,
     );
   }
 
@@ -1426,7 +1425,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    await _tabTransitionHelper.prepareClosedTab(
+    await _tabTransitionCoordinator.prepareClosedTab(
       deps: _tabTransitionDeps,
       url: nextTab.url,
       applyStatusAfterTransition: () {
@@ -1443,7 +1442,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _rebuildWhenVisible();
       return;
     }
-    final decision = _tabFlowCoordinator.decideCloseTabFollowUp(
+    final decision = _tabTransitionCoordinator.decideCloseTabFollowUp(
       previousActiveId: previousId,
       nextTabId: nextTab.id,
     );
@@ -1529,7 +1528,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    await _tabTransitionHelper.prepareCloseAllTabs(
+    await _tabTransitionCoordinator.prepareCloseAllTabs(
       deps: _tabTransitionDeps,
       url: _currentUrl,
       applyStatusAfterTransition: () {
