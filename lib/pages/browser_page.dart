@@ -295,14 +295,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  void _handleOverlayOpened({bool trimKeepAlives = true}) {
+  void _handleOverlayOpened({
+    bool trimKeepAlives = true,
+    bool pauseWebView = true,
+  }) {
     _overlaySettledTimer?.cancel();
     _overlaySettledTimer = null;
     final decision = _lifecycleCoordinator.handleOverlayOpened(
       overlayDepth: _overlayDepth,
     );
     _overlayDepth = decision.overlayDepth;
-    if (decision.shouldPauseWebView) {
+    if (pauseWebView && decision.shouldPauseWebView) {
       _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
     }
     if (mounted) {
@@ -1859,7 +1862,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    _handleOverlayOpened();
+    _handleOverlayOpened(pauseWebView: false);
     try {
       await showBrowserFindInPageSheet(
         context: context,
