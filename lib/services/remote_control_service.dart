@@ -106,6 +106,7 @@ class RemoteControlService {
   Stream<ScreenFrame> get screenFrameStream => _screenFrameController.stream;
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
   bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
+  bool get isVoiceEnabled => _config?.enableVoice ?? true;
 
   RemoteControlState get state => _state;
   RemoteControlMode get mode => _mode;
@@ -311,15 +312,11 @@ class RemoteControlService {
     int discoveryDelayMs = 0,
     bool useProxy = false,
     int? proxyPort,
-    WebRtcIceConfig? iceConfig,
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
     _targetHost = host;
-    _config = RemoteControlConfig(
-      ports: ports,
-      iceConfig: iceConfig ?? const WebRtcIceConfig(),
-    );
+    _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
 
     // 记录设备发现路径
     _performanceMonitor.recordDiscoveryPath(
@@ -362,7 +359,11 @@ class RemoteControlService {
 
         await _channel.invokeMethod('startController', {'host': host});
         nativeControllerStarted = true;
-        await _prepareVoiceSession(isController: true);
+        if (isVoiceEnabled) {
+          await _prepareVoiceSession(isController: true);
+        } else {
+          _logMessage('WebRTC voice disabled for internal proxy connection');
+        }
 
         _startScreenFrameWatchdog();
         _startHeartbeat();
@@ -558,6 +559,10 @@ class RemoteControlService {
     int sampleRate = 16000,
     int channels = 1,
   }) async {
+    if (!isVoiceEnabled) {
+      _logMessage('Skipping audio capture: voice disabled for this session');
+      return false;
+    }
     try {
       await _prepareVoiceSession(
         isController: _mode == RemoteControlMode.controller,
@@ -575,6 +580,9 @@ class RemoteControlService {
   }
 
   Future<void> stopAudioCapture() async {
+    if (!_voiceService.isPrepared) {
+      return;
+    }
     await _voiceService.setLocalAudioEnabled(false);
   }
 
@@ -582,6 +590,9 @@ class RemoteControlService {
     int sampleRate = 16000,
     int channels = 1,
   }) async {
+    if (!isVoiceEnabled) {
+      return;
+    }
     await _prepareVoiceSession(
       isController: _mode == RemoteControlMode.controller,
     );
@@ -601,7 +612,6 @@ class RemoteControlService {
     _updateState(RemoteControlState.connected);
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
-    unawaited(_prepareVoiceSession(isController: false));
 
     _lifecycleHelper.attachReceiverControlClient(
       client: client,
@@ -757,12 +767,15 @@ class RemoteControlService {
   }
 
   Future<void> _prepareVoiceSession({required bool isController}) async {
+    if (!isVoiceEnabled) {
+      _logMessage('Skipping WebRTC voice prepare: voice disabled');
+      return;
+    }
     _logMessage(
-      'Preparing WebRTC voice: controller=$isController targetHost=${_targetHost ?? 'none'} ice=${_config?.iceConfig ?? const WebRtcIceConfig()}',
+      'Preparing WebRTC voice: controller=$isController targetHost=${_targetHost ?? 'none'}',
     );
     await _voiceService.prepare(
       isController: isController,
-      iceConfig: _config?.iceConfig ?? const WebRtcIceConfig(),
       networkPreference: WebRtcNetworkPreference(
         preferredHost: _targetHost,
         preferredOverlayPrefix: _easyTierOverlayPrefix,
@@ -804,6 +817,12 @@ class RemoteControlService {
 
   void _recordStatusMessage(ControlMessage message) {
     if (message is StatusMessage && _isWebRtcSignal(message)) {
+      if (!isVoiceEnabled) {
+        _logMessage(
+          'Ignoring WebRTC signal while voice disabled: ${message.action}',
+        );
+        return;
+      }
       _logMessage('Received WebRTC signal: ${message.action}');
       unawaited(_voiceService.handleSignal(message));
       return;
@@ -818,6 +837,7 @@ class RemoteControlService {
           enableScreen: _config?.enableScreen ?? true,
           screenFps: _config?.screenFps ?? 15,
           screenBitrate: _config?.screenBitrate ?? 2000000,
+          enableVoice: _config?.enableVoice ?? true,
         );
       },
     );

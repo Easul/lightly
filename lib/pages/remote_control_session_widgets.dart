@@ -151,6 +151,7 @@ class FloatingTailControls extends StatelessWidget {
     super.key,
     required this.remoteHost,
     required this.isAudioEnabled,
+    required this.isVoiceEnabled,
     required this.isReceiverMode,
     required this.isPopupVisible,
     required this.onTailTap,
@@ -166,6 +167,7 @@ class FloatingTailControls extends StatelessWidget {
 
   final String remoteHost;
   final bool isAudioEnabled;
+  final bool isVoiceEnabled;
   final bool isReceiverMode;
   final bool isPopupVisible;
   final VoidCallback onTailTap;
@@ -239,12 +241,13 @@ class FloatingTailControls extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          TailActionChip(
-                            icon: audioIcon,
-                            label: audioLabel,
-                            accentColor: audioAccentColor,
-                            onTap: onAudioTap,
-                          ),
+                          if (isVoiceEnabled)
+                            TailActionChip(
+                              icon: audioIcon,
+                              label: audioLabel,
+                              accentColor: audioAccentColor,
+                              onTap: onAudioTap,
+                            ),
                           TailActionChip(
                             icon: Icons.keyboard_alt_outlined,
                             label: '键盘',

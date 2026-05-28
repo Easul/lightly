@@ -34,6 +34,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   Size _remoteScreenSize = const Size(1080, 2340);
   Size _remoteCaptureSize = const Size(1080, 2340);
   bool _isAudioEnabled = false;
+  bool _isVoiceEnabled = true;
   bool _isControlsVisible = true;
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
@@ -50,6 +51,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
         widget.service.latestRemoteScreenSize ?? _remoteScreenSize;
     _remoteCaptureSize = _remoteScreenSize;
     _isAudioEnabled = widget.service.isLocalAudioEnabled;
+    _isVoiceEnabled = widget.service.isVoiceEnabled;
     _stateSubscription = widget.service.stateStream.listen(_handleStateChange);
     _messageSubscription = widget.service.messageStream.listen(_handleMessage);
   }
@@ -90,6 +92,10 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   }
 
   Future<void> _toggleAudio() async {
+    if (!_isVoiceEnabled) {
+      _showToast('内置代理连接暂不支持语音');
+      return;
+    }
     if (_isAudioEnabled) {
       await widget.service.stopAudioCapture();
       setState(() => _isAudioEnabled = false);
@@ -270,6 +276,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                 child: FloatingTailControls(
                   remoteHost: widget.remoteHost,
                   isAudioEnabled: _isAudioEnabled,
+                  isVoiceEnabled: _isVoiceEnabled,
                   isReceiverMode:
                       widget.service.mode == RemoteControlMode.receiver,
                   isPopupVisible: _isActionPopupVisible,
