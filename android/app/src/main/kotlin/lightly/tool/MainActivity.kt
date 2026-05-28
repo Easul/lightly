@@ -1029,6 +1029,7 @@ class MainActivity : FlutterActivity() {
                 "EasyTier",
                 "Monitor tick=$easyTierMonitorTick instance=$instanceName running=${networkInfo.optBoolean("running", false)} hostname=$hostname peers=$peerCount routes=$routeCount error=$errorMsg",
             )
+            logEasyTierDiagnostics(networkInfo)
 
             if (!networkInfo.optBoolean("running", false)) {
                 Log.w("EasyTier", "Instance not running: ${networkInfo.optString("error_msg")}")
@@ -1053,6 +1054,74 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             Log.e("EasyTier", "Failed to parse network info JSON", e)
         }
+    }
+
+    private fun logEasyTierDiagnostics(networkInfo: JSONObject) {
+        val myNodeInfo = networkInfo.optJSONObject("my_node_info")
+        val stunInfo = myNodeInfo?.optJSONObject("stun_info")
+        Log.d(
+            "EasyTier",
+            "Diagnostics virtualIpv4=${extractVirtualIpv4(networkInfo) ?: "null"} udpNat=${stunInfo?.optString("udp_nat_type", "-") ?: "-"} tcpNat=${stunInfo?.optString("tcp_nat_type", "-") ?: "-"}",
+        )
+
+        val peerDirectConnectionCountById = mutableMapOf<Long, Int>()
+        val peers = networkInfo.optJSONArray("peers")
+        if (peers != null) {
+            for (i in 0 until peers.length()) {
+                val peer = peers.optJSONObject(i) ?: continue
+                val peerId = peer.optLong("peer_id", 0L)
+                peerDirectConnectionCountById[peerId] =
+                    peer.optJSONArray("directly_connected_conns")?.length() ?: 0
+            }
+        }
+
+        val routes = networkInfo.optJSONArray("routes")
+        if (routes != null) {
+            for (i in 0 until routes.length()) {
+                val route = routes.optJSONObject(i) ?: continue
+                val peerId = route.optLong("peer_id", 0L)
+                val nextHopPeerId = route.optLong("next_hop_peer_id", 0L)
+                val cost = route.optInt("cost", -1)
+                val latency = route.optLong("path_latency", -1L)
+                val hostname = route.optString("hostname", "")
+                val featureFlag = route.optJSONObject("feature_flag")
+                val publicServer = featureFlag?.optBoolean("is_public_server", false) ?: false
+                val directConnectionCount = peerDirectConnectionCountById[peerId] ?: 0
+                val mode = describeEasyTierRouteMode(
+                    cost,
+                    peerId,
+                    nextHopPeerId,
+                    publicServer,
+                    directConnectionCount,
+                )
+                Log.d(
+                    "EasyTier",
+                    "Route[$i] host=$hostname peer=$peerId nextHop=$nextHopPeerId cost=$cost latency=${latency}ms directConns=$directConnectionCount public=$publicServer mode=$mode",
+                )
+            }
+        }
+
+        val events = networkInfo.optJSONArray("events")
+        if (events != null && events.length() > 0) {
+            val start = maxOf(0, events.length() - 3)
+            for (i in start until events.length()) {
+                Log.d("EasyTier", "RecentEvent[$i]=${events.optString(i)}")
+            }
+        }
+    }
+
+    private fun describeEasyTierRouteMode(
+        cost: Int,
+        peerId: Long,
+        nextHopPeerId: Long,
+        publicServer: Boolean,
+        directConnectionCount: Int,
+    ): String {
+        if (publicServer) return "public-server"
+        if (cost <= 1 && directConnectionCount > 0) return "direct-lan"
+        if (cost <= 1) return "p2p-direct"
+        if (nextHopPeerId != 0L && nextHopPeerId != peerId) return "relay-via-$nextHopPeerId"
+        return "relay"
     }
 
     private fun extractVirtualIpv4(networkInfo: JSONObject): String? {
