@@ -9,6 +9,7 @@ import 'remote_control_command_helper.dart';
 import 'remote_control_cleanup_helper.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
+import 'remote_control_message_router.dart';
 import 'remote_control_protocol.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
 import 'remote_control_screen_health_coordinator.dart';
@@ -68,6 +69,8 @@ class RemoteControlService {
       const RemoteControlConnectionHelper();
   final RemoteControlLifecycleHelper _lifecycleHelper =
       const RemoteControlLifecycleHelper();
+  final RemoteControlMessageRouter _messageRouter =
+      RemoteControlMessageRouter();
   final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
       RemoteControlScreenFramePipelineCoordinator();
   final RemoteControlStatusBridge _statusBridge =
@@ -91,8 +94,6 @@ class RemoteControlService {
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
   Completer<void>? _connectionReadyCompleter;
-  final StringBuffer _controllerControlBuffer = StringBuffer();
-  final StringBuffer _receiverControlBuffer = StringBuffer();
   bool _audioDiagnosticsLoggingReady = false;
   bool _remoteMicrophoneEnabled = false;
 
@@ -419,7 +420,7 @@ class RemoteControlService {
       controllerControlSocket: _controllerControlSocket,
       controllerScreenSocket: _controllerScreenSocket,
       resetScreenPipeline: _screenFramePipeline.reset,
-      controllerControlBuffer: _controllerControlBuffer,
+      resetControllerMessages: _messageRouter.resetController,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
       closeVoiceSession: _voiceService.close,
@@ -812,10 +813,7 @@ class RemoteControlService {
   }
 
   void _handleControlData(Uint8List data) {
-    final messages = _commandHelper.decodeBufferedMessages(
-      _controllerControlBuffer,
-      data,
-    );
+    final messages = _messageRouter.decodeControllerMessages(data);
     for (final message in messages) {
       _recordStatusMessage(message);
       _messageController.add(message);
@@ -886,25 +884,19 @@ class RemoteControlService {
   }
 
   void _handleReceiverControlData(Uint8List data) {
-    final commands = _commandHelper.decodeBufferedLines(
-      _receiverControlBuffer,
+    _messageRouter.dispatchReceiverData(
       data,
+      channel: _channel,
+      minBitrate: _minBitrate,
+      maxBitrate: _maxBitrate,
+      recordStatusMessage: _recordStatusMessage,
+      emitMessage: _messageController.add,
+      requestKeyFrame: requestKeyFrame,
+      updateBitrate: updateBitrate,
+      sendAck: _sendAck,
+      log: (message, {error}) =>
+          developer.log(message, name: 'RemoteControl', error: error),
     );
-    for (final command in commands) {
-      _commandHelper.dispatchReceiverCommand(
-        command,
-        channel: _channel,
-        minBitrate: _minBitrate,
-        maxBitrate: _maxBitrate,
-        recordStatusMessage: _recordStatusMessage,
-        emitMessage: _messageController.add,
-        requestKeyFrame: requestKeyFrame,
-        updateBitrate: updateBitrate,
-        sendAck: _sendAck,
-        log: (message, {error}) =>
-            developer.log(message, name: 'RemoteControl', error: error),
-      );
-    }
   }
 
   void _handleControlError(dynamic error) {
@@ -1016,8 +1008,7 @@ class RemoteControlService {
     _screenServer?.close();
     _screenServer = null;
     _screenFramePipeline.reset();
-    _controllerControlBuffer.clear();
-    _receiverControlBuffer.clear();
+    _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
     _connectionReadyCompleter = null;
     _targetHost = null;

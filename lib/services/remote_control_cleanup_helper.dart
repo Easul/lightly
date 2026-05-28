@@ -8,7 +8,7 @@ class RemoteControlCleanupHelper {
     required Socket? controllerControlSocket,
     required Socket? controllerScreenSocket,
     required void Function() resetScreenPipeline,
-    required StringBuffer controllerControlBuffer,
+    required void Function() resetControllerMessages,
     required void Function() stopScreenFrameWatchdog,
     required void Function() stopHeartbeat,
     required Future<void> Function() closeVoiceSession,
@@ -20,7 +20,7 @@ class RemoteControlCleanupHelper {
     controllerScreenSocket?.destroy();
     await closeVoiceSession();
     resetScreenPipeline();
-    controllerControlBuffer.clear();
+    resetControllerMessages();
     if (stopNative) {
       await stopNativeService();
     }
