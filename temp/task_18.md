@@ -121,9 +121,14 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] coordinator 返回 `BrowserAddressBarPlan`，不直接 `setState`。
-- [ ] `BrowserPage._loadAddress` 只执行 plan。
-- [ ] 测试覆盖 URL、搜索词、YouTube native player、favorites page 切换。
+- [x] coordinator 返回 `BrowserAddressBarPlan`，不直接 `setState`。
+- [x] `BrowserPage._loadAddress` 只执行 plan。
+- [x] 测试覆盖 URL、搜索词、YouTube native player、favorites page 切换。
+
+验证结果（2026-05-28）：
+
+- `flutter analyze lib/pages/browser_page.dart lib/pages/browser_page_address_bar_coordinator.dart test/browser/browser_page_address_bar_coordinator_test.dart` 通过。
+- `flutter test test/browser/browser_page_address_bar_coordinator_test.dart test/browser/` 通过。
 
 ### 18.2.2 抽 `BrowserPageTabTransitionCoordinator`
 
