@@ -118,6 +118,7 @@ class EasyTierProfileCoordinator {
         peers: const <String>[],
         listeners: const <String>[],
         enableP2p: true,
+        needP2p: true,
         hostname: '',
       ),
     );

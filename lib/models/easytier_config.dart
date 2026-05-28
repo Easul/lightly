@@ -8,6 +8,7 @@ class EasyTierConfig {
   final List<String> listeners;
   final int? socks5Port;
   final bool enableP2p;
+  final bool needP2p;
   final String? hostname;
 
   EasyTierConfig({
@@ -20,6 +21,7 @@ class EasyTierConfig {
     this.listeners = const [],
     this.socks5Port,
     this.enableP2p = true,
+    this.needP2p = false,
     this.hostname,
   });
 
@@ -71,6 +73,7 @@ class EasyTierConfig {
     buffer.writeln('');
     buffer.writeln('[flags]');
     buffer.writeln('disable_p2p = ${!enableP2p}');
+    buffer.writeln('need_p2p = $needP2p');
 
     return buffer.toString();
   }
@@ -86,6 +89,7 @@ class EasyTierConfig {
       listeners: (json['listeners'] as List<dynamic>?)?.cast<String>() ?? [],
       socks5Port: json['socks5Port'] as int?,
       enableP2p: json['enableP2p'] as bool? ?? true,
+      needP2p: json['needP2p'] as bool? ?? false,
       hostname: json['hostname'] as String?,
     );
   }
@@ -101,6 +105,7 @@ class EasyTierConfig {
       'listeners': listeners,
       'socks5Port': socks5Port,
       'enableP2p': enableP2p,
+      'needP2p': needP2p,
       'hostname': hostname,
     };
   }

@@ -90,6 +90,7 @@ class EasyTierProfileService {
       peers: const <String>[],
       listeners: const <String>[],
       enableP2p: true,
+      needP2p: true,
       hostname: 'ruoqing_vpn',
     );
   }
