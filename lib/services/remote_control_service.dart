@@ -16,6 +16,7 @@ import 'remote_control_watchdog_controller.dart';
 import 'screen_capture_manager.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
+import 'webrtc_candidate_filter.dart';
 import 'webrtc_voice_service.dart';
 
 enum RemoteControlMode { controller, receiver }

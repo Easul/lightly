@@ -2,27 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'webrtc_candidate_filter.dart';
 import 'remote_control_protocol.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
 typedef WebRtcLogCallback = void Function(String message, {Object? error});
 
-class WebRtcNetworkPreference {
-  const WebRtcNetworkPreference({
-    this.preferredHost,
-    this.preferredOverlayPrefix,
-  });
-
-  final String? preferredHost;
-  final String? preferredOverlayPrefix;
-
-  bool get preferOverlayHostCandidates =>
-      preferredHost != null &&
-      preferredOverlayPrefix != null &&
-      preferredHost!.startsWith(preferredOverlayPrefix!);
-}
-
 class WebRtcVoiceService {
+  static const WebRtcSdpSummary _sdpSummary = WebRtcSdpSummary();
+
   static const Map<String, dynamic> _audioConstraints = {
     'echoCancellation': true,
     'noiseSuppression': true,
@@ -61,6 +49,9 @@ class WebRtcVoiceService {
   WebRtcNetworkPreference _networkPreference = const WebRtcNetworkPreference();
   Timer? _statsTimer;
   Timer? _audioRouteTimer;
+
+  WebRtcCandidateFilter get _candidateFilter =>
+      WebRtcCandidateFilter(preference: _networkPreference);
 
   bool get isLocalAudioEnabled => _localAudioEnabled;
   bool get isPrepared => _peerConnection != null;
@@ -102,13 +93,18 @@ class WebRtcVoiceService {
       if (candidateValue == null || candidateValue.isEmpty) {
         return;
       }
-      if (!_shouldSendLocalCandidate(candidateValue)) {
+      if (!_candidateFilter.shouldSendLocalCandidate(
+        candidateValue,
+        log: (message) => _log(message),
+      )) {
         _log(
-          'webrtc-local-candidate-skipped: ${_candidateSummary(candidateValue)}',
+          'webrtc-local-candidate-skipped: ${_candidateFilter.summary(candidateValue)}',
         );
         return;
       }
-      _log('webrtc-local-candidate: ${_candidateSummary(candidateValue)}');
+      _log(
+        'webrtc-local-candidate: ${_candidateFilter.summary(candidateValue)}',
+      );
       unawaited(
         _sendSignal(
           StatusMessage(
@@ -373,15 +369,22 @@ class WebRtcVoiceService {
       _log('webrtc-candidate-ignored: empty');
       return;
     }
-    _log('webrtc-remote-candidate-received: ${_candidateSummary(candidate)}');
+    _log(
+      'webrtc-remote-candidate-received: ${_candidateFilter.summary(candidate)}',
+    );
 
     final remoteCandidate = RTCIceCandidate(
       candidate,
       message.data['sdpMid'] as String?,
       message.data['sdpMLineIndex'] as int?,
     );
-    if (!_shouldAcceptRemoteCandidate(candidate)) {
-      _log('webrtc-remote-candidate-skipped: ${_candidateSummary(candidate)}');
+    if (!_candidateFilter.shouldAcceptRemoteCandidate(
+      candidate,
+      log: (message) => _log(message),
+    )) {
+      _log(
+        'webrtc-remote-candidate-skipped: ${_candidateFilter.summary(candidate)}',
+      );
       return;
     }
     if (!_hasRemoteDescription) {
@@ -391,7 +394,7 @@ class WebRtcVoiceService {
     }
 
     await peerConnection.addCandidate(remoteCandidate);
-    _log('webrtc-candidate-applied: ${_candidateSummary(candidate)}');
+    _log('webrtc-candidate-applied: ${_candidateFilter.summary(candidate)}');
   }
 
   Future<void> _flushPendingRemoteCandidates() async {
@@ -406,7 +409,7 @@ class WebRtcVoiceService {
       await peerConnection.addCandidate(candidate);
     }
     _log(
-      'webrtc-candidate-flush: count=${pending.length} candidates=${pending.map((candidate) => _candidateSummary(candidate.candidate ?? '')).join(',')}',
+      'webrtc-candidate-flush: count=${pending.length} candidates=${pending.map((candidate) => _candidateFilter.summary(candidate.candidate ?? '')).join(',')}',
     );
   }
 
@@ -472,102 +475,5 @@ class WebRtcVoiceService {
   String _stat(Map<dynamic, dynamic> values, String key) {
     final value = values[key];
     return value == null ? '-' : value.toString();
-  }
-
-  String _candidateKind(String candidate) {
-    if (candidate.contains(' typ relay ')) {
-      return 'relay';
-    }
-    if (candidate.contains(' typ srflx ')) {
-      return 'srflx';
-    }
-    if (candidate.contains(' typ host ')) {
-      return 'host';
-    }
-    return 'unknown';
-  }
-
-  bool _shouldSendLocalCandidate(String candidate) {
-    if (!_networkPreference.preferOverlayHostCandidates) {
-      return true;
-    }
-    if (_isPreferredOverlayCandidate(candidate)) {
-      _log(
-        'webrtc-overlay-candidate-available: ${_candidateSummary(candidate)}',
-      );
-    } else if (candidate.contains(' typ host ')) {
-      _log(
-        'webrtc-overlay-candidate-fallback: sending non-overlay ${_candidateSummary(candidate)}',
-      );
-    }
-    return true;
-  }
-
-  bool _shouldAcceptRemoteCandidate(String candidate) {
-    if (!_networkPreference.preferOverlayHostCandidates) {
-      return true;
-    }
-    if (_isPreferredOverlayCandidate(candidate)) {
-      _log('webrtc-overlay-remote-candidate: ${_candidateSummary(candidate)}');
-    } else if (candidate.contains(' typ host ')) {
-      _log(
-        'webrtc-overlay-remote-fallback: accepting non-overlay ${_candidateSummary(candidate)}',
-      );
-    }
-    return true;
-  }
-
-  bool _isPreferredOverlayCandidate(String candidate) {
-    if (!candidate.contains(' typ host ')) {
-      return false;
-    }
-    final ip = _extractCandidateIp(candidate);
-    final preferredPrefix = _networkPreference.preferredOverlayPrefix;
-    return ip != null &&
-        preferredPrefix != null &&
-        ip.startsWith(preferredPrefix);
-  }
-
-  String? _extractCandidateIp(String candidate) {
-    final parts = candidate.split(' ');
-    if (parts.length < 5) {
-      return null;
-    }
-    return parts[4];
-  }
-
-  String? _extractCandidatePort(String candidate) {
-    final parts = candidate.split(' ');
-    if (parts.length < 6) {
-      return null;
-    }
-    return parts[5];
-  }
-
-  String _candidateProtocol(String candidate) {
-    final parts = candidate.split(' ');
-    if (parts.length < 3) {
-      return 'unknown';
-    }
-    return parts[2].toLowerCase();
-  }
-
-  String _candidateSummary(String candidate) {
-    final kind = _candidateKind(candidate);
-    final ip = _extractCandidateIp(candidate) ?? 'unknown';
-    final port = _extractCandidatePort(candidate) ?? 'unknown';
-    final protocol = _candidateProtocol(candidate);
-    return '$kind/$protocol@$ip:$port';
-  }
-
-  String _sdpSummary(String? sdp) {
-    if (sdp == null || sdp.isEmpty) {
-      return 'empty';
-    }
-    final audioLineCount = '\nm=audio '.allMatches(sdp).length;
-    final candidateCount = '\na=candidate:'.allMatches(sdp).length;
-    final fingerprint = sdp.contains('\na=fingerprint:');
-    final setup = RegExp(r'\na=setup:([^\r\n]+)').firstMatch(sdp)?.group(1);
-    return 'chars=${sdp.length} audioM=$audioLineCount candidates=$candidateCount fingerprint=$fingerprint setup=${setup ?? '-'}';
   }
 }
