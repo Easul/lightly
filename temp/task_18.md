@@ -136,9 +136,14 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] coordinator 输出明确 transition plan。
-- [ ] WebView controller ownership 仍在 `BrowserPage`。
-- [ ] 保持 keepAlive trim、address sync、favorite status refresh 顺序不变。
+- [x] coordinator 输出明确 transition flow。
+- [x] WebView controller ownership 仍在 `BrowserPage`。
+- [x] 保持 keepAlive trim、address sync、favorite status refresh 顺序不变。
+
+验证结果（2026-05-28）：
+
+- `flutter analyze lib/pages/browser_page.dart lib/pages/browser_page_tab_transition_coordinator.dart test/browser/browser_page_tab_transition_coordinator_test.dart` 通过。
+- `flutter test test/browser/browser_page_tab_transition_coordinator_test.dart test/browser/browser_page_tab_transition_helper_test.dart test/browser/browser_page_tab_flow_coordinator_test.dart test/browser/` 通过。
 
 ### 18.2.3 抽 `BrowserPageWebViewLifecycleCoordinator`
 
