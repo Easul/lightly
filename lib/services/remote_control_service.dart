@@ -10,9 +10,9 @@ import 'remote_control_cleanup_helper.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import 'remote_control_protocol.dart';
-import 'remote_control_screen_pipeline_helper.dart';
+import 'remote_control_screen_frame_pipeline_coordinator.dart';
+import 'remote_control_screen_health_coordinator.dart';
 import 'remote_control_status_bridge.dart';
-import 'remote_control_watchdog_controller.dart';
 import 'screen_capture_manager.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
@@ -68,12 +68,12 @@ class RemoteControlService {
       const RemoteControlConnectionHelper();
   final RemoteControlLifecycleHelper _lifecycleHelper =
       const RemoteControlLifecycleHelper();
-  final RemoteControlScreenPipelineHelper _screenPipelineHelper =
-      const RemoteControlScreenPipelineHelper();
+  final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
+      RemoteControlScreenFramePipelineCoordinator();
   final RemoteControlStatusBridge _statusBridge =
       const RemoteControlStatusBridge();
-  final RemoteControlWatchdogController _watchdogController =
-      RemoteControlWatchdogController();
+  final RemoteControlScreenHealthCoordinator _screenHealth =
+      RemoteControlScreenHealthCoordinator();
   late final WebRtcVoiceService _voiceService;
 
   static const Duration _screenFrameStallThreshold = Duration(
@@ -87,9 +87,6 @@ class RemoteControlService {
   );
   static const int _latestFrameBatchThreshold = 3;
 
-  final List<int> _screenDataBuffer = [];
-  Uint8List? _latestRemoteSps;
-  Uint8List? _latestRemotePps;
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
@@ -116,9 +113,9 @@ class RemoteControlService {
   RemoteControlConfig? get config => _config;
   bool get isConnected => _state == RemoteControlState.connected;
   Uint8List? get latestScreenSps =>
-      _latestRemoteSps ?? _screenCaptureManager.spsData;
+      _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
   Uint8List? get latestScreenPps =>
-      _latestRemotePps ?? _screenCaptureManager.ppsData;
+      _screenFramePipeline.latestPps ?? _screenCaptureManager.ppsData;
   Size? get latestRemoteScreenSize {
     final width = (_latestRemoteScreenInfo?['width'] as num?)?.toDouble();
     final height = (_latestRemoteScreenInfo?['height'] as num?)?.toDouble();
@@ -186,7 +183,7 @@ class RemoteControlService {
           final sps = call.arguments['sps'] as Uint8List;
           final pps = call.arguments['pps'] as Uint8List;
           _screenCaptureManager.handleConfigFrame(sps, pps);
-          _watchdogController.markAwaitingRecoveryKeyFrame();
+          _screenHealth.markAwaitingRecoveryKeyFrame(true);
 
           if (_receiverControlSocket != null) {
             unawaited(_sendScreenInfoStatus());
@@ -336,7 +333,7 @@ class RemoteControlService {
       var nativeControllerStarted = false;
       try {
         _connectionReadyCompleter = Completer<void>();
-        _screenDataBuffer.clear();
+        _screenFramePipeline.reset();
 
         final connection = await _lifecycleHelper.connectControllerSockets(
           host: host,
@@ -414,14 +411,14 @@ class RemoteControlService {
 
   Future<void> _resetControllerConnection({required bool stopNative}) async {
     developer.log(
-      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} buffer=${_screenDataBuffer.length}',
+      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} buffer=${_screenFramePipeline.bufferLength}',
       name: 'RemoteControl',
     );
     await _cleanupHelper.resetControllerConnection(
       stopNative: stopNative,
       controllerControlSocket: _controllerControlSocket,
       controllerScreenSocket: _controllerScreenSocket,
-      screenDataBuffer: _screenDataBuffer,
+      resetScreenPipeline: _screenFramePipeline.reset,
       controllerControlBuffer: _controllerControlBuffer,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
@@ -524,24 +521,24 @@ class RemoteControlService {
     final controllerSocket = _controllerControlSocket;
     if (controllerSocket != null) {
       developer.log(
-        'Forwarding key frame request over control channel: state=$_state screenSocket=${_controllerScreenSocket != null} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'} buffer=${_screenDataBuffer.length}',
+        'Forwarding key frame request over control channel: state=$_state screenSocket=${_controllerScreenSocket != null} lastFrameAgo=${_screenHealth.lastFrameAgeDescription} buffer=${_screenFramePipeline.bufferLength}',
         name: 'RemoteControl',
       );
       final message = StatusMessage.requestKeyFrame();
       controllerSocket.add(
         utf8.encode('${RemoteControlCodec.encode(message)}\n'),
       );
-      _watchdogController.recordKeyFrameRequest(requestedAt);
+      _screenHealth.recordKeyFrameRequest(requestedAt);
       return;
     }
 
     try {
       developer.log(
-        'Issuing native key frame request: mode=$_mode state=$_state buffer=${_screenDataBuffer.length}',
+        'Issuing native key frame request: mode=$_mode state=$_state buffer=${_screenFramePipeline.bufferLength}',
         name: 'RemoteControl',
       );
       await _channel.invokeMethod('requestKeyFrame');
-      _watchdogController.recordKeyFrameRequest(requestedAt);
+      _screenHealth.recordKeyFrameRequest(requestedAt);
     } catch (e) {
       developer.log(
         'Failed to request key frame: $e',
@@ -680,52 +677,42 @@ class RemoteControlService {
   }
 
   void _handleScreenDataRaw(Uint8List data) {
-    _watchdogController.recordScreenChunk(
+    _screenHealth.recordScreenChunk(
       data: data,
-      bufferedBefore: _screenDataBuffer.length,
+      bufferedBefore: _screenFramePipeline.bufferLength,
       log: (message) => developer.log(message, name: 'RemoteControl'),
     );
 
-    _screenDataBuffer.addAll(data);
-
-    final parseResult = _screenPipelineHelper.parseScreenDataBuffer(
-      screenDataBuffer: _screenDataBuffer,
-      awaitingRecoveryKeyFrame: _watchdogController.awaitingRecoveryKeyFrame,
+    final pipelineResult = _screenFramePipeline.handleIncomingData(
+      data,
+      awaitingRecoveryKeyFrame: _screenHealth.awaitingRecoveryKeyFrame,
+      latestFrameBatchThreshold: _latestFrameBatchThreshold,
     );
-    if (parseResult.latestSps != null) {
-      _latestRemoteSps = parseResult.latestSps;
-    }
-    if (parseResult.latestPps != null) {
-      _latestRemotePps = parseResult.latestPps;
-    }
-    _watchdogController.markAwaitingRecoveryKeyFrame(
-      parseResult.awaitingRecoveryKeyFrame,
+    _screenHealth.markAwaitingRecoveryKeyFrame(
+      pipelineResult.awaitingRecoveryKeyFrame,
     );
 
-    _processParsedScreenFrames(parseResult.parsedFrames);
+    _processParsedScreenFrames(pipelineResult);
   }
 
-  void _processParsedScreenFrames(List<ScreenFrame> parsedFrames) {
-    if (parsedFrames.isEmpty) {
+  void _processParsedScreenFrames(
+    RemoteControlScreenFramePipelineResult pipelineResult,
+  ) {
+    if (pipelineResult.framesToEmit.isEmpty) {
       return;
     }
 
-    final framesToEmit = _screenPipelineHelper.coalesceLatestScreenFrames(
-      parsedFrames,
-      latestFrameBatchThreshold: _latestFrameBatchThreshold,
-      awaitingRecoveryKeyFrame: _watchdogController.awaitingRecoveryKeyFrame,
-    );
-    if (parsedFrames.length != framesToEmit.length) {
+    if (pipelineResult.droppedFrameCount > 0) {
       developer.log(
-        'Dropping stale parsed screen frames: parsed=${parsedFrames.length} kept=${framesToEmit.length} buffered=${_screenDataBuffer.length}',
+        'Dropping stale parsed screen frames: parsed=${pipelineResult.parsedFrameCount} kept=${pipelineResult.framesToEmit.length} buffered=${pipelineResult.remainingBufferLength}',
         name: 'RemoteControl',
       );
     }
 
-    for (final frame in framesToEmit) {
-      _watchdogController.recordParsedFrame(
+    for (final frame in pipelineResult.framesToEmit) {
+      _screenHealth.recordParsedFrame(
         frame: frame,
-        remainingBuffer: _screenDataBuffer.length,
+        remainingBuffer: pipelineResult.remainingBufferLength,
         log: (message) => developer.log(message, name: 'RemoteControl'),
         onBitrateAdjustDue: _adjustBitrateIfNeeded,
       );
@@ -739,7 +726,7 @@ class RemoteControlService {
   }
 
   void _adjustBitrateIfNeeded() {
-    final newBitrate = _watchdogController.adjustBitrateIfNeeded(
+    final newBitrate = _screenHealth.adjustBitrateIfNeeded(
       screenFps: _config?.screenFps ?? 12,
       maxBitrate: _maxBitrate,
       latestRemoteScreenInfo: _latestRemoteScreenInfo,
@@ -751,7 +738,7 @@ class RemoteControlService {
   }
 
   void _startScreenFrameWatchdog() {
-    _watchdogController.startScreenFrameWatchdog(
+    _screenHealth.startWatchdog(
       log: (message) => developer.log(message, name: 'RemoteControl'),
       onTick: _checkScreenFrameHealth,
       screenFrameStallThreshold: _screenFrameStallThreshold,
@@ -761,9 +748,9 @@ class RemoteControlService {
   }
 
   void _stopScreenFrameWatchdog() {
-    _watchdogController.stopScreenFrameWatchdog(
+    _screenHealth.stopWatchdog(
       log: (message) => developer.log(message, name: 'RemoteControl'),
-      bufferLength: _screenDataBuffer.length,
+      bufferLength: _screenFramePipeline.bufferLength,
     );
   }
 
@@ -775,11 +762,11 @@ class RemoteControlService {
       return;
     }
 
-    if (_watchdogController.checkScreenFrameHealth(
+    if (_screenHealth.shouldRequestKeyFrame(
       screenRecoveryKeyFrameRetryCooldown: _screenRecoveryKeyFrameRetryCooldown,
       screenKeyFrameRequestCooldown: _screenKeyFrameRequestCooldown,
       screenFrameStallThreshold: _screenFrameStallThreshold,
-      screenDataBufferLength: _screenDataBuffer.length,
+      screenDataBufferLength: _screenFramePipeline.bufferLength,
       log: (message) => developer.log(message, name: 'RemoteControl'),
     )) {
       unawaited(requestKeyFrame());
@@ -942,12 +929,12 @@ class RemoteControlService {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
     developer.log(
-      'Screen channel error: $error state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenDataBuffer.length} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'}',
+      'Screen channel error: $error state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
       name: 'RemoteControl',
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
-      _screenDataBuffer.clear();
+      _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
     }
     if (activeReceiverSocket) {
@@ -962,12 +949,12 @@ class RemoteControlService {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
     developer.log(
-      'Screen channel closed: state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenDataBuffer.length} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'}',
+      'Screen channel closed: state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
       name: 'RemoteControl',
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
-      _screenDataBuffer.clear();
+      _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
     }
     if (activeReceiverSocket) {
@@ -1028,11 +1015,9 @@ class RemoteControlService {
     _controlServer = null;
     _screenServer?.close();
     _screenServer = null;
-    _screenDataBuffer.clear();
+    _screenFramePipeline.reset();
     _controllerControlBuffer.clear();
     _receiverControlBuffer.clear();
-    _latestRemoteSps = null;
-    _latestRemotePps = null;
     _latestRemoteScreenInfo = null;
     _connectionReadyCompleter = null;
     _targetHost = null;
