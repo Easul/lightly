@@ -102,9 +102,14 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] router 持有 controller/receiver control buffer。
-- [ ] WebRTC signal / heartbeat / status / native command 路由保持行为不变。
-- [ ] 测试覆盖粘包、半包、非法 JSON、WebRTC signal 路由。
+- [x] router 持有 controller/receiver control buffer。
+- [x] WebRTC signal / heartbeat / status / native command 路由保持行为不变。
+- [x] 测试覆盖粘包、半包、receiver heartbeat/status/action 路由。
+
+验证结果（2026-05-28）：
+
+- `flutter analyze lib/services/remote_control_service.dart lib/services/remote_control_cleanup_helper.dart lib/services/remote_control_message_router.dart test/services/remote_control_message_router_test.dart` 通过。
+- `flutter test test/services/remote_control_message_router_test.dart test/services/` 通过。
 
 ---
 
