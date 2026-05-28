@@ -15,7 +15,7 @@ import '../browser/services/browser_download_coordinator.dart';
 import '../browser/services/browser_cookie_origin_service.dart';
 import '../browser/services/browser_external_app_handler.dart';
 import '../browser/services/browser_external_url_launcher_service.dart';
-import '../browser/services/browser_favorite_action_coordinator.dart';
+import '../browser/services/browser_favorite_status_controller.dart';
 import '../browser/services/browser_favorite_service.dart';
 import '../browser/services/browser_favorite_status_tracker.dart';
 import '../browser/services/browser_favorites_coordinator.dart';
@@ -46,7 +46,6 @@ import '../widgets/app_drawer.dart';
 import 'browser_page_address_sync.dart';
 import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
-import 'browser_page_favorite_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_actions.dart';
 import 'browser_page_notifier_sync.dart';
@@ -98,8 +97,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserSiteDataManager();
   final BrowserPageExternalIntentHelper _externalIntentHelper =
       const BrowserPageExternalIntentHelper();
-  final BrowserPageFavoriteHelper _favoriteHelper =
-      const BrowserPageFavoriteHelper();
   final BrowserPageLifecycleCoordinator _lifecycleCoordinator =
       const BrowserPageLifecycleCoordinator();
   final BrowserPageWebViewLifecycleHelper _webViewLifecycleHelper =
@@ -167,7 +164,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final ValueNotifier<String> _statusMessageNotifier = ValueNotifier<String>(
     '',
   );
-  late final BrowserFavoriteActionCoordinator _favoriteActionCoordinator;
+  late final BrowserFavoriteStatusController _favoriteStatusController;
 
   InAppWebViewController? _webViewController;
   BrowserSettings _settings = BrowserSettings.defaults();
@@ -218,8 +215,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       clipboardService: _clipboardService,
       clipboardStorage: _clipboardStorage,
     );
-    _favoriteStatusTracker.currentStatus.addListener(
-      _handleFavoriteStatusChanged,
+    _favoriteStatusController = BrowserFavoriteStatusController(
+      tracker: _favoriteStatusTracker,
+      favoriteService: _favoriteService,
+      onStatusChanged: _handleFavoriteStatusChanged,
     );
     if (InAppWebViewPlatform.instance != null) {
       _pullToRefreshController = PullToRefreshController(
@@ -234,9 +233,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       );
       _findController.initialize();
     }
-    _favoriteActionCoordinator = BrowserFavoriteActionCoordinator(
-      favoriteService: _favoriteService,
-    );
     _initialize();
     _setupExternalUrlListener();
   }
@@ -531,11 +527,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _isSecureNotifier.dispose();
     _tabCountNotifier.dispose();
     _statusMessageNotifier.dispose();
-    _favoriteStatusTracker.currentStatus.removeListener(
-      _handleFavoriteStatusChanged,
-    );
     _overlaySettledTimer?.cancel();
-    _favoriteStatusTracker.dispose();
+    _favoriteStatusController.dispose();
     unawaited(_videoPlayerCoordinator.dispose());
     _findController.dispose();
     _pullToRefreshController?.dispose();
@@ -858,7 +851,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _initializer.clearVideoPromptState();
     });
 
-    await _favoriteStatusTracker.refreshStatus(
+    await _favoriteStatusController.refreshStatus(
       _currentUrl,
       isFavoritesPage: _isFavoritesPage(_currentUrl),
     );
@@ -1625,9 +1618,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _checkFavoriteStatus(String url) async {
-    await _favoriteHelper.checkFavoriteStatus(
-      tracker: _favoriteStatusTracker,
-      url: url,
+    await _favoriteStatusController.checkStatus(
+      url,
       isFavoritesPage: _isFavoritesPage(url),
     );
   }
@@ -1636,9 +1628,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final url = _currentUrl;
     final title = _activeTab?.title ?? '';
 
-    final result = await _favoriteHelper.toggleFavorite(
-      coordinator: _favoriteActionCoordinator,
-      tracker: _favoriteStatusTracker,
+    final result = await _favoriteStatusController.toggleFavorite(
       url: url,
       title: title,
       isFavoritesPage: _isFavoritesPage(url),
@@ -1769,7 +1759,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       await showBrowserMoreActionsModal(
         context: context,
         proxyEnabled: _settings.shouldApplyProxy,
-        isFavorited: _favoriteStatusTracker.isCurrentPageFavorited,
+        isFavorited: _favoriteStatusController.isCurrentPageFavorited,
         onToggleFavorite: _isFavoritesPage(_currentUrl)
             ? null
             : _toggleFavorite,
