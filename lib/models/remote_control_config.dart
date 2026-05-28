@@ -108,12 +108,14 @@ class RemoteControlConfig {
   final bool enableScreen;
   final int screenFps;
   final int screenBitrate;
+  final WebRtcIceConfig iceConfig;
 
   const RemoteControlConfig({
     required this.ports,
     this.enableScreen = true,
     this.screenFps = 12,
     this.screenBitrate = 2500000,
+    this.iceConfig = const WebRtcIceConfig(),
   });
 
   static Future<RemoteControlConfig> defaultConfig() async {
@@ -130,6 +132,7 @@ class RemoteControlConfig {
     'enableScreen': enableScreen,
     'screenFps': screenFps,
     'screenBitrate': screenBitrate,
+    'iceConfig': iceConfig.toJson(),
   };
 
   factory RemoteControlConfig.fromJson(Map<String, dynamic> json) {
@@ -140,11 +143,90 @@ class RemoteControlConfig {
       enableScreen: json['enableScreen'] as bool? ?? true,
       screenFps: json['screenFps'] as int? ?? 15,
       screenBitrate: json['screenBitrate'] as int? ?? 2500000,
+      iceConfig: json['iceConfig'] is Map<String, dynamic>
+          ? WebRtcIceConfig.fromJson(json['iceConfig'] as Map<String, dynamic>)
+          : const WebRtcIceConfig(),
     );
   }
 
   @override
   String toString() {
-    return 'RemoteControlConfig(ports=$ports, screen=$enableScreen)';
+    return 'RemoteControlConfig(ports=$ports, screen=$enableScreen, ice=$iceConfig)';
+  }
+}
+
+class WebRtcIceConfig {
+  static const List<String> defaultStunUrls = <String>[
+    'stun:stun.l.google.com:19302',
+    'stun:stun1.l.google.com:19302',
+  ];
+
+  final List<String> stunUrls;
+  final String? turnUrl;
+  final String? username;
+  final String? credential;
+  final bool forceRelay;
+
+  const WebRtcIceConfig({
+    this.stunUrls = defaultStunUrls,
+    this.turnUrl,
+    this.username,
+    this.credential,
+    this.forceRelay = false,
+  });
+
+  bool get hasTurnServer => turnUrl != null && turnUrl!.trim().isNotEmpty;
+
+  WebRtcIceConfig copyWith({
+    List<String>? stunUrls,
+    String? turnUrl,
+    String? username,
+    String? credential,
+    bool? forceRelay,
+    bool clearTurnUrl = false,
+    bool clearUsername = false,
+    bool clearCredential = false,
+  }) {
+    return WebRtcIceConfig(
+      stunUrls: stunUrls ?? this.stunUrls,
+      turnUrl: clearTurnUrl ? null : (turnUrl ?? this.turnUrl),
+      username: clearUsername ? null : (username ?? this.username),
+      credential: clearCredential ? null : (credential ?? this.credential),
+      forceRelay: forceRelay ?? this.forceRelay,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'stunUrls': stunUrls,
+    'turnUrl': turnUrl,
+    'username': username,
+    'credential': credential,
+    'forceRelay': forceRelay,
+  };
+
+  factory WebRtcIceConfig.fromJson(Map<String, dynamic> json) {
+    return WebRtcIceConfig(
+      stunUrls:
+          (json['stunUrls'] as List<dynamic>?)
+              ?.map((item) => item.toString())
+              .where((item) => item.trim().isNotEmpty)
+              .toList() ??
+          defaultStunUrls,
+      turnUrl: (json['turnUrl'] as String?)?.trim().isEmpty == true
+          ? null
+          : (json['turnUrl'] as String?),
+      username: (json['username'] as String?)?.trim().isEmpty == true
+          ? null
+          : (json['username'] as String?),
+      credential: (json['credential'] as String?)?.trim().isEmpty == true
+          ? null
+          : (json['credential'] as String?),
+      forceRelay: json['forceRelay'] as bool? ?? false,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'WebRtcIceConfig(turn=${hasTurnServer ? turnUrl : 'none'}, relay=$forceRelay)';
   }
 }

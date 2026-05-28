@@ -31,6 +31,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();
+  final TextEditingController _turnUrlController = TextEditingController();
+  final TextEditingController _turnUsernameController = TextEditingController();
+  final TextEditingController _turnCredentialController =
+      TextEditingController();
   final EasyTierService _easyTierService = EasyTierService();
   final ProxyService _proxyService = ProxyService();
   final BrowserSettingsService _settingsService = BrowserSettingsService();
@@ -49,6 +53,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   List<Map<String, String>> _peers = [];
   bool _isLoadingPeers = false;
   bool _useInternalProxy = false;
+  WebRtcIceConfig _iceConfig = const WebRtcIceConfig();
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
   bool _portsManuallyEdited = false;
@@ -160,6 +165,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         service: _service,
         ensureVpnForRemoteControl:
             AppLifecycleManager().ensureVpnForRemoteControl,
+        iceConfig: _effectiveIceConfig(),
       );
 
       if (!mounted) return;
@@ -255,6 +261,13 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       }
     }
 
+    final effectiveIceConfig = _effectiveIceConfig();
+    if (_useInternalProxy && !effectiveIceConfig.hasTurnServer) {
+      if (mounted) {
+        _showToast('当前使用内置代理，但未配置 TURN。跨网络语音通常不会有声音。');
+      }
+    }
+
     Object? lastError;
     for (final ports in _buildCandidatePorts()) {
       try {
@@ -263,6 +276,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
           ports,
           useProxy: _useInternalProxy,
           proxyPort: proxyPort,
+          iceConfig: effectiveIceConfig,
         );
         if (!mounted) {
           return;
@@ -338,6 +352,14 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     );
   }
 
+  WebRtcIceConfig _effectiveIceConfig() {
+    return _iceConfig.copyWith(
+      forceRelay:
+          _iceConfig.forceRelay ||
+          (_useInternalProxy && _iceConfig.hasTurnServer),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -358,6 +380,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
               _buildReceiverSection()
             else
               _buildControllerSection(),
+            const SizedBox(height: 16),
+            _buildWebRtcRelaySection(),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
               RemoteControlErrorBanner(message: _errorMessage!),
@@ -426,6 +450,45 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         setState(() => _useInternalProxy = value);
       },
       onConnect: _connectToReceiver,
+    );
+  }
+
+  Widget _buildWebRtcRelaySection() {
+    return RemoteControlWebRtcRelaySection(
+      turnUrlController: _turnUrlController,
+      turnUsernameController: _turnUsernameController,
+      turnCredentialController: _turnCredentialController,
+      forceRelay: _iceConfig.forceRelay,
+      useInternalProxy: _useInternalProxy,
+      onTurnUrlChanged: (value) {
+        setState(() {
+          _iceConfig = _iceConfig.copyWith(
+            turnUrl: value.trim(),
+            clearTurnUrl: value.trim().isEmpty,
+          );
+        });
+      },
+      onTurnUsernameChanged: (value) {
+        setState(() {
+          _iceConfig = _iceConfig.copyWith(
+            username: value.trim(),
+            clearUsername: value.trim().isEmpty,
+          );
+        });
+      },
+      onTurnCredentialChanged: (value) {
+        setState(() {
+          _iceConfig = _iceConfig.copyWith(
+            credential: value,
+            clearCredential: value.isEmpty,
+          );
+        });
+      },
+      onForceRelayChanged: (value) {
+        setState(() {
+          _iceConfig = _iceConfig.copyWith(forceRelay: value);
+        });
+      },
     );
   }
 }
