@@ -37,8 +37,6 @@ import '../services/app_toast.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_site_compatibility_script.dart';
 import '../browser/widgets/browser_favorites_page.dart';
-import '../browser/widgets/browser_favorites_menu_sheet.dart';
-import '../browser/widgets/browser_find_in_page_sheet.dart';
 import '../browser/widgets/browser_webview_host.dart';
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
@@ -47,7 +45,7 @@ import 'browser_page_address_sync.dart';
 import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
-import 'browser_page_modal_actions.dart';
+import 'browser_page_modal_coordinator.dart';
 import 'browser_page_notifier_sync.dart';
 import 'browser_page_overlay_state_manager.dart';
 import 'browser_page_settings_helper.dart';
@@ -81,6 +79,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       GlobalKey<BrowserFavoritesPageState>();
   final BrowserPageActionCoordinator _actionCoordinator =
       const BrowserPageActionCoordinator();
+  final BrowserPageModalCoordinator _modalCoordinator =
+      const BrowserPageModalCoordinator();
   final BrowserPageStatusCoordinator _statusCoordinator =
       const BrowserPageStatusCoordinator();
   final BrowserPageSettingsHelper _settingsHelper =
@@ -1682,57 +1682,48 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showTabSwitcher() async {
-    _handleOverlayOpened(trimKeepAlives: false);
-    try {
-      await showBrowserTabSwitcherModal(
-        context: context,
-        tabs: _tabs,
-        activeTabId: _activeTabId,
-        onSelectTab: _switchToTab,
-        onCloseTab: _closeTab,
-        onCloseAll: _closeAllTabs,
-        onNewTab: _openNewTab,
-      );
-    } finally {
-      _handleOverlayClosed();
-    }
+    await _modalCoordinator.showTabSwitcher(
+      overlayStateManager: _overlayStateManager,
+      context: context,
+      tabs: _tabs,
+      activeTabId: _activeTabId,
+      onSelectTab: _switchToTab,
+      onCloseTab: _closeTab,
+      onCloseAll: _closeAllTabs,
+      onNewTab: _openNewTab,
+    );
   }
 
   Future<void> _showMoreActions() async {
-    _handleOverlayOpened();
-    try {
-      await showBrowserMoreActionsModal(
-        context: context,
-        proxyEnabled: _settings.shouldApplyProxy,
-        isFavorited: _favoriteStatusController.isCurrentPageFavorited,
-        onToggleFavorite: _isFavoritesPage(_currentUrl)
-            ? null
-            : _toggleFavorite,
-        onToggleProxy: _toggleProxy,
-        onOpenDownloads: _openDownloads,
-        onOpenDataManagement: _openDataManagement,
-        onCloseTab: _closeCurrentTab,
-        onOpenSettings: _openSettings,
-        onEnterFloatingWindowMode: _enterFloatingButtonMode,
-        onExitApp: () async {
-          await AppLifecycleManager().shutdownAllServices();
-          await SystemNavigator.pop();
-        },
-        onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
-            ? _showFavoritesMenu
-            : null,
-        onFindInPage: () {
-          _overlayStateManager.markShowFindInPageAfterMoreActionsCloses();
-        },
-      );
-    } finally {
-      _handleOverlayClosed();
-      if (_overlayStateManager.shouldShowFindInPageAfterMoreActionsCloses) {
-        _overlayStateManager.clearShowFindInPageAfterMoreActionsCloses();
-        await Future<void>.delayed(const Duration(milliseconds: 120));
-        if (mounted) {
-          await _showFindInPage();
-        }
+    await _modalCoordinator.showMoreActions(
+      overlayStateManager: _overlayStateManager,
+      context: context,
+      proxyEnabled: _settings.shouldApplyProxy,
+      isFavorited: _favoriteStatusController.isCurrentPageFavorited,
+      onToggleFavorite: _isFavoritesPage(_currentUrl) ? null : _toggleFavorite,
+      onToggleProxy: _toggleProxy,
+      onOpenDownloads: _openDownloads,
+      onOpenDataManagement: _openDataManagement,
+      onCloseTab: _closeCurrentTab,
+      onOpenSettings: _openSettings,
+      onEnterFloatingWindowMode: _enterFloatingButtonMode,
+      onExitApp: () async {
+        await AppLifecycleManager().shutdownAllServices();
+        await SystemNavigator.pop();
+      },
+      onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
+          ? _showFavoritesMenu
+          : null,
+      onFindInPage: () {
+        _overlayStateManager.markShowFindInPageAfterMoreActionsCloses();
+      },
+    );
+
+    if (_overlayStateManager.shouldShowFindInPageAfterMoreActionsCloses) {
+      _overlayStateManager.clearShowFindInPageAfterMoreActionsCloses();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (mounted) {
+        await _showFindInPage();
       }
     }
   }
@@ -1787,16 +1778,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    _handleOverlayOpened();
-    try {
-      await showBrowserFavoritesMenuSheet(
-        context: context,
-        onAddFavorite: favoritesState.showAddFavoriteDialog,
-        onToggleReorderMode: favoritesState.toggleReorderMode,
-      );
-    } finally {
-      _handleOverlayClosed();
-    }
+    await _modalCoordinator.showFavoritesMenu(
+      overlayStateManager: _overlayStateManager,
+      context: context,
+      onAddFavorite: favoritesState.showAddFavoriteDialog,
+      onToggleReorderMode: favoritesState.toggleReorderMode,
+    );
   }
 
   Future<void> _showFindInPage() async {
@@ -1822,15 +1809,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    _handleOverlayOpened(pauseWebView: false);
-    try {
-      await showBrowserFindInPageSheet(
-        context: context,
-        findController: _findController,
-      );
-    } finally {
-      _handleOverlayClosed();
-    }
+    await _modalCoordinator.showFindInPage(
+      overlayStateManager: _overlayStateManager,
+      context: context,
+      findController: _findController,
+    );
   }
 
   void _showSnackBar(String message) {
