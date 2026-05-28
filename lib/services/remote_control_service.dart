@@ -24,6 +24,7 @@ enum RemoteControlState { idle, connecting, connected, disconnected, error }
 
 class RemoteControlService {
   static const MethodChannel _channel = MethodChannel('remote_control');
+  static const String _easyTierOverlayPrefix = '10.126.';
   static final RemoteControlService _instance =
       RemoteControlService._internal();
   factory RemoteControlService() => _instance;
@@ -39,6 +40,7 @@ class RemoteControlService {
   RemoteControlMode _mode = RemoteControlMode.controller;
   RemoteControlState _state = RemoteControlState.idle;
   RemoteControlConfig? _config;
+  String? _targetHost;
 
   Socket? _controllerControlSocket;
   Socket? _receiverControlSocket;
@@ -309,10 +311,15 @@ class RemoteControlService {
     int discoveryDelayMs = 0,
     bool useProxy = false,
     int? proxyPort,
+    WebRtcIceConfig? iceConfig,
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
-    _config = RemoteControlConfig(ports: ports);
+    _targetHost = host;
+    _config = RemoteControlConfig(
+      ports: ports,
+      iceConfig: iceConfig ?? const WebRtcIceConfig(),
+    );
 
     // 记录设备发现路径
     _performanceMonitor.recordDiscoveryPath(
@@ -590,6 +597,7 @@ class RemoteControlService {
       name: 'RemoteControl',
     );
     _receiverControlSocket = client;
+    _targetHost = client.remoteAddress.address;
     _updateState(RemoteControlState.connected);
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
@@ -749,7 +757,17 @@ class RemoteControlService {
   }
 
   Future<void> _prepareVoiceSession({required bool isController}) async {
-    await _voiceService.prepare(isController: isController);
+    _logMessage(
+      'Preparing WebRTC voice: controller=$isController targetHost=${_targetHost ?? 'none'} ice=${_config?.iceConfig ?? const WebRtcIceConfig()}',
+    );
+    await _voiceService.prepare(
+      isController: isController,
+      iceConfig: _config?.iceConfig ?? const WebRtcIceConfig(),
+      networkPreference: WebRtcNetworkPreference(
+        preferredHost: _targetHost,
+        preferredOverlayPrefix: _easyTierOverlayPrefix,
+      ),
+    );
   }
 
   Future<void> _sendWebRtcSignal(StatusMessage message) async {
@@ -763,6 +781,7 @@ class RemoteControlService {
       );
       return;
     }
+    _logMessage('Sending WebRTC signal: ${message.action}');
     socket.add(utf8.encode('${RemoteControlCodec.encode(message)}\n'));
   }
 
@@ -785,6 +804,7 @@ class RemoteControlService {
 
   void _recordStatusMessage(ControlMessage message) {
     if (message is StatusMessage && _isWebRtcSignal(message)) {
+      _logMessage('Received WebRTC signal: ${message.action}');
       unawaited(_voiceService.handleSignal(message));
       return;
     }
@@ -940,6 +960,7 @@ class RemoteControlService {
     _latestRemotePps = null;
     _latestRemoteScreenInfo = null;
     _connectionReadyCompleter = null;
+    _targetHost = null;
 
     try {
       await _channel.invokeMethod('stop');
