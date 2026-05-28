@@ -152,6 +152,7 @@ class RemoteControlService(private val context: Context) {
                 "gesture" -> executeGesture(command)
                 "keyboard" -> executeKeyboard(command)
                 "global" -> executeGlobal(command)
+                "status" -> executeStatus(command)
                 else -> Log.w(TAG, "Unknown command type: $type")
             }
         } catch (e: Exception) {
@@ -241,6 +242,20 @@ class RemoteControlService(private val context: Context) {
             "home" -> service.performGlobalActionById(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
             "recents" -> service.performGlobalActionById(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS)
             else -> Log.w(TAG, "Unknown global action: $action")
+        }
+    }
+
+    private fun executeStatus(command: JSONObject) {
+        val action = command.optString("action")
+        val data = command.optJSONObject("data")
+        when (action) {
+            "overlay_text" -> {
+                val text = data?.optString("text").orEmpty()
+                if (text.isNotBlank()) {
+                    RemoteControlAccessibilityService.instance?.showTextOverlay(text)
+                }
+            }
+            else -> Log.w(TAG, "Unknown status action: $action")
         }
     }
 
