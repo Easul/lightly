@@ -60,6 +60,7 @@ class WebRtcVoiceService {
   final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
   WebRtcNetworkPreference _networkPreference = const WebRtcNetworkPreference();
   Timer? _statsTimer;
+  Timer? _audioRouteTimer;
 
   bool get isLocalAudioEnabled => _localAudioEnabled;
   bool get isPrepared => _peerConnection != null;
@@ -75,7 +76,8 @@ class WebRtcVoiceService {
     }
 
     await _ensureDiagnosticsLogging();
-    await Helper.setSpeakerphoneOn(_speakerphoneEnabled);
+    await _refreshAudioRoute();
+    _startAudioRouteMonitor();
 
     final configuration = <String, dynamic>{
       'iceServers': const [
@@ -185,7 +187,7 @@ class WebRtcVoiceService {
     }
     _localAudioEnabled = enabled;
     _localAudioTrack?.enabled = enabled;
-    await Helper.setSpeakerphoneOn(_speakerphoneEnabled);
+    await _refreshAudioRoute();
     _log(
       'webrtc-local-audio: enabled=$enabled trackEnabled=${_localAudioTrack?.enabled} muted=${_localAudioTrack?.muted}',
     );
@@ -208,6 +210,8 @@ class WebRtcVoiceService {
   Future<void> close() async {
     _statsTimer?.cancel();
     _statsTimer = null;
+    _audioRouteTimer?.cancel();
+    _audioRouteTimer = null;
     _localAudioEnabled = false;
     _localAudioTrack?.enabled = false;
 
@@ -232,6 +236,56 @@ class WebRtcVoiceService {
 
     await Helper.setSpeakerphoneOn(false);
     _log('webrtc-closed');
+  }
+
+  void _startAudioRouteMonitor() {
+    _audioRouteTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_refreshAudioRoute());
+    });
+  }
+
+  Future<void> _refreshAudioRoute() async {
+    try {
+      final outputs = await Helper.audiooutputs;
+      final inputs = await Helper.enumerateDevices('audioinput');
+      final output = _preferredDevice(outputs);
+      final input = _preferredDevice(inputs);
+      if (output != null) {
+        await Helper.selectAudioOutput(output.deviceId);
+        _log('webrtc-audio-output: ${output.label}');
+      } else if (_speakerphoneEnabled) {
+        await Helper.setSpeakerphoneOnButPreferBluetooth();
+        _log('webrtc-audio-output: speaker-or-bluetooth');
+      } else {
+        await Helper.setSpeakerphoneOn(false);
+      }
+      if (input != null) {
+        await Helper.selectAudioInput(input.deviceId);
+        _log('webrtc-audio-input: ${input.label}');
+      }
+    } catch (error) {
+      _log('webrtc-audio-route-error', error: error);
+      if (_speakerphoneEnabled) {
+        await Helper.setSpeakerphoneOnButPreferBluetooth();
+      }
+    }
+  }
+
+  MediaDeviceInfo? _preferredDevice(List<MediaDeviceInfo> devices) {
+    for (final keyword in const [
+      'bluetooth',
+      'headset',
+      'headphone',
+      'wired',
+    ]) {
+      for (final device in devices) {
+        final label = device.label.toLowerCase();
+        if (label.contains(keyword)) {
+          return device;
+        }
+      }
+    }
+    return null;
   }
 
   Future<void> _createAndSendOffer() async {
