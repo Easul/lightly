@@ -49,6 +49,7 @@ import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_actions.dart';
 import 'browser_page_notifier_sync.dart';
+import 'browser_page_overlay_state_manager.dart';
 import 'browser_page_settings_helper.dart';
 import 'browser_page_site_security_helper.dart';
 import 'browser_page_shell_widgets.dart';
@@ -109,6 +110,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageInputResolver();
   final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
   final BrowserPageAddressSync _addressSync = const BrowserPageAddressSync();
+  late final BrowserPageOverlayStateManager _overlayStateManager;
 
   void _logDebug(String message) {
     if (kDebugMode) {
@@ -172,11 +174,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _isInitialized = false;
   bool _proxySupported = false;
   bool _isProxyActive = false;
-  int _overlayDepth = 0;
   int _progress = 0;
-  Timer? _overlaySettledTimer;
-  bool _hasDeferredOverlayRebuild = false;
-  bool _showFindInPageAfterMoreActionsCloses = false;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
   PullToRefreshController? _pullToRefreshController;
@@ -220,6 +218,16 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       favoriteService: _favoriteService,
       onStatusChanged: _handleFavoriteStatusChanged,
     );
+    _overlayStateManager = BrowserPageOverlayStateManager(
+      coordinator: _lifecycleCoordinator,
+      isMounted: () => mounted,
+      syncNotifiers: _syncNotifiers,
+      rebuild: () => setState(() {}),
+      pauseWebView: ({required trimKeepAlives}) {
+        _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
+      },
+      resumeWebView: _resumeWebViewFromOverlay,
+    );
     if (InAppWebViewPlatform.instance != null) {
       _pullToRefreshController = PullToRefreshController(
         settings: PullToRefreshSettings(
@@ -247,15 +255,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       // Defensive: if the app went to background while an overlay was open,
       // the overlay may have been dismissed by the system without calling
       // _handleOverlayClosed. Force-resume timers so browsing isn't stuck.
-      if (_lifecycleCoordinator.shouldRecoverFromAppResume(
-        overlayDepth: _overlayDepth,
-      )) {
-        _overlaySettledTimer?.cancel();
-        _overlaySettledTimer = null;
-        _overlayDepth = 0;
-        _resumeWebViewFromOverlay();
-        _applyDeferredOverlayRebuild();
-      }
+      _overlayStateManager.handleAppResumed();
     }
   }
 
@@ -296,74 +296,23 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     bool trimKeepAlives = true,
     bool pauseWebView = true,
   }) {
-    _overlaySettledTimer?.cancel();
-    _overlaySettledTimer = null;
-    final decision = _lifecycleCoordinator.handleOverlayOpened(
-      overlayDepth: _overlayDepth,
+    _overlayStateManager.handleOverlayOpened(
+      trimKeepAlives: trimKeepAlives,
+      pauseWebView: pauseWebView,
     );
-    _overlayDepth = decision.overlayDepth;
-    if (pauseWebView && decision.shouldPauseWebView) {
-      _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
-    }
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   void _handleOverlayClosed() {
-    final decision = _lifecycleCoordinator.handleOverlayClosed(
-      overlayDepth: _overlayDepth,
-    );
-    _overlayDepth = decision.overlayDepth;
-    if (decision.shouldResumeWebView) {
-      _scheduleOverlaySettledWork(resumeWebView: true);
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _scheduleOverlaySettledWork({required bool resumeWebView}) {
-    _overlaySettledTimer?.cancel();
-    _overlaySettledTimer = Timer(const Duration(milliseconds: 300), () {
-      _overlaySettledTimer = null;
-      if (!mounted || _overlayDepth > 0) {
-        return;
-      }
-      if (resumeWebView) {
-        _resumeWebViewFromOverlay();
-      }
-      _applyDeferredOverlayRebuild();
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  void _applyDeferredOverlayRebuild() {
-    if (_hasDeferredOverlayRebuild) {
-      _hasDeferredOverlayRebuild = false;
-      _syncNotifiers();
-      setState(() {});
-    }
-  }
-
-  Future<T> _runTrackedOverlay<T>(Future<T> Function() action) async {
-    _handleOverlayOpened();
-    try {
-      return await action();
-    } finally {
-      _handleOverlayClosed();
-    }
+    _overlayStateManager.handleOverlayClosed();
   }
 
   Future<void> _runTrackedOverlayAction(Future<void> Function() action) async {
-    await _runTrackedOverlay<void>(action);
+    await _overlayStateManager.runTrackedOverlayAction(action);
   }
 
   void _rebuildWhenVisible() {
     if (_shouldSkipRebuild) {
-      _hasDeferredOverlayRebuild = true;
+      _overlayStateManager.markDeferredOverlayRebuild();
     } else if (mounted) {
       _syncNotifiers();
       setState(() {});
@@ -374,7 +323,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (_shouldSkipRebuild) {
       fn();
       _syncNotifiers();
-      _hasDeferredOverlayRebuild = true;
+      _overlayStateManager.markDeferredOverlayRebuild();
     } else if (mounted) {
       fn();
       _syncNotifiers();
@@ -386,12 +335,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   /// During overlay animations (drawer, bottom sheet), skipping rebuilds
   /// reduces jank by preventing the entire BrowserPage widget tree from
   /// rebuilding while the GPU is already busy compositing the overlay.
-  bool get _shouldSkipRebuild =>
-      _lifecycleCoordinator.shouldSkipRebuild(overlayDepth: _overlayDepth) ||
-      _overlaySettledTimer != null;
+  bool get _shouldSkipRebuild => _overlayStateManager.shouldSkipRebuild;
 
   bool get _shouldFreezeWebViewForOverlay =>
-      _overlayDepth > 0 || _overlaySettledTimer != null;
+      _overlayStateManager.shouldFreezeWebView;
 
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
@@ -527,7 +474,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _isSecureNotifier.dispose();
     _tabCountNotifier.dispose();
     _statusMessageNotifier.dispose();
-    _overlaySettledTimer?.cancel();
+    _overlayStateManager.dispose();
     _favoriteStatusController.dispose();
     unawaited(_videoPlayerCoordinator.dispose());
     _findController.dispose();
@@ -581,9 +528,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             }
             unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
           }
-          if (_lifecycleCoordinator.shouldResumeControllerOnAttach(
-            overlayDepth: _overlayDepth,
-          )) {
+          if (_overlayStateManager.shouldResumeControllerOnAttach) {
             _resumeWebViewFromOverlay();
           } else {
             controller.resume();
@@ -1777,13 +1722,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             ? _showFavoritesMenu
             : null,
         onFindInPage: () {
-          _showFindInPageAfterMoreActionsCloses = true;
+          _overlayStateManager.markShowFindInPageAfterMoreActionsCloses();
         },
       );
     } finally {
       _handleOverlayClosed();
-      if (_showFindInPageAfterMoreActionsCloses) {
-        _showFindInPageAfterMoreActionsCloses = false;
+      if (_overlayStateManager.shouldShowFindInPageAfterMoreActionsCloses) {
+        _overlayStateManager.clearShowFindInPageAfterMoreActionsCloses();
         await Future<void>.delayed(const Duration(milliseconds: 120));
         if (mounted) {
           await _showFindInPage();
