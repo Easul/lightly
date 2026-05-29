@@ -550,150 +550,41 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         },
         onDownloadStartRequest: _handleDownloadStart,
         onLoadStart: (controller, url) {
-          if (hostedTabId == null) {
-            return;
-          }
-          unawaited(_recordCookieOrigin(url));
-          final didChangeLoading = _updateTabById(hostedTabId, isLoading: true);
-          final didChangeProgress = _isActiveTabId(hostedTabId)
-              ? _updateProgressIfNeeded(0)
-              : false;
-          if (mounted &&
-              _webViewCoordinator.shouldClearStatusOnLoadStart(
-                isActiveTab: _isActiveTabId(hostedTabId),
-                currentStatusMessage: _statusMessage,
-                didChangeProgress: didChangeProgress,
-                didChangeLoading: didChangeLoading,
-              )) {
-            _setStateIfVisible(() {
-              _statusMessage = _statusCoordinator.cleared();
-            });
-          }
-          _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
+          _handleWebViewLoadStart(hostedTabId: hostedTabId, url: url);
         },
         onLoadStop: (controller, url) async {
-          if (hostedTabId == null) {
-            return;
-          }
-          if (!mounted) {
-            return;
-          }
-          _pullToRefreshController?.endRefreshing();
-          unawaited(_recordCookieOrigin(url));
-          unawaited(_injectSiteCompatibilityFixes(controller, url));
-          final didChangeLoading = _updateTabById(
-            hostedTabId,
-            isLoading: false,
+          await _handleWebViewLoadStop(
+            hostedTabId: hostedTabId,
+            controller: controller,
+            url: url,
           );
-          final didChangeProgress = _isActiveTabId(hostedTabId)
-              ? _updateProgressIfNeeded(100)
-              : false;
-          _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
-
-          final currentTitle =
-              _tabCoordinator.tabById(hostedTabId)?.title ?? '';
-          unawaited(_recordHistory(url, currentTitle));
-          if (!mounted) {
-            return;
-          }
-          if (_webViewCoordinator.shouldRebuildOnLoadStop(
-            isActiveTab: _isActiveTabId(hostedTabId),
-            didChangeProgress: didChangeProgress,
-            didChangeTitle: false,
-            didChangeLoading: didChangeLoading,
-          )) {
-            _setStateIfVisible(() {});
-          }
-
-          unawaited(
-            _completeLoadStopFollowUp(
-              hostedTabId: hostedTabId,
-              controller: controller,
-              url: url,
-            ),
-          );
-
-          unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
         },
         onProgressChanged: (controller, progress) {
-          if (_isActiveTabId(hostedTabId)) {
-            _updateProgressIfNeeded(progress);
-          }
+          _handleWebViewProgressChanged(
+            hostedTabId: hostedTabId,
+            progress: progress,
+          );
         },
         onReceivedError: (controller, request, error) {
-          if (hostedTabId == null) {
-            return;
-          }
-          if (!mounted) {
-            return;
-          }
-          _pullToRefreshController?.endRefreshing();
-          _updateTabById(hostedTabId, isLoading: false);
-          if (!_isActiveTabId(hostedTabId)) {
-            return;
-          }
-          final desc = error.description;
-          final decision = _webViewCoordinator.decideErrorStatus(
-            description: desc,
-            blockedPopupStatus: _statusCoordinator.blockedPopup(),
-            externalSchemeStatus: _statusCoordinator.externalAppContinuing(),
+          _handleWebViewReceivedError(
+            hostedTabId: hostedTabId,
+            request: request,
+            error: error,
           );
-          if (decision.action ==
-              BrowserPageWebViewErrorAction.blockedByResponse) {
-            unawaited(_handleBlockedByResponse(request.url));
-            _setStateIfVisible(() {
-              _statusMessage = decision.statusMessage;
-            });
-            return;
-          }
-          if (decision.action == BrowserPageWebViewErrorAction.externalScheme) {
-            final requestedUrl = request.url;
-            if (!_isWebScheme(requestedUrl.scheme)) {
-              unawaited(_confirmAndLaunchExternalUrl(requestedUrl));
-            }
-            _setStateIfVisible(() {
-              _statusMessage = decision.statusMessage;
-            });
-            return;
-          }
-          _setStateIfVisible(() {
-            _statusMessage = decision.statusMessage;
-          });
         },
         onReceivedHttpAuthRequest: _handleHttpAuthRequest,
         onScrollChanged: (controller, x, y) {
-          if (hostedTabId == null) {
-            return;
-          }
-          _updateScrollPositionForTabIfNeeded(hostedTabId, y.toDouble());
+          _handleWebViewScrollChanged(hostedTabId: hostedTabId, y: y);
         },
         onTitleChanged: (controller, title) {
-          if (hostedTabId == null) {
-            return;
-          }
-          _updateTabById(hostedTabId, title: title ?? '');
+          _handleWebViewTitleChanged(hostedTabId: hostedTabId, title: title);
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
-          if (hostedTabId == null) {
-            return;
-          }
-          final currentTabUrl = _tabCoordinator.tabById(hostedTabId)?.url;
-          if (_isFavoritesPage(currentTabUrl)) {
-            return;
-          }
-          if (_webViewCoordinator.shouldHandleVisitedHistoryForActiveTab(
-            isActiveTab: _isActiveTabId(hostedTabId),
-          )) {
-            unawaited(_recordCookieOrigin(url));
-            unawaited(_handleVisitedHistoryUpdate(controller, url));
-          } else if (url != null &&
-              _webViewCoordinator.shouldSyncVisitedHistoryForBackgroundTab(
-                isActiveTab: _isActiveTabId(hostedTabId),
-                isFavoritesPage: _isFavoritesPage(currentTabUrl),
-                isWebScheme: _isWebScheme(url.scheme),
-              )) {
-            _updateTabById(hostedTabId, url: url.toString());
-          }
+          _handleWebViewVisitedHistoryUpdate(
+            hostedTabId: hostedTabId,
+            controller: controller,
+            url: url,
+          );
         },
         pullToRefreshController: _pullToRefreshController,
         findInteractionController: _findController.interactionController,
@@ -704,6 +595,176 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<String?> _getInitialIntentUrl() async {
     return _externalIntentHelper.getInitialIntentUrl();
+  }
+
+  void _handleWebViewLoadStart({
+    required String? hostedTabId,
+    required WebUri? url,
+  }) {
+    if (hostedTabId == null) {
+      return;
+    }
+    unawaited(_recordCookieOrigin(url));
+    final didChangeLoading = _updateTabById(hostedTabId, isLoading: true);
+    final didChangeProgress = _isActiveTabId(hostedTabId)
+        ? _updateProgressIfNeeded(0)
+        : false;
+    if (mounted &&
+        _webViewCoordinator.shouldClearStatusOnLoadStart(
+          isActiveTab: _isActiveTabId(hostedTabId),
+          currentStatusMessage: _statusMessage,
+          didChangeProgress: didChangeProgress,
+          didChangeLoading: didChangeLoading,
+        )) {
+      _setStateIfVisible(() {
+        _statusMessage = _statusCoordinator.cleared();
+      });
+    }
+    _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
+  }
+
+  Future<void> _handleWebViewLoadStop({
+    required String? hostedTabId,
+    required InAppWebViewController controller,
+    required WebUri? url,
+  }) async {
+    if (hostedTabId == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _pullToRefreshController?.endRefreshing();
+    unawaited(_recordCookieOrigin(url));
+    unawaited(_injectSiteCompatibilityFixes(controller, url));
+    final didChangeLoading = _updateTabById(hostedTabId, isLoading: false);
+    final didChangeProgress = _isActiveTabId(hostedTabId)
+        ? _updateProgressIfNeeded(100)
+        : false;
+    _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
+
+    final currentTitle = _tabCoordinator.tabById(hostedTabId)?.title ?? '';
+    unawaited(_recordHistory(url, currentTitle));
+    if (!mounted) {
+      return;
+    }
+    if (_webViewCoordinator.shouldRebuildOnLoadStop(
+      isActiveTab: _isActiveTabId(hostedTabId),
+      didChangeProgress: didChangeProgress,
+      didChangeTitle: false,
+      didChangeLoading: didChangeLoading,
+    )) {
+      _setStateIfVisible(() {});
+    }
+
+    unawaited(
+      _completeLoadStopFollowUp(
+        hostedTabId: hostedTabId,
+        controller: controller,
+        url: url,
+      ),
+    );
+
+    unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
+  }
+
+  void _handleWebViewProgressChanged({
+    required String? hostedTabId,
+    required int progress,
+  }) {
+    if (_isActiveTabId(hostedTabId)) {
+      _updateProgressIfNeeded(progress);
+    }
+  }
+
+  void _handleWebViewReceivedError({
+    required String? hostedTabId,
+    required WebResourceRequest request,
+    required WebResourceError error,
+  }) {
+    if (hostedTabId == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _pullToRefreshController?.endRefreshing();
+    _updateTabById(hostedTabId, isLoading: false);
+    if (!_isActiveTabId(hostedTabId)) {
+      return;
+    }
+    final decision = _webViewCoordinator.decideErrorStatus(
+      description: error.description,
+      blockedPopupStatus: _statusCoordinator.blockedPopup(),
+      externalSchemeStatus: _statusCoordinator.externalAppContinuing(),
+    );
+    if (decision.action == BrowserPageWebViewErrorAction.blockedByResponse) {
+      unawaited(_handleBlockedByResponse(request.url));
+      _setStateIfVisible(() {
+        _statusMessage = decision.statusMessage;
+      });
+      return;
+    }
+    if (decision.action == BrowserPageWebViewErrorAction.externalScheme) {
+      final requestedUrl = request.url;
+      if (!_isWebScheme(requestedUrl.scheme)) {
+        unawaited(_confirmAndLaunchExternalUrl(requestedUrl));
+      }
+      _setStateIfVisible(() {
+        _statusMessage = decision.statusMessage;
+      });
+      return;
+    }
+    _setStateIfVisible(() {
+      _statusMessage = decision.statusMessage;
+    });
+  }
+
+  void _handleWebViewScrollChanged({
+    required String? hostedTabId,
+    required int y,
+  }) {
+    if (hostedTabId == null) {
+      return;
+    }
+    _updateScrollPositionForTabIfNeeded(hostedTabId, y.toDouble());
+  }
+
+  void _handleWebViewTitleChanged({
+    required String? hostedTabId,
+    required String? title,
+  }) {
+    if (hostedTabId == null) {
+      return;
+    }
+    _updateTabById(hostedTabId, title: title ?? '');
+  }
+
+  void _handleWebViewVisitedHistoryUpdate({
+    required String? hostedTabId,
+    required InAppWebViewController controller,
+    required WebUri? url,
+  }) {
+    if (hostedTabId == null) {
+      return;
+    }
+    final currentTabUrl = _tabCoordinator.tabById(hostedTabId)?.url;
+    if (_isFavoritesPage(currentTabUrl)) {
+      return;
+    }
+    if (_webViewCoordinator.shouldHandleVisitedHistoryForActiveTab(
+      isActiveTab: _isActiveTabId(hostedTabId),
+    )) {
+      unawaited(_recordCookieOrigin(url));
+      unawaited(_handleVisitedHistoryUpdate(controller, url));
+    } else if (url != null &&
+        _webViewCoordinator.shouldSyncVisitedHistoryForBackgroundTab(
+          isActiveTab: _isActiveTabId(hostedTabId),
+          isFavoritesPage: _isFavoritesPage(currentTabUrl),
+          isWebScheme: _isWebScheme(url.scheme),
+        )) {
+      _updateTabById(hostedTabId, url: url.toString());
+    }
   }
 
   Future<String?> _prepareExternalIntentUrl(String? url) async {
