@@ -273,4 +273,13 @@ lib/remote_control/protocol/
 - [x] `RemoteControlService` 仍保留 public API 与总生命周期主控权。
 - [x] 所有相关测试通过。
 - [ ] 手动验证 browser / remote / proxy / WebRTC / EasyTier 关键路径。
-- [ ] release 多 ABI 构建成功。
+- [x] release 多 ABI 构建成功。
+
+Release 构建结果（2026-05-29）：
+
+- `bash scripts/build_multi_abi.sh` 通过。
+- 版本标签：`v1.0.5+460843`。
+- Android versionCode：`5140`。
+- 产物：
+  - `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`
+  - `build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk`
