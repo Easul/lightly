@@ -48,6 +48,32 @@ class WebRtcCandidateFilter {
     return true;
   }
 
+  String rewriteHostCandidateIp(
+    String candidate, {
+    required String? replacementIp,
+    WebRtcCandidateLogCallback? log,
+  }) {
+    if (replacementIp == null ||
+        replacementIp.isEmpty ||
+        kind(candidate) != 'host') {
+      return candidate;
+    }
+    final parts = candidate.split(' ');
+    if (parts.length < 5) {
+      return candidate;
+    }
+    final originalIp = parts[4];
+    if (originalIp == replacementIp) {
+      return candidate;
+    }
+    parts[4] = replacementIp;
+    final rewritten = parts.join(' ');
+    log?.call(
+      'webrtc-overlay-candidate-rewritten: ${summary(candidate)} -> ${summary(rewritten)}',
+    );
+    return rewritten;
+  }
+
   void _logOverlayDecision(
     String candidate, {
     required WebRtcCandidateLogCallback? log,

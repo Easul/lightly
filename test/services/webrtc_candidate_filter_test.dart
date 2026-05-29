@@ -70,6 +70,52 @@ void main() {
         ]),
       );
     });
+
+    test('rewrites host candidate ip for overlay advertisement', () {
+      final logs = <String>[];
+      const filter = WebRtcCandidateFilter(
+        preference: WebRtcNetworkPreference(
+          preferredHost: '10.126.126.1',
+          preferredOverlayPrefix: '10.126.',
+        ),
+      );
+
+      final rewritten = filter.rewriteHostCandidateIp(
+        localHostCandidate,
+        replacementIp: '10.126.126.23',
+        log: logs.add,
+      );
+
+      expect(
+        rewritten,
+        'candidate:2 1 UDP 2122252543 10.126.126.23 45678 typ host',
+      );
+      expect(
+        logs.single,
+        'webrtc-overlay-candidate-rewritten: host/udp@192.168.1.10:45678 -> host/udp@10.126.126.23:45678',
+      );
+    });
+
+    test('does not rewrite non-host or missing replacement candidates', () {
+      const filter = WebRtcCandidateFilter(
+        preference: WebRtcNetworkPreference(
+          preferredHost: '10.126.126.1',
+          preferredOverlayPrefix: '10.126.',
+        ),
+      );
+
+      expect(
+        filter.rewriteHostCandidateIp(
+          srflxCandidate,
+          replacementIp: '10.126.126.23',
+        ),
+        srflxCandidate,
+      );
+      expect(
+        filter.rewriteHostCandidateIp(localHostCandidate, replacementIp: null),
+        localHostCandidate,
+      );
+    });
   });
 
   group('WebRtcSdpSummary', () {
