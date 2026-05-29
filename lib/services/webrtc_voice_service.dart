@@ -44,6 +44,8 @@ class WebRtcVoiceService {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStreamTrack? _localAudioTrack;
+  final List<MediaStream> _remoteStreams = <MediaStream>[];
+  final List<MediaStreamTrack> _remoteAudioTracks = <MediaStreamTrack>[];
   bool _localAudioEnabled = false;
   bool _isController = false;
   final bool _speakerphoneEnabled = true;
@@ -126,6 +128,7 @@ class WebRtcVoiceService {
     peerConnection.onConnectionState = (state) {
       _log('webrtc-state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        unawaited(_refreshAudioRoute());
         _startStatsTimer();
       }
     };
@@ -133,13 +136,25 @@ class WebRtcVoiceService {
       _log('webrtc-ice-state: $state');
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        unawaited(_refreshAudioRoute());
         _startStatsTimer();
       }
     };
     peerConnection.onTrack = (event) {
       if (event.track.kind == 'audio') {
+        event.track.enabled = true;
+        if (!_remoteAudioTracks.any((track) => track.id == event.track.id)) {
+          _remoteAudioTracks.add(event.track);
+        }
+        for (final stream in event.streams) {
+          if (!_remoteStreams.any(
+            (knownStream) => knownStream.id == stream.id,
+          )) {
+            _remoteStreams.add(stream);
+          }
+        }
         _log(
-          'webrtc-remote-audio: track=${event.track.id} enabled=${event.track.enabled} muted=${event.track.muted} streams=${event.streams.length}',
+          'webrtc-remote-audio: track=${event.track.id} enabled=${event.track.enabled} muted=${event.track.muted} streams=${event.streams.length} retainedStreams=${_remoteStreams.length}',
         );
       }
     };
@@ -223,6 +238,8 @@ class WebRtcVoiceService {
     }
     _localStream = null;
     _localAudioTrack = null;
+    _remoteAudioTracks.clear();
+    _remoteStreams.clear();
     _hasRemoteDescription = false;
     _pendingRemoteCandidates.clear();
 
@@ -435,8 +452,14 @@ class WebRtcVoiceService {
     try {
       final reports = await peerConnection.getStats();
       final summary = _statsSummary.build(reports);
+      final remoteTracks = _remoteAudioTracks
+          .map(
+            (track) =>
+                '${track.id}:enabled=${track.enabled}:muted=${track.muted}',
+          )
+          .join(',');
       _log(
-        'webrtc-stats: selected=${summary.selected} audio=${summary.audio} localEnabled=$_localAudioEnabled trackEnabled=${_localAudioTrack?.enabled} trackMuted=${_localAudioTrack?.muted}',
+        'webrtc-stats: selected=${summary.selected} audio=${summary.audio} localEnabled=$_localAudioEnabled trackEnabled=${_localAudioTrack?.enabled} trackMuted=${_localAudioTrack?.muted} remoteTracks=${_remoteAudioTracks.length}[$remoteTracks]',
       );
     } catch (error) {
       _log('webrtc-stats-error', error: error);
