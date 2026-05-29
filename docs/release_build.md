@@ -38,14 +38,15 @@ bash scripts/build_multi_abi.sh
 
 - 用户可见版本标签使用 `vX.Y.Z+<commit>`。
 - 不要在 UI 上额外再拼一个 `v`。
-- Android `versionCode` 必须单调递增，避免 `INSTALL_FAILED_VERSION_DOWNGRADE`。
+- Android `versionCode` 默认直接使用主分支提交次数。
+- 如果目标设备已安装更高 `versionCode` 的临时包，直接覆盖会触发 `INSTALL_FAILED_VERSION_DOWNGRADE`。
 - 重复 adb 安装前先检查设备现有 versionCode：
 
 ```bash
 adb shell dumpsys package lightly.tool | grep versionCode
 ```
 
-如果新包 versionCode 更低，不要卸载清数据；应先提高实际 versionCode 后重建。
+如果新包 versionCode 更低，不要在未确认数据保留策略前卸载清数据；应先确认是否需要临时升高实际 versionCode 或改走手动数据备份/恢复。
 
 ## 安装验证
 
@@ -66,4 +67,4 @@ adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 - arm32 R8 内存不足：按 `AGENTS.md` 的 arm32 staged fallback 使用更大 heap 或 no-daemon 重试。
 - 第二个 ABI 覆盖第一个 `app-release.apk`：必须立即重命名，脚本已处理。
 - Gradle daemon 异常退出：先停止 daemon，再 no-daemon 重试。
-- 版本降级安装失败：提高 Android versionCode 后重建，不要直接卸载用户数据。
+- 版本降级安装失败：主分支提交次数版本码低于设备已安装包时，需要先确认保留数据策略，不要直接卸载用户数据。

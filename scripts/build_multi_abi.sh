@@ -45,7 +45,7 @@ build_release_for_abi() {
   local target_platform="$2"
   local heap_size="$3"
 
-  GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${GRADLE_WORKERS} -Dorg.gradle.jvmargs='-Xmx${heap_size} -XX:MaxMetaspaceSize=${METASPACE_SIZE} -XX:ReservedCodeCacheSize=${CODE_CACHE_SIZE} -XX:+HeapDumpOnOutOfMemoryError'"   _JAVA_OPTIONS="-Xmx${heap_size}"   TARGET_ABI="$abi"   BUILD_VERSION_LABEL="$VERSION_NAME"   flutter build apk     --release     --target-platform "$target_platform"     --obfuscate     --split-debug-info="$SYMBOL_OUTPUT_DIR"
+  GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${GRADLE_WORKERS} -Dorg.gradle.jvmargs='-Xmx${heap_size} -XX:MaxMetaspaceSize=${METASPACE_SIZE} -XX:ReservedCodeCacheSize=${CODE_CACHE_SIZE} -XX:+HeapDumpOnOutOfMemoryError'"   _JAVA_OPTIONS="-Xmx${heap_size}"   TARGET_ABI="$abi"   BUILD_VERSION_LABEL="$VERSION_NAME"   BUILD_VERSION_CODE="$VERSION_CODE"   flutter build apk     --release     --target-platform "$target_platform"     --obfuscate     --split-debug-info="$SYMBOL_OUTPUT_DIR"
 }
 
 # Get latest tag or fallback to default
@@ -59,11 +59,10 @@ COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD 2>/dev/null || ech
 VERSION_NAME="${LATEST_TAG}+${COMMIT_HASH}"
 echo "📋 Version: $VERSION_NAME"
 
-# Calculate version code from main branch commit count with offset
-# Using offset 5000 to ensure versionCode is always high enough for Android updates
+# Calculate version code directly from main branch commit count.
 COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
-VERSION_CODE=$((5000 + COMMIT_COUNT))
-echo "🔢 Version code: $VERSION_CODE (5000 + main:$COMMIT_COUNT)"
+VERSION_CODE=$COMMIT_COUNT
+echo "🔢 Version code: $VERSION_CODE (main commit count)"
 
 echo "⚙️  Local conservative build mode enabled"
 echo "   - Gradle daemon: disabled"
