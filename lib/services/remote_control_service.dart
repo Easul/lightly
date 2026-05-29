@@ -12,6 +12,7 @@ import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import 'remote_control_message_router.dart';
 import 'remote_control_protocol.dart';
+import 'remote_control_receiver_startup_coordinator.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
 import 'remote_control_screen_health_coordinator.dart';
 import 'remote_control_status_bridge.dart';
@@ -81,6 +82,8 @@ class RemoteControlService {
       RemoteControlConnectionFlowCoordinator();
   final RemoteControlMessageRouter _messageRouter =
       RemoteControlMessageRouter();
+  final RemoteControlReceiverStartupCoordinator _receiverStartup =
+      const RemoteControlReceiverStartupCoordinator();
   final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
       RemoteControlScreenFramePipelineCoordinator();
   final RemoteControlStatusBridge _statusBridge =
@@ -274,26 +277,32 @@ class RemoteControlService {
     final ports = _config!.ports;
 
     try {
-      await _channel.invokeMethod('startReceiver', {
-        'controlPort': ports.controlPort,
-        'screenPort': ports.screenPort,
-        'screenFps': _config!.screenFps,
-        'screenBitrate': _config!.screenBitrate,
-      });
-
-      _controlServer = await ServerSocket.bind(
-        InternetAddress.anyIPv4,
-        ports.controlPort,
+      await _receiverStartup.start(
+        enableScreen: _config!.enableScreen,
+        startNativeReceiver: () => _channel.invokeMethod('startReceiver', {
+          'controlPort': ports.controlPort,
+          'screenPort': ports.screenPort,
+          'screenFps': _config!.screenFps,
+          'screenBitrate': _config!.screenBitrate,
+        }),
+        bindControlServer: () async {
+          _controlServer = await ServerSocket.bind(
+            InternetAddress.anyIPv4,
+            ports.controlPort,
+          );
+          _controlServer!.listen(_handleControlConnection);
+        },
+        bindScreenServer: () async {
+          _screenServer = await ServerSocket.bind(
+            InternetAddress.anyIPv4,
+            ports.screenPort,
+          );
+          _screenServer!.listen(_handleScreenConnection);
+        },
+        rollbackStartup: _rollbackReceiverStartup,
+        log: (message, {error}) =>
+            developer.log(message, name: 'RemoteControl', error: error),
       );
-      _controlServer!.listen(_handleControlConnection);
-
-      if (_config!.enableScreen) {
-        _screenServer = await ServerSocket.bind(
-          InternetAddress.anyIPv4,
-          ports.screenPort,
-        );
-        _screenServer!.listen(_handleScreenConnection);
-      }
 
       _updateState(RemoteControlState.idle);
       developer.log(
@@ -302,13 +311,7 @@ class RemoteControlService {
       );
       return ports;
     } catch (e) {
-      await _rollbackReceiverStartup();
       _updateState(RemoteControlState.error);
-      developer.log(
-        'Failed to start receiver: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
       rethrow;
     }
   }
