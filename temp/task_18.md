@@ -177,9 +177,19 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] controller / receiver 语音角色明确。
-- [ ] remote microphone toggle UI 状态同步不回退。
+- [x] controller / receiver 语音角色明确。
+- [x] remote microphone toggle UI 状态同步不回退。
 - [ ] 真机验证 WebRTC 双向语音、耳机/蓝牙路由。
+
+实现说明（2026-05-28）：
+
+- 抽出 `RemoteControlVoiceCoordinator` 管理 WebRTC prepare、signal routing、本地音频启停和远端麦克风状态。
+- `RemoteControlService` 仍保留 socket、public API、target host 与整体生命周期主控权。
+
+验证结果（2026-05-28）：
+
+- `flutter analyze lib/services/remote_control_service.dart lib/services/remote_control_voice_coordinator.dart test/services/remote_control_voice_coordinator_test.dart` 通过。
+- `flutter test test/services/remote_control_voice_coordinator_test.dart test/services/` 通过。
 
 ### 18.3.2 抽 `RemoteControlConnectionCoordinator`
 
