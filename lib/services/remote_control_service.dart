@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_command_helper.dart';
 import 'remote_control_cleanup_helper.dart';
+import 'remote_control_connection_flow_coordinator.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import 'remote_control_message_router.dart';
@@ -76,6 +77,8 @@ class RemoteControlService {
       const RemoteControlConnectionHelper();
   final RemoteControlLifecycleHelper _lifecycleHelper =
       const RemoteControlLifecycleHelper();
+  final RemoteControlConnectionFlowCoordinator _connectionFlow =
+      RemoteControlConnectionFlowCoordinator();
   final RemoteControlMessageRouter _messageRouter =
       RemoteControlMessageRouter();
   final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
@@ -101,7 +104,6 @@ class RemoteControlService {
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
-  Completer<void>? _connectionReadyCompleter;
   bool _audioDiagnosticsLoggingReady = false;
 
   // 视频流质量控制
@@ -162,10 +164,7 @@ class RemoteControlService {
   }
 
   void _markConnectionReady() {
-    final completer = _connectionReadyCompleter;
-    if (completer != null && !completer.isCompleted) {
-      completer.complete();
-    }
+    _connectionFlow.markReady();
   }
 
   void _setupMethodCallHandler() {
@@ -337,71 +336,55 @@ class RemoteControlService {
 
     _updateState(RemoteControlState.connecting);
 
-    Object? lastError;
-    for (var attempt = 0; attempt < 4; attempt++) {
-      var nativeControllerStarted = false;
-      try {
-        _connectionReadyCompleter = Completer<void>();
-        _screenFramePipeline.reset();
-
-        final connection = await _lifecycleHelper.connectControllerSockets(
-          host: host,
-          config: _config!,
-          useProxy: useProxy,
-          proxyPort: proxyPort,
-          onControlData: _handleControlData,
-          onControlError: _handleControlError,
-          onControlDone: _handleControlDone,
-          onScreenDataRaw: _handleScreenDataRaw,
-          onScreenError: (error, socket) => _handleScreenError(
-            error,
-            socket: socket,
-            mode: RemoteControlMode.controller,
-          ),
-          onScreenDone: (socket) => _handleScreenDone(
-            socket: socket,
-            mode: RemoteControlMode.controller,
-          ),
-        );
-        _controllerControlSocket = connection.controlSocket;
-        _controllerScreenSocket = connection.screenSocket;
-
-        await _channel.invokeMethod('startController', {'host': host});
-        nativeControllerStarted = true;
-        if (isVoiceEnabled) {
-          await _prepareVoiceSession(isController: true);
-        } else {
-          _logMessage('WebRTC voice disabled for internal proxy connection');
-        }
-
-        _startScreenFrameWatchdog();
-        _startHeartbeat();
-        await _connectionReadyCompleter!.future.timeout(
-          const Duration(seconds: 2),
-        );
-        _updateState(RemoteControlState.connected);
-        developer.log('Connected to $host', name: 'RemoteControl');
-        return;
-      } catch (e) {
-        lastError = e;
-        developer.log(
-          'Connect attempt ${attempt + 1} failed: $e',
-          name: 'RemoteControl',
-          error: e,
-        );
-        await _resetControllerConnection(stopNative: nativeControllerStarted);
-        if (attempt < 3) {
-          await Future<void>.delayed(
-            Duration(milliseconds: 350 * (attempt + 1)),
+    try {
+      await _connectionFlow.connect(
+        prepareAttempt: (_) {
+          _screenFramePipeline.reset();
+        },
+        attemptConnection: (_, markNativeStarted) async {
+          final connection = await _lifecycleHelper.connectControllerSockets(
+            host: host,
+            config: _config!,
+            useProxy: useProxy,
+            proxyPort: proxyPort,
+            onControlData: _handleControlData,
+            onControlError: _handleControlError,
+            onControlDone: _handleControlDone,
+            onScreenDataRaw: _handleScreenDataRaw,
+            onScreenError: (error, socket) => _handleScreenError(
+              error,
+              socket: socket,
+              mode: RemoteControlMode.controller,
+            ),
+            onScreenDone: (socket) => _handleScreenDone(
+              socket: socket,
+              mode: RemoteControlMode.controller,
+            ),
           );
-        }
-      } finally {
-        _connectionReadyCompleter = null;
-      }
-    }
+          _controllerControlSocket = connection.controlSocket;
+          _controllerScreenSocket = connection.screenSocket;
 
-    _updateState(RemoteControlState.error);
-    throw lastError ?? Exception('连接失败');
+          await _channel.invokeMethod('startController', {'host': host});
+          markNativeStarted();
+          if (isVoiceEnabled) {
+            await _prepareVoiceSession(isController: true);
+          } else {
+            _logMessage('WebRTC voice disabled for internal proxy connection');
+          }
+
+          _startScreenFrameWatchdog();
+          _startHeartbeat();
+        },
+        resetConnection: _resetControllerConnection,
+        log: (message, {error}) =>
+            developer.log(message, name: 'RemoteControl', error: error),
+      );
+      _updateState(RemoteControlState.connected);
+      developer.log('Connected to $host', name: 'RemoteControl');
+    } catch (e) {
+      _updateState(RemoteControlState.error);
+      rethrow;
+    }
   }
 
   Future<RemoteControlPortConfig?> discoverReceiverPorts(
@@ -987,7 +970,6 @@ class RemoteControlService {
     _screenFramePipeline.reset();
     _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
-    _connectionReadyCompleter = null;
     _targetHost = null;
 
     try {
