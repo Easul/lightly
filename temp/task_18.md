@@ -219,9 +219,19 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] receiver 启动失败能 rollback。
-- [ ] server socket 关闭行为不变。
+- [x] receiver 启动失败能 rollback。
+- [x] server socket 关闭行为不变。
 - [ ] 真机验证被控端启动、控制端连接、断开重连。
+
+实现说明（2026-05-29）：
+
+- 抽出 `RemoteControlReceiverStartupCoordinator` 管理 receiver native 启动、control/screen server bind 顺序，以及失败 rollback。
+- `RemoteControlService` 仍保留 `ServerSocket` 字段、socket listen 回调、state/config/mode 与 native MethodChannel 调用细节。
+
+验证结果（2026-05-29）：
+
+- `flutter analyze lib/services/remote_control_service.dart lib/services/remote_control_receiver_startup_coordinator.dart test/services/remote_control_receiver_startup_coordinator_test.dart` 通过。
+- `flutter test test/services/remote_control_receiver_startup_coordinator_test.dart test/services/` 通过。
 
 ---
 
