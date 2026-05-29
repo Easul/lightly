@@ -197,10 +197,21 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] retry 时序不变。
-- [ ] proxy 连接路径不变。
+- [x] retry 时序不变。
+- [x] proxy 连接路径不变。
 - [ ] disconnect/reconnect 后 socket/timer 无残留。
 - [ ] 真机验证 LAN / EasyTier 10.126 / 内置代理屏幕控制。
+
+实现说明（2026-05-29）：
+
+- 抽出 `RemoteControlConnectionFlowCoordinator` 管理 controller 连接尝试、ready 等待、失败 reset 与 retry delay。
+- `RemoteControlService` 仍保留 socket 字段、public API、mode/state/config、native MethodChannel 和实际 socket 建立回调。
+- `RemoteControlService._markConnectionReady()` 改为委托 coordinator，ready 来源仍保持为 screen frame / `screen_info`。
+
+验证结果（2026-05-29）：
+
+- `flutter analyze lib/services/remote_control_service.dart lib/services/remote_control_connection_flow_coordinator.dart test/services/remote_control_connection_flow_coordinator_test.dart` 通过。
+- `flutter test test/services/remote_control_connection_flow_coordinator_test.dart test/services/` 通过。
 
 ### 18.3.3 抽 `RemoteControlReceiverCoordinator`
 
