@@ -15,6 +15,8 @@ class WebRtcVoiceService {
   static const WebRtcStatsSummaryBuilder _statsSummary =
       WebRtcStatsSummaryBuilder();
 
+  static const double _receiverPlaybackVolumeBoost = 1.6;
+
   static const Map<String, dynamic> _audioConstraints = {
     'echoCancellation': true,
     'noiseSuppression': true,
@@ -151,6 +153,9 @@ class WebRtcVoiceService {
     peerConnection.onTrack = (event) {
       if (event.track.kind == 'audio') {
         event.track.enabled = true;
+        if (!_isController) {
+          unawaited(_applyReceiverPlaybackVolumeBoost(event.track));
+        }
         if (!_remoteAudioTracks.any((track) => track.id == event.track.id)) {
           _remoteAudioTracks.add(event.track);
         }
@@ -267,6 +272,17 @@ class WebRtcVoiceService {
 
     await Helper.setSpeakerphoneOn(false);
     _log('webrtc-closed');
+  }
+
+  Future<void> _applyReceiverPlaybackVolumeBoost(MediaStreamTrack track) async {
+    try {
+      await Helper.setVolume(_receiverPlaybackVolumeBoost, track);
+      _log(
+        'webrtc-remote-audio-volume: track=${track.id} volume=$_receiverPlaybackVolumeBoost',
+      );
+    } catch (error) {
+      _log('webrtc-remote-audio-volume-error', error: error);
+    }
   }
 
   void _startAudioRouteMonitor() {
