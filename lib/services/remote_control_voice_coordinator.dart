@@ -7,7 +7,11 @@ typedef RemoteVoicePrepare =
       required WebRtcNetworkPreference networkPreference,
     });
 typedef RemoteVoiceSetLocalAudio = Future<void> Function(bool enabled);
-typedef RemoteVoiceHandleSignal = Future<void> Function(StatusMessage message);
+typedef RemoteVoiceHandleSignal =
+    Future<void> Function(
+      StatusMessage message, {
+      required WebRtcNetworkPreference networkPreference,
+    });
 typedef RemoteVoiceClose = Future<void> Function();
 typedef RemoteVoiceLog = void Function(String message, {Object? error});
 typedef RemoteVoiceEmit = void Function(ControlMessage message);
@@ -130,6 +134,8 @@ class RemoteControlVoiceCoordinator {
   bool handleIncomingWebRtcSignal({
     required StatusMessage message,
     required bool isVoiceEnabled,
+    required String? targetHost,
+    required String overlayPrefix,
     required RemoteVoiceLog log,
   }) {
     if (!isWebRtcSignal(message)) {
@@ -139,8 +145,16 @@ class RemoteControlVoiceCoordinator {
       log('Ignoring WebRTC signal while voice disabled: ${message.action}');
       return true;
     }
-    log('Received WebRTC signal: ${message.action}');
-    _handleSignal(message);
+    log(
+      'Received WebRTC signal: ${message.action} targetHost=${targetHost ?? 'none'}',
+    );
+    _handleSignal(
+      message,
+      networkPreference: WebRtcNetworkPreference(
+        preferredHost: targetHost,
+        preferredOverlayPrefix: overlayPrefix,
+      ),
+    );
     return true;
   }
 

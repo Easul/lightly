@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -52,6 +53,7 @@ class WebRtcVoiceService {
   bool _hasRemoteDescription = false;
   final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
   WebRtcNetworkPreference _networkPreference = const WebRtcNetworkPreference();
+  String? _localOverlayHost;
   Timer? _statsTimer;
   Timer? _audioRouteTimer;
 
@@ -67,6 +69,7 @@ class WebRtcVoiceService {
   }) async {
     _isController = isController;
     _networkPreference = networkPreference;
+    _localOverlayHost = await _resolveLocalOverlayHost(networkPreference);
     if (_peerConnection != null) {
       return;
     }
@@ -107,15 +110,20 @@ class WebRtcVoiceService {
         );
         return;
       }
+      final outboundCandidate = _candidateFilter.rewriteHostCandidateIp(
+        candidateValue,
+        replacementIp: _localOverlayHost,
+        log: (message) => _log(message),
+      );
       _log(
-        'webrtc-local-candidate: ${_candidateFilter.summary(candidateValue)}',
+        'webrtc-local-candidate: ${_candidateFilter.summary(outboundCandidate)}',
       );
       unawaited(
         _sendSignal(
           StatusMessage(
             action: 'webrtc_candidate',
             data: {
-              'candidate': candidateValue,
+              'candidate': outboundCandidate,
               'sdpMid': candidate.sdpMid,
               'sdpMLineIndex': candidate.sdpMLineIndex,
             },
@@ -207,10 +215,16 @@ class WebRtcVoiceService {
     );
   }
 
-  Future<void> handleSignal(StatusMessage message) async {
+  Future<void> handleSignal(
+    StatusMessage message, {
+    WebRtcNetworkPreference networkPreference = const WebRtcNetworkPreference(),
+  }) async {
+    if (networkPreference.preferredHost != null) {
+      _networkPreference = networkPreference;
+    }
     switch (message.action) {
       case 'webrtc_offer':
-        await _handleOffer(message);
+        await _handleOffer(message, networkPreference: networkPreference);
         break;
       case 'webrtc_answer':
         await _handleAnswer(message);
@@ -238,6 +252,7 @@ class WebRtcVoiceService {
     }
     _localStream = null;
     _localAudioTrack = null;
+    _localOverlayHost = null;
     _remoteAudioTracks.clear();
     _remoteStreams.clear();
     _hasRemoteDescription = false;
@@ -287,6 +302,35 @@ class WebRtcVoiceService {
     }
   }
 
+  Future<String?> _resolveLocalOverlayHost(
+    WebRtcNetworkPreference preference,
+  ) async {
+    final prefix = preference.preferredOverlayPrefix;
+    if (!preference.preferOverlayHostCandidates || prefix == null) {
+      return null;
+    }
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.IPv4,
+      );
+      for (final interface in interfaces) {
+        for (final address in interface.addresses) {
+          if (address.address.startsWith(prefix)) {
+            _log(
+              'webrtc-overlay-local-host: ${address.address} interface=${interface.name}',
+            );
+            return address.address;
+          }
+        }
+      }
+      _log('webrtc-overlay-local-host-missing: prefix=$prefix');
+    } catch (error) {
+      _log('webrtc-overlay-local-host-error', error: error);
+    }
+    return null;
+  }
+
   MediaDeviceInfo? _preferredDevice(List<MediaDeviceInfo> devices) {
     for (final keyword in const [
       'bluetooth',
@@ -326,8 +370,14 @@ class WebRtcVoiceService {
     _log('webrtc-offer-sent: ${_sdpSummary(offer.sdp)}');
   }
 
-  Future<void> _handleOffer(StatusMessage message) async {
-    await prepare(isController: false, networkPreference: _networkPreference);
+  Future<void> _handleOffer(
+    StatusMessage message, {
+    required WebRtcNetworkPreference networkPreference,
+  }) async {
+    final effectivePreference = networkPreference.preferredHost != null
+        ? networkPreference
+        : _networkPreference;
+    await prepare(isController: false, networkPreference: effectivePreference);
     final peerConnection = _peerConnection;
     if (peerConnection == null) {
       return;

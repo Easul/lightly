@@ -85,17 +85,26 @@ void main() {
       final handledDisabled = harness.coordinator.handleIncomingWebRtcSignal(
         message: message,
         isVoiceEnabled: false,
+        targetHost: '10.126.126.23',
+        overlayPrefix: '10.126.',
         log: harness.log,
       );
       final handledEnabled = harness.coordinator.handleIncomingWebRtcSignal(
         message: message,
         isVoiceEnabled: true,
+        targetHost: '10.126.126.23',
+        overlayPrefix: '10.126.',
         log: harness.log,
       );
 
       expect(handledDisabled, isTrue);
       expect(handledEnabled, isTrue);
       expect(harness.signals, <StatusMessage>[message]);
+      expect(harness.signalPreferences.single.preferredHost, '10.126.126.23');
+      expect(
+        harness.signalPreferences.single.preferredOverlayPrefix,
+        '10.126.',
+      );
       expect(
         harness.logs,
         contains('Ignoring WebRTC signal while voice disabled: webrtc_offer'),
@@ -187,8 +196,9 @@ class _VoiceHarness {
       setLocalAudioEnabled: (enabled) async {
         audioEnabledCalls.add(enabled);
       },
-      handleSignal: (message) async {
+      handleSignal: (message, {required networkPreference}) async {
         signals.add(message);
+        signalPreferences.add(networkPreference);
       },
       close: () async {
         closeCount++;
@@ -202,6 +212,7 @@ class _VoiceHarness {
   final prepareCalls = <_PrepareCall>[];
   final audioEnabledCalls = <bool>[];
   final signals = <StatusMessage>[];
+  final signalPreferences = <WebRtcNetworkPreference>[];
   final logs = <String>[];
   var closeCount = 0;
   var prepared = false;

@@ -797,6 +797,8 @@ class RemoteControlService {
       _voiceCoordinator.handleIncomingWebRtcSignal(
         message: message,
         isVoiceEnabled: isVoiceEnabled,
+        targetHost: _targetHost,
+        overlayPrefix: _easyTierOverlayPrefix,
         log: _logMessage,
       );
       return;
