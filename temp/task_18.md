@@ -252,20 +252,25 @@ lib/remote_control/protocol/
 
 仅当前面 flow 稳定后再做，避免大量 import diff 干扰行为审查。
 
+评估结论（2026-05-29）：
+
+- 本轮不执行目录迁移；当前新增 coordinator 已按既有 `lib/pages/` / `lib/services/` 风格落位。
+- 大规模 import 迁移会制造大量无行为 diff，且无法替代真机回归验证。
+
 ### 18.4.2 文档化回归清单
 
-- [ ] `docs/browser_regression_checklist.md`
-- [ ] `docs/remote_control_regression_checklist.md`
-- [ ] `docs/release_build.md`
+- [x] `docs/browser_regression_checklist.md`
+- [x] `docs/remote_control_regression_checklist.md`
+- [x] `docs/release_build.md`
 
 ---
 
 ## 全部完成标准
 
-- [ ] Browser 关键 flow 有明确 coordinator/plan/result。
-- [ ] Remote 关键 flow 有明确 coordinator/state ownership。
-- [ ] `BrowserPage` 仍保留 Flutter lifecycle 主控权。
-- [ ] `RemoteControlService` 仍保留 public API 与总生命周期主控权。
-- [ ] 所有相关测试通过。
+- [x] Browser 关键 flow 有明确 coordinator/plan/result。
+- [x] Remote 关键 flow 有明确 coordinator/state ownership。
+- [x] `BrowserPage` 仍保留 Flutter lifecycle 主控权。
+- [x] `RemoteControlService` 仍保留 public API 与总生命周期主控权。
+- [x] 所有相关测试通过。
 - [ ] 手动验证 browser / remote / proxy / WebRTC / EasyTier 关键路径。
 - [ ] release 多 ABI 构建成功。
