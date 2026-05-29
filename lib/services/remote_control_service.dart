@@ -14,10 +14,10 @@ import 'remote_control_protocol.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
 import 'remote_control_screen_health_coordinator.dart';
 import 'remote_control_status_bridge.dart';
+import 'remote_control_voice_coordinator.dart';
 import 'screen_capture_manager.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
-import 'webrtc_candidate_filter.dart';
 import 'webrtc_voice_service.dart';
 
 enum RemoteControlMode { controller, receiver }
@@ -36,6 +36,13 @@ class RemoteControlService {
       sendSignal: _sendWebRtcSignal,
       ensureDiagnosticsLogging: _ensureAudioDiagnosticsLogging,
       log: _logMessage,
+    );
+    _voiceCoordinator = RemoteControlVoiceCoordinator(
+      prepare: _voiceService.prepare,
+      setLocalAudioEnabled: _voiceService.setLocalAudioEnabled,
+      handleSignal: _voiceService.handleSignal,
+      close: _voiceService.close,
+      isPrepared: () => _voiceService.isPrepared,
     );
   }
 
@@ -78,6 +85,7 @@ class RemoteControlService {
   final RemoteControlScreenHealthCoordinator _screenHealth =
       RemoteControlScreenHealthCoordinator();
   late final WebRtcVoiceService _voiceService;
+  late final RemoteControlVoiceCoordinator _voiceCoordinator;
 
   static const Duration _screenFrameStallThreshold = Duration(
     milliseconds: 700,
@@ -95,7 +103,6 @@ class RemoteControlService {
   Timer? _heartbeatTimer;
   Completer<void>? _connectionReadyCompleter;
   bool _audioDiagnosticsLoggingReady = false;
-  bool _remoteMicrophoneEnabled = false;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -107,7 +114,8 @@ class RemoteControlService {
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
   bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
   bool get isVoiceEnabled => _config?.enableVoice ?? true;
-  bool get isRemoteMicrophoneEnabled => _remoteMicrophoneEnabled;
+  bool get isRemoteMicrophoneEnabled =>
+      _voiceCoordinator.remoteMicrophoneEnabled;
 
   RemoteControlState get state => _state;
   RemoteControlMode get mode => _mode;
@@ -423,7 +431,7 @@ class RemoteControlService {
       resetControllerMessages: _messageRouter.resetController,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
-      closeVoiceSession: _voiceService.close,
+      closeVoiceSession: _voiceCoordinator.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _controllerControlSocket = null;
@@ -438,7 +446,7 @@ class RemoteControlService {
       screenServer: _screenServer,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopAudioCapture: stopAudioCapture,
-      closeVoiceSession: _voiceService.close,
+      closeVoiceSession: _voiceCoordinator.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _receiverControlSocket = null;
@@ -577,47 +585,34 @@ class RemoteControlService {
     int sampleRate = 16000,
     int channels = 1,
   }) async {
-    if (!isVoiceEnabled) {
-      _logMessage('Skipping audio capture: voice disabled for this session');
-      return false;
-    }
-    try {
-      await _prepareVoiceSession(
-        isController: _mode == RemoteControlMode.controller,
-      );
-      await _voiceService.setLocalAudioEnabled(true);
-      return true;
-    } catch (e) {
-      developer.log(
-        'Failed to start audio capture: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
-      return false;
-    }
+    return _voiceCoordinator.startAudioCapture(
+      isVoiceEnabled: isVoiceEnabled,
+      isController: _mode == RemoteControlMode.controller,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
+    );
   }
 
   Future<void> stopAudioCapture() async {
-    if (!_voiceService.isPrepared) {
-      return;
-    }
-    await _voiceService.setLocalAudioEnabled(false);
+    await _voiceCoordinator.stopAudioCapture();
   }
 
   Future<void> startAudioPlayback({
     int sampleRate = 16000,
     int channels = 1,
   }) async {
-    if (!isVoiceEnabled) {
-      return;
-    }
-    await _prepareVoiceSession(
+    await _voiceCoordinator.startAudioPlayback(
+      isVoiceEnabled: isVoiceEnabled,
       isController: _mode == RemoteControlMode.controller,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
     );
   }
 
   Future<void> stopAudioPlayback() async {
-    await _voiceService.close();
+    await _voiceCoordinator.stopAudioPlayback();
   }
 
   void _handleControlConnection(Socket client) {
@@ -639,7 +634,7 @@ class RemoteControlService {
       onDone: () {
         developer.log('Control client disconnected', name: 'RemoteControl');
         unawaited(stopAudioCapture());
-        unawaited(_voiceService.close());
+        unawaited(_voiceCoordinator.close());
         _receiverControlSocket = null;
         _updateState(RemoteControlState.disconnected);
         _stopScreenFrameWatchdog();
@@ -775,19 +770,12 @@ class RemoteControlService {
   }
 
   Future<void> _prepareVoiceSession({required bool isController}) async {
-    if (!isVoiceEnabled) {
-      _logMessage('Skipping WebRTC voice prepare: voice disabled');
-      return;
-    }
-    _logMessage(
-      'Preparing WebRTC voice: controller=$isController targetHost=${_targetHost ?? 'none'}',
-    );
-    await _voiceService.prepare(
+    await _voiceCoordinator.prepareSession(
+      isVoiceEnabled: isVoiceEnabled,
       isController: isController,
-      networkPreference: WebRtcNetworkPreference(
-        preferredHost: _targetHost,
-        preferredOverlayPrefix: _easyTierOverlayPrefix,
-      ),
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
     );
   }
 
@@ -807,9 +795,7 @@ class RemoteControlService {
   }
 
   bool _isWebRtcSignal(StatusMessage message) {
-    return message.action == 'webrtc_offer' ||
-        message.action == 'webrtc_answer' ||
-        message.action == 'webrtc_candidate';
+    return _voiceCoordinator.isWebRtcSignal(message);
   }
 
   void _handleControlData(Uint8List data) {
@@ -822,14 +808,11 @@ class RemoteControlService {
 
   void _recordStatusMessage(ControlMessage message) {
     if (message is StatusMessage && _isWebRtcSignal(message)) {
-      if (!isVoiceEnabled) {
-        _logMessage(
-          'Ignoring WebRTC signal while voice disabled: ${message.action}',
-        );
-        return;
-      }
-      _logMessage('Received WebRTC signal: ${message.action}');
-      unawaited(_voiceService.handleSignal(message));
+      _voiceCoordinator.handleIncomingWebRtcSignal(
+        message: message,
+        isVoiceEnabled: isVoiceEnabled,
+        log: _logMessage,
+      );
       return;
     }
     if (message is StatusMessage && message.action == 'receiver_microphone') {
@@ -839,8 +822,10 @@ class RemoteControlService {
     }
     if (message is StatusMessage &&
         message.action == 'receiver_microphone_status') {
-      _remoteMicrophoneEnabled = message.data['enabled'] == true;
-      _messageController.add(message);
+      _voiceCoordinator.handleReceiverMicrophoneStatus(
+        message: message,
+        emitMessage: _messageController.add,
+      );
       return;
     }
     _statusBridge.recordStatusMessage(
@@ -860,27 +845,19 @@ class RemoteControlService {
   }
 
   Future<void> _applyReceiverMicrophone(bool enabled) async {
-    try {
-      if (!isVoiceEnabled) {
-        final status = StatusMessage.receiverMicrophoneStatus(enabled: false);
-        _remoteMicrophoneEnabled = false;
-        _messageController.add(status);
+    await _voiceCoordinator.applyReceiverMicrophone(
+      enabled: enabled,
+      isVoiceEnabled: isVoiceEnabled,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      emitMessage: _messageController.add,
+      sendStatus: (status) {
         _receiverControlSocket?.add(
           utf8.encode('${RemoteControlCodec.encode(status)}\n'),
         );
-        return;
-      }
-      await _prepareVoiceSession(isController: false);
-      await _voiceService.setLocalAudioEnabled(enabled);
-      final status = StatusMessage.receiverMicrophoneStatus(enabled: enabled);
-      _remoteMicrophoneEnabled = enabled;
-      _messageController.add(status);
-      _receiverControlSocket?.add(
-        utf8.encode('${RemoteControlCodec.encode(status)}\n'),
-      );
-    } catch (error) {
-      _logMessage('Failed to set receiver microphone: $error', error: error);
-    }
+      },
+      log: _logMessage,
+    );
   }
 
   void _handleReceiverControlData(Uint8List data) {
