@@ -151,10 +151,21 @@ flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.
 
 完成标准：
 
-- [ ] 保持 progress 5% threshold、scroll 24px threshold、loading state 稳定规则不变。
-- [ ] 不引入高频 `setState()`。
-- [ ] browser 全量测试通过。
+- [x] 保持 progress 5% threshold、scroll 24px threshold、loading state 稳定规则不变。
+- [x] 不引入高频 `setState()`。
+- [x] browser 全量测试通过。
 - [ ] 手动验证打开页面、tab 切换、find-in-page、popup auth、HTTP auth。
+
+实现说明（2026-05-28）：
+
+- 先做保守命名化：将 `BrowserPage` build 中的 WebView 匿名 callback 下沉为命名 handler。
+- 不迁移 WebView controller ownership，也不改变 setState / progress / history / error 行为。
+- 复用既有 `BrowserPageWebViewCoordinator` 测试覆盖决策逻辑。
+
+验证结果（2026-05-28）：
+
+- `flutter analyze lib/pages/browser_page.dart` 通过。
+- `flutter test test/browser/` 通过。
 
 ---
 
