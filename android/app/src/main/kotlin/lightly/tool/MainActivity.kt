@@ -45,6 +45,10 @@ class MainActivity : FlutterActivity() {
     private var easyTierCurrentIpv4: String? = null
     private var easyTierCurrentProxyCidrs: List<String> = emptyList()
     private var easyTierMonitorTick = 0
+    private var easyTierRunningConfig: String? = null
+    private var easyTierMissingInfoTicks = 0
+    private var easyTierNotRunningTicks = 0
+    private var easyTierRestartInProgress = false
     private var remoteControlService: RemoteControlService? = null
 
     private var initialIntentUrl: String? = null
@@ -294,6 +298,7 @@ class MainActivity : FlutterActivity() {
 
         try {
             EasyTierJNI.stopAllInstances()
+            easyTierRunningConfig = null
         } catch (e: Exception) {
             Log.w(easyTierChannelName, "Failed to stop EasyTier instances", e)
         }
@@ -613,6 +618,7 @@ class MainActivity : FlutterActivity() {
                             }
                             startService(intent)
                             EasyTierJNI.stopAllInstances()
+                            easyTierRunningConfig = null
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -962,6 +968,7 @@ class MainActivity : FlutterActivity() {
             Log.d("EasyTier", "Starting EasyTier instance with config")
             val res = EasyTierJNI.runNetworkInstance(config)
             if (res == 0) {
+                easyTierRunningConfig = config
                 startEasyTierMonitor(instanceName)
                 Log.d("EasyTier", "VPN started successfully")
                 result.success(true)
@@ -982,6 +989,9 @@ class MainActivity : FlutterActivity() {
         easyTierCurrentIpv4 = null
         easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
+        easyTierMissingInfoTicks = 0
+        easyTierNotRunningTicks = 0
+        easyTierRestartInProgress = false
 
         easyTierMonitorRunnable = object : Runnable {
             override fun run() {
@@ -1003,6 +1013,9 @@ class MainActivity : FlutterActivity() {
         easyTierCurrentIpv4 = null
         easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
+        easyTierMissingInfoTicks = 0
+        easyTierNotRunningTicks = 0
+        easyTierRestartInProgress = false
     }
 
     private fun monitorEasyTierStatus() {
@@ -1010,9 +1023,14 @@ class MainActivity : FlutterActivity() {
         easyTierMonitorTick += 1
         val infosJson = EasyTierJNI.collectNetworkInfos(10)
         if (infosJson.isNullOrBlank()) {
-            Log.d("EasyTier", "No network info returned yet")
+            easyTierMissingInfoTicks += 1
+            Log.d("EasyTier", "No network info returned yet count=$easyTierMissingInfoTicks")
+            if (easyTierMissingInfoTicks >= 4) {
+                restartEasyTierInstance("missing-network-info")
+            }
             return
         }
+        easyTierMissingInfoTicks = 0
 
         try {
             val root = JSONObject(infosJson)
@@ -1031,9 +1049,14 @@ class MainActivity : FlutterActivity() {
             logEasyTierDiagnostics(networkInfo)
 
             if (!networkInfo.optBoolean("running", false)) {
-                Log.w("EasyTier", "Instance not running: ${networkInfo.optString("error_msg")}")
+                easyTierNotRunningTicks += 1
+                Log.w("EasyTier", "Instance not running count=$easyTierNotRunningTicks: ${networkInfo.optString("error_msg")}")
+                if (easyTierNotRunningTicks >= 2) {
+                    restartEasyTierInstance("instance-not-running")
+                }
                 return
             }
+            easyTierNotRunningTicks = 0
 
             val virtualIpv4 = extractVirtualIpv4(networkInfo)
             if (virtualIpv4 == null) {
@@ -1158,6 +1181,34 @@ class MainActivity : FlutterActivity() {
             }
         }
         return proxyCidrs
+    }
+
+    private fun restartEasyTierInstance(reason: String) {
+        val config = easyTierRunningConfig
+        val instanceName = easyTierRunningInstanceName
+        if (config.isNullOrBlank() || instanceName.isNullOrBlank() || easyTierRestartInProgress) {
+            return
+        }
+        easyTierRestartInProgress = true
+        Log.w("EasyTier", "Restarting EasyTier instance after monitor failure: reason=$reason instance=$instanceName")
+        try {
+            runCatching { EasyTierJNI.stopAllInstances() }
+            val res = EasyTierJNI.runNetworkInstance(config)
+            if (res == 0) {
+                easyTierCurrentIpv4 = null
+                easyTierCurrentProxyCidrs = emptyList()
+                easyTierMissingInfoTicks = 0
+                easyTierNotRunningTicks = 0
+                Log.i("EasyTier", "EasyTier instance restarted: reason=$reason")
+            } else {
+                val error = EasyTierJNI.getLastError()
+                Log.e("EasyTier", "EasyTier instance restart failed: reason=$reason error=$error")
+            }
+        } catch (e: Exception) {
+            Log.e("EasyTier", "Exception restarting EasyTier instance: reason=$reason", e)
+        } finally {
+            easyTierRestartInProgress = false
+        }
     }
 
     private fun restartEasyTierVpnService(instanceName: String, ipv4: String, proxyCidrs: List<String>) {
