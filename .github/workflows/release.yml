@@ -74,10 +74,12 @@ jobs:
         
         # Build version label with commit hash: tag+commit
         BUILD_VERSION="${VERSION}+${COMMIT_HASH}"
-        
+
+        git fetch --no-tags origin main:refs/remotes/origin/main
+
         # Calculate version code from main branch commit count with offset (5000+count).
         # Prefer origin/main so tag builds count main history instead of a detached tag-only ref.
-        COMMIT_COUNT=$(git rev-list --count origin/main 2>/dev/null || git rev-list --count main 2>/dev/null || git rev-list --count HEAD 2>/dev/null || echo "1")
+        COMMIT_COUNT=$(git rev-list --count origin/main)
         VERSION_CODE=$((5000 + COMMIT_COUNT))
         
         echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -112,6 +114,7 @@ jobs:
       run: |
         export TARGET_ABI=arm64-v8a
         export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
+        export BUILD_VERSION_CODE="${{ steps.version.outputs.version_code }}"
         
         flutter build apk \
           --release \
@@ -136,6 +139,7 @@ jobs:
       run: |
         export TARGET_ABI=armeabi-v7a
         export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
+        export BUILD_VERSION_CODE="${{ steps.version.outputs.version_code }}"
         
         flutter build apk \
           --release \
