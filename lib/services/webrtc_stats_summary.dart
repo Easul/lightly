@@ -4,10 +4,14 @@ class WebRtcStatsSnapshotSummary {
   const WebRtcStatsSnapshotSummary({
     required this.selected,
     required this.audio,
+    required this.inboundAudioBytes,
+    required this.inboundAudioPackets,
   });
 
   final String selected;
   final String audio;
+  final int inboundAudioBytes;
+  final int inboundAudioPackets;
 }
 
 class WebRtcStatsSummaryBuilder {
@@ -16,6 +20,8 @@ class WebRtcStatsSummaryBuilder {
   WebRtcStatsSnapshotSummary build(List<StatsReport> reports) {
     final selectedPairs = <String>[];
     final audioReports = <String>[];
+    var inboundAudioBytes = 0;
+    var inboundAudioPackets = 0;
     for (final report in reports) {
       final values = report.values;
       final type = report.type;
@@ -25,10 +31,16 @@ class WebRtcStatsSummaryBuilder {
       if (isAudioStatsReport(type, values)) {
         audioReports.add(audioReportSummary(report.id, type, values));
       }
+      if (isInboundAudioStatsReport(type, values)) {
+        inboundAudioBytes += intStat(values, 'bytesReceived');
+        inboundAudioPackets += intStat(values, 'packetsReceived');
+      }
     }
     return WebRtcStatsSnapshotSummary(
       selected: selectedPairs.isEmpty ? 'none' : selectedPairs.join(' | '),
       audio: audioReports.isEmpty ? 'none' : audioReports.take(6).join(' | '),
+      inboundAudioBytes: inboundAudioBytes,
+      inboundAudioPackets: inboundAudioPackets,
     );
   }
 
@@ -61,8 +73,30 @@ class WebRtcStatsSummaryBuilder {
         type == 'outbound-rtp';
   }
 
+  bool isInboundAudioStatsReport(String type, Map<dynamic, dynamic> values) {
+    if (type != 'inbound-rtp') {
+      return false;
+    }
+    final kind = values['kind']?.toString();
+    final mediaType = values['mediaType']?.toString();
+    return kind == null && mediaType == null ||
+        kind == 'audio' ||
+        mediaType == 'audio';
+  }
+
   String stat(Map<dynamic, dynamic> values, String key) {
     final value = values[key];
     return value == null ? '-' : value.toString();
+  }
+
+  int intStat(Map<dynamic, dynamic> values, String key) {
+    final value = values[key];
+    if (value is int) {
+      return value;
+    }
+    if (value is double) {
+      return value.toInt();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

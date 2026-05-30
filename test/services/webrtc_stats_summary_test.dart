@@ -37,6 +37,19 @@ void main() {
     expect(builder.isAudioStatsReport('candidate-pair', const {}), isFalse);
   });
 
+  test('extracts inbound audio counters', () {
+    expect(
+      builder.isInboundAudioStatsReport('inbound-rtp', {'kind': 'audio'}),
+      isTrue,
+    );
+    expect(
+      builder.isInboundAudioStatsReport('inbound-rtp', {'mediaType': 'video'}),
+      isFalse,
+    );
+    expect(builder.intStat({'bytesReceived': '42'}, 'bytesReceived'), 42);
+    expect(builder.intStat(const {}, 'bytesReceived'), 0);
+  });
+
   test('formats missing stats with fallback marker', () {
     expect(builder.stat({'bytesSent': 42}, 'bytesSent'), '42');
     expect(builder.stat(const {}, 'bytesSent'), '-');

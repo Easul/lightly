@@ -17,6 +17,7 @@ class WebRtcVoiceService {
       WebRtcStatsSummaryBuilder();
 
   static const double _receiverPlaybackVolumeBoost = 1.6;
+  static const int _receiverAudioStallThreshold = 3;
 
   static const Map<String, dynamic> _audioConstraints = {
     'echoCancellation': true,
@@ -63,6 +64,12 @@ class WebRtcVoiceService {
   Timer? _statsTimer;
   Timer? _audioRouteTimer;
   bool _isClosing = false;
+  String? _lastSelectedAudioOutputId;
+  String? _lastSelectedAudioInputId;
+  bool _hasAppliedSpeakerphoneRoute = false;
+  int? _lastInboundAudioBytes;
+  int? _lastInboundAudioPackets;
+  int _receiverAudioStallCount = 0;
 
   WebRtcCandidateFilter get _candidateFilter =>
       WebRtcCandidateFilter(preference: _networkPreference);
@@ -83,7 +90,7 @@ class WebRtcVoiceService {
     }
 
     await _ensureDiagnosticsLogging();
-    await _refreshAudioRoute();
+    await _refreshAudioRoute(force: true);
     _startAudioRouteMonitor();
 
     final configuration = <String, dynamic>{
@@ -144,7 +151,7 @@ class WebRtcVoiceService {
     peerConnection.onConnectionState = (state) {
       _log('webrtc-state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        unawaited(_refreshAudioRoute());
+        unawaited(_refreshAudioRoute(force: true));
         _startStatsTimer();
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
@@ -155,7 +162,7 @@ class WebRtcVoiceService {
       _log('webrtc-ice-state: $state');
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-        unawaited(_refreshAudioRoute());
+        unawaited(_refreshAudioRoute(force: true));
         _startStatsTimer();
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
           state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
@@ -234,7 +241,7 @@ class WebRtcVoiceService {
     }
     _localAudioEnabled = enabled;
     _localAudioTrack?.enabled = enabled;
-    await _refreshAudioRoute();
+    await _refreshAudioRoute(force: true);
     _log(
       'webrtc-local-audio: enabled=$enabled trackEnabled=${_localAudioTrack?.enabled} muted=${_localAudioTrack?.muted}',
     );
@@ -279,6 +286,12 @@ class WebRtcVoiceService {
     _localStream = null;
     _localAudioTrack = null;
     _localOverlayHost = null;
+    _lastSelectedAudioOutputId = null;
+    _lastSelectedAudioInputId = null;
+    _hasAppliedSpeakerphoneRoute = false;
+    _lastInboundAudioBytes = null;
+    _lastInboundAudioPackets = null;
+    _receiverAudioStallCount = 0;
     _remoteAudioTracks.clear();
     _remoteStreams.clear();
     _hasRemoteDescription = false;
@@ -307,29 +320,40 @@ class WebRtcVoiceService {
   }
 
   void _startAudioRouteMonitor() {
-    _audioRouteTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+    _audioRouteTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(_refreshAudioRoute());
     });
   }
 
-  Future<void> _refreshAudioRoute() async {
+  Future<void> _refreshAudioRoute({bool force = false}) async {
     try {
       final outputs = await Helper.audiooutputs;
       final inputs = await Helper.enumerateDevices('audioinput');
       final output = _preferredDevice(outputs);
       final input = _preferredDevice(inputs);
       if (output != null) {
-        await Helper.selectAudioOutput(output.deviceId);
-        _log('webrtc-audio-output: ${output.label}');
+        if (force || output.deviceId != _lastSelectedAudioOutputId) {
+          await Helper.selectAudioOutput(output.deviceId);
+          _lastSelectedAudioOutputId = output.deviceId;
+          _hasAppliedSpeakerphoneRoute = false;
+          _log('webrtc-audio-output: ${output.label}');
+        }
       } else if (_speakerphoneEnabled) {
-        await Helper.setSpeakerphoneOnButPreferBluetooth();
-        _log('webrtc-audio-output: speaker-or-bluetooth');
+        if (force || !_hasAppliedSpeakerphoneRoute) {
+          await Helper.setSpeakerphoneOnButPreferBluetooth();
+          _lastSelectedAudioOutputId = null;
+          _hasAppliedSpeakerphoneRoute = true;
+          _log('webrtc-audio-output: speaker-or-bluetooth');
+        }
       } else {
         await Helper.setSpeakerphoneOn(false);
       }
       if (input != null) {
-        await Helper.selectAudioInput(input.deviceId);
-        _log('webrtc-audio-input: ${input.label}');
+        if (force || input.deviceId != _lastSelectedAudioInputId) {
+          await Helper.selectAudioInput(input.deviceId);
+          _lastSelectedAudioInputId = input.deviceId;
+          _log('webrtc-audio-input: ${input.label}');
+        }
       }
     } catch (error) {
       _log('webrtc-audio-route-error', error: error);
@@ -539,6 +563,7 @@ class WebRtcVoiceService {
     try {
       final reports = await peerConnection.getStats();
       final summary = _statsSummary.build(reports);
+      await _recoverReceiverAudioIfNeeded(summary);
       final remoteTracks = _remoteAudioTracks
           .map(
             (track) =>
@@ -550,6 +575,57 @@ class WebRtcVoiceService {
       );
     } catch (error) {
       _log('webrtc-stats-error', error: error);
+    }
+  }
+
+  Future<void> _recoverReceiverAudioIfNeeded(
+    WebRtcStatsSnapshotSummary summary,
+  ) async {
+    if (_isController || _remoteAudioTracks.isEmpty) {
+      _lastInboundAudioBytes = null;
+      _lastInboundAudioPackets = null;
+      _receiverAudioStallCount = 0;
+      return;
+    }
+    final previousBytes = _lastInboundAudioBytes;
+    final previousPackets = _lastInboundAudioPackets;
+    _lastInboundAudioBytes = summary.inboundAudioBytes;
+    _lastInboundAudioPackets = summary.inboundAudioPackets;
+    if (previousBytes == null || previousPackets == null) {
+      return;
+    }
+    final advanced =
+        summary.inboundAudioBytes > previousBytes ||
+        summary.inboundAudioPackets > previousPackets;
+    if (advanced) {
+      _receiverAudioStallCount = 0;
+      return;
+    }
+    _receiverAudioStallCount++;
+    _log(
+      'webrtc-remote-audio-stall: count=$_receiverAudioStallCount inboundBytes=${summary.inboundAudioBytes} inboundPackets=${summary.inboundAudioPackets}',
+    );
+    if (_receiverAudioStallCount == 1) {
+      await _refreshAudioRoute(force: true);
+      for (final track in _remoteAudioTracks) {
+        await _applyReceiverPlaybackVolumeBoost(track);
+      }
+      return;
+    }
+    if (_receiverAudioStallCount == 2) {
+      for (final track in _remoteAudioTracks) {
+        track.enabled = false;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      for (final track in _remoteAudioTracks) {
+        track.enabled = true;
+        await _applyReceiverPlaybackVolumeBoost(track);
+      }
+      return;
+    }
+    if (_receiverAudioStallCount >= _receiverAudioStallThreshold) {
+      _receiverAudioStallCount = 0;
+      _notifyConnectionInterrupted('remote-audio-stall');
     }
   }
 }
