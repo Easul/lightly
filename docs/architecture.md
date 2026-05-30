@@ -40,9 +40,10 @@ UI 层（Flutter 页面与组件）
 - `proxy_service.dart`：代理生命周期与配置管理
 
 ### 远程控制
-- 屏幕采集
-- 触摸注入
-- 音频与剪贴板联动
+- 屏幕采集与 H.264 帧管线，Android 端负责 MediaProjection / MediaCodec 编码，Flutter 端负责 socket 传输与解码显示
+- 触摸、键盘、全局动作注入
+- WebRTC 双向语音，EasyTier 场景下优先使用远控 TCP 已验证的远端地址
+- 剪贴板与状态消息联动
 
 ### 本地服务
 - HTTP 文件服务
@@ -53,8 +54,7 @@ UI 层（Flutter 页面与组件）
 位于 `android/app/src/main/kotlin/` 与 `jniLibs/`：
 
 - `MainActivity.kt`：Flutter 与原生能力桥接
-- `ScreenCapture.kt`：屏幕捕获
-- `AudioPlayer.kt`：音频播放
+- `ScreenCapture.kt`：屏幕捕获与 AVC 编码，包含机型兼容的编码尺寸 fallback
 - `H264Decoder.kt`：视频解码
 - EasyTier JNI / Rust `.so`：P2P VPN 核心能力
 
@@ -89,6 +89,8 @@ LAN browser
   → Android capture / input services
   → screen / touch / clipboard / audio
 ```
+
+远控模块按职责拆分为连接流程、消息路由、屏幕帧管线、健康检测、语音协调等组件，详见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
 
 ## 性能注意点
 

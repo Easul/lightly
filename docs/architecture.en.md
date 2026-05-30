@@ -40,9 +40,10 @@ Most service logic lives under `lib/browser/` and `lib/services/`:
 - `proxy_service.dart`: proxy lifecycle and configuration
 
 ### Remote Control
-- Screen capture
-- Touch injection
-- Audio and clipboard coordination
+- Screen capture and H.264 frame pipeline, with Android handling MediaProjection / MediaCodec encoding and Flutter handling socket transport plus decode display
+- Touch, keyboard, and global action injection
+- Two-way WebRTC voice, preferring the proven remote-control TCP target address when running over EasyTier
+- Clipboard and status-message coordination
 
 ### Local Services
 - HTTP file service
@@ -53,8 +54,7 @@ Most service logic lives under `lib/browser/` and `lib/services/`:
 Native code lives under `android/app/src/main/kotlin/` and `jniLibs/`:
 
 - `MainActivity.kt`: bridge between Flutter and native capabilities
-- `ScreenCapture.kt`: screen capture
-- `AudioPlayer.kt`: audio playback
+- `ScreenCapture.kt`: screen capture and AVC encoding, including encoder-size fallback for device compatibility
 - `H264Decoder.kt`: video decoding
 - EasyTier JNI / Rust `.so` files: P2P VPN runtime
 
@@ -89,6 +89,8 @@ LAN browser
   → Android capture / input services
   → screen / touch / clipboard / audio
 ```
+
+Remote-control responsibilities are split into connection flow, message routing, screen-frame pipeline, health monitoring, and voice coordination. See [Browser / Remote Module Map](browser_remote_module_map.md).
 
 ## Performance Notes
 

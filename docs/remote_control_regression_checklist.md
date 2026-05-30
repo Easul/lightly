@@ -32,6 +32,8 @@ flutter test test/services/
 ## 屏幕流
 
 - [ ] 首屏能显示，不停留黑屏。
+- [ ] 红米等高分辨率机型如果全尺寸 AVC 配置失败，会降级到兼容尺寸并继续出帧。
+- [ ] 日志中能看到实际捕获尺寸，并且 controller 侧 `screen_info` 使用对应 `captureWidth` / `captureHeight`。
 - [ ] 横竖屏或分辨率变化后画面尺寸更新。
 - [ ] delta frame 连续播放流畅。
 - [ ] key frame request / recovery 后画面可恢复。
@@ -49,6 +51,8 @@ flutter test test/services/
 - [ ] Controller 听 Receiver 声音正常。
 - [ ] Receiver 麦克风开关状态能同步到 Controller。
 - [ ] Controller 说话能在 Receiver 端听到。
+- [ ] EasyTier 连接下连续讲话 1 分钟以上，Receiver 端不出现长期静音；如出现短暂停滞，日志应有 `webrtc-remote-audio-stall` 并自动恢复。
+- [ ] EasyTier 网络短暂波动后，远控控制/屏幕通道和 WebRTC 语音能自动重连或重建。
 - [ ] 耳机 / 蓝牙路由下声音方向正确。
 - [ ] 内置代理连接模式不提供 WebRTC 对话，并且 UI/日志符合设计。
 - [ ] 断开远控后 WebRTC session 和本地音频 track 被释放。

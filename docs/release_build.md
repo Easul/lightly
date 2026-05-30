@@ -25,6 +25,7 @@ bash scripts/build_multi_abi.sh
   - `app-arm64-v8a-release.apk`
   - `app-armeabi-v7a-release.apk`
 - 使用 `BUILD_VERSION_LABEL` 注入 `v<latest-tag>+<6-digit commit id>` 形式的用户可见版本标签。
+- 使用 `BUILD_VERSION_CODE` 注入 `5000 + main 分支提交数` 形式的 Android `versionCode`。
 
 ## 产物检查
 
@@ -38,7 +39,7 @@ bash scripts/build_multi_abi.sh
 
 - 用户可见版本标签使用 `vX.Y.Z+<commit>`。
 - 不要在 UI 上额外再拼一个 `v`。
-- Android `versionCode` 默认直接使用主分支提交次数。
+- Android `versionCode` 默认使用 `5000 + main 分支提交数`；只统计 `main`，不要把当前功能分支提交数算进去。
 - 如果目标设备已安装更高 `versionCode` 的临时包，直接覆盖会触发 `INSTALL_FAILED_VERSION_DOWNGRADE`。
 - 重复 adb 安装前先检查设备现有 versionCode：
 
