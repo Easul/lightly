@@ -12,7 +12,7 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.5'
+        default: 'v1.0.6'
 
 jobs:
   build-android:
@@ -75,8 +75,9 @@ jobs:
         # Build version label with commit hash: tag+commit
         BUILD_VERSION="${VERSION}+${COMMIT_HASH}"
         
-        # Calculate version code from main branch commit count with offset (5000+count)
-        COMMIT_COUNT=$(git rev-list --count main 2>/dev/null || git rev-list --count HEAD 2>/dev/null || echo "1")
+        # Calculate version code from main branch commit count with offset (5000+count).
+        # Prefer origin/main so tag builds count main history instead of a detached tag-only ref.
+        COMMIT_COUNT=$(git rev-list --count origin/main 2>/dev/null || git rev-list --count main 2>/dev/null || git rev-list --count HEAD 2>/dev/null || echo "1")
         VERSION_CODE=$((5000 + COMMIT_COUNT))
         
         echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -202,18 +203,21 @@ jobs:
           
           ### 🚀 功能特性
 
-          - 浏览器页面重构后保留完整标签页、下载、收藏、视频播放与站点数据管理能力
-          - 浏览器覆盖层、底栏与 WebView 刷新链路进一步优化，减少重建和动画卡顿
-          - 远程控制、音频流、代理与 EasyTier VPN 相关能力继续保留
-          - 代理浮动按钮、下载恢复/暂停和浏览器辅助交互继续可用
+          - 浏览器保留完整标签页、下载、收藏、视频播放、站点数据清理与备份恢复能力
+          - 远程控制支持屏幕观看、触摸/键盘/全局动作注入、剪贴板同步与 WebRTC 双向语音
+          - EasyTier P2P VPN 可用于跨网络远控，并优先复用远控 TCP 已验证的可达地址
+          - 发布包继续提供 arm64-v8a 与 armeabi-v7a 两个 ABI 分包
 
           ### 🔄 本次修改说明
 
-          - 拆分 BrowserPage 生命周期、标签切换与 WebView 协调逻辑，降低页面职责密度
-          - 优化抽屉、标签页切换器与更多菜单等覆盖层期间的重建与渲染节奏，减少浏览时卡顿
-          - 补强下载暂停/恢复、浮动按钮模式、收藏/弹窗/YouTube 相关浏览器交互
-          - 修复并清理远程控制音频、后台播放和 Android 侧服务/日志问题
-          - 本次补充将标签页面板和更多菜单改为更短高度，内容过多时在面板内部滚动
+          - 远程控制改为 WebRTC 语音链路，移除旧原生音频桥接，并保留内置代理模式下不启用语音的设计
+          - 优化 EasyTier 场景下的 WebRTC 候选地址选择、overlay host 改写、远控 IP 优先策略和接收端播放音量
+          - 增加远控控制/屏幕通道自动重连、WebRTC 失败重建，以及 EasyTier monitor 异常自动恢复
+          - 修复部分红米机型全分辨率 AVC 编码失败导致的被控端黑屏，自动降级到兼容捕获尺寸
+          - 修复 EasyTier 下控制端说话一段时间后被控端听不到的问题，增加 receiver 端远端音频停滞检测与恢复
+          - 拆分 Browser / Remote 多个 coordinator、helper 与 widget 模块，补充浏览器、远控、WebRTC 回归测试
+          - 优化浏览器 tab、地址栏、弹窗、X/YouTube 移动布局、登录态备份、Cookie origin 跟踪和站点数据清理
+          - 发布脚本改为使用 `5000 + main 分支提交数` 作为 Android `versionCode`，避免误把功能分支提交数计入版本号
           
           ### 📝 版本信息
           
