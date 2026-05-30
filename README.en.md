@@ -7,9 +7,9 @@ Lightly is a Flutter-based Android browser with built-in **remote control** capa
 ## Features
 
 ### Remote Control
-- **Real-time screen capture**: view your device screen from a browser
+- **Real-time screen capture**: view your device screen from a browser, with encoder-size fallback for devices that reject full-resolution AVC capture
 - **Remote touch control**: click and swipe on the web page to control the device in real time
-- **Audio streaming**: listen to device audio remotely
+- **WebRTC voice chat**: two-way voice between controller and receiver, with EasyTier sessions preferring the proven remote-control path
 - **Clipboard sync**: bidirectional clipboard sharing
 - **Web-based control interface**: no client installation needed; any browser on the same LAN can take control
 
@@ -23,7 +23,7 @@ Lightly is a Flutter-based Android browser with built-in **remote control** capa
 ### Networking
 - VLESS over WebSocket / TLS / XUDP
 - Local mixed proxy server (HTTP + SOCKS5)
-- EasyTier P2P VPN integration
+- EasyTier P2P VPN integration for remote control over virtual IPs
 - LAN file server and clipboard sync
 
 ### Other Tools
@@ -86,6 +86,8 @@ Release builds:
 ```bash
 bash scripts/build_multi_abi.sh
 ```
+
+The release script produces separate 64-bit and 32-bit APKs. Android `versionCode` is `5000 + main branch commit count`, while the user-facing version uses `vX.Y.Z+<commit>`.
 
 ## License
 
