@@ -58,20 +58,33 @@ class ScreenCapture(
         }
 
         mediaProjection = projection
-        val captureSpec = resolveCaptureSpec(width, height, densityDpi)
-        screenWidth = captureSpec.width
-        screenHeight = captureSpec.height
-        screenDensityDpi = captureSpec.densityDpi
+        val captureSpecs = resolveCaptureSpecs(width, height, densityDpi)
 
         handlerThread = HandlerThread("ScreenCapture").apply { start() }
         handler = Handler(handlerThread!!.looper)
 
+        var lastError: Exception? = null
         try {
-            resetEncodingStats()
-            setupEncoder()
-            setupVirtualDisplay()
-            isRunning = true
-            Log.i(TAG, "Screen capture started: ${screenWidth}x${screenHeight} @ ${fps}fps density=${screenDensityDpi}")
+            for ((index, captureSpec) in captureSpecs.withIndex()) {
+                screenWidth = captureSpec.width
+                screenHeight = captureSpec.height
+                screenDensityDpi = captureSpec.densityDpi
+                bitrate = captureSpec.bitrate
+                fps = captureSpec.fps
+                try {
+                    resetEncodingStats()
+                    setupEncoder(conservative = index > 0)
+                    setupVirtualDisplay()
+                    isRunning = true
+                    Log.i(TAG, "Screen capture started: ${screenWidth}x${screenHeight} @ ${fps}fps bitrate=$bitrate density=${screenDensityDpi} fallbackIndex=$index")
+                    return
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w(TAG, "Screen capture candidate failed: ${captureSpec.width}x${captureSpec.height} @ ${captureSpec.fps}fps bitrate=${captureSpec.bitrate}", e)
+                    releaseEncoderAndVirtualDisplayOnly()
+                }
+            }
+            throw lastError ?: IllegalStateException("No supported AVC capture size")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start screen capture", e)
             stop()
@@ -79,9 +92,10 @@ class ScreenCapture(
         }
     }
 
-    private fun setupEncoder() {
+    private fun setupEncoder(conservative: Boolean) {
         val encoderInstance = MediaCodec.createEncoderByType(MIME_TYPE)
         val profileLevel = selectAvcProfileLevel(encoderInstance.codecInfo)
+        ensureSupportedSize(encoderInstance.codecInfo)
         val format = MediaFormat.createVideoFormat(MIME_TYPE, screenWidth, screenHeight).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(
@@ -94,8 +108,10 @@ class ScreenCapture(
                 MediaFormat.KEY_COLOR_FORMAT,
                 MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
             )
-            setInteger(MediaFormat.KEY_PROFILE, profileLevel.profile)
-            setInteger(MediaFormat.KEY_LEVEL, profileLevel.level)
+            if (!conservative) {
+                setInteger(MediaFormat.KEY_PROFILE, profileLevel.profile)
+                setInteger(MediaFormat.KEY_LEVEL, profileLevel.level)
+            }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 setInteger(MediaFormat.KEY_LATENCY, 0)
                 setInteger(MediaFormat.KEY_QUALITY, 0)
@@ -109,7 +125,7 @@ class ScreenCapture(
 
         Log.i(
             TAG,
-            "Using AVC profile=${profileLevel.profile} level=${profileLevel.level} for ${screenWidth}x${screenHeight} bitrate=$bitrate fps=$fps"
+            "Using AVC profile=${if (conservative) "default" else profileLevel.profile} level=${if (conservative) "default" else profileLevel.level} for ${screenWidth}x${screenHeight} bitrate=$bitrate fps=$fps"
         )
 
         encoder = encoderInstance.apply {
@@ -169,6 +185,19 @@ class ScreenCapture(
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             inputSurface = createInputSurface()
             start()
+        }
+    }
+
+    private fun ensureSupportedSize(codecInfo: MediaCodecInfo) {
+        val capabilities = try {
+            codecInfo.getCapabilitiesForType(MIME_TYPE)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Failed to query AVC size support; trying configure anyway", e)
+            return
+        }
+        val videoCapabilities = capabilities.videoCapabilities ?: return
+        if (!videoCapabilities.isSizeSupported(screenWidth, screenHeight)) {
+            throw IllegalArgumentException("Unsupported AVC size ${screenWidth}x${screenHeight}")
         }
     }
 
@@ -342,6 +371,26 @@ class ScreenCapture(
         Log.i(TAG, "Screen capture stopped")
     }
 
+    private fun releaseEncoderAndVirtualDisplayOnly() {
+        virtualDisplay?.release()
+        virtualDisplay = null
+
+        inputSurface?.release()
+        inputSurface = null
+
+        try {
+            encoder?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            encoder?.release()
+        } catch (_: Exception) {
+        }
+        encoder = null
+        spsData = null
+        ppsData = null
+    }
+
     private fun resetEncodingStats() {
         encodedFrameCount = 0
         keyFrameCount = 0
@@ -355,30 +404,59 @@ class ScreenCapture(
         val width: Int,
         val height: Int,
         val densityDpi: Int,
+        val fps: Int,
+        val bitrate: Int,
     )
 
-    private fun resolveCaptureSpec(width: Int, height: Int, densityDpi: Int): CaptureSpec {
+    private fun resolveCaptureSpecs(width: Int, height: Int, densityDpi: Int): List<CaptureSpec> {
+        val candidates = mutableListOf<CaptureSpec>()
         val longEdge = maxOf(width, height)
         if (longEdge <= MAX_CAPTURE_LONG_EDGE) {
-            return CaptureSpec(width = width, height = height, densityDpi = densityDpi)
+            candidates.add(captureSpec(width, height, densityDpi, fps, bitrate))
+        } else {
+            val scale = MAX_CAPTURE_LONG_EDGE.toDouble() / longEdge.toDouble()
+            val scaledWidth = alignEven(width * scale)
+            val scaledHeight = alignEven(height * scale)
+            val scaledDensity = (densityDpi * scale).toInt().coerceAtLeast(120)
+
+            Log.i(
+                TAG,
+                "Scaling capture from ${width}x${height}@${densityDpi}dpi to ${scaledWidth}x${scaledHeight}@${scaledDensity}dpi"
+            )
+
+            candidates.add(captureSpec(scaledWidth, scaledHeight, scaledDensity, fps, bitrate))
         }
 
-        val scale = MAX_CAPTURE_LONG_EDGE.toDouble() / longEdge.toDouble()
-        val scaledWidth = ((width * scale).toInt() and -2).coerceAtLeast(2)
-        val scaledHeight = ((height * scale).toInt() and -2).coerceAtLeast(2)
-        val scaledDensity = (densityDpi * scale).toInt().coerceAtLeast(120)
+        val portrait = height >= width
+        val fallbackSizes = if (portrait) {
+            listOf(720 to 1280, 544 to 960, 360 to 640)
+        } else {
+            listOf(1280 to 720, 960 to 544, 640 to 360)
+        }
+        for ((fallbackWidth, fallbackHeight) in fallbackSizes) {
+            val scale = fallbackHeight.toDouble() / height.toDouble()
+            val fallbackDensity = (densityDpi * scale).toInt().coerceAtLeast(120)
+            val fallbackPixels = fallbackWidth * fallbackHeight
+            val fallbackBitrate = bitrate.coerceAtMost((fallbackPixels * 2).coerceIn(600_000, 2_500_000))
+            candidates.add(captureSpec(fallbackWidth, fallbackHeight, fallbackDensity, fps.coerceAtMost(15), fallbackBitrate))
+        }
 
-        Log.i(
-            TAG,
-            "Scaling capture from ${width}x${height}@${densityDpi}dpi to ${scaledWidth}x${scaledHeight}@${scaledDensity}dpi"
-        )
+        return candidates.distinctBy { "${it.width}x${it.height}" }
+    }
 
+    private fun captureSpec(width: Int, height: Int, densityDpi: Int, fps: Int, bitrate: Int): CaptureSpec {
         return CaptureSpec(
-            width = scaledWidth,
-            height = scaledHeight,
-            densityDpi = scaledDensity,
+            width = alignEven(width),
+            height = alignEven(height),
+            densityDpi = densityDpi,
+            fps = fps.coerceIn(5, 30),
+            bitrate = bitrate.coerceIn(500_000, 8_000_000),
         )
     }
+
+    private fun alignEven(value: Int): Int = (value and -2).coerceAtLeast(2)
+
+    private fun alignEven(value: Double): Int = alignEven(value.toInt())
 
     private fun recordEncodedFrame(size: Int, isKeyFrame: Boolean) {
         val now = System.currentTimeMillis()
