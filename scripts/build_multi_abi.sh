@@ -59,10 +59,9 @@ COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD 2>/dev/null || ech
 VERSION_NAME="${LATEST_TAG}+${COMMIT_HASH}"
 echo "📋 Version: $VERSION_NAME"
 
-# Calculate version code directly from main branch commit count.
 COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
-VERSION_CODE=$COMMIT_COUNT
-echo "🔢 Version code: $VERSION_CODE (main commit count)"
+VERSION_CODE=$((5000 + COMMIT_COUNT))
+echo "🔢 Version code: $VERSION_CODE (5000 + main commit count: $COMMIT_COUNT)"
 
 echo "⚙️  Local conservative build mode enabled"
 echo "   - Gradle daemon: disabled"

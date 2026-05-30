@@ -259,7 +259,7 @@ That script is now responsible for all of the following:
 - producing both:
   - `app-arm64-v8a-release.apk`
   - `app-armeabi-v7a-release.apk`
-- passing `BUILD_VERSION_CODE` so Gradle uses the main-branch commit count as the Android `versionCode`
+- passing `BUILD_VERSION_CODE` so Gradle uses `5000 + main-branch commit count` as the Android `versionCode`
 
 Prefer the script over ad-hoc manual commands whenever both ABIs are needed.
 
@@ -292,13 +292,14 @@ Important:
 
 - The checked-in script uses conservative local build settings: Gradle daemon disabled, parallel disabled, limited workers, cleanup between ABIs, and a cooldown/memory snapshot between builds. Keep this behavior unless CI or the local host is known to tolerate faster settings.
 - If script output says `Version Code: N`, verify Gradle actually used the same value when changing version wiring; the build script must pass `BUILD_VERSION_CODE` and `android/app/build.gradle.kts` must consume it.
+- Keep the numeric version base as `5000 + main branch commit count`; the important invariant is counting `main` only, not the current feature branch, so branch-local commits do not inflate release `versionCode`.
 
 ### Semantic version label + Android versionCode
 
 - Before any user-requested compile/build step, commit the current code first so the output APK can be traced back to an exact revision.
 - User-facing build labels should use `vx.x.x+<6-digit commit id>` instead of `vx.x.x+<number>`.
 - The commit-based build label already carries the leading `v`; do not prepend another `v` in UI display strings.
-- Android `versionCode` for release packages should be the **main branch commit count**, passed through `BUILD_VERSION_CODE` by `scripts/build_multi_abi.sh`.
+- Android `versionCode` for release packages should be **5000 + main branch commit count**, passed through `BUILD_VERSION_CODE` by `scripts/build_multi_abi.sh`.
 - Keep the commit-based user-facing label separate from Android's numeric `versionCode`.
 - Prefer supplying both the commit-based label and numeric versionCode at build time from git rather than editing `pubspec.yaml` for every package.
 - If a test device has a higher temporary `versionCode` installed, Android will reject the main-count release as a downgrade; either uninstall after confirming data can be cleared, or intentionally build a temporary higher versionCode package outside the normal release rule.
@@ -311,7 +312,7 @@ INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected
 ```
 
 **Handling:**
-- Normal release builds use main-branch commit count as `versionCode`; do not reintroduce the old `5000 + count` offset.
+- Normal release builds use `5000 + main-branch commit count` as `versionCode`; do not count the current feature branch or all local commits by mistake.
 - If you must reinstall a lower version, uninstall first only after confirming data can be cleared: `adb uninstall lightly.tool`.
 - To check current device versionCode: `adb shell dumpsys package lightly.tool | grep versionCode`.
 - Verify the built APK, when needed, with `apkanalyzer manifest print build/app/outputs/flutter-apk/app-arm64-v8a-release.apk | grep -E "versionCode|versionName"`.
