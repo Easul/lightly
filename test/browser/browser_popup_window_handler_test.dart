@@ -20,7 +20,7 @@ void main() {
       expect(decision.action, BrowserPopupWindowAction.external);
     });
 
-    test('keeps trusted auth popups as popup dialogs', () {
+    test('routes trusted auth popups to new tabs', () {
       final decision = handler.decide(
         requestedUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
         sourceUrl: 'https://example.com/login',
@@ -28,7 +28,7 @@ void main() {
         openNewWindowInTab: true,
       );
 
-      expect(decision.action, BrowserPopupWindowAction.showPopup);
+      expect(decision.action, BrowserPopupWindowAction.openTab);
       expect(
         decision.initialUrl,
         'https://accounts.google.com/o/oauth2/v2/auth',
@@ -47,7 +47,7 @@ void main() {
       expect(decision.initialUrl, 'https://example.com/popup');
     });
 
-    test('allows deferred auth popups with empty url', () {
+    test('routes deferred auth popups with empty url to new tab flow', () {
       final decision = handler.decide(
         requestedUrl: '',
         sourceUrl: 'https://example.com/oauth/login',
@@ -55,9 +55,9 @@ void main() {
         openNewWindowInTab: false,
       );
 
-      expect(decision.action, BrowserPopupWindowAction.showPopup);
+      expect(decision.action, BrowserPopupWindowAction.openTab);
       expect(decision.initialUrl, isNull);
-      expect(decision.statusMessage, '站点正在延迟创建登录窗口，已改为弹窗继续');
+      expect(decision.statusMessage, '站点正在延迟创建登录窗口，已改为新标签页继续');
     });
 
     test('routes empty gesture popup to new tab when enabled', () {

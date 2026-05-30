@@ -7,6 +7,7 @@ import '../clipboard_storage_service.dart';
 import '../local_http_file_server_service.dart';
 import '../proxy_service.dart';
 import 'browser_download_coordinator.dart';
+import 'browser_cookie_origin_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
 import 'browser_external_app_handler.dart';
@@ -39,6 +40,7 @@ class BrowserPageServices {
     required this.favoritesCoordinator,
     required this.proxyService,
     required this.historyService,
+    required this.cookieOriginService,
     required this.downloadService,
     required this.downloadStore,
     required this.externalUrlLauncher,
@@ -74,6 +76,7 @@ class BrowserPageServices {
     const favoritesCoordinator = BrowserFavoritesCoordinator();
     final proxyService = sharedServices.proxyService;
     final historyService = sharedServices.historyService;
+    final cookieOriginService = sharedServices.cookieOriginService;
     final downloadService = sharedServices.downloadService;
     final downloadStore = sharedServices.downloadStore;
     final externalUrlLauncher = sharedServices.externalUrlLauncher;
@@ -145,6 +148,7 @@ class BrowserPageServices {
       favoritesCoordinator: favoritesCoordinator,
       proxyService: proxyService,
       historyService: historyService,
+      cookieOriginService: cookieOriginService,
       downloadService: downloadService,
       downloadStore: downloadStore,
       externalUrlLauncher: externalUrlLauncher,
@@ -175,6 +179,7 @@ class BrowserPageServices {
   final BrowserFavoritesCoordinator favoritesCoordinator;
   final ProxyService proxyService;
   final BrowserHistoryService historyService;
+  final BrowserCookieOriginService cookieOriginService;
   final BrowserDownloadService downloadService;
   final BrowserDownloadStore downloadStore;
   final BrowserExternalUrlLauncherService externalUrlLauncher;

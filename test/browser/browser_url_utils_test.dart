@@ -90,4 +90,23 @@ void main() {
       expect(isDirectHostInput('example'), isFalse);
     });
   });
+
+  group('isLocalBrowserUrl', () {
+    test('accepts local file and content urls', () {
+      expect(isLocalBrowserUrl('file:///storage/emulated/0/test.html'), isTrue);
+      expect(isLocalBrowserUrl('content://downloads/test.html'), isTrue);
+    });
+
+    test('accepts localhost and private network urls', () {
+      expect(isLocalBrowserUrl('http://127.0.0.1:3000'), isTrue);
+      expect(isLocalBrowserUrl('http://localhost:12345'), isTrue);
+      expect(isLocalBrowserUrl('http://192.168.1.8:8080'), isTrue);
+      expect(isLocalBrowserUrl('https://10.126.126.1:42381'), isTrue);
+    });
+
+    test('rejects normal public web urls', () {
+      expect(isLocalBrowserUrl('https://x.com'), isFalse);
+      expect(isLocalBrowserUrl('https://m.youtube.com/watch?v=abc'), isFalse);
+    });
+  });
 }

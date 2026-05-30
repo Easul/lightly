@@ -24,10 +24,26 @@ class TabSwitcherSheet extends StatelessWidget {
   static const double _tabTileSpacing = 8;
   static const double _tabListItemExtent = _tabTileHeight + _tabTileSpacing;
   static const double _sheetMaxHeightFactor = 0.35;
+  static const BorderRadius _tileBorderRadius = BorderRadius.all(
+    Radius.circular(22),
+  );
+  static const BorderRadius _iconBorderRadius = BorderRadius.all(
+    Radius.circular(16),
+  );
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final activeBackgroundColor = colorScheme.primaryContainer.withValues(
+      alpha: 0.5,
+    );
+    final activeBorderColor = colorScheme.primary.withValues(alpha: 0.4);
+    final inactiveBorderColor = colorScheme.outlineVariant.withValues(
+      alpha: 0.4,
+    );
+    final activeIconBackgroundColor = colorScheme.primary.withValues(
+      alpha: 0.1,
+    );
 
     return SafeArea(
       child: Container(
@@ -109,40 +125,36 @@ class TabSwitcherSheet extends StatelessWidget {
                   vertical: 8,
                 ),
                 itemExtent: _tabListItemExtent,
+                addAutomaticKeepAlives: false,
+                addRepaintBoundaries: false,
                 itemCount: tabs.length,
                 itemBuilder: (context, index) {
                   final tab = tabs[index];
                   final isActive = tab.id == activeTabId;
 
                   return Padding(
+                    key: ValueKey(tab.id),
                     padding: const EdgeInsets.only(bottom: _tabTileSpacing),
                     child: RepaintBoundary(
                       child: Material(
                         color: isActive
-                            ? colorScheme.primaryContainer.withValues(
-                                alpha: 0.5,
-                              )
+                            ? activeBackgroundColor
                             : colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(22),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: _tileBorderRadius,
+                          side: BorderSide(
+                            color: isActive
+                                ? activeBorderColor
+                                : inactiveBorderColor,
+                            width: isActive ? 1.5 : 1,
+                          ),
+                        ),
                         child: InkWell(
                           onTap: () => onSelectTab(tab.id),
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: _tileBorderRadius,
                           child: SizedBox(
                             height: _tabTileHeight,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(
-                                  color: isActive
-                                      ? colorScheme.primary.withValues(
-                                          alpha: 0.4,
-                                        )
-                                      : colorScheme.outlineVariant.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                  width: isActive ? 1.5 : 1,
-                                ),
-                              ),
+                            child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 14,
                                 vertical: 12,
@@ -154,11 +166,9 @@ class TabSwitcherSheet extends StatelessWidget {
                                     height: 36,
                                     decoration: BoxDecoration(
                                       color: isActive
-                                          ? colorScheme.primary.withValues(
-                                              alpha: 0.1,
-                                            )
+                                          ? activeIconBackgroundColor
                                           : colorScheme.surfaceContainerLow,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: _iconBorderRadius,
                                     ),
                                     child: Icon(
                                       tab.isLoading

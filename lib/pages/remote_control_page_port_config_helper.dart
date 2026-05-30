@@ -32,23 +32,17 @@ class RemoteControlPagePortConfigHelper {
 
   RemoteControlPortConfig resolvePorts(RemoteControlPortConfig? ports) {
     return ports ??
-        const RemoteControlPortConfig(
-          controlPort: 18080,
-          screenPort: 18081,
-          audioPort: 18082,
-        );
+        const RemoteControlPortConfig(controlPort: 18080, screenPort: 18081);
   }
 
   void applyPortConfigToInputs({
     required TextEditingController controlPortController,
     required TextEditingController screenPortController,
-    required TextEditingController audioPortController,
     required RemoteControlPortConfig? ports,
   }) {
     final resolved = resolvePorts(ports);
     controlPortController.text = '${resolved.controlPort}';
     screenPortController.text = '${resolved.screenPort}';
-    audioPortController.text = '${resolved.audioPort}';
   }
 
   RemoteControlPortConfig updateControlPort(
@@ -58,7 +52,6 @@ class RemoteControlPagePortConfigHelper {
     return RemoteControlPortConfig(
       controlPort: value,
       screenPort: current?.screenPort ?? 18081,
-      audioPort: current?.audioPort ?? 18082,
     );
   }
 
@@ -69,18 +62,6 @@ class RemoteControlPagePortConfigHelper {
     return RemoteControlPortConfig(
       controlPort: current?.controlPort ?? 18080,
       screenPort: value,
-      audioPort: current?.audioPort ?? 18082,
-    );
-  }
-
-  RemoteControlPortConfig updateAudioPort(
-    RemoteControlPortConfig? current,
-    int value,
-  ) {
-    return RemoteControlPortConfig(
-      controlPort: current?.controlPort ?? 18080,
-      screenPort: current?.screenPort ?? 18081,
-      audioPort: value,
     );
   }
 }

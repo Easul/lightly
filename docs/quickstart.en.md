@@ -25,6 +25,7 @@ Recommended order for a first tour:
 | Scenario | How to Use |
 |----------|------------|
 | **Remote control between phones** | Open another phone's remote control address in your phone's browser to view and control the screen in real time |
+| **Remote control across networks** | Configure EasyTier and use the virtual IP path for remote control and WebRTC voice |
 | **LAN clipboard sync** | Copy on device A → paste on device B, no third-party cloud service needed |
 | **Access proxy sites** | Configure a VLESS node and browse sites that require proxy via WebView |
 | **File transfer between devices** | Enable the HTTP file service and upload/download via browser |
@@ -43,9 +44,9 @@ Recommended order for a first tour:
 - Local mixed proxy support (HTTP / SOCKS5)
 
 ### Remote Control
-- Screen capture
+- Screen capture, with compatible encoder-size fallback on devices that reject full-resolution AVC capture
 - Touch injection
-- Audio and clipboard sync
+- Two-way WebRTC voice and clipboard sync
 
 **Control Interface Operations:**
 - Tap/Single-finger tap = Phone touch tap
@@ -68,6 +69,11 @@ Recommended order for a first tour:
 - Make sure both devices are on the same LAN
 - Make sure the remote-control service is enabled
 - Check whether the port is already in use
+
+### Remote screen is black or voice drops
+- First confirm the network is stable; EasyTier fluctuations trigger automatic reconnects, but weak networks can still cause brief black screens or silence
+- On devices such as some Redmi models, the app automatically retries lower capture resolutions if full-resolution AVC encoding is rejected
+- If the controller speaks but the receiver stops hearing audio, toggling voice can refresh the audio route; newer builds also detect receiver-side remote-audio stalls and recover automatically
 
 ### Video playback behaves unexpectedly
 - Try clearing site data or cache first

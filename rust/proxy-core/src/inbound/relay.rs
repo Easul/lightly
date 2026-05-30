@@ -32,7 +32,14 @@ pub async fn pipe_bidirectional(
     }
 }
 
-pub async fn relay_vless_downstream_to_client<W, OnChunk, OnEof, OnWriteError, OnReadError, OnClose>(
+pub async fn relay_vless_downstream_to_client<
+    W,
+    OnChunk,
+    OnEof,
+    OnWriteError,
+    OnReadError,
+    OnClose,
+>(
     outbound_download: Arc<dyn ProxyStream>,
     mut client_w: W,
     buffer_size: usize,
@@ -77,7 +84,16 @@ pub async fn relay_vless_downstream_to_client<W, OnChunk, OnEof, OnWriteError, O
     on_close(total);
 }
 
-pub async fn relay_client_to_vless<R, OnChunk, OnBufferedWriteError, OnFallbackWriteError, OnWriteError, OnEof, OnReadError, OnClose>(
+pub async fn relay_client_to_vless<
+    R,
+    OnChunk,
+    OnBufferedWriteError,
+    OnFallbackWriteError,
+    OnWriteError,
+    OnEof,
+    OnReadError,
+    OnClose,
+>(
     mut client_r: R,
     outbound_upload: Arc<dyn ProxyStream>,
     buffer_size: usize,
@@ -115,7 +131,9 @@ pub async fn relay_client_to_vless<R, OnChunk, OnBufferedWriteError, OnFallbackW
     let mut waiting_for_first_payload = first_payload_fallback_after.is_some();
 
     loop {
-        let read_result = if let Some(delay) = first_payload_fallback_after.filter(|_| waiting_for_first_payload) {
+        let read_result = if let Some(delay) =
+            first_payload_fallback_after.filter(|_| waiting_for_first_payload)
+        {
             tokio::select! {
                 result = client_r.read(&mut buf) => result,
                 _ = sleep(delay) => {

@@ -19,7 +19,7 @@ import '../browser/widgets/settings/general_settings_section.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';
 import '../browser/widgets/settings/video_settings_section.dart';
 import '../services/app_toast.dart';
-import 'settings_page_home_sections.dart';
+import 'settings_page_body.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -491,111 +491,102 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _handleProxyProtocolChanged(String value) {
+    setState(() {
+      _formController.selectedProtocol = value;
+      if (!_formController.showsTransportFields) {
+        _formController.selectedTransportType = '';
+        _formController.proxyPacketEncoding = '';
+      }
+      if (_formController.selectedProtocol == BrowserProxyProtocol.vless) {
+        _formController.proxyTlsEnabled = true;
+      } else {
+        _formController.proxyTlsEnabled = false;
+        _formController.proxyTlsInsecure = false;
+      }
+    });
+    _markSectionDirty();
+  }
+
+  void _handleProxyTlsEnabledChanged(bool value) {
+    setState(() {
+      _formController.proxyTlsEnabled = value;
+      if (!value) {
+        _formController.proxyTlsInsecure = false;
+      }
+    });
+    _markSectionDirty();
+  }
+
+  void _handleProxyTransportTypeChanged(String value) {
+    setState(() {
+      _formController.selectedTransportType = value;
+    });
+    _markSectionDirty();
+  }
+
+  void _handleProxyPacketEncodingChanged(String value) {
+    setState(() {
+      _formController.proxyPacketEncoding = value;
+    });
+    _markSectionDirty();
+  }
+
+  void _handleProxyTlsInsecureChanged(bool value) {
+    setState(() {
+      _formController.proxyTlsInsecure = value;
+    });
+    _markSectionDirty();
+  }
+
+  void _handleLocalHttpToggle(bool value) {
+    setState(() {
+      _formController.localHttpServerEnabled = value;
+    });
+    _markSectionDirty();
+  }
+
+  void _handleLocalHttpBindAllInterfacesChanged(bool value) {
+    setState(() {
+      _formController.localHttpBindAllInterfaces = value;
+    });
+    _markSectionDirty();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.of(context).pop(_hasAppliedChanges);
-        return false;
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('设置'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.of(context).pop(_hasAppliedChanges),
-          ),
-        ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  SettingsPageHomeSections(
-                    buildGeneralSection: _buildGeneralSection,
-                    buildVideoSection: _buildVideoSection,
-                    pushSection: _pushSection,
-                    formController: _formController,
-                    proxySupported: _proxySupported,
-                    isSaving: _isSaving,
-                    proxyStateLabel: _proxyStateLabel,
-                    proxyStateColor: _proxyStateColor,
-                    localHttpStateLabel: _localHttpStateLabel,
-                    localHttpStateColor: _localHttpStateColor,
-                    proxyService: _proxyService,
-                    localHttpFileServerService: _localHttpFileServerService,
-                    errorMessage: _errorMessage,
-                    onHandleProxyToggle: _handleProxyToggle,
-                    onParseNodeLink: _parseNodeLink,
-                    onTestNodeSpeed: _testNodeSpeed,
-                    onProxyProtocolChanged: (value) {
-                      setState(() {
-                        _formController.selectedProtocol = value;
-                        if (!_formController.showsTransportFields) {
-                          _formController.selectedTransportType = '';
-                          _formController.proxyPacketEncoding = '';
-                        }
-                        if (_formController.selectedProtocol ==
-                            BrowserProxyProtocol.vless) {
-                          _formController.proxyTlsEnabled = true;
-                        } else {
-                          _formController.proxyTlsEnabled = false;
-                          _formController.proxyTlsInsecure = false;
-                        }
-                      });
-                      _markSectionDirty();
-                    },
-                    onProxyTlsEnabledChanged: (value) {
-                      setState(() {
-                        _formController.proxyTlsEnabled = value;
-                        if (!value) {
-                          _formController.proxyTlsInsecure = false;
-                        }
-                      });
-                      _markSectionDirty();
-                    },
-                    onProxyTransportTypeChanged: (value) {
-                      setState(() {
-                        _formController.selectedTransportType = value;
-                      });
-                      _markSectionDirty();
-                    },
-                    onProxyPacketEncodingChanged: (value) {
-                      setState(() {
-                        _formController.proxyPacketEncoding = value;
-                      });
-                      _markSectionDirty();
-                    },
-                    onProxyTlsInsecureChanged: (value) {
-                      setState(() {
-                        _formController.proxyTlsInsecure = value;
-                      });
-                      _markSectionDirty();
-                    },
-                    onLocalHttpToggle: (value) {
-                      setState(() {
-                        _formController.localHttpServerEnabled = value;
-                      });
-                      _markSectionDirty();
-                    },
-                    onLocalHttpBindAllInterfacesChanged: (value) {
-                      setState(() {
-                        _formController.localHttpBindAllInterfaces = value;
-                      });
-                      _markSectionDirty();
-                    },
-                    onUseSharedDownloadsDirectory: _useSharedDownloadsDirectory,
-                  ),
-                  const SizedBox(height: 32),
-                ],
-              ),
-        bottomNavigationBar: _isLoading
-            ? null
-            : SettingsHomeBottomActions(
-                isSaving: _isSaving,
-                onCancel: () => Navigator.of(context).pop(_hasAppliedChanges),
-                onSave: _saveSettings,
-              ),
+    return SettingsPageScaffold(
+      hasAppliedChanges: _hasAppliedChanges,
+      isLoading: _isLoading,
+      isSaving: _isSaving,
+      onSave: _saveSettings,
+      body: SettingsPageBody(
+        isLoading: _isLoading,
+        buildGeneralSection: _buildGeneralSection,
+        buildVideoSection: _buildVideoSection,
+        pushSection: _pushSection,
+        formController: _formController,
+        proxySupported: _proxySupported,
+        isSaving: _isSaving,
+        proxyStateLabel: _proxyStateLabel,
+        proxyStateColor: _proxyStateColor,
+        localHttpStateLabel: _localHttpStateLabel,
+        localHttpStateColor: _localHttpStateColor,
+        proxyService: _proxyService,
+        localHttpFileServerService: _localHttpFileServerService,
+        errorMessage: _errorMessage,
+        onHandleProxyToggle: _handleProxyToggle,
+        onParseNodeLink: _parseNodeLink,
+        onTestNodeSpeed: _testNodeSpeed,
+        onProxyProtocolChanged: _handleProxyProtocolChanged,
+        onProxyTlsEnabledChanged: _handleProxyTlsEnabledChanged,
+        onProxyTransportTypeChanged: _handleProxyTransportTypeChanged,
+        onProxyPacketEncodingChanged: _handleProxyPacketEncodingChanged,
+        onProxyTlsInsecureChanged: _handleProxyTlsInsecureChanged,
+        onLocalHttpToggle: _handleLocalHttpToggle,
+        onLocalHttpBindAllInterfacesChanged:
+            _handleLocalHttpBindAllInterfacesChanged,
+        onUseSharedDownloadsDirectory: _useSharedDownloadsDirectory,
       ),
     );
   }

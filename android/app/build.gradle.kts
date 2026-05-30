@@ -10,22 +10,22 @@ plugins {
 
 val targetAbi = providers.environmentVariable("TARGET_ABI").orNull
 val buildVersionLabel = providers.environmentVariable("BUILD_VERSION_LABEL").orNull
+val buildVersionCodeOverride = providers.environmentVariable("BUILD_VERSION_CODE").orNull?.toIntOrNull()
 val excludedAbis = when (targetAbi) {
     "arm64-v8a" -> listOf("armeabi-v7a", "x86", "x86_64")
     "armeabi-v7a" -> listOf("arm64-v8a", "x86", "x86_64")
     else -> emptyList()
 }
 
-// 自动版本管理：从 Git commit count 计算，确保单调递增
-// 使用偏移量 5000 避免与旧版本冲突
-val buildVersionCode: Int = try {
-    val commitCount = providers.exec {
+// Release scripts pass the main-branch commit count explicitly.
+// Fallback keeps local ad-hoc builds usable without editing pubspec.yaml.
+val buildVersionCode: Int = buildVersionCodeOverride ?: try {
+    providers.exec {
         workingDir(rootDir.parentFile)
-        commandLine("git", "rev-list", "--count", "HEAD")
+        commandLine("git", "rev-list", "--count", "main")
     }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
-    5000 + commitCount
 } catch (e: Exception) {
-    5001
+    1
 }
 
 android {
@@ -51,7 +51,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         // Keep Android versionCode monotonic for adb upgrades while allowing
         // the user-facing version label to follow semantic +build notation.
-        versionCode = buildVersionCode ?: 4032
+        versionCode = buildVersionCode
         versionName = buildVersionLabel ?: "${flutter.versionName}+${flutter.versionCode}"
 
         ndk {
@@ -76,6 +76,10 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".test"
+        }
+        getByName("profile") {
+            applicationIdSuffix = ".profile"
+            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             val releaseConfig = signingConfigs.findByName("release")

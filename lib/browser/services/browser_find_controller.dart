@@ -50,6 +50,7 @@ class BrowserFindController {
       return;
     }
     resetResults();
+    await _interactionController?.setSearchText(trimmed);
     await _interactionController?.findAll(find: trimmed);
   }
 

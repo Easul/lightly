@@ -75,10 +75,10 @@ class SettingsPageHomeSections extends StatelessWidget {
           icon: Icons.settings_outlined,
           title: '通用',
           subtitle: '主页、历史记录',
-          onTap: () => pushSection(
+          onTap: () => _pushSingleSection(
             title: '通用',
             icon: Icons.settings_outlined,
-            buildChildren: (_) => [buildGeneralSection()],
+            buildSection: buildGeneralSection,
           ),
         ),
         const Divider(height: 1),
@@ -86,10 +86,10 @@ class SettingsPageHomeSections extends StatelessWidget {
           icon: Icons.videocam_outlined,
           title: '视频',
           subtitle: '原生视频播放器',
-          onTap: () => pushSection(
+          onTap: () => _pushSingleSection(
             title: '视频',
             icon: Icons.videocam_outlined,
-            buildChildren: (_) => [buildVideoSection()],
+            buildSection: buildVideoSection,
           ),
         ),
         const Divider(height: 1),
@@ -198,6 +198,18 @@ class SettingsPageHomeSections extends StatelessWidget {
           onTap: () => Navigator.pushNamed(context, '/remote-control'),
         ),
       ],
+    );
+  }
+
+  void _pushSingleSection({
+    required String title,
+    required IconData icon,
+    required Widget Function() buildSection,
+  }) {
+    pushSection(
+      title: title,
+      icon: icon,
+      buildChildren: (_) => [buildSection()],
     );
   }
 }

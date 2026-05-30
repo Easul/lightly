@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/app_drawer.dart';
+import 'home_page_widgets.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.title});
@@ -35,32 +36,7 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20.0),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(16.0),
-                    ),
-                    child: Semantics(
-                      label: 'Cute cat ASCII art',
-                      child: const Text(
-                        r'''      |
-       |       /\_/\
-      /        ( o.o )
-     /_ _ _ _ _  > ^ <''',
-                        key: Key('ascii-art'),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 14,
-                          height: 1.0,
-                        ),
-                        textAlign: TextAlign.center,
-                        softWrap: false,
-                      ),
-                    ),
-                  ),
+                  const HomeAsciiArtCard(),
                   const SizedBox(height: 32),
                   const Text('You have pushed the button this many times:'),
                   Text(

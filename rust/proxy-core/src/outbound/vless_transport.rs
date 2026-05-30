@@ -2,9 +2,7 @@ use crate::common::Error;
 use crate::common::Result;
 use crate::outbound::vless::{SecurityType, VlessConfig};
 use http::Request;
-use rustls_022::client::danger::{
-    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
-};
+use rustls_022::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls_022::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls_022::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
 use std::net::SocketAddr;

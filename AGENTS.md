@@ -19,6 +19,7 @@
   - `## Build Size & Code Optimization Guidelines`
   - `## Git Artifact Hygiene`
   - `## Release Build (per-ABI packages)`
+  - `## WebRTC Voice over EasyTier / Remote-Control Path`
 - EasyTier native integration:
   - `## EasyTier Android Integration Notes`
 - Other app features:
@@ -258,7 +259,7 @@ That script is now responsible for all of the following:
 - producing both:
   - `app-arm64-v8a-release.apk`
   - `app-armeabi-v7a-release.apk`
-- incrementing `.build/version_code` exactly once after both builds finish
+- passing `BUILD_VERSION_CODE` so Gradle uses `5000 + main-branch commit count` as the Android `versionCode`
 
 Prefer the script over ad-hoc manual commands whenever both ABIs are needed.
 
@@ -289,14 +290,19 @@ Important:
 - Treat explicitly generated per-ABI outputs / commands as the source of truth for release delivery.
 - Do not assume `--target-platform android-arm64` alone guarantees a small single-ABI package when manual `jniLibs/` are checked in.
 
-### Semantic version label + monotonic Android versionCode
+- The checked-in script uses conservative local build settings: Gradle daemon disabled, parallel disabled, limited workers, cleanup between ABIs, and a cooldown/memory snapshot between builds. Keep this behavior unless CI or the local host is known to tolerate faster settings.
+- If script output says `Version Code: N`, verify Gradle actually used the same value when changing version wiring; the build script must pass `BUILD_VERSION_CODE` and `android/app/build.gradle.kts` must consume it.
+- Keep the numeric version base as `5000 + main branch commit count`; the important invariant is counting `main` only, not the current feature branch, so branch-local commits do not inflate release `versionCode`.
+
+### Semantic version label + Android versionCode
 
 - Before any user-requested compile/build step, commit the current code first so the output APK can be traced back to an exact revision.
 - User-facing build labels should use `vx.x.x+<6-digit commit id>` instead of `vx.x.x+<number>`.
 - The commit-based build label already carries the leading `v`; do not prepend another `v` in UI display strings.
-- Android installation still requires a strictly increasing numeric `versionCode`.
-- Keep the commit-based user-facing label separate from Android's monotonic numeric `versionCode`.
-- Prefer supplying the commit-based label at build time from git rather than manually incrementing a numeric `+N` suffix in `pubspec.yaml` for every package.
+- Android `versionCode` for release packages should be **5000 + main branch commit count**, passed through `BUILD_VERSION_CODE` by `scripts/build_multi_abi.sh`.
+- Keep the commit-based user-facing label separate from Android's numeric `versionCode`.
+- Prefer supplying both the commit-based label and numeric versionCode at build time from git rather than editing `pubspec.yaml` for every package.
+- If a test device has a higher temporary `versionCode` installed, Android will reject the main-count release as a downgrade; either uninstall after confirming data can be cleared, or intentionally build a temporary higher versionCode package outside the normal release rule.
 
 ### APK Installation Pitfall: Version Code Downgrade
 
@@ -305,15 +311,51 @@ Android **rejects** APK installation when the new APK's `versionCode` is lower t
 INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected
 ```
 
-**Prevention:**
-- Always increment `versionCode` before building. In `pubspec.yaml`, the build number after `+` becomes the Android `versionCode`:
-  ```yaml
-  version: 1.0.0+2003   # 2003 is the versionCode
-  ```
-- If you must reinstall a lower version, uninstall first: `adb uninstall lightly.tool`
-- To check current device versionCode: `adb shell dumpsys package lightly.tool | grep versionCode`
+**Handling:**
+- Normal release builds use `5000 + main-branch commit count` as `versionCode`; do not count the current feature branch or all local commits by mistake.
+- If you must reinstall a lower version, uninstall first only after confirming data can be cleared: `adb uninstall lightly.tool`.
+- To check current device versionCode: `adb shell dumpsys package lightly.tool | grep versionCode`.
+- Verify the built APK, when needed, with `apkanalyzer manifest print build/app/outputs/flutter-apk/app-arm64-v8a-release.apk | grep -E "versionCode|versionName"`.
 
 **Also update AGENTS.md** with new guidelines when they emerge from real-world fixes.
+
+## WebRTC Voice over EasyTier / Remote-Control Path
+
+Remote-control WebRTC voice has several real-world pitfalls that must not be regressed:
+
+- The remote-control TCP connection is the source of truth for reachability.
+  - When controller/receiver control and screen sockets are already connected through a host such as `10.126.*`, WebRTC should prefer that same proven remote-control IP instead of relying only on default Wi-Fi ICE candidates.
+  - `RemoteControlVoiceCoordinator.handleIncomingWebRtcSignal()` passes the active remote-control target host into `WebRtcVoiceService.handleSignal()`. Keep this path intact.
+
+- EasyTier / overlay sessions may not expose useful WebRTC host candidates automatically.
+  - `WebRtcVoiceService` resolves the local `10.126.*` interface and `WebRtcCandidateFilter.rewriteHostCandidateIp()` rewrites host candidates to advertise that overlay IP when the remote target is also overlay-routed.
+  - Do not remove candidate rewrite/logging unless EasyTier WebRTC voice is re-tested with both controller and receiver over `10.126.*`.
+
+- Interpret audio logs carefully:
+  - `AudioTrack ... [mute]` / `isLongTimeZeroData` with `MODE_IN_COMMUNICATION` and active playback means the Android output path is open but WebRTC is receiving silence or the peer connection is failed. It is not automatically a speaker-volume problem.
+  - `FlutterWebRTCPlugin: onConnectionChangeFAILED` on either side usually points to ICE/candidate reachability, not microphone hardware.
+  - Useful log filters: `webrtc-remote-audio`, `webrtc-local-candidate`, `webrtc-overlay-candidate-rewritten`, `webrtc-stats`, `onConnectionChange`, `AudioTrack`, `WebRtcAudioRecordExternal`.
+
+- Receiver-side output volume is intentionally boosted modestly.
+  - `WebRtcVoiceService` applies a bounded `Helper.setVolume(1.6, remoteTrack)` only when `_isController == false`, so the controlled device hears the controller louder without also amplifying controller-side monitoring and echo.
+  - Keep this boost modest; large values can clip or increase echo on some phones.
+
+- Internal proxy mode intentionally does not provide WebRTC voice.
+  - Test WebRTC voice over LAN or EasyTier direct remote-control connections, not the internal proxy path.
+
+Recommended verification after touching WebRTC voice:
+
+```bash
+flutter analyze lib/services/webrtc_voice_service.dart lib/services/remote_control_voice_coordinator.dart lib/services/remote_control_service.dart
+flutter test test/services/webrtc_candidate_filter_test.dart test/services/remote_control_voice_coordinator_test.dart test/services/
+```
+
+Manual smoke test:
+
+1. Connect remote control over LAN and verify two-way voice.
+2. Connect remote control over EasyTier `10.126.*` and verify `onConnectionChangeCONNECTED` or equivalent stable audio behavior.
+3. Confirm logs include overlay candidate rewrite when using EasyTier.
+4. Confirm the controlled device output is louder but not clipped or echoing badly.
 
 ## Cloudflare-Challenged Site Compatibility
 
@@ -371,6 +413,16 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
   - from `https://example-site.com/login`, tapping the Telegram button should open the auth popup
   - linux.do avatar/image links should remain suppressed
 
+## X / YouTube WebView Mobile Layout Compatibility
+
+- `x.com` / `twitter.com` and `youtube.com` / `youtu.be` should prefer the mobile WebView layout in this app.
+- Keep the browser WebView policy using the mobile user agent for these hosts, and disable `useWideViewPort` plus `loadWithOverviewMode` for them. The wide/desktop-style viewport path can make their internal bottom navigation areas render with excessive blank height in fullscreen.
+- There is also a site-specific compatibility CSS injection path (`BrowserSiteCompatibilityScript`) used to clamp the internal bottom navigation height for X and YouTube after load. Re-test these hosts before removing it.
+- Related files:
+  - `lib/browser/widgets/browser_webview_host.dart`
+  - `lib/browser/utils/browser_site_compatibility_script.dart`
+  - `lib/pages/browser_page.dart`
+
 ## Selective Browsing Data Clearing
 
 The browser supports clearing different categories of data independently:
@@ -383,6 +435,13 @@ The browser supports clearing different categories of data independently:
 - **Favorites**: All bookmark entries
 - **Clipboard**: Stored clipboard content
 - **Calculator History**: Calculator expression history
+
+### Cookie export origin tracking
+
+- Android WebView does not provide a supported full-cookie enumeration API in the current `flutter_inappwebview` Android implementation.
+- Do not derive cookie export targets from browsing history; users can clear history while cookies remain, causing `session` cookies to be skipped.
+- Cookie export should use the independent WebView cookie-origin index maintained from real WebView navigation events, plus documented supplemental origins, before calling `CookieManager.getCookies(url)`.
+- Clearing cookies/site data should clear this origin index; clearing history alone should not.
 
 ### Important: Favorite status tracker cache invalidation
 

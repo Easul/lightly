@@ -283,18 +283,12 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(2),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, animation) =>
-                        ScaleTransition(scale: animation, child: child),
-                    child: Icon(
-                      widget.isSecure ? Icons.lock_rounded : Icons.public,
-                      key: ValueKey(widget.isSecure),
-                      size: 16,
-                      color: widget.isSecure
-                          ? colorScheme.primary
-                          : colorScheme.onSurfaceVariant,
-                    ),
+                  child: Icon(
+                    widget.isSecure ? Icons.lock_rounded : Icons.public,
+                    size: 16,
+                    color: widget.isSecure
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -371,18 +365,12 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(8),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, animation) =>
-                          ScaleTransition(scale: animation, child: child),
-                      child: Icon(
-                        widget.isLoading
-                            ? Icons.close_rounded
-                            : Icons.refresh_rounded,
-                        key: ValueKey(widget.isLoading),
-                        size: 20,
-                        color: colorScheme.primary,
-                      ),
+                    child: Icon(
+                      widget.isLoading
+                          ? Icons.close_rounded
+                          : Icons.refresh_rounded,
+                      size: 20,
+                      color: colorScheme.primary,
                     ),
                   ),
                 )

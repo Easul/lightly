@@ -7,13 +7,19 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Path
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /**
  * 无障碍服务 - 用于注入手势事件
@@ -47,6 +53,8 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             get() = instance != null
     }
 
+    private var textOverlayView: View? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -71,9 +79,74 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        hideTextOverlay()
         instance = null
         Log.i(TAG, "AccessibilityService destroyed")
         super.onDestroy()
+    }
+
+    fun showTextOverlay(text: String) {
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        hideTextOverlay()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(28, 22, 28, 22)
+            setBackgroundColor(Color.argb(235, 17, 24, 39))
+        }
+        val messageView = TextView(this).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            textSize = 18f
+        }
+        val closeButton = Button(this).apply {
+            this.text = "关闭"
+            setOnClickListener { hideTextOverlay() }
+        }
+        container.addView(
+            messageView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        container.addView(
+            closeButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { gravity = Gravity.END },
+        )
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+
+        try {
+            windowManager.addView(container, params)
+            textOverlayView = container
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show text overlay", e)
+        }
+    }
+
+    fun hideTextOverlay() {
+        val overlay = textOverlayView ?: return
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        try {
+            windowManager.removeView(overlay)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove text overlay", e)
+        } finally {
+            textOverlayView = null
+        }
     }
 
     fun shutdown(): Boolean {

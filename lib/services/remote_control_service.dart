@@ -2,22 +2,25 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_command_helper.dart';
 import 'remote_control_cleanup_helper.dart';
+import 'remote_control_connection_flow_coordinator.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
+import 'remote_control_message_router.dart';
 import 'remote_control_protocol.dart';
-import 'remote_control_screen_pipeline_helper.dart';
+import 'remote_control_receiver_startup_coordinator.dart';
+import 'remote_control_screen_frame_pipeline_coordinator.dart';
+import 'remote_control_screen_health_coordinator.dart';
 import 'remote_control_status_bridge.dart';
-import 'remote_control_watchdog_controller.dart';
+import 'remote_control_voice_coordinator.dart';
 import 'screen_capture_manager.dart';
-import 'audio_capture_service.dart';
-import 'audio_playback_service.dart';
-import 'opus_audio_service.dart';
+import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
+import 'webrtc_voice_service.dart';
 
 enum RemoteControlMode { controller, receiver }
 
@@ -25,17 +28,31 @@ enum RemoteControlState { idle, connecting, connected, disconnected, error }
 
 class RemoteControlService {
   static const MethodChannel _channel = MethodChannel('remote_control');
+  static const String _easyTierOverlayPrefix = '10.126.';
   static final RemoteControlService _instance =
       RemoteControlService._internal();
   factory RemoteControlService() => _instance;
   RemoteControlService._internal() {
     _setupMethodCallHandler();
+    _voiceService = WebRtcVoiceService(
+      sendSignal: _sendWebRtcSignal,
+      ensureDiagnosticsLogging: _ensureAudioDiagnosticsLogging,
+      log: _logMessage,
+      onConnectionInterrupted: _handleWebRtcConnectionInterrupted,
+    );
+    _voiceCoordinator = RemoteControlVoiceCoordinator(
+      prepare: _voiceService.prepare,
+      setLocalAudioEnabled: _voiceService.setLocalAudioEnabled,
+      handleSignal: _voiceService.handleSignal,
+      close: _voiceService.close,
+      isPrepared: () => _voiceService.isPrepared,
+    );
   }
 
   RemoteControlMode _mode = RemoteControlMode.controller;
   RemoteControlState _state = RemoteControlState.idle;
   RemoteControlConfig? _config;
-  String? _remoteHost;
+  String? _targetHost;
 
   Socket? _controllerControlSocket;
   Socket? _receiverControlSocket;
@@ -43,7 +60,6 @@ class RemoteControlService {
   Socket? _controllerScreenSocket;
   Socket? _receiverScreenSocket;
   ServerSocket? _screenServer;
-  RawDatagramSocket? _audioSocket;
 
   final StreamController<RemoteControlState> _stateController =
       StreamController<RemoteControlState>.broadcast();
@@ -51,13 +67,8 @@ class RemoteControlService {
       StreamController<ControlMessage>.broadcast();
   final StreamController<ScreenFrame> _screenFrameController =
       StreamController<ScreenFrame>.broadcast();
-  final StreamController<Uint8List> _audioFrameController =
-      StreamController<Uint8List>.broadcast();
 
   final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager();
-  final AudioCaptureService _audioCaptureService = AudioCaptureService();
-  final AudioPlaybackService _audioPlaybackService = AudioPlaybackService();
-  final OpusAudioService _opusService = OpusAudioService();
   final PerformanceMonitorService _performanceMonitor =
       PerformanceMonitorService();
   final RemoteControlCommandHelper _commandHelper =
@@ -68,17 +79,21 @@ class RemoteControlService {
       const RemoteControlConnectionHelper();
   final RemoteControlLifecycleHelper _lifecycleHelper =
       const RemoteControlLifecycleHelper();
-  final RemoteControlScreenPipelineHelper _screenPipelineHelper =
-      const RemoteControlScreenPipelineHelper();
+  final RemoteControlConnectionFlowCoordinator _connectionFlow =
+      RemoteControlConnectionFlowCoordinator();
+  final RemoteControlMessageRouter _messageRouter =
+      RemoteControlMessageRouter();
+  final RemoteControlReceiverStartupCoordinator _receiverStartup =
+      const RemoteControlReceiverStartupCoordinator();
+  final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
+      RemoteControlScreenFramePipelineCoordinator();
   final RemoteControlStatusBridge _statusBridge =
       const RemoteControlStatusBridge();
-  final RemoteControlWatchdogController _watchdogController =
-      RemoteControlWatchdogController();
-  bool _useOpus = true; // 默认启用 Opus 编码
+  final RemoteControlScreenHealthCoordinator _screenHealth =
+      RemoteControlScreenHealthCoordinator();
+  late final WebRtcVoiceService _voiceService;
+  late final RemoteControlVoiceCoordinator _voiceCoordinator;
 
-  static const Duration _receiverCaptureSuppressAfterPlayback = Duration(
-    milliseconds: 180,
-  );
   static const Duration _screenFrameStallThreshold = Duration(
     milliseconds: 700,
   );
@@ -88,25 +103,22 @@ class RemoteControlService {
   static const Duration _screenRecoveryKeyFrameRetryCooldown = Duration(
     milliseconds: 450,
   );
-  static const int _pcmAudioMarker = 0x00;
-  static const int _opusAudioMarker = 0x01;
-  static const int _maxPcmPayloadBytes = 640;
-  static const int _maxOpusPayloadBytes = 256;
   static const int _latestFrameBatchThreshold = 3;
 
-  final List<int> _screenDataBuffer = [];
-  Uint8List? _latestRemoteSps;
-  Uint8List? _latestRemotePps;
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
-  StreamSubscription<Uint8List>? _audioCaptureSubscription;
-  Completer<void>? _connectionReadyCompleter;
-  final StringBuffer _controllerControlBuffer = StringBuffer();
-  final StringBuffer _receiverControlBuffer = StringBuffer();
-  String? _expectedAudioPeerHost;
-  int? _expectedAudioPeerPort;
-  DateTime? _lastIncomingAudioAt;
+  bool _audioDiagnosticsLoggingReady = false;
+  bool _autoReconnectEnabled = false;
+  bool _autoReconnectInProgress = false;
+  bool _disconnectRequested = false;
+  String? _lastControllerHost;
+  RemoteControlPortConfig? _lastControllerPorts;
+  bool _lastControllerUseProxy = false;
+  int? _lastControllerProxyPort;
+  List<String> _lastControllerAvailableHosts = const <String>[];
+  int _lastControllerDiscoveryDelayMs = 0;
+  DateTime? _lastWebRtcRecoveryAt;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -115,19 +127,20 @@ class RemoteControlService {
   Stream<RemoteControlState> get stateStream => _stateController.stream;
   Stream<ControlMessage> get messageStream => _messageController.stream;
   Stream<ScreenFrame> get screenFrameStream => _screenFrameController.stream;
-  Stream<Uint8List> get audioFrameStream => _audioFrameController.stream;
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
-  AudioCaptureService get audioCaptureService => _audioCaptureService;
-  AudioPlaybackService get audioPlaybackService => _audioPlaybackService;
+  bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
+  bool get isVoiceEnabled => _config?.enableVoice ?? true;
+  bool get isRemoteMicrophoneEnabled =>
+      _voiceCoordinator.remoteMicrophoneEnabled;
 
   RemoteControlState get state => _state;
   RemoteControlMode get mode => _mode;
   RemoteControlConfig? get config => _config;
   bool get isConnected => _state == RemoteControlState.connected;
   Uint8List? get latestScreenSps =>
-      _latestRemoteSps ?? _screenCaptureManager.spsData;
+      _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
   Uint8List? get latestScreenPps =>
-      _latestRemotePps ?? _screenCaptureManager.ppsData;
+      _screenFramePipeline.latestPps ?? _screenCaptureManager.ppsData;
   Size? get latestRemoteScreenSize {
     final width = (_latestRemoteScreenInfo?['width'] as num?)?.toDouble();
     final height = (_latestRemoteScreenInfo?['height'] as num?)?.toDouble();
@@ -139,11 +152,33 @@ class RemoteControlService {
 
   int _nextMessageId() => ++_messageIdCounter;
 
-  void _markConnectionReady() {
-    final completer = _connectionReadyCompleter;
-    if (completer != null && !completer.isCompleted) {
-      completer.complete();
+  void _logMessage(String message, {Object? error}) {
+    developer.log(message, name: 'RemoteControl', error: error);
+    unawaited(
+      AppLogService.instance.log('[RemoteControl] $message', error: error),
+    );
+  }
+
+  Future<void> _ensureAudioDiagnosticsLogging() async {
+    if (_audioDiagnosticsLoggingReady) {
+      return;
     }
+    if (kProfileMode && !AppLogService.instance.isEnabled) {
+      await AppLogService.instance.setEnabled(true);
+    }
+    _audioDiagnosticsLoggingReady = true;
+    await AppLogService.instance.log(
+      '[RemoteControl] audio diagnostics logging ready',
+      metadata: <String, Object?>{
+        'mode': _mode.name,
+        'profile': kProfileMode,
+        'logPath': AppLogService.instance.logPath,
+      },
+    );
+  }
+
+  void _markConnectionReady() {
+    _connectionFlow.markReady();
   }
 
   void _setupMethodCallHandler() {
@@ -170,7 +205,7 @@ class RemoteControlService {
           final sps = call.arguments['sps'] as Uint8List;
           final pps = call.arguments['pps'] as Uint8List;
           _screenCaptureManager.handleConfigFrame(sps, pps);
-          _watchdogController.markAwaitingRecoveryKeyFrame();
+          _screenHealth.markAwaitingRecoveryKeyFrame(true);
 
           if (_receiverControlSocket != null) {
             unawaited(_sendScreenInfoStatus());
@@ -253,56 +288,41 @@ class RemoteControlService {
     final ports = _config!.ports;
 
     try {
-      await _channel.invokeMethod('startReceiver', {
-        'controlPort': ports.controlPort,
-        'screenPort': ports.screenPort,
-        'audioPort': ports.audioPort,
-        'screenFps': _config!.screenFps,
-        'screenBitrate': _config!.screenBitrate,
-        'audioSampleRate': _config!.audioSampleRate,
-        'audioBitrate': _config!.audioBitrate,
-      });
-
-      _controlServer = await ServerSocket.bind(
-        InternetAddress.anyIPv4,
-        ports.controlPort,
+      await _receiverStartup.start(
+        enableScreen: _config!.enableScreen,
+        startNativeReceiver: () => _channel.invokeMethod('startReceiver', {
+          'controlPort': ports.controlPort,
+          'screenPort': ports.screenPort,
+          'screenFps': _config!.screenFps,
+          'screenBitrate': _config!.screenBitrate,
+        }),
+        bindControlServer: () async {
+          _controlServer = await ServerSocket.bind(
+            InternetAddress.anyIPv4,
+            ports.controlPort,
+          );
+          _controlServer!.listen(_handleControlConnection);
+        },
+        bindScreenServer: () async {
+          _screenServer = await ServerSocket.bind(
+            InternetAddress.anyIPv4,
+            ports.screenPort,
+          );
+          _screenServer!.listen(_handleScreenConnection);
+        },
+        rollbackStartup: _rollbackReceiverStartup,
+        log: (message, {error}) =>
+            developer.log(message, name: 'RemoteControl', error: error),
       );
-      _controlServer!.listen(_handleControlConnection);
-
-      if (_config!.enableScreen) {
-        _screenServer = await ServerSocket.bind(
-          InternetAddress.anyIPv4,
-          ports.screenPort,
-        );
-        _screenServer!.listen(_handleScreenConnection);
-      }
-
-      if (_config!.enableAudio) {
-        _audioSocket = await RawDatagramSocket.bind(
-          InternetAddress.anyIPv4,
-          ports.audioPort,
-        );
-        _audioSocket!.listen(_handleAudioPacket);
-        await startAudioPlayback(
-          sampleRate: _config!.audioSampleRate,
-          channels: 1,
-        );
-      }
 
       _updateState(RemoteControlState.idle);
       developer.log(
-        'Receiver started on ports ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
+        'Receiver started on ports ${ports.controlPort}/${ports.screenPort}',
         name: 'RemoteControl',
       );
       return ports;
     } catch (e) {
-      await _rollbackReceiverStartup();
       _updateState(RemoteControlState.error);
-      developer.log(
-        'Failed to start receiver: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
       rethrow;
     }
   }
@@ -317,10 +337,16 @@ class RemoteControlService {
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
-    _remoteHost = host;
-    _config = RemoteControlConfig(ports: ports);
-    _expectedAudioPeerHost = host;
-    _expectedAudioPeerPort = ports.audioPort;
+    _targetHost = host;
+    _lastControllerHost = host;
+    _lastControllerPorts = ports;
+    _lastControllerUseProxy = useProxy;
+    _lastControllerProxyPort = proxyPort;
+    _lastControllerAvailableHosts = List<String>.from(availableHosts);
+    _lastControllerDiscoveryDelayMs = discoveryDelayMs;
+    _autoReconnectEnabled = true;
+    _disconnectRequested = false;
+    _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
 
     // 记录设备发现路径
     _performanceMonitor.recordDiscoveryPath(
@@ -332,73 +358,55 @@ class RemoteControlService {
 
     _updateState(RemoteControlState.connecting);
 
-    Object? lastError;
-    for (var attempt = 0; attempt < 4; attempt++) {
-      var nativeControllerStarted = false;
-      try {
-        _connectionReadyCompleter = Completer<void>();
-        _screenDataBuffer.clear();
-
-        final connection = await _lifecycleHelper.connectControllerSockets(
-          host: host,
-          config: _config!,
-          useProxy: useProxy,
-          proxyPort: proxyPort,
-          onControlData: _handleControlData,
-          onControlError: _handleControlError,
-          onControlDone: _handleControlDone,
-          onScreenDataRaw: _handleScreenDataRaw,
-          onScreenError: (error, socket) => _handleScreenError(
-            error,
-            socket: socket,
-            mode: RemoteControlMode.controller,
-          ),
-          onScreenDone: (socket) => _handleScreenDone(
-            socket: socket,
-            mode: RemoteControlMode.controller,
-          ),
-          onAudioPacket: _handleAudioPacket,
-          startAudioPlayback: startAudioPlayback,
-          sendAudioPortStatus: _sendAudioPortStatus,
-        );
-        _controllerControlSocket = connection.controlSocket;
-        _controllerScreenSocket = connection.screenSocket;
-        _audioSocket = connection.audioSocket;
-
-        await _channel.invokeMethod('startController', {
-          'host': host,
-          'audioPort': ports.audioPort,
-        });
-        nativeControllerStarted = true;
-
-        _startScreenFrameWatchdog();
-        _startHeartbeat();
-        await _connectionReadyCompleter!.future.timeout(
-          const Duration(seconds: 2),
-        );
-        _updateState(RemoteControlState.connected);
-        developer.log('Connected to $host', name: 'RemoteControl');
-        return;
-      } catch (e) {
-        lastError = e;
-        developer.log(
-          'Connect attempt ${attempt + 1} failed: $e',
-          name: 'RemoteControl',
-          error: e,
-        );
-        await _resetControllerConnection(stopNative: nativeControllerStarted);
-        if (attempt < 3) {
-          await Future<void>.delayed(
-            Duration(milliseconds: 350 * (attempt + 1)),
+    try {
+      await _connectionFlow.connect(
+        prepareAttempt: (_) {
+          _screenFramePipeline.reset();
+        },
+        attemptConnection: (_, markNativeStarted) async {
+          final connection = await _lifecycleHelper.connectControllerSockets(
+            host: host,
+            config: _config!,
+            useProxy: useProxy,
+            proxyPort: proxyPort,
+            onControlData: _handleControlData,
+            onControlError: _handleControlError,
+            onControlDone: _handleControlDone,
+            onScreenDataRaw: _handleScreenDataRaw,
+            onScreenError: (error, socket) => _handleScreenError(
+              error,
+              socket: socket,
+              mode: RemoteControlMode.controller,
+            ),
+            onScreenDone: (socket) => _handleScreenDone(
+              socket: socket,
+              mode: RemoteControlMode.controller,
+            ),
           );
-        }
-      } finally {
-        _connectionReadyCompleter = null;
-      }
-    }
+          _controllerControlSocket = connection.controlSocket;
+          _controllerScreenSocket = connection.screenSocket;
 
-    _updateState(RemoteControlState.error);
-    throw lastError ?? Exception('连接失败');
+          await _channel.invokeMethod('startController', {'host': host});
+          markNativeStarted();
+          if (isVoiceEnabled) {
+            await _prepareVoiceSession(isController: true);
+          } else {
+            _logMessage('WebRTC voice disabled for internal proxy connection');
+          }
+
+          _startScreenFrameWatchdog();
+          _startHeartbeat();
+        },
+        resetConnection: _resetControllerConnection,
+        log: (message, {error}) =>
+            developer.log(message, name: 'RemoteControl', error: error),
+      );
+      _updateState(RemoteControlState.connected);
+      developer.log('Connected to $host', name: 'RemoteControl');
+    } catch (e) {
+      _updateState(RemoteControlState.error);
+      rethrow;
+    }
   }
 
   Future<RemoteControlPortConfig?> discoverReceiverPorts(
@@ -415,46 +423,111 @@ class RemoteControlService {
     );
   }
 
+  Future<void> _autoReconnectController(String reason) async {
+    if (_mode != RemoteControlMode.controller ||
+        !_autoReconnectEnabled ||
+        _disconnectRequested ||
+        _autoReconnectInProgress) {
+      return;
+    }
+    final host = _lastControllerHost;
+    final ports = _lastControllerPorts;
+    if (host == null || ports == null) {
+      return;
+    }
+    _autoReconnectInProgress = true;
+    _logMessage('Remote reconnect scheduled: reason=$reason host=$host');
+    _updateState(RemoteControlState.connecting);
+    await _resetControllerConnection(stopNative: true);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (_disconnectRequested) {
+      _autoReconnectInProgress = false;
+      return;
+    }
+    try {
+      await connectToReceiver(
+        host,
+        ports,
+        availableHosts: _lastControllerAvailableHosts,
+        discoveryDelayMs: _lastControllerDiscoveryDelayMs,
+        useProxy: _lastControllerUseProxy,
+        proxyPort: _lastControllerProxyPort,
+      );
+      _logMessage('Remote reconnect succeeded: reason=$reason host=$host');
+    } catch (error) {
+      _logMessage('Remote reconnect failed: $error', error: error);
+      if (!_disconnectRequested) {
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          unawaited(_autoReconnectController('retry-after-failure'));
+        });
+      }
+    } finally {
+      _autoReconnectInProgress = false;
+    }
+  }
+
+  void _handleWebRtcConnectionInterrupted(String reason) {
+    if (_mode != RemoteControlMode.controller ||
+        !isVoiceEnabled ||
+        _controllerControlSocket == null) {
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastWebRtcRecoveryAt;
+    if (last != null && now.difference(last) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastWebRtcRecoveryAt = now;
+    final wasLocalAudioEnabled = _voiceService.isLocalAudioEnabled;
+    _logMessage('Rebuilding WebRTC voice after interruption: $reason');
+    unawaited(() async {
+      await _voiceCoordinator.close();
+      await _prepareVoiceSession(isController: true);
+      if (wasLocalAudioEnabled) {
+        await _voiceCoordinator.startAudioCapture(
+          isVoiceEnabled: isVoiceEnabled,
+          isController: true,
+          targetHost: _targetHost,
+          overlayPrefix: _easyTierOverlayPrefix,
+          log: _logMessage,
+        );
+      }
+    }());
+  }
+
   Future<void> _resetControllerConnection({required bool stopNative}) async {
     developer.log(
-      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} audioSocket=${_audioSocket != null} buffer=${_screenDataBuffer.length}',
+      'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} buffer=${_screenFramePipeline.bufferLength}',
       name: 'RemoteControl',
     );
     await _cleanupHelper.resetControllerConnection(
       stopNative: stopNative,
       controllerControlSocket: _controllerControlSocket,
       controllerScreenSocket: _controllerScreenSocket,
-      audioSocket: _audioSocket,
-      screenDataBuffer: _screenDataBuffer,
-      controllerControlBuffer: _controllerControlBuffer,
+      resetScreenPipeline: _screenFramePipeline.reset,
+      resetControllerMessages: _messageRouter.resetController,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
-      stopAudioPlayback: stopAudioPlayback,
+      closeVoiceSession: _voiceCoordinator.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _controllerControlSocket = null;
     _controllerScreenSocket = null;
-    _audioSocket = null;
-    _expectedAudioPeerPort = _mode == RemoteControlMode.controller
-        ? _config?.ports.audioPort
-        : null;
   }
 
   Future<void> _rollbackReceiverStartup() async {
     await _cleanupHelper.rollbackReceiverStartup(
       receiverControlSocket: _receiverControlSocket,
       receiverScreenSocket: _receiverScreenSocket,
-      audioSocket: _audioSocket,
       controlServer: _controlServer,
       screenServer: _screenServer,
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopAudioCapture: stopAudioCapture,
-      stopAudioPlayback: stopAudioPlayback,
+      closeVoiceSession: _voiceCoordinator.close,
       stopNativeService: () => _channel.invokeMethod('stop'),
     );
     _receiverControlSocket = null;
     _receiverScreenSocket = null;
-    _audioSocket = null;
     _controlServer = null;
     _screenServer = null;
   }
@@ -471,6 +544,23 @@ class RemoteControlService {
     _controllerControlSocket!.add(data);
   }
 
+  Future<void> sendOverlayText(String text) async {
+    final normalized = text.trim();
+    if (normalized.isEmpty || _controllerControlSocket == null) return;
+    final message = StatusMessage.overlayText(text: normalized);
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+  }
+
+  Future<void> setReceiverMicrophoneEnabled(bool enabled) async {
+    if (!isVoiceEnabled || _controllerControlSocket == null) return;
+    final message = StatusMessage.receiverMicrophone(enabled: enabled);
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+  }
+
   Future<void> sendGlobalAction(GlobalAction action) async {
     final json = {
       'type': 'global',
@@ -481,34 +571,6 @@ class RemoteControlService {
     if (_controllerControlSocket == null) return;
     final data = utf8.encode('${jsonEncode(json)}\n');
     _controllerControlSocket!.add(data);
-  }
-
-  Future<void> sendAudioFrame(Uint8List opusData, int sequence) async {
-    if (_audioSocket == null || _remoteHost == null) return;
-    final destinationPort = switch (_mode) {
-      RemoteControlMode.controller => _config?.ports.audioPort,
-      RemoteControlMode.receiver => _expectedAudioPeerPort,
-    };
-    if (destinationPort == null) return;
-    final header = ByteData(6);
-    header.setUint16(0, sequence, Endian.big);
-    header.setUint32(
-      2,
-      DateTime.now().millisecondsSinceEpoch & 0xFFFFFFFF,
-      Endian.big,
-    );
-    final packet = Uint8List.fromList([
-      ...header.buffer.asUint8List(),
-      ...opusData,
-    ]);
-    _audioSocket!.send(packet, InternetAddress(_remoteHost!), destinationPort);
-  }
-
-  Future<void> _sendAudioPortStatus(int port) async {
-    await _statusBridge.sendAudioPortStatus(
-      controllerControlSocket: _controllerControlSocket,
-      port: port,
-    );
   }
 
   Future<bool> startScreenCapture({int fps = 12, int bitrate = 2500000}) async {
@@ -545,24 +607,24 @@ class RemoteControlService {
     final controllerSocket = _controllerControlSocket;
     if (controllerSocket != null) {
       developer.log(
-        'Forwarding key frame request over control channel: state=$_state screenSocket=${_controllerScreenSocket != null} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'} buffer=${_screenDataBuffer.length}',
+        'Forwarding key frame request over control channel: state=$_state screenSocket=${_controllerScreenSocket != null} lastFrameAgo=${_screenHealth.lastFrameAgeDescription} buffer=${_screenFramePipeline.bufferLength}',
         name: 'RemoteControl',
       );
       final message = StatusMessage.requestKeyFrame();
       controllerSocket.add(
         utf8.encode('${RemoteControlCodec.encode(message)}\n'),
       );
-      _watchdogController.recordKeyFrameRequest(requestedAt);
+      _screenHealth.recordKeyFrameRequest(requestedAt);
       return;
     }
 
     try {
       developer.log(
-        'Issuing native key frame request: mode=$_mode state=$_state buffer=${_screenDataBuffer.length}',
+        'Issuing native key frame request: mode=$_mode state=$_state buffer=${_screenFramePipeline.bufferLength}',
         name: 'RemoteControl',
       );
       await _channel.invokeMethod('requestKeyFrame');
-      _watchdogController.recordKeyFrameRequest(requestedAt);
+      _screenHealth.recordKeyFrameRequest(requestedAt);
     } catch (e) {
       developer.log(
         'Failed to request key frame: $e',
@@ -600,103 +662,34 @@ class RemoteControlService {
     int sampleRate = 16000,
     int channels = 1,
   }) async {
-    try {
-      await _audioCaptureSubscription?.cancel();
-      await _audioCaptureService.initialize(
-        sampleRate: sampleRate,
-        channels: channels,
-      );
-
-      // 初始化 Opus 如果启用
-      if (_useOpus) {
-        try {
-          await _opusService.initialize();
-          developer.log('Opus encoding enabled', name: 'RemoteControl');
-        } catch (e) {
-          developer.log(
-            'Failed to initialize Opus, falling back to PCM: $e',
-            name: 'RemoteControl',
-          );
-          _useOpus = false;
-        }
-      }
-
-      _audioCaptureSubscription = _audioCaptureService.frameStream.listen((
-        pcmData,
-      ) {
-        if (_shouldSuppressOutgoingCapturedAudio()) {
-          return;
-        }
-        if (_useOpus) {
-          // Opus 编码: 16kHz 采样率下 20ms 帧 = 640 bytes PCM -> ~60 bytes Opus
-          final encoded = _opusService.encodeFrame(pcmData);
-          if (encoded != null) {
-            final packet = Uint8List(encoded.length + 1);
-            packet[0] = _opusAudioMarker;
-            packet.setAll(1, encoded);
-            sendAudioFrame(packet, _audioCaptureService.sequence);
-          } else {
-            final packet = Uint8List(pcmData.length + 1);
-            packet[0] = _pcmAudioMarker;
-            packet.setAll(1, pcmData);
-            sendAudioFrame(packet, _audioCaptureService.sequence);
-          }
-        } else {
-          final packet = Uint8List(pcmData.length + 1);
-          packet[0] = _pcmAudioMarker;
-          packet.setAll(1, pcmData);
-          sendAudioFrame(packet, _audioCaptureService.sequence);
-        }
-      });
-      return await _audioCaptureService.start();
-    } catch (e) {
-      developer.log(
-        'Failed to start audio capture: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
-      return false;
-    }
+    return _voiceCoordinator.startAudioCapture(
+      isVoiceEnabled: isVoiceEnabled,
+      isController: _mode == RemoteControlMode.controller,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
+    );
   }
 
   Future<void> stopAudioCapture() async {
-    await _audioCaptureSubscription?.cancel();
-    _audioCaptureSubscription = null;
-    await _audioCaptureService.stop();
+    await _voiceCoordinator.stopAudioCapture();
   }
 
   Future<void> startAudioPlayback({
     int sampleRate = 16000,
     int channels = 1,
   }) async {
-    try {
-      if (_audioPlaybackService.isPlaying) {
-        return;
-      }
-      try {
-        await _opusService.initialize();
-      } catch (e) {
-        developer.log(
-          'Opus decode unavailable, playback will accept PCM only: $e',
-          name: 'RemoteControl',
-        );
-      }
-      await _audioPlaybackService.initialize(
-        sampleRate: sampleRate,
-        channels: channels,
-      );
-      await _audioPlaybackService.start();
-    } catch (e) {
-      developer.log(
-        'Failed to start audio playback: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
-    }
+    await _voiceCoordinator.startAudioPlayback(
+      isVoiceEnabled: isVoiceEnabled,
+      isController: _mode == RemoteControlMode.controller,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
+    );
   }
 
   Future<void> stopAudioPlayback() async {
-    await _audioPlaybackService.stop();
+    await _voiceCoordinator.stopAudioPlayback();
   }
 
   void _handleControlConnection(Socket client) {
@@ -705,9 +698,7 @@ class RemoteControlService {
       name: 'RemoteControl',
     );
     _receiverControlSocket = client;
-    _remoteHost = client.remoteAddress.address;
-    _expectedAudioPeerHost = client.remoteAddress.address;
-    _expectedAudioPeerPort = null;
+    _targetHost = client.remoteAddress.address;
     _updateState(RemoteControlState.connected);
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
@@ -720,8 +711,8 @@ class RemoteControlService {
       onDone: () {
         developer.log('Control client disconnected', name: 'RemoteControl');
         unawaited(stopAudioCapture());
+        unawaited(_voiceCoordinator.close());
         _receiverControlSocket = null;
-        _expectedAudioPeerPort = null;
         _updateState(RemoteControlState.disconnected);
         _stopScreenFrameWatchdog();
         _stopHeartbeat();
@@ -759,52 +750,42 @@ class RemoteControlService {
   }
 
   void _handleScreenDataRaw(Uint8List data) {
-    _watchdogController.recordScreenChunk(
+    _screenHealth.recordScreenChunk(
       data: data,
-      bufferedBefore: _screenDataBuffer.length,
+      bufferedBefore: _screenFramePipeline.bufferLength,
       log: (message) => developer.log(message, name: 'RemoteControl'),
     );
 
-    _screenDataBuffer.addAll(data);
-
-    final parseResult = _screenPipelineHelper.parseScreenDataBuffer(
-      screenDataBuffer: _screenDataBuffer,
-      awaitingRecoveryKeyFrame: _watchdogController.awaitingRecoveryKeyFrame,
+    final pipelineResult = _screenFramePipeline.handleIncomingData(
+      data,
+      awaitingRecoveryKeyFrame: _screenHealth.awaitingRecoveryKeyFrame,
+      latestFrameBatchThreshold: _latestFrameBatchThreshold,
     );
-    if (parseResult.latestSps != null) {
-      _latestRemoteSps = parseResult.latestSps;
-    }
-    if (parseResult.latestPps != null) {
-      _latestRemotePps = parseResult.latestPps;
-    }
-    _watchdogController.markAwaitingRecoveryKeyFrame(
-      parseResult.awaitingRecoveryKeyFrame,
+    _screenHealth.markAwaitingRecoveryKeyFrame(
+      pipelineResult.awaitingRecoveryKeyFrame,
     );
 
-    _processParsedScreenFrames(parseResult.parsedFrames);
+    _processParsedScreenFrames(pipelineResult);
   }
 
-  void _processParsedScreenFrames(List<ScreenFrame> parsedFrames) {
-    if (parsedFrames.isEmpty) {
+  void _processParsedScreenFrames(
+    RemoteControlScreenFramePipelineResult pipelineResult,
+  ) {
+    if (pipelineResult.framesToEmit.isEmpty) {
       return;
     }
 
-    final framesToEmit = _screenPipelineHelper.coalesceLatestScreenFrames(
-      parsedFrames,
-      latestFrameBatchThreshold: _latestFrameBatchThreshold,
-      awaitingRecoveryKeyFrame: _watchdogController.awaitingRecoveryKeyFrame,
-    );
-    if (parsedFrames.length != framesToEmit.length) {
+    if (pipelineResult.droppedFrameCount > 0) {
       developer.log(
-        'Dropping stale parsed screen frames: parsed=${parsedFrames.length} kept=${framesToEmit.length} buffered=${_screenDataBuffer.length}',
+        'Dropping stale parsed screen frames: parsed=${pipelineResult.parsedFrameCount} kept=${pipelineResult.framesToEmit.length} buffered=${pipelineResult.remainingBufferLength}',
         name: 'RemoteControl',
       );
     }
 
-    for (final frame in framesToEmit) {
-      _watchdogController.recordParsedFrame(
+    for (final frame in pipelineResult.framesToEmit) {
+      _screenHealth.recordParsedFrame(
         frame: frame,
-        remainingBuffer: _screenDataBuffer.length,
+        remainingBuffer: pipelineResult.remainingBufferLength,
         log: (message) => developer.log(message, name: 'RemoteControl'),
         onBitrateAdjustDue: _adjustBitrateIfNeeded,
       );
@@ -818,7 +799,7 @@ class RemoteControlService {
   }
 
   void _adjustBitrateIfNeeded() {
-    final newBitrate = _watchdogController.adjustBitrateIfNeeded(
+    final newBitrate = _screenHealth.adjustBitrateIfNeeded(
       screenFps: _config?.screenFps ?? 12,
       maxBitrate: _maxBitrate,
       latestRemoteScreenInfo: _latestRemoteScreenInfo,
@@ -830,7 +811,7 @@ class RemoteControlService {
   }
 
   void _startScreenFrameWatchdog() {
-    _watchdogController.startScreenFrameWatchdog(
+    _screenHealth.startWatchdog(
       log: (message) => developer.log(message, name: 'RemoteControl'),
       onTick: _checkScreenFrameHealth,
       screenFrameStallThreshold: _screenFrameStallThreshold,
@@ -840,9 +821,9 @@ class RemoteControlService {
   }
 
   void _stopScreenFrameWatchdog() {
-    _watchdogController.stopScreenFrameWatchdog(
+    _screenHealth.stopWatchdog(
       log: (message) => developer.log(message, name: 'RemoteControl'),
-      bufferLength: _screenDataBuffer.length,
+      bufferLength: _screenFramePipeline.bufferLength,
     );
   }
 
@@ -854,130 +835,48 @@ class RemoteControlService {
       return;
     }
 
-    if (_watchdogController.checkScreenFrameHealth(
+    if (_screenHealth.shouldRequestKeyFrame(
       screenRecoveryKeyFrameRetryCooldown: _screenRecoveryKeyFrameRetryCooldown,
       screenKeyFrameRequestCooldown: _screenKeyFrameRequestCooldown,
       screenFrameStallThreshold: _screenFrameStallThreshold,
-      screenDataBufferLength: _screenDataBuffer.length,
+      screenDataBufferLength: _screenFramePipeline.bufferLength,
       log: (message) => developer.log(message, name: 'RemoteControl'),
     )) {
       unawaited(requestKeyFrame());
     }
   }
 
-  void _handleAudioPacket(RawSocketEvent event) {
-    if (event == RawSocketEvent.read) {
-      while (true) {
-        final datagram = _audioSocket!.receive();
-        if (datagram == null) return;
-        final remoteHost = _expectedAudioPeerHost;
-        if (remoteHost != null && datagram.address.address != remoteHost) {
-          continue;
-        }
-        final expectedPort = _expectedAudioPeerPort;
-        if (expectedPort != null && datagram.port != expectedPort) {
-          continue;
-        }
-        _expectedAudioPeerPort ??= datagram.port;
-        final packet = _decodeAudioPacket(datagram.data);
-        final decodedAudio = _decodeIncomingAudioPayload(packet.data);
-        if (decodedAudio == null) {
-          continue;
-        }
-        _lastIncomingAudioAt = DateTime.now();
-
-        _performanceMonitor.recordAudioPacket(
-          packetSize: datagram.data.length,
-          sequence: packet.sequence,
-        );
-
-        _audioFrameController.add(decodedAudio);
-        if (_audioPlaybackService.isPlaying) {
-          _audioPlaybackService.feedFrame(
-            decodedAudio,
-            packet.sequence,
-            packet.timestamp,
-          );
-        }
-      }
-    }
-  }
-
-  ({Uint8List data, int sequence, int timestamp}) _decodeAudioPacket(
-    Uint8List packet,
-  ) {
-    if (packet.length < 6) {
-      return (data: packet, sequence: 0, timestamp: 0);
-    }
-
-    final header = ByteData.sublistView(packet, 0, 6);
-    final sequence = header.getUint16(0, Endian.big);
-    final timestamp = header.getUint32(2, Endian.big);
-    return (
-      data: Uint8List.sublistView(packet, 6),
-      sequence: sequence,
-      timestamp: timestamp,
+  Future<void> _prepareVoiceSession({required bool isController}) async {
+    await _voiceCoordinator.prepareSession(
+      isVoiceEnabled: isVoiceEnabled,
+      isController: isController,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      log: _logMessage,
     );
   }
 
-  Uint8List? _decodeIncomingAudioPayload(Uint8List payload) {
-    if (payload.isEmpty) {
-      return null;
+  Future<void> _sendWebRtcSignal(StatusMessage message) async {
+    final socket = switch (_mode) {
+      RemoteControlMode.controller => _controllerControlSocket,
+      RemoteControlMode.receiver => _receiverControlSocket,
+    };
+    if (socket == null) {
+      _logMessage(
+        'Skipping WebRTC signal without control socket: ${message.action}',
+      );
+      return;
     }
-
-    final marker = payload[0];
-    if (marker == _opusAudioMarker) {
-      final opusPayload = Uint8List.sublistView(payload, 1);
-      if (opusPayload.isEmpty || opusPayload.length > _maxOpusPayloadBytes) {
-        developer.log(
-          'Dropping audio packet: invalid Opus payload length=${opusPayload.length}',
-          name: 'RemoteControl',
-        );
-        return null;
-      }
-      final decoded = _opusService.decodeFrame(opusPayload);
-      if (decoded == null) {
-        developer.log(
-          'Dropping audio packet: failed to decode Opus payload',
-          name: 'RemoteControl',
-        );
-      }
-      return decoded;
-    }
-
-    if (marker == _pcmAudioMarker) {
-      final pcmPayload = Uint8List.sublistView(payload, 1);
-      if (pcmPayload.isEmpty || pcmPayload.length > _maxPcmPayloadBytes) {
-        developer.log(
-          'Dropping audio packet: invalid PCM payload length=${pcmPayload.length}',
-          name: 'RemoteControl',
-        );
-        return null;
-      }
-      return pcmPayload;
-    }
-
-    // Backward compatibility for older PCM packets without codec marker.
-    return payload;
+    _logMessage('Sending WebRTC signal: ${message.action}');
+    socket.add(utf8.encode('${RemoteControlCodec.encode(message)}\n'));
   }
 
-  bool _shouldSuppressOutgoingCapturedAudio() {
-    if (_mode == RemoteControlMode.controller) {
-      return false;
-    }
-    final lastIncomingAudioAt = _lastIncomingAudioAt;
-    if (lastIncomingAudioAt == null || !_audioPlaybackService.isPlaying) {
-      return false;
-    }
-    return DateTime.now().difference(lastIncomingAudioAt) <=
-        _receiverCaptureSuppressAfterPlayback;
+  bool _isWebRtcSignal(StatusMessage message) {
+    return _voiceCoordinator.isWebRtcSignal(message);
   }
 
   void _handleControlData(Uint8List data) {
-    final messages = _commandHelper.decodeBufferedMessages(
-      _controllerControlBuffer,
-      data,
-    );
+    final messages = _messageRouter.decodeControllerMessages(data);
     for (final message in messages) {
       _recordStatusMessage(message);
       _messageController.add(message);
@@ -985,59 +884,91 @@ class RemoteControlService {
   }
 
   void _recordStatusMessage(ControlMessage message) {
+    if (message is StatusMessage && _isWebRtcSignal(message)) {
+      _voiceCoordinator.handleIncomingWebRtcSignal(
+        message: message,
+        isVoiceEnabled: isVoiceEnabled,
+        targetHost: _targetHost,
+        overlayPrefix: _easyTierOverlayPrefix,
+        log: _logMessage,
+      );
+      return;
+    }
+    if (message is StatusMessage && message.action == 'receiver_microphone') {
+      final enabled = message.data['enabled'] == true;
+      unawaited(_applyReceiverMicrophone(enabled));
+      return;
+    }
+    if (message is StatusMessage &&
+        message.action == 'receiver_microphone_status') {
+      _voiceCoordinator.handleReceiverMicrophoneStatus(
+        message: message,
+        emitMessage: _messageController.add,
+      );
+      return;
+    }
     _statusBridge.recordStatusMessage(
       message: message,
       onScreenInfo: (info) => _latestRemoteScreenInfo = info,
       markConnectionReady: _markConnectionReady,
-      onAudioPort: (port) => _expectedAudioPeerPort = port,
       onPortConfig: (ports) {
         _config = RemoteControlConfig(
           ports: ports,
-          enableAudio: _config?.enableAudio ?? true,
           enableScreen: _config?.enableScreen ?? true,
           screenFps: _config?.screenFps ?? 15,
           screenBitrate: _config?.screenBitrate ?? 2000000,
-          audioSampleRate: _config?.audioSampleRate ?? 16000,
-          audioBitrate: _config?.audioBitrate ?? 24000,
+          enableVoice: _config?.enableVoice ?? true,
         );
       },
     );
   }
 
-  void _handleReceiverControlData(Uint8List data) {
-    final commands = _commandHelper.decodeBufferedLines(
-      _receiverControlBuffer,
-      data,
+  Future<void> _applyReceiverMicrophone(bool enabled) async {
+    await _voiceCoordinator.applyReceiverMicrophone(
+      enabled: enabled,
+      isVoiceEnabled: isVoiceEnabled,
+      targetHost: _targetHost,
+      overlayPrefix: _easyTierOverlayPrefix,
+      emitMessage: _messageController.add,
+      sendStatus: (status) {
+        _receiverControlSocket?.add(
+          utf8.encode('${RemoteControlCodec.encode(status)}\n'),
+        );
+      },
+      log: _logMessage,
     );
-    for (final command in commands) {
-      _commandHelper.dispatchReceiverCommand(
-        command,
-        channel: _channel,
-        minBitrate: _minBitrate,
-        maxBitrate: _maxBitrate,
-        recordStatusMessage: _recordStatusMessage,
-        emitMessage: _messageController.add,
-        requestKeyFrame: requestKeyFrame,
-        updateBitrate: updateBitrate,
-        sendAck: _sendAck,
-        log: (message, {error}) =>
-            developer.log(message, name: 'RemoteControl', error: error),
-      );
-    }
+  }
+
+  void _handleReceiverControlData(Uint8List data) {
+    _messageRouter.dispatchReceiverData(
+      data,
+      channel: _channel,
+      minBitrate: _minBitrate,
+      maxBitrate: _maxBitrate,
+      recordStatusMessage: _recordStatusMessage,
+      emitMessage: _messageController.add,
+      requestKeyFrame: requestKeyFrame,
+      updateBitrate: updateBitrate,
+      sendAck: _sendAck,
+      log: (message, {error}) =>
+          developer.log(message, name: 'RemoteControl', error: error),
+    );
   }
 
   void _handleControlError(dynamic error) {
     developer.log('Control channel error: $error', name: 'RemoteControl');
-    unawaited(_resetControllerConnection(stopNative: true));
-    _updateState(RemoteControlState.error);
+    unawaited(() async {
+      await _resetControllerConnection(stopNative: true);
+      await _autoReconnectController('control-error');
+    }());
   }
 
   void _handleControlDone() {
     developer.log('Control channel closed', name: 'RemoteControl');
-    unawaited(_resetControllerConnection(stopNative: true));
-    _updateState(RemoteControlState.disconnected);
-    _stopScreenFrameWatchdog();
-    _stopHeartbeat();
+    unawaited(() async {
+      await _resetControllerConnection(stopNative: true);
+      await _autoReconnectController('control-done');
+    }());
   }
 
   void _handleScreenError(
@@ -1048,13 +979,14 @@ class RemoteControlService {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
     developer.log(
-      'Screen channel error: $error state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenDataBuffer.length} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'}',
+      'Screen channel error: $error state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
       name: 'RemoteControl',
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
-      _screenDataBuffer.clear();
+      _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
+      unawaited(_autoReconnectController('screen-error'));
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -1068,13 +1000,14 @@ class RemoteControlService {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
     developer.log(
-      'Screen channel closed: state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenDataBuffer.length} lastFrameAgo=${_watchdogController.lastScreenFrameTime == null ? 'never' : '${DateTime.now().difference(_watchdogController.lastScreenFrameTime!).inMilliseconds}ms'}',
+      'Screen channel closed: state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
       name: 'RemoteControl',
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
-      _screenDataBuffer.clear();
+      _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
+      unawaited(_autoReconnectController('screen-done'));
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -1117,6 +1050,9 @@ class RemoteControlService {
   }
 
   Future<void> disconnect() async {
+    _disconnectRequested = true;
+    _autoReconnectEnabled = false;
+    _autoReconnectInProgress = false;
     _performanceMonitor.stopMonitoring();
     _stopScreenFrameWatchdog();
     _stopHeartbeat();
@@ -1130,22 +1066,14 @@ class RemoteControlService {
     _controllerScreenSocket = null;
     _receiverScreenSocket?.destroy();
     _receiverScreenSocket = null;
-    _audioSocket?.close();
-    _audioSocket = null;
     _controlServer?.close();
     _controlServer = null;
     _screenServer?.close();
     _screenServer = null;
-    _screenDataBuffer.clear();
-    _controllerControlBuffer.clear();
-    _receiverControlBuffer.clear();
-    _latestRemoteSps = null;
-    _latestRemotePps = null;
+    _screenFramePipeline.reset();
+    _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
-    _lastIncomingAudioAt = null;
-    _connectionReadyCompleter = null;
-    _expectedAudioPeerHost = null;
-    _expectedAudioPeerPort = null;
+    _targetHost = null;
 
     try {
       await _channel.invokeMethod('stop');
@@ -1157,7 +1085,6 @@ class RemoteControlService {
       );
     }
 
-    _remoteHost = null;
     _updateState(RemoteControlState.disconnected);
   }
 
@@ -1177,6 +1104,5 @@ class RemoteControlService {
     _stateController.close();
     _messageController.close();
     _screenFrameController.close();
-    _audioFrameController.close();
   }
 }

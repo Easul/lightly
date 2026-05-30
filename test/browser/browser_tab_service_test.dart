@@ -69,6 +69,10 @@ void main() {
       final second = service.openTab(url: 'https://two.example');
       service.openTab(url: 'https://three.example');
 
+      for (final tab in service.tabs) {
+        service.updateTab(tab.id, hasAttachedWebView: true);
+      }
+
       service.activateTab(second.id);
       final trimmed = service.trimInactiveKeepAlives(
         inactiveThreshold: Duration.zero,
@@ -81,6 +85,12 @@ void main() {
         service.tabs
             .where((tab) => tab.id != service.activeTab?.id)
             .every((tab) => tab.keepAlive == null),
+        isTrue,
+      );
+      expect(
+        service.tabs
+            .where((tab) => tab.id != service.activeTab?.id)
+            .every((tab) => tab.hasAttachedWebView == false),
         isTrue,
       );
     });
@@ -182,6 +192,80 @@ void main() {
       expect(secondTab.keepAlive, isNotNull);
       expect(thirdTab.keepAlive, isNotNull);
       expect(fourthTab.keepAlive, isNotNull);
+    });
+
+    test('resetKeepAlive clears retained webview state for active tab', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+
+      final activeTabId = service.activeTab!.id;
+      service.updateTab(activeTabId, hasAttachedWebView: true);
+      final didReset = service.resetKeepAlive(activeTabId, recreate: false);
+
+      expect(didReset, isTrue);
+      expect(service.activeTab?.keepAlive, isNull);
+      expect(service.activeTab?.hasAttachedWebView, isFalse);
+    });
+
+    test('tabs getter reuses cached unmodifiable view until tabs change', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+
+      final firstRead = service.tabs;
+      final secondRead = service.tabs;
+      expect(identical(firstRead, secondRead), isTrue);
+
+      service.openTab(url: 'https://two.example');
+      final thirdRead = service.tabs;
+      expect(identical(secondRead, thirdRead), isFalse);
+      expect(thirdRead, hasLength(2));
+    });
+
+    test(
+      'trimAllBackgroundKeepAlives removes all inactive retained webviews',
+      () {
+        final service = BrowserTabService.test(maxTabs: 4);
+        service.initialize('https://one.example');
+        final second = service.openTab(url: 'https://two.example');
+        service.openTab(url: 'https://three.example');
+
+        for (final tab in service.tabs) {
+          service.updateTab(tab.id, hasAttachedWebView: true);
+        }
+
+        service.activateTab(second.id);
+        final trimmed = service.trimAllBackgroundKeepAlives();
+
+        expect(trimmed, 2);
+        final activeId = service.activeTab?.id;
+        expect(
+          service.tabs
+              .where((tab) => tab.id != activeId)
+              .every((tab) => tab.keepAlive == null),
+          isTrue,
+        );
+        expect(
+          service.tabs
+              .where((tab) => tab.id != activeId)
+              .every((tab) => tab.hasAttachedWebView == false),
+          isTrue,
+        );
+      },
+    );
+
+    test('ensureKeepAlive resets attached state for recreated webview', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      final activeTabId = service.activeTab!.id;
+
+      service.updateTab(activeTabId, hasAttachedWebView: true);
+      service.resetKeepAlive(activeTabId, recreate: false);
+
+      final recreated = service.ensureKeepAlive(activeTabId);
+
+      expect(recreated, isTrue);
+      expect(service.activeTab?.keepAlive, isNotNull);
+      expect(service.activeTab?.hasAttachedWebView, isFalse);
     });
   });
 }

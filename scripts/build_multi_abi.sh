@@ -1,26 +1,51 @@
 #!/bin/bash
 # Build script for multi-ABI APKs with versionCode based on commit count
+# Local mode favors host stability over maximum build speed.
 
-set -e
+set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APK_OUTPUT_DIR="$PROJECT_ROOT/build/app/outputs/flutter-apk"
+SYMBOL_OUTPUT_DIR="$PROJECT_ROOT/build/app/outputs/symbols"
+ANDROID_DIR="$PROJECT_ROOT/android"
+GRADLEW="$ANDROID_DIR/gradlew"
+GRADLE_WORKERS="${GRADLE_WORKERS:-2}"
+ARM64_HEAP="${ARM64_HEAP:-6G}"
+ARM32_HEAP="${ARM32_HEAP:-8G}"
+METASPACE_SIZE="${METASPACE_SIZE:-2G}"
+CODE_CACHE_SIZE="${CODE_CACHE_SIZE:-256m}"
+COOLDOWN_SECONDS="${COOLDOWN_SECONDS:-5}"
 
-build_arm32_release() {
-  local gradle_opts="-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'"
-  if [ "$1" = "no-daemon" ]; then
-    gradle_opts="-Dorg.gradle.daemon=false ${gradle_opts}"
-  fi
+print_memory_snapshot() {
+  echo "🧠 Memory snapshot:"
+  free -h || true
+}
 
-  GRADLE_OPTS="$gradle_opts" \
-  _JAVA_OPTIONS='-Xmx12G' \
-  TARGET_ABI=armeabi-v7a \
-  BUILD_VERSION_LABEL="$VERSION_NAME" \
-  flutter build apk \
-    --release \
-    --target-platform android-arm \
-    --obfuscate \
-    --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols"
+stop_gradle_daemons() {
+  echo "🛑 Stopping Gradle daemons..."
+  (
+    cd "$ANDROID_DIR"
+    ./gradlew --stop
+  ) || true
+}
+
+cleanup_between_builds() {
+  echo "🧹 Cleaning intermediate Android build artifacts..."
+  rm -rf     "$PROJECT_ROOT/build/app/intermediates"     "$PROJECT_ROOT/build/app/kotlin"     "$ANDROID_DIR/.gradle"/kotlin     2>/dev/null || true
+}
+
+cooldown_host() {
+  echo "⏳ Cooling down host for ${COOLDOWN_SECONDS}s..."
+  sleep "$COOLDOWN_SECONDS"
+  print_memory_snapshot
+}
+
+build_release_for_abi() {
+  local abi="$1"
+  local target_platform="$2"
+  local heap_size="$3"
+
+  GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${GRADLE_WORKERS} -Dorg.gradle.jvmargs='-Xmx${heap_size} -XX:MaxMetaspaceSize=${METASPACE_SIZE} -XX:ReservedCodeCacheSize=${CODE_CACHE_SIZE} -XX:+HeapDumpOnOutOfMemoryError'"   _JAVA_OPTIONS="-Xmx${heap_size}"   TARGET_ABI="$abi"   BUILD_VERSION_LABEL="$VERSION_NAME"   BUILD_VERSION_CODE="$VERSION_CODE"   flutter build apk     --release     --target-platform "$target_platform"     --obfuscate     --split-debug-info="$SYMBOL_OUTPUT_DIR"
 }
 
 # Get latest tag or fallback to default
@@ -34,46 +59,46 @@ COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD 2>/dev/null || ech
 VERSION_NAME="${LATEST_TAG}+${COMMIT_HASH}"
 echo "📋 Version: $VERSION_NAME"
 
-# Calculate version code from main branch commit count with offset
-# Using offset 5000 to ensure versionCode is always high enough for Android updates
 COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
 VERSION_CODE=$((5000 + COMMIT_COUNT))
-echo "🔢 Version code: $VERSION_CODE (5000 + main:$COMMIT_COUNT)"
+echo "🔢 Version code: $VERSION_CODE (5000 + main commit count: $COMMIT_COUNT)"
+
+echo "⚙️  Local conservative build mode enabled"
+echo "   - Gradle daemon: disabled"
+echo "   - Gradle parallel: disabled"
+echo "   - Gradle workers max: $GRADLE_WORKERS"
+echo "   - arm64 heap: $ARM64_HEAP"
+echo "   - arm32 heap: $ARM32_HEAP"
+print_memory_snapshot
 
 # Clean previous outputs
 echo "🧹 Cleaning previous APK outputs..."
 rm -f "$APK_OUTPUT_DIR"/app-*.apk "$APK_OUTPUT_DIR"/*.sha1 2>/dev/null || true
-rm -rf "$PROJECT_ROOT/build/app/intermediates" 2>/dev/null || true
+cleanup_between_builds
+stop_gradle_daemons
+cooldown_host
 
 # Build arm64-v8a (64-bit)
 echo "🚀 Building arm64-v8a (64-bit)..."
-TARGET_ABI=arm64-v8a \
-BUILD_VERSION_LABEL="$VERSION_NAME" \
-flutter build apk \
-  --release \
-  --target-platform android-arm64 \
-  --obfuscate \
-  --split-debug-info="$PROJECT_ROOT/build/app/outputs/symbols"
+build_release_for_abi arm64-v8a android-arm64 "$ARM64_HEAP"
 
 # Save with ABI-specific name
 mv "$APK_OUTPUT_DIR/app-release.apk" "$APK_OUTPUT_DIR/app-arm64-v8a-release.apk"
 echo "✅ Saved: app-arm64-v8a-release.apk (version: $VERSION_NAME, code: $VERSION_CODE)"
 
+stop_gradle_daemons
+cleanup_between_builds
+cooldown_host
+
 # Build armeabi-v7a (32-bit)
 echo "🚀 Building armeabi-v7a (32-bit)..."
-if ! build_arm32_release; then
-  echo "⚠️  arm32 daemon build failed; stopping Gradle daemons and retrying without daemon..."
-  (
-    cd "$PROJECT_ROOT/android"
-    ./gradlew --stop
-  ) || true
-  sleep 2
-  build_arm32_release no-daemon
-fi
+build_release_for_abi armeabi-v7a android-arm "$ARM32_HEAP"
 
 # Save with ABI-specific name
 mv "$APK_OUTPUT_DIR/app-release.apk" "$APK_OUTPUT_DIR/app-armeabi-v7a-release.apk"
 echo "✅ Saved: app-armeabi-v7a-release.apk (version: $VERSION_NAME, code: $VERSION_CODE)"
+
+stop_gradle_daemons
 
 # Show results
 echo ""

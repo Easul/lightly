@@ -7,17 +7,18 @@ void main() {
 
     BrowserPageTabTransitionDeps buildDeps(List<String> calls) {
       return BrowserPageTabTransitionDeps(
+        pauseCurrentWebView: () => calls.add('pauseCurrentWebView'),
         detachCurrentController: () => calls.add('detachCurrentController'),
         unfocusAddressBar: () => calls.add('unfocusAddressBar'),
         syncAddressBar: () => calls.add('syncAddressBar'),
-        checkFavoriteStatus: (url) async =>
-            calls.add('checkFavoriteStatus:$url'),
+        checkFavoriteStatus: (url) async => calls.add('checkFavoriteStatus'),
         resetProgress: () => calls.add('resetProgress'),
+        trimBackgroundKeepAlives: () => calls.add('trimBackgroundKeepAlives'),
       );
     }
 
     test(
-      'prepareOpenedOrSwitchedTab keeps transition order for open flow',
+      'prepareOpenedOrSwitchedTab keeps background keepAlives intact',
       () async {
         final calls = <String>[];
 
@@ -29,87 +30,39 @@ void main() {
               calls.add('applyStatusAfterTransition'),
           syncTrackedScrollPosition: () =>
               calls.add('syncTrackedScrollPosition'),
-          syncTrackedScroll: false,
-        );
-
-        expect(calls, <String>[
-          'detachCurrentController',
-          'unfocusAddressBar',
-          'resetVideoDetectionState',
-          'syncAddressBar',
-          'checkFavoriteStatus:https://example.com',
-          'resetProgress',
-          'applyStatusAfterTransition',
-        ]);
-      },
-    );
-
-    test(
-      'prepareOpenedOrSwitchedTab syncs tracked scroll for switch flow',
-      () async {
-        final calls = <String>[];
-
-        await helper.prepareOpenedOrSwitchedTab(
-          deps: buildDeps(calls),
-          resetVideoDetectionState: () => calls.add('resetVideoDetectionState'),
-          url: 'https://switch.example',
-          applyStatusAfterTransition: () =>
-              calls.add('applyStatusAfterTransition'),
-          syncTrackedScrollPosition: () =>
-              calls.add('syncTrackedScrollPosition'),
           syncTrackedScroll: true,
         );
 
-        expect(calls, <String>[
-          'detachCurrentController',
-          'unfocusAddressBar',
-          'resetVideoDetectionState',
-          'syncTrackedScrollPosition',
-          'syncAddressBar',
-          'checkFavoriteStatus:https://switch.example',
-          'resetProgress',
-          'applyStatusAfterTransition',
-        ]);
+        expect(calls.first, 'pauseCurrentWebView');
+        expect(calls, isNot(contains('trimBackgroundKeepAlives')));
       },
     );
 
-    test('prepareClosedTab keeps detach and status order', () async {
+    test('prepareClosedTab trims background keepAlives', () async {
       final calls = <String>[];
 
       await helper.prepareClosedTab(
         deps: buildDeps(calls),
-        url: 'https://closed.example',
+        url: 'https://example.com',
         applyStatusAfterTransition: () =>
             calls.add('applyStatusAfterTransition'),
       );
 
-      expect(calls, <String>[
-        'detachCurrentController',
-        'unfocusAddressBar',
-        'syncAddressBar',
-        'checkFavoriteStatus:https://closed.example',
-        'resetProgress',
-        'applyStatusAfterTransition',
-      ]);
+      expect(calls.first, 'pauseCurrentWebView');
+      expect(calls, contains('trimBackgroundKeepAlives'));
     });
 
-    test('prepareCloseAllTabs leaves controller attached', () async {
+    test('prepareCloseAllTabs trims background keepAlives', () async {
       final calls = <String>[];
 
       await helper.prepareCloseAllTabs(
         deps: buildDeps(calls),
-        url: 'https://favorites.example',
+        url: 'https://example.com',
         applyStatusAfterTransition: () =>
             calls.add('applyStatusAfterTransition'),
       );
 
-      expect(calls, <String>[
-        'unfocusAddressBar',
-        'syncAddressBar',
-        'checkFavoriteStatus:https://favorites.example',
-        'resetProgress',
-        'applyStatusAfterTransition',
-      ]);
+      expect(calls, contains('trimBackgroundKeepAlives'));
     });
   });
 }

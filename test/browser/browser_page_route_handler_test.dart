@@ -35,6 +35,26 @@ void main() {
       },
     );
 
+    test(
+      'reloads current webview for restored auth state even on other origins',
+      () {
+        final plan = handler.planDataManagementActions(
+          result: const DataManagementPageResult(
+            changed: true,
+            favoritesChanged: false,
+            settingsChanged: true,
+            webDataChanged: true,
+            restoredOrigins: <String>['https://oauth.telegram.org'],
+          ),
+          currentUrl: 'https://hax.co.id/dashboard',
+          isFavoritesPage: false,
+        );
+
+        expect(plan.reloadCurrentWebView, isTrue);
+        expect(plan.rebuild, isTrue);
+      },
+    );
+
     test('falls back to full refresh for legacy boolean result', () {
       final plan = handler.planDataManagementActions(
         result: true,

@@ -25,7 +25,7 @@ class RemoteControlModeSelectorSection extends StatelessWidget {
           children: [
             const Text(
               '选择模式',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
@@ -86,7 +86,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
           children: [
             const Text(
               '被控端设置',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (portConfig != null) ...[
@@ -97,10 +97,6 @@ class RemoteControlReceiverSection extends StatelessWidget {
               RemoteControlInfoRow(
                 label: '屏幕端口',
                 value: '${portConfig!.screenPort}',
-              ),
-              RemoteControlInfoRow(
-                label: '语音端口',
-                value: '${portConfig!.audioPort}',
               ),
               const SizedBox(height: 16),
             ],
@@ -155,7 +151,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               '提示：请确保主控端和被控端在同一局域网内（通过 EasyTier 连接）',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -177,14 +173,14 @@ class RemoteControlReceiverSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Row(
                   children: [
                     Icon(Icons.check_circle, color: Colors.green),
                     SizedBox(width: 8),
-                    Text('已连接', style: const TextStyle(color: Colors.green)),
+                    Text('已连接', style: TextStyle(color: Colors.green)),
                   ],
                 ),
               ),
@@ -203,7 +199,6 @@ class RemoteControlControllerSection extends StatelessWidget {
   final TextEditingController hostController;
   final TextEditingController controlPortController;
   final TextEditingController screenPortController;
-  final TextEditingController audioPortController;
   final RemoteControlPortConfig? portConfig;
   final bool isConnecting;
   final bool useInternalProxy;
@@ -212,7 +207,6 @@ class RemoteControlControllerSection extends StatelessWidget {
   final void Function(Map<String, String> peer) onSelectPeer;
   final ValueChanged<int> onControlPortChanged;
   final ValueChanged<int> onScreenPortChanged;
-  final ValueChanged<int> onAudioPortChanged;
   final ValueChanged<bool> onUseInternalProxyChanged;
   final VoidCallback onConnect;
 
@@ -224,7 +218,6 @@ class RemoteControlControllerSection extends StatelessWidget {
     required this.hostController,
     required this.controlPortController,
     required this.screenPortController,
-    required this.audioPortController,
     required this.portConfig,
     required this.isConnecting,
     required this.useInternalProxy,
@@ -233,7 +226,6 @@ class RemoteControlControllerSection extends StatelessWidget {
     required this.onSelectPeer,
     required this.onControlPortChanged,
     required this.onScreenPortChanged,
-    required this.onAudioPortChanged,
     required this.onUseInternalProxyChanged,
     required this.onConnect,
   });
@@ -248,22 +240,21 @@ class RemoteControlControllerSection extends StatelessWidget {
           children: [
             const Text(
               '主控端设置',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (peers.isNotEmpty) ...[
               const Text(
                 '已发现的设备',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 8),
               ...peers.map(
                 (peer) => RemoteControlPeerTile(
                   name: peer['name'] ?? '未命名设备',
                   ip: peer['ip'] ?? '',
+                  mode: peer['mode'] ?? '',
+                  latency: peer['latency'] ?? '',
                   onTap: () => onSelectPeer(peer),
                 ),
               ),
@@ -349,16 +340,10 @@ class RemoteControlControllerSection extends StatelessWidget {
               controller: screenPortController,
               onChanged: onScreenPortChanged,
             ),
-            const SizedBox(height: 8),
-            RemoteControlPortInput(
-              label: '语音端口',
-              controller: audioPortController,
-              onChanged: onAudioPortChanged,
-            ),
             const SizedBox(height: 16),
             const Text(
-              '提示：请确保被控端已启动，并输入正确的地址和端口',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              '提示：点击连接会先自动检测可用端口；使用内置代理连接时仅支持屏幕控制，语音会自动关闭。',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -378,6 +363,24 @@ class RemoteControlControllerSection extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class RemoteControlErrorBanner extends StatelessWidget {
+  const RemoteControlErrorBanner({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(message, style: const TextStyle(color: Colors.red)),
     );
   }
 }
@@ -406,8 +409,8 @@ class RemoteControlModeCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).primaryColor.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.1),
+              ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+              : Colors.grey.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
@@ -439,7 +442,7 @@ class RemoteControlModeCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 color: isSelected
-                    ? Theme.of(context).primaryColor.withOpacity(0.7)
+                    ? Theme.of(context).primaryColor.withValues(alpha: 0.7)
                     : Colors.grey,
               ),
             ),
@@ -522,12 +525,16 @@ class RemoteControlPortInput extends StatelessWidget {
 class RemoteControlPeerTile extends StatelessWidget {
   final String name;
   final String ip;
+  final String mode;
+  final String latency;
   final VoidCallback onTap;
 
   const RemoteControlPeerTile({
     super.key,
     required this.name,
     required this.ip,
+    required this.mode,
+    required this.latency,
     required this.onTap,
   });
 
@@ -536,7 +543,14 @@ class RemoteControlPeerTile extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.phone_android),
       title: Text(name),
-      subtitle: Text(ip),
+      subtitle: Text(
+        [
+          ip,
+          if (mode.isNotEmpty) mode,
+          if (latency.isNotEmpty) latency,
+        ].join(' · '),
+      ),
+      trailing: const Icon(Icons.input_rounded),
       onTap: onTap,
       dense: true,
       contentPadding: EdgeInsets.zero,

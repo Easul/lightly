@@ -1,18 +1,18 @@
 use crate::common::Error;
 use crate::common::Result;
-use crate::outbound::{OutboundClient, ProxyStream};
+#[cfg(not(feature = "mux-experimental"))]
+use crate::outbound::vless_codec::parse_uuid;
 #[cfg(feature = "mux-experimental")]
 pub use crate::outbound::vless_codec::{build_vless_request, parse_uuid};
-use crate::outbound::vless_codec::parse_uuid;
 use crate::outbound::vless_handshake::prepare_vless_handshake;
 use crate::outbound::vless_message_io::{
     handle_read_error, handle_read_message, handle_stream_end, VlessReadAction,
 };
 use crate::outbound::vless_stream_state::VlessStreamState;
 use crate::outbound::vless_transport::{
-    build_connect_plan, build_rustls_config, build_websocket_request,
-    connect_tcp_with_fallback,
+    build_connect_plan, build_rustls_config, build_websocket_request, connect_tcp_with_fallback,
 };
+use crate::outbound::{OutboundClient, ProxyStream};
 use async_trait::async_trait;
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -22,7 +22,9 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
-use tokio_tungstenite::{client_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{
+    client_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream,
+};
 
 pub struct VlessClient {
     config: VlessConfig,
@@ -176,13 +178,9 @@ impl VlessStream {
             first_data.map(|d| d.len()).unwrap_or(0)
         );
 
-        let handshake = prepare_vless_handshake(
-            &self.uuid,
-            &self.target_addr,
-            self.target_port,
-            first_data,
-        );
-        log::debug!(
+        let handshake =
+            prepare_vless_handshake(&self.uuid, &self.target_addr, self.target_port, first_data);
+        log::trace!(
             "[VLESS] Request bytes len={} hex={}",
             handshake.payload.len(),
             format_bytes_hex(&handshake.payload),
@@ -240,12 +238,7 @@ impl VlessStream {
 
             match next_message {
                 Some(Ok(Message::Binary(data))) => {
-                    log::debug!(
-                        "[VLESS] Received binary frame len={} hex={}{}",
-                        data.len(),
-                        format_bytes_hex(&data[..data.len().min(32)]),
-                        if data.len() > 32 { " ..." } else { "" },
-                    );
+                    log::trace!("[VLESS] Received binary frame len={}", data.len());
                     let action = {
                         let mut state = self.state.lock().await;
                         handle_read_message(Message::Binary(data), &mut state, buf)
@@ -281,10 +274,13 @@ impl VlessStream {
                         }
                     };
                     let mut write_half = self.write_half.lock().await;
-                    write_half.send(Message::Pong(pong_payload.into())).await.map_err(|e| {
-                        log::error!("[VLESS] Pong send failed: {}", e);
-                        Error::Network(format!("WebSocket pong failed: {}", e))
-                    })?;
+                    write_half
+                        .send(Message::Pong(pong_payload.into()))
+                        .await
+                        .map_err(|e| {
+                            log::error!("[VLESS] Pong send failed: {}", e);
+                            Error::Network(format!("WebSocket pong failed: {}", e))
+                        })?;
                     continue;
                 }
                 Some(Ok(Message::Pong(_))) => {

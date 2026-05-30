@@ -65,6 +65,14 @@ class RemoteControlCommandHelper {
           }
           return;
         }
+        if (message.action == 'overlay_text') {
+          channel
+              .invokeMethod('executeCommand', {'command': command})
+              .catchError((Object error) {
+                log('Failed to show receiver overlay text: $error');
+              });
+          return;
+        }
         recordStatusMessage(message);
         emitMessage(message);
         return;

@@ -23,6 +23,7 @@ import '../widgets/native_video/native_video_overlay.dart';
 import 'native_video_download_coordinator.dart';
 import 'native_video_gesture_controller.dart';
 import 'native_video_playback_coordinator.dart';
+import 'native_video_player_widgets.dart';
 
 class NativeVideoPlayerPage extends StatelessWidget {
   const NativeVideoPlayerPage({super.key, required this.videoUrl});
@@ -59,24 +60,7 @@ class NativeVideoPlayerDialog extends StatelessWidget {
         height: MediaQuery.of(context).size.height * 0.5,
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '视频播放',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
+            const NativeVideoDialogHeader(),
             Expanded(
               child: NativeVideoPlayerView(videoUrl: videoUrl, compact: true),
             ),
@@ -337,22 +321,11 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+      return const NativeVideoLoadingView();
     }
 
     if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+      return NativeVideoErrorView(message: _errorMessage!);
     }
 
     final chewieController = _chewieController;

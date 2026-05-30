@@ -45,21 +45,9 @@ class RemoteControlStatusBridge {
     final status = StatusMessage.portConfig(
       controlPort: ports.controlPort,
       screenPort: ports.screenPort,
-      audioPort: ports.audioPort,
     );
     receiverControlSocket.add(
       utf8.encode('${RemoteControlCodec.encode(status)}\n'),
-    );
-  }
-
-  Future<void> sendAudioPortStatus({
-    required Socket? controllerControlSocket,
-    required int port,
-  }) async {
-    if (controllerControlSocket == null) return;
-    final message = StatusMessage.audioPort(port: port);
-    controllerControlSocket.add(
-      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
     );
   }
 
@@ -92,14 +80,12 @@ class RemoteControlStatusBridge {
   RemoteControlPortConfig? portConfigFromStatus(StatusMessage message) {
     final controlPort = (message.data['controlPort'] as num?)?.toInt();
     final screenPort = (message.data['screenPort'] as num?)?.toInt();
-    final audioPort = (message.data['audioPort'] as num?)?.toInt();
-    if (controlPort == null || screenPort == null || audioPort == null) {
+    if (controlPort == null || screenPort == null) {
       return null;
     }
     return RemoteControlPortConfig(
       controlPort: controlPort,
       screenPort: screenPort,
-      audioPort: audioPort,
     );
   }
 
@@ -107,7 +93,6 @@ class RemoteControlStatusBridge {
     required ControlMessage message,
     required void Function(Map<String, dynamic>) onScreenInfo,
     required void Function() markConnectionReady,
-    required void Function(int) onAudioPort,
     required void Function(RemoteControlPortConfig) onPortConfig,
   }) {
     if (message is! StatusMessage) {
@@ -117,14 +102,6 @@ class RemoteControlStatusBridge {
     if (message.action == 'screen_info') {
       onScreenInfo(Map<String, dynamic>.from(message.data));
       markConnectionReady();
-      return;
-    }
-
-    if (message.action == 'audio_port') {
-      final port = (message.data['port'] as num?)?.toInt();
-      if (port != null && port > 0) {
-        onAudioPort(port);
-      }
       return;
     }
 

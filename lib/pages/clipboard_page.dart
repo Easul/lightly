@@ -7,6 +7,7 @@ import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
 import '../services/app_toast.dart';
 import '../widgets/app_drawer.dart';
+import 'clipboard_page_sections.dart';
 
 class ClipboardPage extends StatefulWidget {
   const ClipboardPage({super.key});
@@ -29,7 +30,6 @@ class _ClipboardPageState extends State<ClipboardPage>
   bool _isLoading = true;
   bool _isSaving = false;
   bool _serverEnabled = false;
-  bool _isEditingClipboard = false;
   ClipboardHttpServerState _serverState = ClipboardHttpServerState.stopped;
 
   final List<String> _undoStack = [];
@@ -45,7 +45,6 @@ class _ClipboardPageState extends State<ClipboardPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _textFieldFocusNode.addListener(_handleClipboardFocusChanged);
     _listenToServerState();
     _initialize();
     _controller.addListener(_onTextChanged);
@@ -56,7 +55,6 @@ class _ClipboardPageState extends State<ClipboardPage>
     WidgetsBinding.instance.removeObserver(this);
     _serverSub?.cancel();
     _controller.removeListener(_onTextChanged);
-    _textFieldFocusNode.removeListener(_handleClipboardFocusChanged);
     _textFieldFocusNode.dispose();
     _editorScrollController.dispose();
     _controller.dispose();
@@ -67,13 +65,6 @@ class _ClipboardPageState extends State<ClipboardPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Auto-refresh removed to prevent overwriting user edits
-  }
-
-  void _handleClipboardFocusChanged() {
-    if (!mounted) return;
-    setState(() {
-      _isEditingClipboard = _textFieldFocusNode.hasFocus;
-    });
   }
 
   void _onTextChanged() {
@@ -251,35 +242,8 @@ class _ClipboardPageState extends State<ClipboardPage>
     }
   }
 
-  String get _serverStatusLabel {
-    switch (_serverState) {
-      case ClipboardHttpServerState.started:
-        return '运行中';
-      case ClipboardHttpServerState.starting:
-        return '启动中...';
-      case ClipboardHttpServerState.stopping:
-        return '停止中...';
-      case ClipboardHttpServerState.stopped:
-        return '已停止';
-    }
-  }
-
-  Color _serverStatusColor(ColorScheme colorScheme) {
-    switch (_serverState) {
-      case ClipboardHttpServerState.started:
-        return colorScheme.primary;
-      case ClipboardHttpServerState.starting:
-      case ClipboardHttpServerState.stopping:
-        return colorScheme.primary;
-      case ClipboardHttpServerState.stopped:
-        return colorScheme.outline;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('剪贴板')),
       drawer: const AppDrawer(),
@@ -290,156 +254,34 @@ class _ClipboardPageState extends State<ClipboardPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Server status card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: _serverStatusColor(colorScheme),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'HTTP 服务状态：$_serverStatusLabel',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: _serverEnabled,
-                            title: const Text('启用剪贴板网页服务'),
-                            subtitle: const Text('通过局域网访问和编辑剪贴板内容'),
-                            onChanged: _toggleServer,
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _portController,
-                            keyboardType: TextInputType.number,
-                            enabled: !_serverEnabled,
-                            decoration: const InputDecoration(
-                              labelText: '服务端口（留空则随机）',
-                              prefixIcon: Icon(
-                                Icons.settings_ethernet_outlined,
-                              ),
-                            ),
-                            onChanged: (_) {},
-                          ),
-                          if (_server.isRunning) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              '监听地址：${_server.baseUrl ?? ''}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            Text(
-                              '本机访问：${_server.localUrl ?? ''}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            for (final lanUrl in _server.lanUrls)
-                              Text(
-                                '局域网访问：$lanUrl',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
+                  ClipboardServerStatusCard(
+                    server: _server,
+                    serverEnabled: _serverEnabled,
+                    serverState: _serverState,
+                    portController: _portController,
+                    onToggleServer: (enabled) =>
+                        unawaited(_toggleServer(enabled)),
                   ),
                   const SizedBox(height: 16),
-                  // Content editor
-                  Text('剪贴板内容', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 200,
-                    child: Scrollbar(
-                      controller: _editorScrollController,
-                      thumbVisibility: true,
-                      child: TextField(
-                        focusNode: _textFieldFocusNode,
-                        controller: _controller,
-                        scrollController: _editorScrollController,
-                        maxLines: null,
-                        minLines: 8,
-                        keyboardType: TextInputType.multiline,
-                        textAlignVertical: TextAlignVertical.top,
-                        decoration: const InputDecoration(
-                          hintText: '在此输入或粘贴内容...',
-                          alignLabelWithHint: false,
-                          contentPadding: EdgeInsets.all(12),
-                        ),
-                        contextMenuBuilder: _buildChineseContextMenu,
-                      ),
-                    ),
+                  ClipboardEditorSection(
+                    controller: _controller,
+                    focusNode: _textFieldFocusNode,
+                    scrollController: _editorScrollController,
+                    contextMenuBuilder: _buildChineseContextMenu,
                   ),
                   const SizedBox(height: 16),
-                  // Undo/redo buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _canUndo ? _undo : null,
-                          icon: const Icon(Icons.undo_outlined),
-                          label: const Text('撤销'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _canRedo ? _redo : null,
-                          icon: const Icon(Icons.redo_outlined),
-                          label: const Text('恢复'),
-                        ),
-                      ),
-                    ],
+                  ClipboardUndoRedoRow(
+                    canUndo: _canUndo,
+                    canRedo: _canRedo,
+                    onUndo: _undo,
+                    onRedo: _redo,
                   ),
                   const SizedBox(height: 16),
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _isSaving ? null : _saveContent,
-                          icon: _isSaving
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined),
-                          label: Text(_isSaving ? '保存中...' : '保存到剪贴板'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pasteFromClipboard,
-                          icon: const Icon(Icons.content_paste_outlined),
-                          label: const Text('从剪贴板粘贴'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _refreshFromClipboard,
-                      icon: const Icon(Icons.refresh_outlined),
-                      label: const Text('刷新（从系统剪贴板读取）'),
-                    ),
+                  ClipboardActionButtons(
+                    isSaving: _isSaving,
+                    onSave: () => unawaited(_saveContent()),
+                    onPaste: () => unawaited(_pasteFromClipboard()),
+                    onRefresh: () => unawaited(_refreshFromClipboard()),
                   ),
                   // Bottom safe area padding
                   SizedBox(height: MediaQuery.of(context).padding.bottom + 16),

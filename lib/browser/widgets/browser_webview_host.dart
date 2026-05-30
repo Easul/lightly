@@ -6,15 +6,13 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
-const _browserDesktopUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 class BrowserWebViewHost extends StatelessWidget {
   const BrowserWebViewHost({
     super.key,
     required this.enabled,
     required this.initialUrl,
+    required this.shouldLoadInitialUrl,
     this.windowId,
     this.keepAlive,
     required this.isLoading,
@@ -40,6 +38,7 @@ class BrowserWebViewHost extends StatelessWidget {
 
   final bool enabled;
   final String initialUrl;
+  final bool shouldLoadInitialUrl;
   final int? windowId;
   final InAppWebViewKeepAlive? keepAlive;
   final bool isLoading;
@@ -97,15 +96,30 @@ class BrowserWebViewHost extends StatelessWidget {
   final PullToRefreshController? pullToRefreshController;
   final FindInteractionController? findInteractionController;
 
+  static BrowserWebViewViewportPolicy viewportPolicyForUrl(String initialUrl) {
+    final uri = Uri.tryParse(initialUrl);
+    final host = uri?.host.toLowerCase() ?? '';
+    final prefersMobileViewport =
+        host == 'x.com' ||
+        host.endsWith('.x.com') ||
+        host == 'twitter.com' ||
+        host.endsWith('.twitter.com') ||
+        host == 'youtube.com' ||
+        host.endsWith('.youtube.com') ||
+        host == 'youtu.be' ||
+        host.endsWith('.youtu.be');
+
+    return BrowserWebViewViewportPolicy(
+      userAgent: _browserMobileUserAgent,
+      useWideViewPort: !prefersMobileViewport,
+      loadWithOverviewMode: !prefersMobileViewport,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final initialUri = Uri.tryParse(initialUrl);
-    final host = initialUri?.host.toLowerCase() ?? '';
-    final prefersDesktopUserAgent =
-        host == 'x.com' ||
-        host.endsWith('.x.com') ||
-        host.endsWith('twitter.com');
+    final viewportPolicy = viewportPolicyForUrl(initialUrl);
 
     if (!enabled) {
       return Center(
@@ -148,7 +162,7 @@ class BrowserWebViewHost extends StatelessWidget {
         RepaintBoundary(
           child: InAppWebView(
             windowId: windowId,
-            initialUrlRequest: windowId == null
+            initialUrlRequest: windowId == null && shouldLoadInitialUrl
                 ? URLRequest(url: WebUri(initialUrl))
                 : null,
             keepAlive: keepAlive,
@@ -165,8 +179,8 @@ class BrowserWebViewHost extends StatelessWidget {
               thirdPartyCookiesEnabled: true,
               allowFileAccess: true,
               allowContentAccess: true,
-              useWideViewPort: true,
-              loadWithOverviewMode: true,
+              useWideViewPort: viewportPolicy.useWideViewPort,
+              loadWithOverviewMode: viewportPolicy.loadWithOverviewMode,
               loadsImagesAutomatically: true,
               hardwareAcceleration: true,
               useHybridComposition: true,
@@ -178,9 +192,7 @@ class BrowserWebViewHost extends StatelessWidget {
               scrollbarFadingEnabled: false,
               allowsBackForwardNavigationGestures: true,
               allowsInlineMediaPlayback: true,
-              userAgent: prefersDesktopUserAgent
-                  ? _browserDesktopUserAgent
-                  : _browserMobileUserAgent,
+              userAgent: viewportPolicy.userAgent,
               isFindInteractionEnabled: true,
             ),
             onPermissionRequest: (controller, permissionRequest) async {
@@ -251,4 +263,18 @@ class BrowserWebViewHost extends StatelessWidget {
       ],
     );
   }
+}
+
+class BrowserWebViewViewportPolicy {
+  const BrowserWebViewViewportPolicy({
+    required this.userAgent,
+    required this.useWideViewPort,
+    required this.loadWithOverviewMode,
+  });
+
+  final String userAgent;
+  final bool useWideViewPort;
+  final bool loadWithOverviewMode;
+
+  bool get usesMobileUserAgent => userAgent == _browserMobileUserAgent;
 }

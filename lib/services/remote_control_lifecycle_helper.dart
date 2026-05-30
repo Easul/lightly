@@ -8,12 +8,10 @@ import '../models/remote_control_config.dart';
 class RemoteControlControllerConnectionResult {
   final Socket controlSocket;
   final Socket? screenSocket;
-  final RawDatagramSocket? audioSocket;
 
   const RemoteControlControllerConnectionResult({
     required this.controlSocket,
     required this.screenSocket,
-    required this.audioSocket,
   });
 }
 
@@ -31,13 +29,6 @@ class RemoteControlLifecycleHelper {
     required void Function(Uint8List) onScreenDataRaw,
     required void Function(dynamic error, Socket socket) onScreenError,
     required void Function(Socket socket) onScreenDone,
-    required void Function(RawSocketEvent event) onAudioPacket,
-    required Future<void> Function({
-      required int sampleRate,
-      required int channels,
-    })
-    startAudioPlayback,
-    required Future<void> Function(int port) sendAudioPortStatus,
   }) async {
     final controlConnection = await _connectSocket(
       host: host,
@@ -70,18 +61,9 @@ class RemoteControlLifecycleHelper {
       );
     }
 
-    RawDatagramSocket? audioSocket;
-    if (config.enableAudio) {
-      audioSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-      audioSocket.listen(onAudioPacket);
-      await startAudioPlayback(sampleRate: config.audioSampleRate, channels: 1);
-      await sendAudioPortStatus(audioSocket.port);
-    }
-
     return RemoteControlControllerConnectionResult(
       controlSocket: controlSocket,
       screenSocket: screenSocket,
-      audioSocket: audioSocket,
     );
   }
 

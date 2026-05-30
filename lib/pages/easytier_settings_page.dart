@@ -12,7 +12,7 @@ import '../services/easytier_profile_coordinator.dart';
 import '../services/easytier_runtime_status_controller.dart';
 import '../services/easytier_service_access_coordinator.dart';
 import '../services/easytier_service.dart';
-import '../widgets/easytier/easytier_sections.dart';
+import 'easytier_settings_page_body.dart';
 
 class EasyTierSettingsPage extends StatefulWidget {
   const EasyTierSettingsPage({super.key});
@@ -437,110 +437,57 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
             ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Status Card
-                EasyTierStatusCard(
-                  isRunning: _isRunning,
-                  statusMessage: _statusMessage,
-                  errorMessage: _errorMessage,
-                ),
-                const SizedBox(height: 16),
-
-                if (_profiles.isNotEmpty) ...[
-                  EasyTierProfilesCard(
-                    selectedProfileId: _selectedProfileId,
-                    profileItems: _profiles
-                        .map(
-                          (profile) => DropdownMenuItem<String>(
-                            value: profile.id,
-                            child: Text(profile.name),
-                          ),
-                        )
-                        .toList(),
-                    isLoading: _isLoading,
-                    canDelete: _profiles.length > 1,
-                    onSelected: _selectProfile,
-                    onCreate: _createNewProfile,
-                    onDelete: _deleteCurrentProfile,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Network Info
-                if (_networkInfo != null) ...[
-                  EasyTierNetworkInfoCard(
-                    peerSummaries: peerSummaries,
-                    diagnostics: diagnostics,
-                    displayNetworkInfo: displayNetworkInfo,
-                    onCopy: _copyNetworkInfo,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                if (easyTierIp != null) ...[
-                  EasyTierInternalServicesCard(
-                    easyTierIp: easyTierIp,
-                    localHttpReachable: localHttpReachable,
-                    localHttpSubtitle: localHttpReachable
-                        ? 'http://$easyTierIp:${_localHttpFileServerService.boundPort}'
-                        : '当前未处于 VPN 可访问模式',
-                    clipboardReachable: clipboardReachable,
-                    clipboardSubtitle: clipboardReachable
-                        ? 'http://$easyTierIp:${_clipboardHttpServerService.boundPort}'
-                        : '服务未运行',
-                    onEnableLocalHttp: _enableLocalHttpVpnExposure,
-                    onStartClipboard: _startClipboardServiceIfNeeded,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                EasyTierControlButtons(
-                  isLoading: _isLoading,
-                  isRunning: _isRunning,
-                  onStart: _startVpn,
-                  onStop: _stopVpn,
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                EasyTierConfigurationSection(
-                  instanceNameController: _instanceNameController,
-                  networkNameController: _networkNameController,
-                  networkSecretController: _networkSecretController,
-                  dhcp: _dhcp,
-                  ipv4Controller: _ipv4Controller,
-                  hostnameController: _hostnameController,
-                  enableP2p: _enableP2p,
-                  peerController: _peerController,
-                  peers: _peers,
-                  onDhcpChanged: (value) {
-                    setState(() {
-                      _dhcp = value;
-                    });
-                    unawaited(_persistCurrentProfile());
-                  },
-                  onEnableP2pChanged: (value) {
-                    setState(() {
-                      _enableP2p = value;
-                    });
-                    unawaited(_persistCurrentProfile());
-                  },
-                  onAddPeer: _addPeer,
-                  onRemovePeer: _removePeer,
-                ),
-              ],
-            ),
-          ),
-        ),
+      body: EasyTierSettingsBody(
+        formKey: _formKey,
+        isRunning: _isRunning,
+        isLoading: _isLoading,
+        statusMessage: _statusMessage,
+        errorMessage: _errorMessage,
+        profiles: _profiles,
+        selectedProfileId: _selectedProfileId,
+        peerSummaries: peerSummaries,
+        diagnostics: diagnostics,
+        displayNetworkInfo: displayNetworkInfo,
+        easyTierIp: easyTierIp,
+        localHttpReachable: localHttpReachable,
+        localHttpSubtitle: easyTierIp != null && localHttpReachable
+            ? 'http://$easyTierIp:${_localHttpFileServerService.boundPort}'
+            : '当前未处于 VPN 可访问模式',
+        clipboardReachable: clipboardReachable,
+        clipboardSubtitle: easyTierIp != null && clipboardReachable
+            ? 'http://$easyTierIp:${_clipboardHttpServerService.boundPort}'
+            : '服务未运行',
+        instanceNameController: _instanceNameController,
+        networkNameController: _networkNameController,
+        networkSecretController: _networkSecretController,
+        dhcp: _dhcp,
+        ipv4Controller: _ipv4Controller,
+        hostnameController: _hostnameController,
+        enableP2p: _enableP2p,
+        peerController: _peerController,
+        peers: _peers,
+        onSelectProfile: (profileId) => unawaited(_selectProfile(profileId)),
+        onCreateProfile: () => unawaited(_createNewProfile()),
+        onDeleteProfile: () => unawaited(_deleteCurrentProfile()),
+        onCopyNetworkInfo: () => unawaited(_copyNetworkInfo()),
+        onEnableLocalHttp: () => unawaited(_enableLocalHttpVpnExposure()),
+        onStartClipboard: () => unawaited(_startClipboardServiceIfNeeded()),
+        onStartVpn: () => unawaited(_startVpn()),
+        onStopVpn: () => unawaited(_stopVpn()),
+        onDhcpChanged: (value) {
+          setState(() {
+            _dhcp = value;
+          });
+          unawaited(_persistCurrentProfile());
+        },
+        onEnableP2pChanged: (value) {
+          setState(() {
+            _enableP2p = value;
+          });
+          unawaited(_persistCurrentProfile());
+        },
+        onAddPeer: _addPeer,
+        onRemovePeer: _removePeer,
       ),
     );
   }

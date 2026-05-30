@@ -31,7 +31,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();
-  final TextEditingController _audioPortController = TextEditingController();
   final EasyTierService _easyTierService = EasyTierService();
   final ProxyService _proxyService = ProxyService();
   final BrowserSettingsService _settingsService = BrowserSettingsService();
@@ -52,7 +51,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   bool _useInternalProxy = false;
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
-  bool _portsManuallyEdited = false;
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
@@ -131,7 +129,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     if (!mounted) return;
     setState(() {
       _isConnecting = state == RemoteControlState.connecting;
-      _isReceiverAudioEnabled = _service.audioCaptureService.isCapturing;
+      _isReceiverAudioEnabled = _service.isLocalAudioEnabled;
       if (state == RemoteControlState.connected) {
         _errorMessage = null;
       } else if (state == RemoteControlState.error) {
@@ -143,9 +141,14 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   void _handleMessage(protocol.ControlMessage message) {
-    if (message is protocol.StatusMessage &&
-        message.action == 'receiver_info') {
+    if (message is! protocol.StatusMessage) {
       return;
+    }
+    if (message.action == 'receiver_microphone_status') {
+      final enabled = message.data['enabled'] == true;
+      if (mounted && _isReceiverAudioEnabled != enabled) {
+        setState(() => _isReceiverAudioEnabled = enabled);
+      }
     }
   }
 
@@ -171,9 +174,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _applyPortConfigToInputs(ports);
 
       if (mounted) {
-        _showToast(
-          '被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}/${ports.audioPort}',
-        );
+        _showToast('被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}');
       }
     } on RemoteControlPageReceiverStartException catch (error) {
       if (!mounted) return;
@@ -243,19 +244,17 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       return;
     }
 
-    if (!_portsManuallyEdited) {
-      final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
-        service: _service,
-        host: host,
-        useInternalProxy: _useInternalProxy,
-        proxyPort: proxyPort,
-      );
-      if (discoveredPorts != null && mounted) {
-        setState(() {
-          _portConfig = discoveredPorts;
-        });
-        _applyPortConfigToInputs(discoveredPorts);
-      }
+    final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
+      service: _service,
+      host: host,
+      useInternalProxy: _useInternalProxy,
+      proxyPort: proxyPort,
+    );
+    if (discoveredPorts != null && mounted) {
+      setState(() {
+        _portConfig = discoveredPorts;
+      });
+      _applyPortConfigToInputs(discoveredPorts);
     }
 
     Object? lastError;
@@ -273,7 +272,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         setState(() {
           _isConnecting = false;
           _portConfig = _service.config?.ports ?? ports;
-          _portsManuallyEdited = false;
         });
         _applyPortConfigToInputs(_portConfig);
         await Navigator.push(
@@ -312,7 +310,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     setState(() {
       _hostController.text = host;
       _portConfig = null;
-      _portsManuallyEdited = false;
       _errorMessage = null;
     });
     _applyPortConfigToInputs(null);
@@ -337,7 +334,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _portConfigHelper.applyPortConfigToInputs(
       controlPortController: _controlPortController,
       screenPortController: _screenPortController,
-      audioPortController: _audioPortController,
       ports: ports,
     );
   }
@@ -364,17 +360,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
               _buildControllerSection(),
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
+              RemoteControlErrorBanner(message: _errorMessage!),
             ],
           ],
         ),
@@ -392,7 +378,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       onControllerTap: () => setState(() {
         _selectedMode = RemoteControlMode.controller;
         _portConfig = null;
-        _portsManuallyEdited = false;
         _applyPortConfigToInputs(null);
         _errorMessage = null;
       }),
@@ -418,7 +403,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       hostController: _hostController,
       controlPortController: _controlPortController,
       screenPortController: _screenPortController,
-      audioPortController: _audioPortController,
       portConfig: _portConfig,
       isConnecting: _isConnecting,
       useInternalProxy: _useInternalProxy,
@@ -427,20 +411,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       onSelectPeer: _selectPeer,
       onControlPortChanged: (value) {
         setState(() {
-          _portsManuallyEdited = true;
           _portConfig = _portConfigHelper.updateControlPort(_portConfig, value);
         });
       },
       onScreenPortChanged: (value) {
         setState(() {
-          _portsManuallyEdited = true;
           _portConfig = _portConfigHelper.updateScreenPort(_portConfig, value);
-        });
-      },
-      onAudioPortChanged: (value) {
-        setState(() {
-          _portsManuallyEdited = true;
-          _portConfig = _portConfigHelper.updateAudioPort(_portConfig, value);
         });
       },
       onUseInternalProxyChanged: (value) {

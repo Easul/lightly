@@ -5,6 +5,7 @@ import '../local_http_file_server_service.dart';
 import '../proxy_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
+import 'browser_cookie_origin_service.dart';
 import 'browser_external_url_launcher_service.dart';
 import 'browser_favorite_service.dart';
 import 'browser_history_service.dart';
@@ -20,6 +21,8 @@ class BrowserSharedServices {
   final BrowserTabService tabService = BrowserTabService();
   final ProxyService proxyService = ProxyService();
   final BrowserHistoryService historyService = BrowserHistoryService();
+  final BrowserCookieOriginService cookieOriginService =
+      BrowserCookieOriginService();
   final BrowserDownloadService downloadService = BrowserDownloadService();
   final BrowserDownloadStore downloadStore = BrowserDownloadStore();
   final BrowserExternalUrlLauncherService externalUrlLauncher =

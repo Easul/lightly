@@ -23,12 +23,13 @@ class BrowserTabService {
   final List<BrowserTabSession> _tabs = <BrowserTabSession>[];
   final List<String> _usageOrder = <String>[];
   final Map<String, DateTime> _lastActiveTimes = <String, DateTime>{};
+  List<BrowserTabSession>? _cachedTabsView;
   String? _activeTabId;
   int _nextId = 0;
   String _fallbackUrl = 'https://www.google.com';
 
   List<BrowserTabSession> get tabs =>
-      List<BrowserTabSession>.unmodifiable(_tabs);
+      _cachedTabsView ??= List<BrowserTabSession>.unmodifiable(_tabs);
 
   BrowserTabSession? get activeTab {
     if (_activeTabId == null) {
@@ -51,6 +52,7 @@ class BrowserTabService {
     }
     final tab = _buildTab(url: initialUrl);
     _tabs.add(tab);
+    _invalidateTabsCache();
     _activeTabId = tab.id;
     _touch(tab.id);
   }
@@ -73,6 +75,7 @@ class BrowserTabService {
       popupWindowId: popupWindowId,
     );
     _tabs.add(tab);
+    _invalidateTabsCache();
     if (activate) {
       _activeTabId = tab.id;
     }
@@ -139,7 +142,8 @@ class BrowserTabService {
         continue;
       }
       _disposeKeepAlive(tab.keepAlive);
-      _tabs[i] = tab.copyWith(clearKeepAlive: true);
+      _tabs[i] = tab.copyWith(clearKeepAlive: true, hasAttachedWebView: false);
+      _invalidateTabsCache();
       trimmedCount += 1;
     }
 
@@ -170,7 +174,11 @@ class BrowserTabService {
     if (current.keepAlive != null || !current.url.startsWith('http')) {
       return false;
     }
-    _tabs[index] = current.copyWith(keepAlive: InAppWebViewKeepAlive());
+    _tabs[index] = current.copyWith(
+      keepAlive: InAppWebViewKeepAlive(),
+      hasAttachedWebView: false,
+    );
+    _invalidateTabsCache();
     return true;
   }
 
@@ -186,13 +194,16 @@ class BrowserTabService {
           ? InAppWebViewKeepAlive()
           : null,
       clearKeepAlive: !recreate,
+      hasAttachedWebView: false,
     );
+    _invalidateTabsCache();
     return true;
   }
 
   bool updateTab(
     String tabId, {
     String? url,
+    bool? hasAttachedWebView,
     int? popupWindowId,
     bool clearPopupWindowId = false,
     String? title,
@@ -209,6 +220,7 @@ class BrowserTabService {
     final current = _tabs[index];
     final next = current.copyWith(
       url: url,
+      hasAttachedWebView: hasAttachedWebView,
       popupWindowId: popupWindowId,
       clearPopupWindowId: clearPopupWindowId,
       title: title,
@@ -219,6 +231,7 @@ class BrowserTabService {
       isExternallyOpened: isExternallyOpened,
     );
     if (next.url == current.url &&
+        next.hasAttachedWebView == current.hasAttachedWebView &&
         next.popupWindowId == current.popupWindowId &&
         next.title == current.title &&
         next.isLoading == current.isLoading &&
@@ -230,6 +243,7 @@ class BrowserTabService {
     }
 
     _tabs[index] = next;
+    _invalidateTabsCache();
     return true;
   }
 
@@ -239,6 +253,7 @@ class BrowserTabService {
       return _ensureAtLeastOneTab();
     }
     final removed = _tabs.removeAt(index);
+    _invalidateTabsCache();
     _usageOrder.remove(tabId);
     _lastActiveTimes.remove(tabId);
     _disposeKeepAlive(removed.keepAlive);
@@ -309,6 +324,7 @@ class BrowserTabService {
           withKeepAlive: i == activeIndex,
         );
         _tabs.add(tab);
+        _invalidateTabsCache();
         _usageOrder.add(tab.id);
       }
       if (_tabs.isNotEmpty) {
@@ -326,6 +342,7 @@ class BrowserTabService {
     _resetRuntimeTabs();
     final tab = _buildTab(url: url);
     _tabs.add(tab);
+    _invalidateTabsCache();
     _activeTabId = tab.id;
     _touch(tab.id);
   }
@@ -335,6 +352,7 @@ class BrowserTabService {
       _disposeKeepAlive(tab.keepAlive);
     }
     _tabs.clear();
+    _invalidateTabsCache();
     _usageOrder.clear();
     _lastActiveTimes.clear();
     _activeTabId = null;
@@ -347,6 +365,7 @@ class BrowserTabService {
     }
     final replacement = _buildTab(url: _fallbackUrl);
     _tabs.add(replacement);
+    _invalidateTabsCache();
     _activeTabId = replacement.id;
     _touch(replacement.id);
     return replacement;
@@ -387,6 +406,7 @@ class BrowserTabService {
         continue;
       }
       final removed = _tabs.removeAt(index);
+      _invalidateTabsCache();
       _usageOrder.remove(idToRemove);
       _disposeKeepAlive(removed.keepAlive);
       if (_activeTabId == idToRemove) {
@@ -403,6 +423,10 @@ class BrowserTabService {
 
   int _indexOf(String tabId) {
     return _tabs.indexWhere((tab) => tab.id == tabId);
+  }
+
+  void _invalidateTabsCache() {
+    _cachedTabsView = null;
   }
 
   void _disposeKeepAlive(InAppWebViewKeepAlive? keepAlive) {

@@ -45,6 +45,10 @@ class MainActivity : FlutterActivity() {
     private var easyTierCurrentIpv4: String? = null
     private var easyTierCurrentProxyCidrs: List<String> = emptyList()
     private var easyTierMonitorTick = 0
+    private var easyTierRunningConfig: String? = null
+    private var easyTierMissingInfoTicks = 0
+    private var easyTierNotRunningTicks = 0
+    private var easyTierRestartInProgress = false
     private var remoteControlService: RemoteControlService? = null
 
     private var initialIntentUrl: String? = null
@@ -270,8 +274,6 @@ class MainActivity : FlutterActivity() {
     private var screenTextureSurface: Surface? = null
     private var pendingDecoderSps: ByteArray? = null
     private var pendingDecoderPps: ByteArray? = null
-    private var audioPlayer: AudioPlayer? = null
-    private var remoteAudioPlaybackUsesSpeakerphone = false
 
     private fun shutdownRemoteControlResources() {
         try {
@@ -280,14 +282,6 @@ class MainActivity : FlutterActivity() {
             Log.w(remoteControlChannelName, "Failed to stop remote control service", e)
         }
         remoteControlService = null
-
-        try {
-            audioPlayer?.release()
-        } catch (e: Exception) {
-            Log.w(remoteControlChannelName, "Failed to release audio player", e)
-        }
-        audioPlayer = null
-
         releaseScreenDecoder()
     }
 
@@ -304,6 +298,7 @@ class MainActivity : FlutterActivity() {
 
         try {
             EasyTierJNI.stopAllInstances()
+            easyTierRunningConfig = null
         } catch (e: Exception) {
             Log.w(easyTierChannelName, "Failed to stop EasyTier instances", e)
         }
@@ -623,6 +618,7 @@ class MainActivity : FlutterActivity() {
                             }
                             startService(intent)
                             EasyTierJNI.stopAllInstances()
+                            easyTierRunningConfig = null
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -686,20 +682,15 @@ class MainActivity : FlutterActivity() {
                         try {
                             val controlPort = call.argument<Int>("controlPort") ?: 18080
                             val screenPort = call.argument<Int>("screenPort") ?: 18081
-                            val audioPort = call.argument<Int>("audioPort") ?: 18082
                             val screenFps = call.argument<Int>("screenFps") ?: 15
                             val screenBitrate = call.argument<Int>("screenBitrate") ?: 2000000
-                            val audioSampleRate = call.argument<Int>("audioSampleRate") ?: 16000
-                            val audioBitrate = call.argument<Int>("audioBitrate") ?: 24000
 
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
-                            remoteAudioPlaybackUsesSpeakerphone = true
                             remoteControlService!!.startReceiver(
-                                controlPort, screenPort, audioPort,
+                                controlPort, screenPort,
                                 screenFps, screenBitrate,
-                                audioSampleRate, audioBitrate,
                             )
                             result.success(true)
                         } catch (e: Exception) {
@@ -710,13 +701,11 @@ class MainActivity : FlutterActivity() {
                     "startController" -> {
                         try {
                             val host = call.argument<String>("host") ?: ""
-                            val audioPort = call.argument<Int>("audioPort") ?: 18082
 
                             if (remoteControlService == null) {
                                 remoteControlService = RemoteControlService(this)
                             }
-                            remoteAudioPlaybackUsesSpeakerphone = false
-                            remoteControlService!!.startController(host, audioPort)
+                            remoteControlService!!.startController(host)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -727,7 +716,6 @@ class MainActivity : FlutterActivity() {
                         try {
                             remoteControlService?.stop()
                             remoteControlService = null
-                            remoteAudioPlaybackUsesSpeakerphone = false
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -896,66 +884,6 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
-                    "initAudioPlayer" -> {
-                        try {
-                            val sampleRate = call.argument<Int>("sampleRate") ?: 16000
-                            val ch = call.argument<Int>("channels") ?: 1
-                            if (audioPlayer == null) {
-                                audioPlayer = AudioPlayer(this)
-                            }
-                            audioPlayer!!.initialize(
-                                sampleRate = sampleRate,
-                                channels = ch,
-                                useSpeakerphone = remoteAudioPlaybackUsesSpeakerphone,
-                            )
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "startAudioPlayer" -> {
-                        try {
-                            audioPlayer?.start()
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "stopAudioPlayer" -> {
-                        try {
-                            audioPlayer?.stop()
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "playAudio" -> {
-                        try {
-                            val data = call.argument<ByteArray>("data")
-                            if (data != null) {
-                                audioPlayer?.play(data)
-                                result.success(true)
-                            } else {
-                                result.error("INVALID_ARGS", "Audio data required", null)
-                            }
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "releaseAudioPlayer" -> {
-                        try {
-                            audioPlayer?.release()
-                            audioPlayer = null
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
                     else -> result.notImplemented()
                 }
             }
@@ -1040,6 +968,7 @@ class MainActivity : FlutterActivity() {
             Log.d("EasyTier", "Starting EasyTier instance with config")
             val res = EasyTierJNI.runNetworkInstance(config)
             if (res == 0) {
+                easyTierRunningConfig = config
                 startEasyTierMonitor(instanceName)
                 Log.d("EasyTier", "VPN started successfully")
                 result.success(true)
@@ -1060,6 +989,9 @@ class MainActivity : FlutterActivity() {
         easyTierCurrentIpv4 = null
         easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
+        easyTierMissingInfoTicks = 0
+        easyTierNotRunningTicks = 0
+        easyTierRestartInProgress = false
 
         easyTierMonitorRunnable = object : Runnable {
             override fun run() {
@@ -1081,6 +1013,9 @@ class MainActivity : FlutterActivity() {
         easyTierCurrentIpv4 = null
         easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
+        easyTierMissingInfoTicks = 0
+        easyTierNotRunningTicks = 0
+        easyTierRestartInProgress = false
     }
 
     private fun monitorEasyTierStatus() {
@@ -1088,9 +1023,14 @@ class MainActivity : FlutterActivity() {
         easyTierMonitorTick += 1
         val infosJson = EasyTierJNI.collectNetworkInfos(10)
         if (infosJson.isNullOrBlank()) {
-            Log.d("EasyTier", "No network info returned yet")
+            easyTierMissingInfoTicks += 1
+            Log.d("EasyTier", "No network info returned yet count=$easyTierMissingInfoTicks")
+            if (easyTierMissingInfoTicks >= 4) {
+                restartEasyTierInstance("missing-network-info")
+            }
             return
         }
+        easyTierMissingInfoTicks = 0
 
         try {
             val root = JSONObject(infosJson)
@@ -1106,11 +1046,17 @@ class MainActivity : FlutterActivity() {
                 "EasyTier",
                 "Monitor tick=$easyTierMonitorTick instance=$instanceName running=${networkInfo.optBoolean("running", false)} hostname=$hostname peers=$peerCount routes=$routeCount error=$errorMsg",
             )
+            logEasyTierDiagnostics(networkInfo)
 
             if (!networkInfo.optBoolean("running", false)) {
-                Log.w("EasyTier", "Instance not running: ${networkInfo.optString("error_msg")}")
+                easyTierNotRunningTicks += 1
+                Log.w("EasyTier", "Instance not running count=$easyTierNotRunningTicks: ${networkInfo.optString("error_msg")}")
+                if (easyTierNotRunningTicks >= 2) {
+                    restartEasyTierInstance("instance-not-running")
+                }
                 return
             }
+            easyTierNotRunningTicks = 0
 
             val virtualIpv4 = extractVirtualIpv4(networkInfo)
             if (virtualIpv4 == null) {
@@ -1130,6 +1076,74 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             Log.e("EasyTier", "Failed to parse network info JSON", e)
         }
+    }
+
+    private fun logEasyTierDiagnostics(networkInfo: JSONObject) {
+        val myNodeInfo = networkInfo.optJSONObject("my_node_info")
+        val stunInfo = myNodeInfo?.optJSONObject("stun_info")
+        Log.d(
+            "EasyTier",
+            "Diagnostics virtualIpv4=${extractVirtualIpv4(networkInfo) ?: "null"} udpNat=${stunInfo?.optString("udp_nat_type", "-") ?: "-"} tcpNat=${stunInfo?.optString("tcp_nat_type", "-") ?: "-"}",
+        )
+
+        val peerDirectConnectionCountById = mutableMapOf<Long, Int>()
+        val peers = networkInfo.optJSONArray("peers")
+        if (peers != null) {
+            for (i in 0 until peers.length()) {
+                val peer = peers.optJSONObject(i) ?: continue
+                val peerId = peer.optLong("peer_id", 0L)
+                peerDirectConnectionCountById[peerId] =
+                    peer.optJSONArray("directly_connected_conns")?.length() ?: 0
+            }
+        }
+
+        val routes = networkInfo.optJSONArray("routes")
+        if (routes != null) {
+            for (i in 0 until routes.length()) {
+                val route = routes.optJSONObject(i) ?: continue
+                val peerId = route.optLong("peer_id", 0L)
+                val nextHopPeerId = route.optLong("next_hop_peer_id", 0L)
+                val cost = route.optInt("cost", -1)
+                val latency = route.optLong("path_latency", -1L)
+                val hostname = route.optString("hostname", "")
+                val featureFlag = route.optJSONObject("feature_flag")
+                val publicServer = featureFlag?.optBoolean("is_public_server", false) ?: false
+                val directConnectionCount = peerDirectConnectionCountById[peerId] ?: 0
+                val mode = describeEasyTierRouteMode(
+                    cost,
+                    peerId,
+                    nextHopPeerId,
+                    publicServer,
+                    directConnectionCount,
+                )
+                Log.d(
+                    "EasyTier",
+                    "Route[$i] host=$hostname peer=$peerId nextHop=$nextHopPeerId cost=$cost latency=${latency}ms directConns=$directConnectionCount public=$publicServer mode=$mode",
+                )
+            }
+        }
+
+        val events = networkInfo.optJSONArray("events")
+        if (events != null && events.length() > 0) {
+            val start = maxOf(0, events.length() - 3)
+            for (i in start until events.length()) {
+                Log.d("EasyTier", "RecentEvent[$i]=${events.optString(i)}")
+            }
+        }
+    }
+
+    private fun describeEasyTierRouteMode(
+        cost: Int,
+        peerId: Long,
+        nextHopPeerId: Long,
+        publicServer: Boolean,
+        directConnectionCount: Int,
+    ): String {
+        if (publicServer) return "public-server"
+        if (cost <= 1 && directConnectionCount > 0) return "direct-lan"
+        if (cost <= 1) return "p2p-direct"
+        if (nextHopPeerId != 0L && nextHopPeerId != peerId) return "relay-via-$nextHopPeerId"
+        return "relay"
     }
 
     private fun extractVirtualIpv4(networkInfo: JSONObject): String? {
@@ -1167,6 +1181,34 @@ class MainActivity : FlutterActivity() {
             }
         }
         return proxyCidrs
+    }
+
+    private fun restartEasyTierInstance(reason: String) {
+        val config = easyTierRunningConfig
+        val instanceName = easyTierRunningInstanceName
+        if (config.isNullOrBlank() || instanceName.isNullOrBlank() || easyTierRestartInProgress) {
+            return
+        }
+        easyTierRestartInProgress = true
+        Log.w("EasyTier", "Restarting EasyTier instance after monitor failure: reason=$reason instance=$instanceName")
+        try {
+            runCatching { EasyTierJNI.stopAllInstances() }
+            val res = EasyTierJNI.runNetworkInstance(config)
+            if (res == 0) {
+                easyTierCurrentIpv4 = null
+                easyTierCurrentProxyCidrs = emptyList()
+                easyTierMissingInfoTicks = 0
+                easyTierNotRunningTicks = 0
+                Log.i("EasyTier", "EasyTier instance restarted: reason=$reason")
+            } else {
+                val error = EasyTierJNI.getLastError()
+                Log.e("EasyTier", "EasyTier instance restart failed: reason=$reason error=$error")
+            }
+        } catch (e: Exception) {
+            Log.e("EasyTier", "Exception restarting EasyTier instance: reason=$reason", e)
+        } finally {
+            easyTierRestartInProgress = false
+        }
     }
 
     private fun restartEasyTierVpnService(instanceName: String, ipv4: String, proxyCidrs: List<String>) {

@@ -82,7 +82,7 @@ class EasyTierProfilesCard extends StatelessWidget {
             Text('网络配置档案', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: selectedProfileId,
+              initialValue: selectedProfileId,
               items: profileItems,
               onChanged: isLoading ? null : onSelected,
               decoration: const InputDecoration(
