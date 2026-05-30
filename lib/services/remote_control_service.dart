@@ -38,6 +38,7 @@ class RemoteControlService {
       sendSignal: _sendWebRtcSignal,
       ensureDiagnosticsLogging: _ensureAudioDiagnosticsLogging,
       log: _logMessage,
+      onConnectionInterrupted: _handleWebRtcConnectionInterrupted,
     );
     _voiceCoordinator = RemoteControlVoiceCoordinator(
       prepare: _voiceService.prepare,
@@ -108,6 +109,16 @@ class RemoteControlService {
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
   bool _audioDiagnosticsLoggingReady = false;
+  bool _autoReconnectEnabled = false;
+  bool _autoReconnectInProgress = false;
+  bool _disconnectRequested = false;
+  String? _lastControllerHost;
+  RemoteControlPortConfig? _lastControllerPorts;
+  bool _lastControllerUseProxy = false;
+  int? _lastControllerProxyPort;
+  List<String> _lastControllerAvailableHosts = const <String>[];
+  int _lastControllerDiscoveryDelayMs = 0;
+  DateTime? _lastWebRtcRecoveryAt;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -327,6 +338,14 @@ class RemoteControlService {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
     _targetHost = host;
+    _lastControllerHost = host;
+    _lastControllerPorts = ports;
+    _lastControllerUseProxy = useProxy;
+    _lastControllerProxyPort = proxyPort;
+    _lastControllerAvailableHosts = List<String>.from(availableHosts);
+    _lastControllerDiscoveryDelayMs = discoveryDelayMs;
+    _autoReconnectEnabled = true;
+    _disconnectRequested = false;
     _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
 
     // 记录设备发现路径
@@ -402,6 +421,78 @@ class RemoteControlService {
       useProxy: useProxy,
       proxyPort: proxyPort,
     );
+  }
+
+  Future<void> _autoReconnectController(String reason) async {
+    if (_mode != RemoteControlMode.controller ||
+        !_autoReconnectEnabled ||
+        _disconnectRequested ||
+        _autoReconnectInProgress) {
+      return;
+    }
+    final host = _lastControllerHost;
+    final ports = _lastControllerPorts;
+    if (host == null || ports == null) {
+      return;
+    }
+    _autoReconnectInProgress = true;
+    _logMessage('Remote reconnect scheduled: reason=$reason host=$host');
+    _updateState(RemoteControlState.connecting);
+    await _resetControllerConnection(stopNative: true);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (_disconnectRequested) {
+      _autoReconnectInProgress = false;
+      return;
+    }
+    try {
+      await connectToReceiver(
+        host,
+        ports,
+        availableHosts: _lastControllerAvailableHosts,
+        discoveryDelayMs: _lastControllerDiscoveryDelayMs,
+        useProxy: _lastControllerUseProxy,
+        proxyPort: _lastControllerProxyPort,
+      );
+      _logMessage('Remote reconnect succeeded: reason=$reason host=$host');
+    } catch (error) {
+      _logMessage('Remote reconnect failed: $error', error: error);
+      if (!_disconnectRequested) {
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          unawaited(_autoReconnectController('retry-after-failure'));
+        });
+      }
+    } finally {
+      _autoReconnectInProgress = false;
+    }
+  }
+
+  void _handleWebRtcConnectionInterrupted(String reason) {
+    if (_mode != RemoteControlMode.controller ||
+        !isVoiceEnabled ||
+        _controllerControlSocket == null) {
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastWebRtcRecoveryAt;
+    if (last != null && now.difference(last) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastWebRtcRecoveryAt = now;
+    final wasLocalAudioEnabled = _voiceService.isLocalAudioEnabled;
+    _logMessage('Rebuilding WebRTC voice after interruption: $reason');
+    unawaited(() async {
+      await _voiceCoordinator.close();
+      await _prepareVoiceSession(isController: true);
+      if (wasLocalAudioEnabled) {
+        await _voiceCoordinator.startAudioCapture(
+          isVoiceEnabled: isVoiceEnabled,
+          isController: true,
+          targetHost: _targetHost,
+          overlayPrefix: _easyTierOverlayPrefix,
+          log: _logMessage,
+        );
+      }
+    }());
   }
 
   Future<void> _resetControllerConnection({required bool stopNative}) async {
@@ -866,16 +957,18 @@ class RemoteControlService {
 
   void _handleControlError(dynamic error) {
     developer.log('Control channel error: $error', name: 'RemoteControl');
-    unawaited(_resetControllerConnection(stopNative: true));
-    _updateState(RemoteControlState.error);
+    unawaited(() async {
+      await _resetControllerConnection(stopNative: true);
+      await _autoReconnectController('control-error');
+    }());
   }
 
   void _handleControlDone() {
     developer.log('Control channel closed', name: 'RemoteControl');
-    unawaited(_resetControllerConnection(stopNative: true));
-    _updateState(RemoteControlState.disconnected);
-    _stopScreenFrameWatchdog();
-    _stopHeartbeat();
+    unawaited(() async {
+      await _resetControllerConnection(stopNative: true);
+      await _autoReconnectController('control-done');
+    }());
   }
 
   void _handleScreenError(
@@ -893,6 +986,7 @@ class RemoteControlService {
       _controllerScreenSocket = null;
       _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
+      unawaited(_autoReconnectController('screen-error'));
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -913,6 +1007,7 @@ class RemoteControlService {
       _controllerScreenSocket = null;
       _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
+      unawaited(_autoReconnectController('screen-done'));
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -955,6 +1050,9 @@ class RemoteControlService {
   }
 
   Future<void> disconnect() async {
+    _disconnectRequested = true;
+    _autoReconnectEnabled = false;
+    _autoReconnectInProgress = false;
     _performanceMonitor.stopMonitoring();
     _stopScreenFrameWatchdog();
     _stopHeartbeat();

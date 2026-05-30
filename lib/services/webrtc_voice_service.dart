@@ -9,6 +9,7 @@ import 'webrtc_stats_summary.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
 typedef WebRtcLogCallback = void Function(String message, {Object? error});
+typedef WebRtcConnectionInterrupted = void Function(String reason);
 
 class WebRtcVoiceService {
   static const WebRtcSdpSummary _sdpSummary = WebRtcSdpSummary();
@@ -36,13 +37,16 @@ class WebRtcVoiceService {
     required WebRtcSignalSender sendSignal,
     required Future<void> Function() ensureDiagnosticsLogging,
     required WebRtcLogCallback log,
+    WebRtcConnectionInterrupted? onConnectionInterrupted,
   }) : _sendSignal = sendSignal,
        _ensureDiagnosticsLogging = ensureDiagnosticsLogging,
-       _log = log;
+       _log = log,
+       _onConnectionInterrupted = onConnectionInterrupted;
 
   final WebRtcSignalSender _sendSignal;
   final Future<void> Function() _ensureDiagnosticsLogging;
   final WebRtcLogCallback _log;
+  final WebRtcConnectionInterrupted? _onConnectionInterrupted;
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
@@ -58,6 +62,7 @@ class WebRtcVoiceService {
   String? _localOverlayHost;
   Timer? _statsTimer;
   Timer? _audioRouteTimer;
+  bool _isClosing = false;
 
   WebRtcCandidateFilter get _candidateFilter =>
       WebRtcCandidateFilter(preference: _networkPreference);
@@ -69,6 +74,7 @@ class WebRtcVoiceService {
     required bool isController,
     WebRtcNetworkPreference networkPreference = const WebRtcNetworkPreference(),
   }) async {
+    _isClosing = false;
     _isController = isController;
     _networkPreference = networkPreference;
     _localOverlayHost = await _resolveLocalOverlayHost(networkPreference);
@@ -140,6 +146,9 @@ class WebRtcVoiceService {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         unawaited(_refreshAudioRoute());
         _startStatsTimer();
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        _notifyConnectionInterrupted('peer-$state');
       }
     };
     peerConnection.onIceConnectionState = (state) {
@@ -148,6 +157,9 @@ class WebRtcVoiceService {
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         unawaited(_refreshAudioRoute());
         _startStatsTimer();
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+        _notifyConnectionInterrupted('ice-$state');
       }
     };
     peerConnection.onTrack = (event) {
@@ -205,6 +217,14 @@ class WebRtcVoiceService {
     }
   }
 
+  void _notifyConnectionInterrupted(String reason) {
+    if (_isClosing) {
+      return;
+    }
+    _log('webrtc-connection-interrupted: $reason');
+    _onConnectionInterrupted?.call(reason);
+  }
+
   Future<void> setLocalAudioEnabled(bool enabled) async {
     if (_peerConnection == null) {
       if (!enabled) {
@@ -241,6 +261,7 @@ class WebRtcVoiceService {
   }
 
   Future<void> close() async {
+    _isClosing = true;
     _statsTimer?.cancel();
     _statsTimer = null;
     _audioRouteTimer?.cancel();
