@@ -17,6 +17,8 @@ class ProxySettingsSection extends StatelessWidget {
     required this.selectedProtocol,
     required this.showsUuidField,
     required this.showsTransportFields,
+    required this.showsHysteria2ObfsFields,
+    required this.showsPacketEncodingField,
     required this.showsTlsFields,
     required this.proxyTlsEnabled,
     required this.selectedTransportType,
@@ -51,6 +53,8 @@ class ProxySettingsSection extends StatelessWidget {
   final String selectedProtocol;
   final bool showsUuidField;
   final bool showsTransportFields;
+  final bool showsHysteria2ObfsFields;
+  final bool showsPacketEncodingField;
   final bool showsTlsFields;
   final bool proxyTlsEnabled;
   final String selectedTransportType;
@@ -102,6 +106,8 @@ class ProxySettingsSection extends StatelessWidget {
               proxyEnabled: enabled,
               showsUuidField: showsUuidField,
               showsTransportFields: showsTransportFields,
+              showsHysteria2ObfsFields: showsHysteria2ObfsFields,
+              showsPacketEncodingField: showsPacketEncodingField,
               showsTlsFields: showsTlsFields,
               proxyTlsEnabled: proxyTlsEnabled,
               selectedTransportType: selectedTransportType,
@@ -135,6 +141,8 @@ class ProxyConfigurationForm extends StatelessWidget {
     required this.proxyEnabled,
     required this.showsUuidField,
     required this.showsTransportFields,
+    required this.showsHysteria2ObfsFields,
+    required this.showsPacketEncodingField,
     required this.showsTlsFields,
     required this.proxyTlsEnabled,
     required this.selectedTransportType,
@@ -159,6 +167,8 @@ class ProxyConfigurationForm extends StatelessWidget {
   final bool proxyEnabled;
   final bool showsUuidField;
   final bool showsTransportFields;
+  final bool showsHysteria2ObfsFields;
+  final bool showsPacketEncodingField;
   final bool showsTlsFields;
   final bool proxyTlsEnabled;
   final String selectedTransportType;
@@ -182,7 +192,7 @@ class ProxyConfigurationForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final fields = <Widget>[
       DropdownButtonFormField<String>(
-        value: selectedProtocol,
+        initialValue: selectedProtocol,
         decoration: const InputDecoration(
           labelText: '代理协议',
           prefixIcon: Icon(Icons.settings_ethernet_outlined),
@@ -258,7 +268,7 @@ class ProxyConfigurationForm extends StatelessWidget {
       fields.addAll([
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: selectedTransportType,
+          initialValue: selectedTransportType,
           decoration: const InputDecoration(
             labelText: '传输方式',
             prefixIcon: Icon(Icons.route_outlined),
@@ -295,6 +305,38 @@ class ProxyConfigurationForm extends StatelessWidget {
       ]);
     }
 
+    if (showsHysteria2ObfsFields) {
+      fields.addAll([
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: selectedTransportType,
+          decoration: const InputDecoration(
+            labelText: '混淆方式',
+            helperText: 'Hysteria2 常用 salamander；不需要混淆则保持关闭',
+            prefixIcon: Icon(Icons.route_outlined),
+          ),
+          items: const [
+            DropdownMenuItem(value: '', child: Text('关闭混淆')),
+            DropdownMenuItem(value: 'salamander', child: Text('salamander')),
+          ],
+          onChanged: !proxyEnabled
+              ? null
+              : (value) => onTransportTypeChanged(value ?? ''),
+        ),
+        if (selectedTransportType.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: proxyTransportHostController,
+            enabled: proxyEnabled,
+            decoration: const InputDecoration(
+              labelText: '混淆密码',
+              prefixIcon: Icon(Icons.password_outlined),
+            ),
+          ),
+        ],
+      ]);
+    }
+
     if (showsTlsFields) {
       fields.addAll([
         SwitchListTile(
@@ -304,24 +346,24 @@ class ProxyConfigurationForm extends StatelessWidget {
           subtitle: const Text('443 或要求 tls 的节点请保持开启'),
           onChanged: !proxyEnabled ? null : onTlsEnabledChanged,
         ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          value: proxyPacketEncoding,
-          decoration: const InputDecoration(
-            labelText: '数据包编码',
-            helperText: 'OpenAI Workers 等节点可能需要 xudp',
-            prefixIcon: Icon(Icons.tune_outlined),
+        if (showsPacketEncodingField) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: proxyPacketEncoding,
+            decoration: const InputDecoration(
+              labelText: '数据包编码',
+              helperText: 'OpenAI Workers 等 VLESS 节点可能需要 xudp',
+              prefixIcon: Icon(Icons.tune_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: '', child: Text('默认')),
+              DropdownMenuItem(value: 'xudp', child: Text('xudp')),
+            ],
+            onChanged: !proxyEnabled
+                ? null
+                : (value) => onPacketEncodingChanged(value ?? ''),
           ),
-          items: const [
-            DropdownMenuItem(value: '', child: Text('默认')),
-            DropdownMenuItem(value: 'xudp', child: Text('xudp')),
-          ],
-          onChanged:
-              !proxyEnabled ||
-                  selectedProtocol == BrowserProxyProtocol.hysteria2
-              ? null
-              : (value) => onPacketEncodingChanged(value ?? ''),
-        ),
+        ],
         if (proxyTlsEnabled ||
             selectedProtocol == BrowserProxyProtocol.hysteria2) ...[
           const SizedBox(height: 12),

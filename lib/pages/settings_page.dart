@@ -495,14 +495,30 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _formController.selectedProtocol = value;
       if (!_formController.showsTransportFields) {
+        _formController.proxyPacketEncoding = '';
+        _formController.proxyTransportPathController.clear();
+      }
+      if (!_formController.showsTransportFields &&
+          !_formController.showsHysteria2ObfsFields) {
         _formController.selectedTransportType = '';
+        _formController.proxyTransportHostController.clear();
+      }
+      if (_formController.showsTransportFields) {
+        _formController.proxyTransportHostController.clear();
+      }
+      if (_formController.showsHysteria2ObfsFields) {
+        _formController.proxyTransportPathController.clear();
         _formController.proxyPacketEncoding = '';
       }
       if (_formController.selectedProtocol == BrowserProxyProtocol.vless) {
         _formController.proxyTlsEnabled = true;
+      } else if (_formController.selectedProtocol ==
+          BrowserProxyProtocol.hysteria2) {
+        _formController.proxyTlsEnabled = true;
       } else {
         _formController.proxyTlsEnabled = false;
         _formController.proxyTlsInsecure = false;
+        _formController.proxyServerNameController.clear();
       }
     });
     _markSectionDirty();

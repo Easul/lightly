@@ -121,6 +121,10 @@ class SettingsPageHomeSections extends StatelessWidget {
                 selectedProtocol: formController.selectedProtocol,
                 showsUuidField: formController.showsUuidField,
                 showsTransportFields: formController.showsTransportFields,
+                showsHysteria2ObfsFields:
+                    formController.showsHysteria2ObfsFields,
+                showsPacketEncodingField:
+                    formController.showsPacketEncodingField,
                 showsTlsFields: formController.showsTlsFields,
                 proxyTlsEnabled: formController.proxyTlsEnabled,
                 selectedTransportType: formController.selectedTransportType,
