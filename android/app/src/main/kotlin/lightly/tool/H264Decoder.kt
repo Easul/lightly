@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.Surface
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
+import kotlin.math.ceil
 
 class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
     companion object {
@@ -35,21 +36,37 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
         handlerThread = HandlerThread("H264Decoder").apply { start() }
         handler = Handler(handlerThread!!.looper)
 
+        configureDecoder(null)
+    }
+
+    private fun configureDecoder(configureFormat: (MediaFormat.() -> Unit)?) {
+        val targetSurface = surface ?: return
         try {
+            decoder?.release()
             decoder = MediaCodec.createDecoderByType(MIME_TYPE)
-            val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)
-            decoder!!.configure(format, surface, null, 0)
+            val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
+                configureFormat?.invoke(this)
+            }
+            decoder!!.configure(format, targetSurface, null, 0)
             decoder!!.start()
             isConfigured = true
             Log.i(TAG, "Decoder configured: ${width}x${height}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to configure decoder", e)
-            release()
+            try {
+                decoder?.release()
+            } catch (_: Exception) {
+            }
+            decoder = null
+            isConfigured = false
         }
     }
 
     fun decode(data: ByteArray, isKeyFrame: Boolean, presentationTimeUs: Long) {
-        if (!isConfigured || decoder == null) return
+        if (!isConfigured || decoder == null) {
+            Log.d(TAG, "Dropping frame before decoder configured len=${data.size} key=$isKeyFrame")
+            return
+        }
 
         try {
             val normalizedData = normalizeAccessUnit(data, isKeyFrame)
@@ -197,24 +214,123 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
     }
 
     fun feedConfig(sps: ByteArray, pps: ByteArray) {
-        if (!isConfigured || decoder == null) return
-
         try {
             val normalizedSps = normalizeSingleNalUnit(sps)
             val normalizedPps = normalizeSingleNalUnit(pps)
             latestSps = normalizedSps
             latestPps = normalizedPps
-            val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
+            updateSizeFromSps(normalizedSps)
+            configureDecoder {
                 setByteBuffer("csd-0", ByteBuffer.wrap(normalizedSps))
                 setByteBuffer("csd-1", ByteBuffer.wrap(normalizedPps))
             }
-            decoder!!.stop()
-            decoder!!.configure(format, surface, null, 0)
-            decoder!!.start()
             decodedFrameCount = 0
             Log.i(TAG, "Decoder reconfigured with SPS/PPS")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reconfigure decoder", e)
+        }
+    }
+
+    private fun updateSizeFromSps(sps: ByteArray) {
+        val parsedSize = parseSpsSize(sps)
+        if (parsedSize != null) {
+            width = parsedSize.first
+            height = parsedSize.second
+            Log.i(TAG, "Parsed decoder size from SPS: ${width}x${height}")
+        }
+    }
+
+    private fun parseSpsSize(sps: ByteArray): Pair<Int, Int>? {
+        val units = parseAnnexBNalUnits(sps) ?: listOf(sps)
+        val unit = units.firstOrNull { it.isNotEmpty() && (it[0].toInt() and 0x1F) == 7 }
+            ?: return null
+        val rbsp = removeEmulationPreventionBytes(unit.copyOfRange(1, unit.size))
+        val reader = BitReader(rbsp)
+        return try {
+            val profileIdc = reader.readBits(8)
+            reader.readBits(8)
+            reader.readBits(8)
+            reader.readUnsignedExpGolomb()
+            if (profileIdc in setOf(100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135)) {
+                val chromaFormatIdc = reader.readUnsignedExpGolomb()
+                if (chromaFormatIdc == 3) reader.readBit()
+                reader.readUnsignedExpGolomb()
+                reader.readUnsignedExpGolomb()
+                reader.readBit()
+                if (reader.readBit() == 1) {
+                    val count = if (chromaFormatIdc != 3) 8 else 12
+                    repeat(count) {
+                        if (reader.readBit() == 1) {
+                            skipScalingList(reader, if (it < 6) 16 else 64)
+                        }
+                    }
+                }
+            }
+            reader.readUnsignedExpGolomb()
+            val picOrderCntType = reader.readUnsignedExpGolomb()
+            if (picOrderCntType == 0) {
+                reader.readUnsignedExpGolomb()
+            } else if (picOrderCntType == 1) {
+                reader.readBit()
+                reader.readSignedExpGolomb()
+                reader.readSignedExpGolomb()
+                repeat(reader.readUnsignedExpGolomb()) {
+                    reader.readSignedExpGolomb()
+                }
+            }
+            reader.readUnsignedExpGolomb()
+            reader.readBit()
+            val picWidthInMbsMinus1 = reader.readUnsignedExpGolomb()
+            val picHeightInMapUnitsMinus1 = reader.readUnsignedExpGolomb()
+            val frameMbsOnlyFlag = reader.readBit()
+            if (frameMbsOnlyFlag == 0) reader.readBit()
+            reader.readBit()
+            var cropLeft = 0
+            var cropRight = 0
+            var cropTop = 0
+            var cropBottom = 0
+            if (reader.readBit() == 1) {
+                cropLeft = reader.readUnsignedExpGolomb()
+                cropRight = reader.readUnsignedExpGolomb()
+                cropTop = reader.readUnsignedExpGolomb()
+                cropBottom = reader.readUnsignedExpGolomb()
+            }
+            val codedWidth = (picWidthInMbsMinus1 + 1) * 16
+            val codedHeight = (picHeightInMapUnitsMinus1 + 1) * 16 * (2 - frameMbsOnlyFlag)
+            val cropUnitX = 2
+            val cropUnitY = 2 * (2 - frameMbsOnlyFlag)
+            val visibleWidth = codedWidth - (cropLeft + cropRight) * cropUnitX
+            val visibleHeight = codedHeight - (cropTop + cropBottom) * cropUnitY
+            if (visibleWidth > 0 && visibleHeight > 0) visibleWidth to visibleHeight else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse SPS size", e)
+            null
+        }
+    }
+
+    private fun removeEmulationPreventionBytes(data: ByteArray): ByteArray {
+        val output = ByteArrayOutputStream(data.size)
+        var zeroCount = 0
+        for (byte in data) {
+            if (zeroCount >= 2 && byte.toInt() == 0x03) {
+                zeroCount = 0
+                continue
+            }
+            output.write(byte.toInt())
+            zeroCount = if (byte.toInt() == 0) zeroCount + 1 else 0
+        }
+        return output.toByteArray()
+    }
+
+    private fun skipScalingList(reader: BitReader, size: Int) {
+        var lastScale = 8
+        var nextScale = 8
+        repeat(size) {
+            if (nextScale != 0) {
+                val deltaScale = reader.readSignedExpGolomb()
+                nextScale = (lastScale + deltaScale + 256) % 256
+            }
+            lastScale = if (nextScale == 0) lastScale else nextScale
         }
     }
 
@@ -235,5 +351,40 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
         handlerThread = null
         handler = null
         Log.i(TAG, "Decoder released")
+    }
+
+    private class BitReader(private val data: ByteArray) {
+        private var bitOffset = 0
+
+        fun readBit(): Int = readBits(1)
+
+        fun readBits(count: Int): Int {
+            var value = 0
+            repeat(count) {
+                val byteIndex = bitOffset / 8
+                if (byteIndex >= data.size) {
+                    throw IllegalStateException("SPS bitstream exhausted")
+                }
+                val bitIndex = 7 - (bitOffset % 8)
+                value = (value shl 1) or ((data[byteIndex].toInt() shr bitIndex) and 1)
+                bitOffset++
+            }
+            return value
+        }
+
+        fun readUnsignedExpGolomb(): Int {
+            var leadingZeroBits = 0
+            while (readBit() == 0) {
+                leadingZeroBits++
+            }
+            if (leadingZeroBits == 0) return 0
+            return ((1 shl leadingZeroBits) - 1) + readBits(leadingZeroBits)
+        }
+
+        fun readSignedExpGolomb(): Int {
+            val codeNum = readUnsignedExpGolomb()
+            val value = ceil(codeNum / 2.0).toInt()
+            return if (codeNum % 2 == 0) -value else value
+        }
     }
 }

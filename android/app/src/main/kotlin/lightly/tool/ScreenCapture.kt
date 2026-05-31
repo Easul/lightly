@@ -27,6 +27,7 @@ class ScreenCapture(
         private const val MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC
         private const val REPEAT_PREVIOUS_FRAME_AFTER_US = 250_000L
         private const val MAX_CAPTURE_LONG_EDGE = 1920
+        private const val NO_OUTPUT_FALLBACK_DELAY_MS = 2_500L
     }
 
     private var mediaProjection: MediaProjection? = null
@@ -50,6 +51,8 @@ class ScreenCapture(
     private var encodedBytesInWindow = 0L
     private var lastEncodedAtMs = 0L
     private var statsWindowStartedAtMs = 0L
+    private var captureAttempts: List<CaptureAttempt> = emptyList()
+    private var activeAttemptIndex = 0
 
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int) {
         if (isRunning) {
@@ -58,29 +61,25 @@ class ScreenCapture(
         }
 
         mediaProjection = projection
-        val captureSpecs = resolveCaptureSpecs(width, height, densityDpi)
+        captureAttempts = resolveCaptureAttempts(width, height, densityDpi)
+        activeAttemptIndex = 0
 
         handlerThread = HandlerThread("ScreenCapture").apply { start() }
         handler = Handler(handlerThread!!.looper)
 
         var lastError: Exception? = null
         try {
-            for ((index, captureSpec) in captureSpecs.withIndex()) {
-                screenWidth = captureSpec.width
-                screenHeight = captureSpec.height
-                screenDensityDpi = captureSpec.densityDpi
-                bitrate = captureSpec.bitrate
-                fps = captureSpec.fps
+            for ((index, attempt) in captureAttempts.withIndex()) {
                 try {
-                    resetEncodingStats()
-                    setupEncoder(conservative = index > 0)
-                    setupVirtualDisplay()
+                    activeAttemptIndex = index
+                    startAttempt(attempt)
                     isRunning = true
-                    Log.i(TAG, "Screen capture started: ${screenWidth}x${screenHeight} @ ${fps}fps bitrate=$bitrate density=${screenDensityDpi} fallbackIndex=$index")
+                    scheduleNoOutputFallback()
+                    Log.i(TAG, "Screen capture started: ${screenWidth}x${screenHeight} @ ${fps}fps bitrate=$bitrate density=${screenDensityDpi} fallbackIndex=$index conservative=${attempt.conservative}")
                     return
                 } catch (e: Exception) {
                     lastError = e
-                    Log.w(TAG, "Screen capture candidate failed: ${captureSpec.width}x${captureSpec.height} @ ${captureSpec.fps}fps bitrate=${captureSpec.bitrate}", e)
+                    Log.w(TAG, "Screen capture candidate failed: ${attempt.spec.width}x${attempt.spec.height} @ ${attempt.spec.fps}fps bitrate=${attempt.spec.bitrate} conservative=${attempt.conservative}", e)
                     releaseEncoderAndVirtualDisplayOnly()
                 }
             }
@@ -90,6 +89,45 @@ class ScreenCapture(
             stop()
             throw e
         }
+    }
+
+    private fun startAttempt(attempt: CaptureAttempt) {
+        screenWidth = attempt.spec.width
+        screenHeight = attempt.spec.height
+        screenDensityDpi = attempt.spec.densityDpi
+        bitrate = attempt.spec.bitrate
+        fps = attempt.spec.fps
+        resetEncodingStats()
+        setupEncoder(conservative = attempt.conservative)
+        setupVirtualDisplay()
+    }
+
+    private fun scheduleNoOutputFallback() {
+        handler?.postDelayed({
+            if (!isRunning || encodedFrameCount > 0) {
+                return@postDelayed
+            }
+            val nextIndex = activeAttemptIndex + 1
+            if (nextIndex >= captureAttempts.size) {
+                Log.w(TAG, "Screen capture produced no frames and no fallback remains: index=$activeAttemptIndex size=${screenWidth}x${screenHeight}")
+                return@postDelayed
+            }
+            val nextAttempt = captureAttempts[nextIndex]
+            Log.w(
+                TAG,
+                "Screen capture produced no frames after ${NO_OUTPUT_FALLBACK_DELAY_MS}ms; retrying fallback index=$nextIndex size=${nextAttempt.spec.width}x${nextAttempt.spec.height} conservative=${nextAttempt.conservative}"
+            )
+            releaseEncoderAndVirtualDisplayOnly()
+            try {
+                activeAttemptIndex = nextIndex
+                startAttempt(nextAttempt)
+                scheduleNoOutputFallback()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start no-output fallback capture", e)
+                isRunning = false
+                stop()
+            }
+        }, NO_OUTPUT_FALLBACK_DELAY_MS)
     }
 
     private fun setupEncoder(conservative: Boolean) {
@@ -407,6 +445,22 @@ class ScreenCapture(
         val fps: Int,
         val bitrate: Int,
     )
+
+    private data class CaptureAttempt(
+        val spec: CaptureSpec,
+        val conservative: Boolean,
+    )
+
+    private fun resolveCaptureAttempts(width: Int, height: Int, densityDpi: Int): List<CaptureAttempt> {
+        val specs = resolveCaptureSpecs(width, height, densityDpi)
+        if (specs.isEmpty()) return emptyList()
+        return buildList {
+            add(CaptureAttempt(specs.first(), conservative = false))
+            for (spec in specs) {
+                add(CaptureAttempt(spec, conservative = true))
+            }
+        }
+    }
 
     private fun resolveCaptureSpecs(width: Int, height: Int, densityDpi: Int): List<CaptureSpec> {
         val candidates = mutableListOf<CaptureSpec>()
