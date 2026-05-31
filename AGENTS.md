@@ -357,6 +357,31 @@ Manual smoke test:
 3. Confirm logs include overlay candidate rewrite when using EasyTier.
 4. Confirm the controlled device output is louder but not clipped or echoing badly.
 
+## Redmi / Qualcomm Remote-Control Black-Screen Pitfalls
+
+Redmi / Qualcomm devices can fail remote screen display in two different places:
+
+- **Receiver/capture side**: `MediaProjection` permission succeeds, `VirtualDisplay` is created, and the AVC encoder starts, but `ScreenCapture` emits zero output frames (`frames=0 keyFrames=0 lastEncodedAgo=-1ms`) even after repeated key-frame requests. Treat this as an encoder/VirtualDisplay stall, not a network failure. Keep the no-output fallback path in `android/app/src/main/kotlin/lightly/tool/ScreenCapture.kt` so the capture pipeline restarts with conservative codec settings and smaller capture sizes.
+- **Controller/decode side**: Redmi's H.264 decoder may reject large remote sizes such as `1220x2712` during `MediaCodec.configure()`. Do not permanently fail the texture when initial decoder configuration throws; keep `H264Decoder` able to reconfigure after SPS/PPS arrives, using the stream's parsed dimensions.
+
+Useful log markers:
+
+- Capture-side stall: repeated `requestKeyFrame: hasCapture=true hasProjection=true` plus `Key frame requested: frames=0 keyFrames=0 lastEncodedAgo=-1ms`.
+- Decode-side failure: `H264Decoder: Failed to configure decoder java.lang.IllegalArgumentException` immediately after `Created screen texture ... size=<large>`.
+
+Recommended verification after touching this path:
+
+```bash
+./gradlew :app:compileDebugKotlin
+flutter analyze lib/services/remote_control_service.dart lib/widgets/remote_control_screen_viewer.dart lib/pages/remote_control_session_page.dart
+```
+
+Manual smoke test on Redmi:
+
+1. Redmi as receiver: start remote control, connect from another device, confirm the first visible frame appears and logs show either normal first frame or fallback restart followed by encoded frames.
+2. Redmi as controller: connect to a high-resolution receiver and confirm `H264Decoder` configures after SPS/PPS and renders decoded frames instead of staying black.
+3. Confirm touch gestures still execute while video is visible.
+
 ## Cloudflare-Challenged Site Compatibility
 
 Some sites (e.g., `example-site.com`) use Cloudflare challenge/bot detection that fails when accessed through certain proxy/VLESS paths due to:
