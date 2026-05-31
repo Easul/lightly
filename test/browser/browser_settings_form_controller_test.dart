@@ -60,10 +60,22 @@ void main() {
       controller.selectedProtocol = BrowserProxyProtocol.http;
       expect(controller.showsUuidField, isTrue);
       expect(controller.showsTransportFields, isFalse);
+      expect(controller.showsHysteria2ObfsFields, isFalse);
+      expect(controller.showsPacketEncodingField, isFalse);
+      expect(controller.showsTlsFields, isFalse);
 
       controller.selectedProtocol = BrowserProxyProtocol.vless;
       expect(controller.showsUuidField, isTrue);
       expect(controller.showsTransportFields, isTrue);
+      expect(controller.showsHysteria2ObfsFields, isFalse);
+      expect(controller.showsPacketEncodingField, isTrue);
+      expect(controller.showsTlsFields, isTrue);
+
+      controller.selectedProtocol = BrowserProxyProtocol.hysteria2;
+      expect(controller.showsUuidField, isTrue);
+      expect(controller.showsTransportFields, isFalse);
+      expect(controller.showsHysteria2ObfsFields, isTrue);
+      expect(controller.showsPacketEncodingField, isFalse);
       expect(controller.showsTlsFields, isTrue);
     });
   });

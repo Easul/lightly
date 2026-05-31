@@ -126,6 +126,12 @@ class BrowserSettingsFormController {
   bool get showsTransportFields =>
       selectedProtocol == BrowserProxyProtocol.vless;
 
+  bool get showsHysteria2ObfsFields =>
+      selectedProtocol == BrowserProxyProtocol.hysteria2;
+
+  bool get showsPacketEncodingField =>
+      selectedProtocol == BrowserProxyProtocol.vless;
+
   bool get showsTlsFields =>
       selectedProtocol == BrowserProxyProtocol.vless ||
       selectedProtocol == BrowserProxyProtocol.hysteria2;
