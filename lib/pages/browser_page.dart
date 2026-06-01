@@ -788,6 +788,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _openExternalIntentTarget(String url) async {
     if (_isExternalVideoUrl(url)) {
+      await _externalIntentHelper.detachExternalIntent();
+      if (!mounted) {
+        return;
+      }
       await _videoPlayerCoordinator.showFloatingVideoPlayer(
         context: context,
         url: url,

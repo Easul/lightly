@@ -20,6 +20,16 @@ class BrowserPageExternalIntentHelper {
     }
   }
 
+  Future<void> detachExternalIntent() async {
+    try {
+      await browserProxyChannel.invokeMethod<bool>('detachExternalIntent');
+    } on MissingPluginException {
+      return;
+    } catch (_) {
+      return;
+    }
+  }
+
   Future<String?> prepareExternalIntentUrl(String? url) async {
     if (url == null || url.isEmpty) {
       return null;

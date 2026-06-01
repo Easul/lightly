@@ -447,7 +447,18 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "getInitialIntentUrl" -> {
-                        result.success(initialIntentUrl)
+                        val url = initialIntentUrl
+                        initialIntentUrl = null
+                        result.success(url)
+                    }
+
+                    "detachExternalIntent" -> {
+                        initialIntentUrl = null
+                        setIntent(Intent(this, MainActivity::class.java).apply {
+                            action = Intent.ACTION_MAIN
+                            addCategory(Intent.CATEGORY_LAUNCHER)
+                        })
+                        result.success(true)
                     }
 
                     "importContentUriToPrivateFile" -> {
