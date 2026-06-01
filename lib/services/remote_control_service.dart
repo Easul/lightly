@@ -104,10 +104,13 @@ class RemoteControlService {
     milliseconds: 450,
   );
   static const int _latestFrameBatchThreshold = 3;
+  static const int _maxMissedHeartbeats = 10;
+  static const Duration _heartbeatInterval = Duration(seconds: 2);
 
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
+  int _missedHeartbeatCount = 0;
   bool _audioDiagnosticsLoggingReady = false;
   bool _disconnectRequested = false;
   String? _lastControllerHost;
@@ -676,7 +679,9 @@ class RemoteControlService {
     );
     _receiverControlSocket = client;
     _targetHost = client.remoteAddress.address;
+    _missedHeartbeatCount = 0;
     _updateState(RemoteControlState.connected);
+    _startHeartbeat();
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
 
@@ -855,6 +860,9 @@ class RemoteControlService {
   void _handleControlData(Uint8List data) {
     final messages = _messageRouter.decodeControllerMessages(data);
     for (final message in messages) {
+      if (message is AckMessage) {
+        _missedHeartbeatCount = 0;
+      }
       _recordStatusMessage(message);
       _messageController.add(message);
     }
@@ -927,6 +935,7 @@ class RemoteControlService {
       requestKeyFrame: requestKeyFrame,
       updateBitrate: updateBitrate,
       sendAck: _sendAck,
+      onHeartbeat: _handleHeartbeatReceived,
       log: (message, {error}) =>
           developer.log(message, name: 'RemoteControl', error: error),
     );
@@ -997,21 +1006,62 @@ class RemoteControlService {
 
   void _startHeartbeat() {
     _stopHeartbeat();
+    _missedHeartbeatCount = 0;
     _heartbeatTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _sendHeartbeat(),
+      _heartbeatInterval,
+      (_) => _handleHeartbeatTick(),
     );
   }
 
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _missedHeartbeatCount = 0;
   }
 
-  Future<void> _sendHeartbeat() async {
-    await _statusBridge.sendHeartbeat(
-      controllerControlSocket: _controllerControlSocket,
+  void _handleHeartbeatReceived(HeartbeatMessage message) {
+    _missedHeartbeatCount = 0;
+    _markConnectionReady();
+  }
+
+  Future<void> _handleHeartbeatTick() async {
+    if (_disconnectRequested || _state != RemoteControlState.connected) {
+      return;
+    }
+    _missedHeartbeatCount += 1;
+    if (_missedHeartbeatCount >= _maxMissedHeartbeats) {
+      _handleHeartbeatTimeout();
+      return;
+    }
+    if (_mode == RemoteControlMode.controller) {
+      await _statusBridge.sendHeartbeat(
+        controllerControlSocket: _controllerControlSocket,
+      );
+    }
+  }
+
+  void _handleHeartbeatTimeout() {
+    if (_disconnectRequested) {
+      return;
+    }
+    _logMessage(
+      'Remote heartbeat timeout after $_missedHeartbeatCount missed checks',
     );
+    _stopHeartbeat();
+    if (_mode == RemoteControlMode.controller) {
+      _markUnexpectedControllerDisconnect('heartbeat-timeout');
+      unawaited(_resetControllerConnection(stopNative: true));
+      return;
+    }
+    if (_mode == RemoteControlMode.receiver) {
+      unawaited(stopAudioCapture());
+      unawaited(_voiceCoordinator.close());
+      _receiverControlSocket?.destroy();
+      _receiverControlSocket = null;
+      _receiverScreenSocket?.destroy();
+      _receiverScreenSocket = null;
+      _updateState(RemoteControlState.disconnected);
+    }
   }
 
   Future<void> _sendAck(int messageId, bool success, [String? error]) async {

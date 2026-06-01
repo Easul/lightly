@@ -46,6 +46,7 @@ class RemoteControlCommandHelper {
     required Future<void> Function(int bitrate) updateBitrate,
     required Future<void> Function(int messageId, bool success, [String? error])
     sendAck,
+    required void Function(HeartbeatMessage message) onHeartbeat,
     required void Function(String message, {Object? error}) log,
   }) {
     try {
@@ -81,6 +82,7 @@ class RemoteControlCommandHelper {
       final type = decoded['type'] as String?;
       if (type == 'heartbeat') {
         final heartbeat = HeartbeatMessage.fromJson(decoded);
+        onHeartbeat(heartbeat);
         emitMessage(heartbeat);
         sendAck(heartbeat.id, true);
         return;

@@ -63,6 +63,7 @@ void main() {
       final router = RemoteControlMessageRouter();
       final emitted = <ControlMessage>[];
       final acks = <int>[];
+      final receivedHeartbeats = <HeartbeatMessage>[];
       final heartbeat = HeartbeatMessage(id: 7, timestamp: 8);
 
       router.dispatchReceiverData(
@@ -81,10 +82,12 @@ void main() {
             acks.add(messageId);
           }
         },
+        onHeartbeat: receivedHeartbeats.add,
         log: (_, {error}) {},
       );
 
       expect(emitted.single, isA<HeartbeatMessage>());
+      expect(receivedHeartbeats.single.id, 7);
       expect(acks, <int>[7]);
     });
 
@@ -112,6 +115,7 @@ void main() {
           bitrateUpdates.add(bitrate);
         },
         sendAck: (messageId, success, [error]) async {},
+        onHeartbeat: (_) {},
         log: (_, {error}) {},
       );
 
@@ -137,6 +141,7 @@ void main() {
         requestKeyFrame: () async {},
         updateBitrate: (_) async {},
         sendAck: (messageId, success, [error]) async {},
+        onHeartbeat: (_) {},
         log: (_, {error}) {},
       );
 
