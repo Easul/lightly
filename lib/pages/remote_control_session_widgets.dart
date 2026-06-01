@@ -31,7 +31,7 @@ Offset resolveRemoteTailOffset({
   final tailTop = (fittedRect.top + 8).clamp(8.0, constraints.maxHeight - 40);
   final resolvedOffset = currentOffset ?? Offset(tailLeft, tailTop);
   final tailWidth = isPopupVisible ? 248.0 : 56.0;
-  final tailHeight = isPopupVisible ? 220.0 : 36.0;
+  final tailHeight = isPopupVisible ? 260.0 : 36.0;
   return Offset(
     resolvedOffset.dx.clamp(8.0, constraints.maxWidth - tailWidth),
     resolvedOffset.dy.clamp(8.0, constraints.maxHeight - tailHeight),
@@ -164,6 +164,7 @@ class FloatingTailControls extends StatelessWidget {
     required this.onOverlayTextTap,
     required this.onKeyboardTap,
     required this.onRefreshTap,
+    required this.onMinimizeTap,
     required this.onBackTap,
     required this.onHomeTap,
     required this.onRecentsTap,
@@ -183,6 +184,7 @@ class FloatingTailControls extends StatelessWidget {
   final VoidCallback onOverlayTextTap;
   final VoidCallback onKeyboardTap;
   final VoidCallback onRefreshTap;
+  final VoidCallback onMinimizeTap;
   final VoidCallback onBackTap;
   final VoidCallback onHomeTap;
   final VoidCallback onRecentsTap;
@@ -287,6 +289,12 @@ class FloatingTailControls extends StatelessWidget {
                             onTap: onRefreshTap,
                           ),
                           TailActionChip(
+                            icon: Icons.radar_rounded,
+                            label: '悬浮',
+                            accentColor: const Color(0xFF0891B2),
+                            onTap: onMinimizeTap,
+                          ),
+                          TailActionChip(
                             icon: Icons.arrow_back,
                             label: '返回',
                             accentColor: const Color(0xFF4B5563),
@@ -350,6 +358,74 @@ class FloatingTailControls extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class RemoteMinimizedFloatingDot extends StatelessWidget {
+  const RemoteMinimizedFloatingDot({
+    super.key,
+    required this.remoteHost,
+    required this.onTap,
+    required this.onDragUpdate,
+  });
+
+  final String remoteHost;
+  final VoidCallback onTap;
+  final ValueChanged<DragUpdateDetails> onDragUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '还原远程控制 $remoteHost',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        onPanUpdate: onDragUpdate,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0891B2), Color(0xFF22D3EE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.72),
+              width: 1.4,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x660891B2),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            width: 58,
+            height: 58,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.radar_rounded, color: Colors.white, size: 28),
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF34D399),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

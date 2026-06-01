@@ -40,7 +40,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   bool _isControlsVisible = true;
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
+  Offset? _minimizedDotOffset;
   bool _isClosingSession = false;
+  bool _isMinimizingSession = false;
   bool _disconnectDialogVisible = false;
 
   void _showToast(String message) {
@@ -62,7 +64,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
 
   @override
   void dispose() {
-    if (!_isClosingSession) {
+    if (!_isClosingSession && !_isMinimizingSession) {
       _isClosingSession = true;
       unawaited(widget.service.disconnect());
     }
@@ -226,7 +228,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     final current = _tailOffset ?? Offset(viewportSize.width / 2 - 28, 12);
     final next = current + details.delta;
     final tailWidth = _isActionPopupVisible ? 248.0 : 56.0;
-    final tailHeight = _isActionPopupVisible ? 220.0 : 36.0;
+    final tailHeight = _isActionPopupVisible ? 260.0 : 36.0;
     final maxLeft = (viewportSize.width - tailWidth).clamp(
       8.0,
       viewportSize.width,
@@ -241,6 +243,65 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
         next.dy.clamp(8.0, maxTop),
       );
     });
+  }
+
+  void _minimizeSession(Size viewportSize) {
+    if (_isClosingSession || _isMinimizingSession) {
+      return;
+    }
+    final overlayState =
+        AppToast.navigatorKey.currentState?.overlay ??
+        Overlay.of(context, rootOverlay: true);
+    final navigator =
+        AppToast.navigatorKey.currentState ?? Navigator.of(context);
+    final dotSize = 58.0;
+    final bottomPadding = MediaQuery.viewPaddingOf(context).bottom + 20;
+    var dotOffset =
+        _minimizedDotOffset ??
+        Offset(
+          viewportSize.width - dotSize - 18,
+          viewportSize.height - dotSize - bottomPadding,
+        );
+    OverlayEntry? entry;
+    void clampDot() {
+      dotOffset = Offset(
+        dotOffset.dx.clamp(8.0, viewportSize.width - dotSize - 8),
+        dotOffset.dy.clamp(8.0, viewportSize.height - dotSize - 8),
+      );
+    }
+
+    clampDot();
+    entry = OverlayEntry(
+      builder: (context) {
+        return Positioned(
+          left: dotOffset.dx,
+          top: dotOffset.dy,
+          child: RemoteMinimizedFloatingDot(
+            remoteHost: widget.remoteHost,
+            onDragUpdate: (details) {
+              dotOffset += details.delta;
+              clampDot();
+              _minimizedDotOffset = dotOffset;
+              entry?.markNeedsBuild();
+            },
+            onTap: () {
+              entry?.remove();
+              navigator.push(
+                MaterialPageRoute(
+                  builder: (_) => RemoteControlSessionPage(
+                    service: widget.service,
+                    remoteHost: widget.remoteHost,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+    overlayState.insert(entry);
+    _isMinimizingSession = true;
+    Navigator.pop(context);
   }
 
   Future<void> _sendKeyboardText(String text) async {
@@ -398,6 +459,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   onOverlayTextTap: _showOverlayTextSheet,
                   onKeyboardTap: _showKeyboardSheet,
                   onRefreshTap: _requestKeyFrame,
+                  onMinimizeTap: () => _minimizeSession(constraints.biggest),
                   onBackTap: () => _handleGlobalAction('back'),
                   onHomeTap: () => _handleGlobalAction('home'),
                   onRecentsTap: () => _handleGlobalAction('recents'),
