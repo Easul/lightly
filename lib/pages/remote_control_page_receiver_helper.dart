@@ -40,10 +40,14 @@ class RemoteControlPageReceiverHelper {
     }
 
     final ports = await service.startReceiver(config: config);
-    await service.startScreenCapture(
+    final screenCaptureStarted = await service.startScreenCapture(
       fps: config.screenFps,
       bitrate: config.screenBitrate,
     );
+    if (!screenCaptureStarted) {
+      await service.shutdownReceiverHostResources();
+      throw const RemoteControlPageReceiverStartException('请允许屏幕录制后再启动被控端');
+    }
     return ports;
   }
 }

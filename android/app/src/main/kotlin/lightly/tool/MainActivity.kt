@@ -269,6 +269,7 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pendingScreenCaptureFps = 15
     private var pendingScreenCaptureBitrate = 2000000
+    private var pendingScreenCaptureResult: MethodChannel.Result? = null
     private var screenDecoder: H264Decoder? = null
     private var screenTextureEntry: TextureRegistry.SurfaceTextureEntry? = null
     private var screenTextureSurface: Surface? = null
@@ -805,6 +806,10 @@ class MainActivity : FlutterActivity() {
 
                     "startScreenCapture" -> {
                         try {
+                            if (pendingScreenCaptureResult != null) {
+                                result.error("IN_PROGRESS", "Screen capture request already in progress", null)
+                                return@setMethodCallHandler
+                            }
                             val fps = call.argument<Int>("fps") ?: 15
                             val bitrate = call.argument<Int>("bitrate") ?: 2000000
                             
@@ -814,6 +819,7 @@ class MainActivity : FlutterActivity() {
                             
                             pendingScreenCaptureFps = fps
                             pendingScreenCaptureBitrate = bitrate
+                            pendingScreenCaptureResult = result
                             
                             remoteControlService!!.startScreenCapture(
                                 activity = this,
@@ -836,8 +842,8 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
                             )
-                            result.success(true)
                         } catch (e: Exception) {
+                            pendingScreenCaptureResult = null
                             result.error("EXCEPTION", e.message, null)
                         }
                     }
@@ -931,11 +937,18 @@ class MainActivity : FlutterActivity() {
         } else if (requestCode == vpnPermissionRequestCode) {
             finishPendingVpnPermissionResult(resultCode)
         } else if (requestCode == RemoteControlService.REQUEST_MEDIA_PROJECTION) {
-            remoteControlService?.handleMediaProjectionResult(
-                resultCode, data,
-                pendingScreenCaptureFps,
-                pendingScreenCaptureBitrate
-            )
+            val pendingResult = pendingScreenCaptureResult
+            pendingScreenCaptureResult = null
+            if (resultCode == RESULT_OK && data != null) {
+                remoteControlService?.handleMediaProjectionResult(
+                    resultCode, data,
+                    pendingScreenCaptureFps,
+                    pendingScreenCaptureBitrate
+                )
+                pendingResult?.success(true)
+            } else {
+                pendingResult?.success(false)
+            }
         }
     }
 
