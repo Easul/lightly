@@ -51,6 +51,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   bool _useInternalProxy = false;
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
+  Timer? _peerRefreshTimer;
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
@@ -69,6 +70,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _applyPortConfigToInputs(_portConfig);
     _loadSettings();
     _loadPeers();
+    _peerRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      unawaited(_loadPeers(showLoading: false));
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -91,16 +95,24 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   @override
   void dispose() {
+    _peerRefreshTimer?.cancel();
     _proxyStateSubscription?.cancel();
     _stateSubscription.cancel();
     _messageSubscription.cancel();
     super.dispose();
   }
 
-  Future<void> _loadPeers() async {
-    if (!_easyTierService.isRunning) return;
+  Future<void> _loadPeers({bool showLoading = true}) async {
+    if (!_easyTierService.isRunning) {
+      if (mounted && _peers.isNotEmpty) {
+        setState(() => _peers = const <Map<String, String>>[]);
+      }
+      return;
+    }
 
-    setState(() => _isLoadingPeers = true);
+    if (showLoading && mounted) {
+      setState(() => _isLoadingPeers = true);
+    }
 
     try {
       final networkInfo = await _easyTierService.getNetworkInfo();
@@ -108,20 +120,26 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
           networkInfo,
           'default',
-        );
+        ).where((peer) => peer['remoteReachable'] == 'true').toList();
         if (!mounted) return;
         setState(() {
           _peers = peers;
-          _isLoadingPeers = false;
+          if (showLoading) {
+            _isLoadingPeers = false;
+          }
         });
       } else {
         if (!mounted) return;
-        setState(() => _isLoadingPeers = false);
+        if (showLoading) {
+          setState(() => _isLoadingPeers = false);
+        }
       }
     } catch (e) {
       developer.log('Failed to load peers: $e', name: 'RemoteControl');
       if (!mounted) return;
-      setState(() => _isLoadingPeers = false);
+      if (showLoading) {
+        setState(() => _isLoadingPeers = false);
+      }
     }
   }
 
