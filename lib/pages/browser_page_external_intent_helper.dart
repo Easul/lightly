@@ -31,6 +31,13 @@ class BrowserPageExternalIntentHelper {
     }
 
     try {
+      final mimeType = await browserProxyChannel.invokeMethod<String>(
+        'getContentMimeType',
+        {'uri': url},
+      );
+      if (mimeType?.toLowerCase().startsWith('video/') == true) {
+        return url;
+      }
       final imported = await browserProxyChannel.invokeMethod<String>(
         'importContentUriToPrivateFile',
         {'uri': url},

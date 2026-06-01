@@ -47,6 +47,7 @@ import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_coordinator.dart';
+import 'native_video_player_page.dart';
 import 'browser_page_notifier_sync.dart';
 import 'browser_page_overlay_state_manager.dart';
 import 'browser_page_settings_helper.dart';
@@ -779,15 +780,49 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         final rawUrl = call.arguments['url'] as String?;
         final url = await _prepareExternalIntentUrl(rawUrl);
         if (url != null && url.isNotEmpty && mounted) {
-          await _openNewTabWithUrl(url);
+          await _openExternalIntentTarget(url);
         }
       }
       return null;
     });
   }
 
+  Future<void> _openExternalIntentTarget(String url) async {
+    if (_isExternalVideoUrl(url)) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => NativeVideoPlayerPage(videoUrl: url)),
+      );
+      return;
+    }
+    await _openNewTabWithUrl(url);
+  }
+
   Future<void> _openNewTabWithUrl(String url) async {
     await _openTab(url, title: '', isExternallyOpened: true);
+  }
+
+  bool _isExternalVideoUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return false;
+    }
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'content') {
+      return true;
+    }
+    if (scheme != 'file') {
+      return false;
+    }
+    final path = Uri.decodeComponent(uri.path).toLowerCase();
+    return path.endsWith('.mp4') ||
+        path.endsWith('.m4v') ||
+        path.endsWith('.mkv') ||
+        path.endsWith('.webm') ||
+        path.endsWith('.mov') ||
+        path.endsWith('.avi') ||
+        path.endsWith('.flv') ||
+        path.endsWith('.3gp') ||
+        path.endsWith('.ts');
   }
 
   Future<void> _initialize() async {
@@ -807,7 +842,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onReplaceSuggestionService: _replaceSuggestionService,
       enableWebView: widget.enableWebView,
       onGetInitialIntentUrl: _getInitialIntentUrl,
-      onOpenExternalUrl: (url) => _openNewTabWithUrl(url),
+      onOpenExternalUrl: (url) => _openExternalIntentTarget(url),
     );
 
     if (!mounted) {

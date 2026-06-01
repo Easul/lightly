@@ -464,6 +464,19 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    "getContentMimeType" -> {
+                        val uriString = call.argument<String>("uri")
+                        if (uriString.isNullOrBlank()) {
+                            result.success(null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            result.success(contentResolver.getType(Uri.parse(uriString)))
+                        } catch (e: Exception) {
+                            result.success(null)
+                        }
+                    }
+
                     "cleanupImportedPrivateFiles" -> {
                         val retainedUrls =
                             call.argument<List<String>>("retainedUrls") ?: emptyList()
