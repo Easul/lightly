@@ -63,8 +63,9 @@ class RemoteControlReceiverSection extends StatelessWidget {
   final bool isReceiverAudioEnabled;
   final RemoteControlState state;
   final bool isConnecting;
+  final bool isReceiverRunning;
   final VoidCallback onToggleReceiverMic;
-  final VoidCallback onStartReceiver;
+  final VoidCallback onToggleReceiver;
 
   const RemoteControlReceiverSection({
     super.key,
@@ -72,8 +73,9 @@ class RemoteControlReceiverSection extends StatelessWidget {
     required this.isReceiverAudioEnabled,
     required this.state,
     required this.isConnecting,
+    required this.isReceiverRunning,
     required this.onToggleReceiverMic,
-    required this.onStartReceiver,
+    required this.onToggleReceiver,
   });
 
   @override
@@ -157,15 +159,29 @@ class RemoteControlReceiverSection extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isConnecting ? null : onStartReceiver,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isReceiverRunning
+                      ? const Color(0xFFDC2626)
+                      : null,
+                  foregroundColor: isReceiverRunning ? Colors.white : null,
+                ),
+                onPressed: isConnecting ? null : onToggleReceiver,
                 icon: isConnecting
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.play_arrow),
-                label: Text(isConnecting ? '启动中...' : '启动被控端'),
+                    : Icon(
+                        isReceiverRunning
+                            ? Icons.stop_circle_outlined
+                            : Icons.play_arrow,
+                      ),
+                label: Text(
+                  isConnecting
+                      ? (isReceiverRunning ? '关闭中...' : '启动中...')
+                      : (isReceiverRunning ? '关闭被控端' : '启动被控端'),
+                ),
               ),
             ),
             if (state == RemoteControlState.connected) ...[

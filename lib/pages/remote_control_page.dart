@@ -52,6 +52,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   bool _useInternalProxy = false;
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
+  bool _isReceiverRunning = false;
   Timer? _peerRefreshTimer;
   bool _hadConnectedSession = false;
   bool _disconnectDialogVisible = false;
@@ -164,6 +165,11 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         _errorMessage = '连接失败';
       } else if (state == RemoteControlState.disconnected) {
         _errorMessage = null;
+      } else if (state == RemoteControlState.idle &&
+          _service.mode == RemoteControlMode.receiver) {
+        _isReceiverRunning = false;
+        _isReceiverAudioEnabled = false;
+        _portConfig = null;
       }
     });
     if (shouldRefreshPeers) {
@@ -220,6 +226,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       setState(() {
         _portConfig = ports;
         _isConnecting = false;
+        _isReceiverRunning = true;
       });
       _applyPortConfigToInputs(ports);
 
@@ -236,6 +243,40 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         _isConnecting = false;
         _errorMessage = '启动失败: $e';
       });
+    }
+  }
+
+  Future<void> _stopReceiver() async {
+    setState(() {
+      _isConnecting = true;
+      _errorMessage = null;
+    });
+    try {
+      await AppLifecycleManager().shutdownAllServices();
+      if (!mounted) return;
+      setState(() {
+        _isConnecting = false;
+        _isReceiverRunning = false;
+        _isReceiverAudioEnabled = false;
+        _hadConnectedSession = false;
+        _portConfig = null;
+      });
+      _applyPortConfigToInputs(null);
+      _showToast('被控端已关闭');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isConnecting = false;
+        _errorMessage = '关闭失败: $e';
+      });
+    }
+  }
+
+  void _toggleReceiver() {
+    if (_isReceiverRunning) {
+      unawaited(_stopReceiver());
+    } else {
+      unawaited(_startReceiver());
     }
   }
 
@@ -441,8 +482,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       isReceiverAudioEnabled: _isReceiverAudioEnabled,
       state: _service.state,
       isConnecting: _isConnecting,
+      isReceiverRunning: _isReceiverRunning,
       onToggleReceiverMic: _toggleReceiverMic,
-      onStartReceiver: _startReceiver,
+      onToggleReceiver: _toggleReceiver,
     );
   }
 
