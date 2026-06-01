@@ -40,6 +40,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
   bool _isClosingSession = false;
+  bool _disconnectDialogVisible = false;
 
   void _showToast(String message) {
     unawaited(AppToast.show(message));
@@ -69,9 +70,64 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   }
 
   void _handleStateChange(RemoteControlState state) {
-    if (state == RemoteControlState.disconnected && mounted) {
+    if (!mounted) {
+      return;
+    }
+    if (state == RemoteControlState.disconnected ||
+        state == RemoteControlState.error) {
+      unawaited(_showDisconnectDialog(state));
+    }
+  }
+
+  Future<void> _showDisconnectDialog(RemoteControlState state) async {
+    if (_isClosingSession || _disconnectDialogVisible || !mounted) {
+      return;
+    }
+    _disconnectDialogVisible = true;
+    final shouldReconnect = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('远程连接已断开'),
+        content: Text(
+          state == RemoteControlState.error
+              ? '与 ${widget.remoteHost} 的连接异常中断。'
+              : '与 ${widget.remoteHost} 的连接已断开，可能是对端离线或网络中断。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('关闭'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('重连'),
+          ),
+        ],
+      ),
+    );
+    _disconnectDialogVisible = false;
+    if (!mounted) {
+      return;
+    }
+    if (shouldReconnect == true) {
+      try {
+        await widget.service.reconnectLastController();
+        if (mounted) {
+          _showToast('已重新连接');
+        }
+      } catch (error) {
+        if (mounted) {
+          _showToast('重连失败: $error');
+          unawaited(_showDisconnectDialog(RemoteControlState.error));
+        }
+      }
+      return;
+    }
+    _isClosingSession = true;
+    await widget.service.disconnect();
+    if (mounted) {
       Navigator.pop(context);
-      _showToast('连接已断开');
     }
   }
 
@@ -120,7 +176,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   }
 
   Future<void> _requestKeyFrame() async {
-    await widget.service.requestKeyFrame();
+    await widget.service.refreshLatestRemoteFrame();
   }
 
   Future<void> _closeSession() async {

@@ -106,11 +106,10 @@ class RemoteControlService {
   static const int _latestFrameBatchThreshold = 3;
 
   Map<String, dynamic>? _latestRemoteScreenInfo;
+  ScreenFrame? _latestRemoteScreenFrame;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
   bool _audioDiagnosticsLoggingReady = false;
-  bool _autoReconnectEnabled = false;
-  bool _autoReconnectInProgress = false;
   bool _disconnectRequested = false;
   String? _lastControllerHost;
   RemoteControlPortConfig? _lastControllerPorts;
@@ -344,7 +343,6 @@ class RemoteControlService {
     _lastControllerProxyPort = proxyPort;
     _lastControllerAvailableHosts = List<String>.from(availableHosts);
     _lastControllerDiscoveryDelayMs = discoveryDelayMs;
-    _autoReconnectEnabled = true;
     _disconnectRequested = false;
     _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
 
@@ -409,6 +407,23 @@ class RemoteControlService {
     }
   }
 
+  Future<void> reconnectLastController() async {
+    final host = _lastControllerHost;
+    final ports = _lastControllerPorts;
+    if (host == null || ports == null) {
+      throw StateError('没有可重连的远程设备');
+    }
+    _disconnectRequested = false;
+    await connectToReceiver(
+      host,
+      ports,
+      availableHosts: _lastControllerAvailableHosts,
+      discoveryDelayMs: _lastControllerDiscoveryDelayMs,
+      useProxy: _lastControllerUseProxy,
+      proxyPort: _lastControllerProxyPort,
+    );
+  }
+
   Future<RemoteControlPortConfig?> discoverReceiverPorts(
     String host, {
     bool useProxy = false,
@@ -421,49 +436,6 @@ class RemoteControlService {
       useProxy: useProxy,
       proxyPort: proxyPort,
     );
-  }
-
-  Future<void> _autoReconnectController(String reason) async {
-    if (_mode != RemoteControlMode.controller ||
-        !_autoReconnectEnabled ||
-        _disconnectRequested ||
-        _autoReconnectInProgress) {
-      return;
-    }
-    final host = _lastControllerHost;
-    final ports = _lastControllerPorts;
-    if (host == null || ports == null) {
-      return;
-    }
-    _autoReconnectInProgress = true;
-    _logMessage('Remote reconnect scheduled: reason=$reason host=$host');
-    _updateState(RemoteControlState.connecting);
-    await _resetControllerConnection(stopNative: true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (_disconnectRequested) {
-      _autoReconnectInProgress = false;
-      return;
-    }
-    try {
-      await connectToReceiver(
-        host,
-        ports,
-        availableHosts: _lastControllerAvailableHosts,
-        discoveryDelayMs: _lastControllerDiscoveryDelayMs,
-        useProxy: _lastControllerUseProxy,
-        proxyPort: _lastControllerProxyPort,
-      );
-      _logMessage('Remote reconnect succeeded: reason=$reason host=$host');
-    } catch (error) {
-      _logMessage('Remote reconnect failed: $error', error: error);
-      if (!_disconnectRequested) {
-        Future<void>.delayed(const Duration(seconds: 2), () {
-          unawaited(_autoReconnectController('retry-after-failure'));
-        });
-      }
-    } finally {
-      _autoReconnectInProgress = false;
-    }
   }
 
   void _handleWebRtcConnectionInterrupted(String reason) {
@@ -634,6 +606,14 @@ class RemoteControlService {
     }
   }
 
+  Future<void> refreshLatestRemoteFrame() async {
+    final latestFrame = _latestRemoteScreenFrame;
+    if (latestFrame != null) {
+      _screenFrameController.add(latestFrame);
+    }
+    await requestKeyFrame();
+  }
+
   Future<void> updateBitrate(int bitrate) async {
     final normalizedBitrate = bitrate.clamp(_minBitrate, _maxBitrate);
     final controllerSocket = _controllerControlSocket;
@@ -793,6 +773,7 @@ class RemoteControlService {
         frameSize: frame.data.length,
         isKeyFrame: frame.type == ScreenFrameType.keyFrame,
       );
+      _latestRemoteScreenFrame = frame;
       _screenFrameController.add(frame);
       _markConnectionReady();
     }
@@ -955,11 +936,19 @@ class RemoteControlService {
     );
   }
 
+  void _markUnexpectedControllerDisconnect(String reason) {
+    if (_disconnectRequested || _mode != RemoteControlMode.controller) {
+      return;
+    }
+    _logMessage('Remote connection interrupted: $reason');
+    _updateState(RemoteControlState.disconnected);
+  }
+
   void _handleControlError(dynamic error) {
     developer.log('Control channel error: $error', name: 'RemoteControl');
     unawaited(() async {
       await _resetControllerConnection(stopNative: true);
-      await _autoReconnectController('control-error');
+      _markUnexpectedControllerDisconnect('control-error');
     }());
   }
 
@@ -967,7 +956,7 @@ class RemoteControlService {
     developer.log('Control channel closed', name: 'RemoteControl');
     unawaited(() async {
       await _resetControllerConnection(stopNative: true);
-      await _autoReconnectController('control-done');
+      _markUnexpectedControllerDisconnect('control-done');
     }());
   }
 
@@ -986,7 +975,7 @@ class RemoteControlService {
       _controllerScreenSocket = null;
       _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
-      unawaited(_autoReconnectController('screen-error'));
+      _markUnexpectedControllerDisconnect('screen-error');
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -1007,7 +996,7 @@ class RemoteControlService {
       _controllerScreenSocket = null;
       _screenFramePipeline.reset();
       _stopScreenFrameWatchdog();
-      unawaited(_autoReconnectController('screen-done'));
+      _markUnexpectedControllerDisconnect('screen-done');
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
@@ -1051,8 +1040,6 @@ class RemoteControlService {
 
   Future<void> disconnect() async {
     _disconnectRequested = true;
-    _autoReconnectEnabled = false;
-    _autoReconnectInProgress = false;
     _performanceMonitor.stopMonitoring();
     _stopScreenFrameWatchdog();
     _stopHeartbeat();
@@ -1071,6 +1058,7 @@ class RemoteControlService {
     _screenServer?.close();
     _screenServer = null;
     _screenFramePipeline.reset();
+    _latestRemoteScreenFrame = null;
     _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
     _targetHost = null;
