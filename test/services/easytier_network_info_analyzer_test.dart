@@ -99,5 +99,33 @@ void main() {
       expect(diagnostics.last, contains('peer-b 当前走中继路径'));
       expect(text, contains('"my_node_info"'));
     });
+
+    test('keeps unrouted peers as status-only entries', () {
+      final statusOnlyNetworkInfo = <String, dynamic>{
+        'map': <String, dynamic>{
+          instanceName: <String, dynamic>{
+            'routes': <dynamic>[],
+            'peers': <dynamic>[
+              <String, dynamic>{
+                'peer_id': 9,
+                'hostname': 'relay-blocked',
+                'directly_connected_conns': <dynamic>[],
+              },
+            ],
+            'events': <dynamic>['{"event":{"PeerConnRemoved":{"peer_id":9}}}'],
+          },
+        },
+      };
+
+      final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
+        statusOnlyNetworkInfo,
+        instanceName,
+      );
+
+      expect(peers, hasLength(1));
+      expect(peers.first['name'], 'relay-blocked');
+      expect(peers.first['remoteReachable'], 'false');
+      expect(peers.first['status'], '已离线/中继不可用');
+    });
   });
 }

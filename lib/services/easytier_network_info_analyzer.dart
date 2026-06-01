@@ -97,6 +97,9 @@ class EasyTierNetworkInfoAnalyzer {
               'latency': '${routeMap['path_latency'] ?? '-'} ms',
               'mode': mode,
               'status': status,
+              'remoteReachable': _isRouteRemoteReachable(routeMap, ipv4)
+                  ? 'true'
+                  : 'false',
             };
           })
           .toList();
@@ -117,6 +120,7 @@ class EasyTierNetworkInfoAnalyzer {
     }
 
     final peers = <Map<String, String>>[];
+    final routedPeerIds = <int>{};
     for (final routeMap in routeByPeerId.values) {
       final peerId = (routeMap['peer_id'] as num?)?.toInt();
       if (peerId == null) {
@@ -126,6 +130,7 @@ class EasyTierNetworkInfoAnalyzer {
       if (featureFlag is Map && featureFlag['is_public_server'] == true) {
         continue;
       }
+      routedPeerIds.add(peerId);
 
       final peerMap = peerById[peerId];
       final hostname = (routeMap['hostname'] as String?)?.trim();
@@ -145,6 +150,27 @@ class EasyTierNetworkInfoAnalyzer {
         'mode': mode,
         'status': status,
         'peerId': '$peerId',
+        'remoteReachable': _isRouteRemoteReachable(routeMap, ipv4)
+            ? 'true'
+            : 'false',
+      });
+    }
+
+    for (final entry in peerById.entries) {
+      if (routedPeerIds.contains(entry.key)) {
+        continue;
+      }
+      final peerMap = entry.value;
+      final hostname = (peerMap['hostname'] as String?)?.trim();
+      final stats = churnByPeerId[entry.key];
+      peers.add(<String, String>{
+        'name': (hostname == null || hostname.isEmpty) ? '未命名设备' : hostname,
+        'ip': '未连接',
+        'latency': '-',
+        'mode': '未形成可用路径',
+        'status': (stats?['removed'] ?? 0) > 0 ? '已离线/中继不可用' : '等待连接',
+        'peerId': '${entry.key}',
+        'remoteReachable': 'false',
       });
     }
 
@@ -319,6 +345,20 @@ class EasyTierNetworkInfoAnalyzer {
     }
 
     return stats;
+  }
+
+  static bool _isRouteRemoteReachable(
+    Map<String, dynamic> routeMap,
+    String? ipv4,
+  ) {
+    if (ipv4 == null || ipv4.isEmpty || ipv4 == '未分配 IP') {
+      return false;
+    }
+    final latency = routeMap['path_latency'];
+    if (latency is num && latency < 0) {
+      return false;
+    }
+    return true;
   }
 
   static String _describePeerMode(
