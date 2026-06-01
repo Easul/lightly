@@ -42,6 +42,18 @@ class EasyTierNetworkInfoAnalyzer {
     return null;
   }
 
+  static String? _normalizedPeerName(Map<String, dynamic> peerMap) {
+    final hostname = (peerMap['hostname'] as String?)?.trim();
+    if (hostname != null && hostname.isNotEmpty) {
+      return hostname;
+    }
+    final name = (peerMap['name'] as String?)?.trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    return null;
+  }
+
   static List<Map<String, String>> buildPeerSummaries(
     Map<String, dynamic>? networkInfo,
     String instanceName,
@@ -81,7 +93,10 @@ class EasyTierNetworkInfoAnalyzer {
           )
           .map((routeMap) {
             final peerId = (routeMap['peer_id'] as num?)?.toInt() ?? 0;
-            final hostname = (routeMap['hostname'] as String?)?.trim();
+            final hostname = _normalizedPeerName(routeMap);
+            if (hostname == null) {
+              return null;
+            }
             final ipv4 = decodeIpv4(
               routeMap['ipv4_addr'] is Map
                   ? Map<String, dynamic>.from(routeMap['ipv4_addr'] as Map)
@@ -90,9 +105,7 @@ class EasyTierNetworkInfoAnalyzer {
             final mode = _describeRouteMode(routeMap, routeByPeerId);
             final status = _describePeerHealth(churnByPeerId[peerId]);
             return <String, String>{
-              'name': (hostname == null || hostname.isEmpty)
-                  ? '未命名设备'
-                  : hostname,
+              'name': hostname,
               'ip': ipv4 ?? '未分配 IP',
               'latency': '${routeMap['path_latency'] ?? '-'} ms',
               'mode': mode,
@@ -102,6 +115,7 @@ class EasyTierNetworkInfoAnalyzer {
                   : 'false',
             };
           })
+          .whereType<Map<String, String>>()
           .toList();
     }
 
@@ -133,7 +147,10 @@ class EasyTierNetworkInfoAnalyzer {
       routedPeerIds.add(peerId);
 
       final peerMap = peerById[peerId];
-      final hostname = (routeMap['hostname'] as String?)?.trim();
+      final hostname = _normalizedPeerName(routeMap);
+      if (hostname == null) {
+        continue;
+      }
       final ipv4 = decodeIpv4(
         routeMap['ipv4_addr'] is Map
             ? Map<String, dynamic>.from(routeMap['ipv4_addr'] as Map)
@@ -144,7 +161,7 @@ class EasyTierNetworkInfoAnalyzer {
           : _describePeerMode(peerMap, routeMap, routeByPeerId);
       final status = _describePeerHealth(churnByPeerId[peerId]);
       peers.add(<String, String>{
-        'name': (hostname == null || hostname.isEmpty) ? '未命名设备' : hostname,
+        'name': hostname,
         'ip': ipv4 ?? '未分配 IP',
         'latency': '${routeMap['path_latency'] ?? '-'} ms',
         'mode': mode,
@@ -161,10 +178,13 @@ class EasyTierNetworkInfoAnalyzer {
         continue;
       }
       final peerMap = entry.value;
-      final hostname = (peerMap['hostname'] as String?)?.trim();
+      final hostname = _normalizedPeerName(peerMap);
+      if (hostname == null) {
+        continue;
+      }
       final stats = churnByPeerId[entry.key];
       peers.add(<String, String>{
-        'name': (hostname == null || hostname.isEmpty) ? '未命名设备' : hostname,
+        'name': hostname,
         'ip': '未连接',
         'latency': '-',
         'mode': '未形成可用路径',

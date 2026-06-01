@@ -127,5 +127,46 @@ void main() {
       expect(peers.first['remoteReachable'], 'false');
       expect(peers.first['status'], '已离线/中继不可用');
     });
+
+    test('filters unnamed route and peer placeholders', () {
+      final unnamedNetworkInfo = <String, dynamic>{
+        'map': <String, dynamic>{
+          instanceName: <String, dynamic>{
+            'routes': <dynamic>[
+              <String, dynamic>{
+                'peer_id': 11,
+                'cost': 1,
+                'path_latency': 8,
+                'ipv4_addr': <String, dynamic>{
+                  'address': <String, dynamic>{'addr': 0x0A7E7E21},
+                  'network_length': 24,
+                },
+              },
+            ],
+            'peers': <dynamic>[
+              <String, dynamic>{
+                'peer_id': 11,
+                'directly_connected_conns': <dynamic>[],
+              },
+              <String, dynamic>{
+                'peer_id': 12,
+                'hostname': 'named-peer',
+                'directly_connected_conns': <dynamic>[],
+              },
+            ],
+            'events': <dynamic>[],
+          },
+        },
+      };
+
+      final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
+        unnamedNetworkInfo,
+        instanceName,
+      );
+
+      expect(peers, hasLength(1));
+      expect(peers.first['name'], 'named-peer');
+      expect(peers.first['remoteReachable'], 'false');
+    });
   });
 }

@@ -14,11 +14,13 @@ class EasyTierService {
   bool _isRunning = false;
   String? _lastError;
   String? _configString;
+  String? _currentInstanceName;
   String? _lastRawNetworkInfo;
 
   bool get isRunning => _isRunning;
   String? get lastError => _lastError;
   String? get configString => _configString;
+  String? get currentInstanceName => _currentInstanceName;
   String? get lastRawNetworkInfo => _lastRawNetworkInfo;
 
   Future<bool> parseConfig(String config) async {
@@ -77,6 +79,7 @@ class EasyTierService {
 
       if (result == true) {
         _isRunning = true;
+        _currentInstanceName = config.instanceName;
         _lastError = null;
         developer.log('VPN started successfully', name: 'EasyTier');
         return true;
@@ -102,6 +105,7 @@ class EasyTierService {
       developer.log('Stopping VPN', name: 'EasyTier');
       await _channel.invokeMethod('stopVpn');
       _isRunning = false;
+      _currentInstanceName = null;
       developer.log('VPN stopped', name: 'EasyTier');
     } on PlatformException catch (e) {
       _lastError = e.message;
