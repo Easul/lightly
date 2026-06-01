@@ -157,6 +157,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       return;
     }
     _isClosingSession = true;
+    if (widget.service.mode == RemoteControlMode.controller) {
+      await widget.service.requestReceiverShutdown();
+    }
     await widget.service.stopAudioCapture();
     await widget.service.disconnect();
     if (mounted) Navigator.pop(context);

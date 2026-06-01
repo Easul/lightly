@@ -19,6 +19,7 @@ import 'remote_control_status_bridge.dart';
 import 'remote_control_voice_coordinator.dart';
 import 'screen_capture_manager.dart';
 import 'app_log_service.dart';
+import 'easytier_service.dart';
 import 'performance_monitor_service.dart';
 import 'webrtc_voice_service.dart';
 
@@ -104,12 +105,15 @@ class RemoteControlService {
     milliseconds: 450,
   );
   static const int _latestFrameBatchThreshold = 3;
-  static const int _maxMissedHeartbeats = 10;
+  static const int _controllerMaxMissedHeartbeats = 10;
+  static const int _receiverMaxMissedHeartbeats = 20;
   static const Duration _heartbeatInterval = Duration(seconds: 2);
+  static const Duration _receiverAutoShutdownDelay = Duration(minutes: 5);
 
   Map<String, dynamic>? _latestRemoteScreenInfo;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
+  Timer? _receiverAutoShutdownTimer;
   int _missedHeartbeatCount = 0;
   bool _audioDiagnosticsLoggingReady = false;
   bool _disconnectRequested = false;
@@ -531,6 +535,15 @@ class RemoteControlService {
     );
   }
 
+  Future<void> requestReceiverShutdown() async {
+    if (_controllerControlSocket == null) return;
+    final message = StatusMessage.shutdownReceiver();
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+    await _controllerControlSocket!.flush();
+  }
+
   Future<void> setReceiverMicrophoneEnabled(bool enabled) async {
     if (!isVoiceEnabled || _controllerControlSocket == null) return;
     final message = StatusMessage.receiverMicrophone(enabled: enabled);
@@ -715,6 +728,7 @@ class RemoteControlService {
       return;
     }
     _receiverSessionActive = true;
+    _cancelReceiverAutoShutdown();
     _missedHeartbeatCount = 0;
     _updateState(RemoteControlState.connected);
     _startHeartbeat();
@@ -972,6 +986,7 @@ class RemoteControlService {
       updateBitrate: updateBitrate,
       sendAck: _sendAck,
       onHeartbeat: _handleHeartbeatReceived,
+      shutdownReceiver: shutdownReceiverHostResources,
       log: (message, {error}) =>
           developer.log(message, name: 'RemoteControl', error: error),
     );
@@ -1066,7 +1081,10 @@ class RemoteControlService {
       return;
     }
     _missedHeartbeatCount += 1;
-    if (_missedHeartbeatCount >= _maxMissedHeartbeats) {
+    final maxMissedHeartbeats = _mode == RemoteControlMode.receiver
+        ? _receiverMaxMissedHeartbeats
+        : _controllerMaxMissedHeartbeats;
+    if (_missedHeartbeatCount >= maxMissedHeartbeats) {
       _handleHeartbeatTimeout();
       return;
     }
@@ -1100,6 +1118,40 @@ class RemoteControlService {
       _receiverScreenSocket?.destroy();
       _receiverScreenSocket = null;
       _updateState(RemoteControlState.disconnected);
+      _scheduleReceiverAutoShutdown();
+    }
+  }
+
+  void _scheduleReceiverAutoShutdown() {
+    _receiverAutoShutdownTimer?.cancel();
+    _receiverAutoShutdownTimer = Timer(_receiverAutoShutdownDelay, () {
+      if (_mode != RemoteControlMode.receiver ||
+          _state == RemoteControlState.connected) {
+        return;
+      }
+      unawaited(shutdownReceiverHostResources());
+    });
+  }
+
+  void _cancelReceiverAutoShutdown() {
+    _receiverAutoShutdownTimer?.cancel();
+    _receiverAutoShutdownTimer = null;
+  }
+
+  Future<void> shutdownReceiverHostResources() async {
+    _cancelReceiverAutoShutdown();
+    await disconnect();
+    try {
+      await EasyTierService().stopVpn();
+    } catch (e) {
+      developer.log(
+        'Failed to stop EasyTier during receiver shutdown: $e',
+        name: 'RemoteControl',
+        error: e,
+      );
+    }
+    if (_mode == RemoteControlMode.receiver) {
+      _updateState(RemoteControlState.idle);
     }
   }
 
@@ -1124,6 +1176,7 @@ class RemoteControlService {
     _performanceMonitor.stopMonitoring();
     _stopScreenFrameWatchdog();
     _stopHeartbeat();
+    _cancelReceiverAutoShutdown();
     await stopAudioCapture();
     await stopAudioPlayback();
     _controllerControlSocket?.destroy();
