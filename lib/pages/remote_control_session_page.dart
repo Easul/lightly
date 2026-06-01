@@ -6,6 +6,7 @@ import '../services/remote_control_protocol.dart' as protocol;
 import '../services/remote_control_protocol.dart' show GlobalAction;
 import '../services/remote_control_service.dart';
 import '../services/app_toast.dart';
+import 'remote_control_disconnect_dialog.dart';
 import 'remote_control_session_widgets.dart';
 
 class RemoteControlSessionPage extends StatefulWidget {
@@ -86,23 +87,11 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       return;
     }
     _disconnectDialogVisible = true;
-    await showDialog<void>(
+    await showRemoteDisconnectDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('对方已断开'),
-        content: Text(
-          state == RemoteControlState.error
-              ? '与 ${widget.remoteHost} 的连接异常中断。'
-              : '对方已断开远程连接。',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
-          ),
-        ],
-      ),
+      message: state == RemoteControlState.error
+          ? '与 ${widget.remoteHost} 的连接异常中断，请检查网络或对端状态。'
+          : '对方已断开远程连接。',
     );
     _disconnectDialogVisible = false;
     if (!mounted) {
