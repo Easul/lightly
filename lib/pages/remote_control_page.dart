@@ -166,7 +166,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       } else if (state == RemoteControlState.disconnected) {
         _errorMessage = null;
       } else if (state == RemoteControlState.idle &&
-          _service.mode == RemoteControlMode.receiver) {
+          _service.mode == RemoteControlMode.receiver &&
+          !_service.isReceiverHostRunning) {
         _isReceiverRunning = false;
         _isReceiverAudioEnabled = false;
         _portConfig = null;

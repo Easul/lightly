@@ -106,7 +106,7 @@ class RemoteControlService {
   );
   static const int _latestFrameBatchThreshold = 3;
   static const int _controllerMaxMissedHeartbeats = 10;
-  static const int _receiverMaxMissedHeartbeats = 20;
+  static const int _receiverMaxMissedHeartbeats = 10;
   static const Duration _heartbeatInterval = Duration(seconds: 2);
   static const Duration _receiverAutoShutdownDelay = Duration(minutes: 5);
 
@@ -144,6 +144,8 @@ class RemoteControlService {
   RemoteControlConfig? get config => _config;
   bool get isConnected => _state == RemoteControlState.connected;
   bool get isLocalDisconnectRequested => _disconnectRequested;
+  bool get isReceiverHostRunning =>
+      _mode == RemoteControlMode.receiver && _controlServer != null;
   Uint8List? get latestScreenSps =>
       _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
   Uint8List? get latestScreenPps =>
