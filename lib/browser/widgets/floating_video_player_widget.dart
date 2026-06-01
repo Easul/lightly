@@ -123,7 +123,11 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     super.didUpdateWidget(oldWidget);
     if (widget.mode != oldWidget.mode ||
         widget.isLocked != oldWidget.isLocked) {
-      _showControlsTemporarily();
+      if (widget.isLocked) {
+        _showLockIndicatorTemporarily();
+      } else {
+        _showControlsTemporarily();
+      }
     }
   }
 
@@ -139,11 +143,30 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
       if (mounted &&
           widget.controller?.value.isPlaying == true &&
           !widget.isLocked) {
-        setState(() {
-          _controlsVisible = false;
-        });
+        _hideControls();
       }
     });
+  }
+
+  void _hideControls() {
+    _controlsTimer?.cancel();
+    if (mounted && _controlsVisible) {
+      setState(() {
+        _controlsVisible = false;
+      });
+    }
+  }
+
+  void _handleSurfaceTap() {
+    if (widget.isLocked) {
+      _showLockIndicatorTemporarily();
+      return;
+    }
+    if (_controlsVisible) {
+      _hideControls();
+    } else {
+      _showControlsTemporarily();
+    }
   }
 
   /// Show lock indicator when locked mode is tapped
@@ -153,7 +176,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
       _lockIndicatorVisible = true;
     });
     _lockIndicatorTimer?.cancel();
-    _lockIndicatorTimer = Timer(const Duration(seconds: 2), () {
+    _lockIndicatorTimer = Timer(const Duration(seconds: 3), () {
       if (mounted && widget.isLocked) {
         setState(() {
           _lockIndicatorVisible = false;
@@ -333,7 +356,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     final isInitialized = value.isInitialized;
 
     return GestureDetector(
-      onTap: _showControlsTemporarily,
+      onTap: _handleSurfaceTap,
       onVerticalDragStart: _isFullscreen && !widget.isLocked
           ? (details) {
               final box = context.findRenderObject() as RenderBox?;
@@ -374,6 +397,8 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
               const Center(
                 child: CircularProgressIndicator(color: Colors.white),
               ),
+
+            if (hasError && !isInitialized) _buildLoadingControls(context),
 
             if (isInitialized && !widget.isLocked)
               IgnorePointer(
