@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -136,10 +137,7 @@ class BrowserVideoPlayerCoordinator {
       }
     }
 
-    final controller = VideoPlayerController.networkUrl(
-      Uri.parse(playbackUrl),
-      videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
-    );
+    final controller = _createVideoController(playbackUrl);
     _floatingVideoController = controller;
 
     try {
@@ -199,6 +197,22 @@ class BrowserVideoPlayerCoordinator {
         },
       );
     }
+  }
+
+  VideoPlayerController _createVideoController(String playbackUrl) {
+    final uri = Uri.parse(playbackUrl);
+    final scheme = uri.scheme.toLowerCase();
+    final options = VideoPlayerOptions(allowBackgroundPlayback: true);
+    if (scheme == 'content') {
+      return VideoPlayerController.contentUri(uri, videoPlayerOptions: options);
+    }
+    if (scheme == 'file') {
+      return VideoPlayerController.file(
+        File.fromUri(uri),
+        videoPlayerOptions: options,
+      );
+    }
+    return VideoPlayerController.networkUrl(uri, videoPlayerOptions: options);
   }
 
   void _showFloatingErrorOverlay({

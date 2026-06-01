@@ -47,7 +47,6 @@ import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_coordinator.dart';
-import 'native_video_player_page.dart';
 import 'browser_page_notifier_sync.dart';
 import 'browser_page_overlay_state_manager.dart';
 import 'browser_page_settings_helper.dart';
@@ -789,8 +788,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _openExternalIntentTarget(String url) async {
     if (_isExternalVideoUrl(url)) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => NativeVideoPlayerPage(videoUrl: url)),
+      await _videoPlayerCoordinator.showFloatingVideoPlayer(
+        context: context,
+        url: url,
+        settings: _settings,
+        currentPageTitle: '视频播放',
       );
       return;
     }
