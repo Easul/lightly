@@ -14,7 +14,7 @@ class NativeVideoGestureAction {
 
 class NativeVideoGestureController {
   NativeVideoGestureControlSide? _side;
-  double _baseValue = 0.5;
+  double _currentValue = 0.5;
 
   void startGesture({
     required double localDx,
@@ -26,7 +26,7 @@ class NativeVideoGestureController {
     _side = isLeft
         ? NativeVideoGestureControlSide.brightness
         : NativeVideoGestureControlSide.volume;
-    _baseValue = isLeft ? brightness : volume;
+    _currentValue = isLeft ? brightness : volume;
   }
 
   NativeVideoGestureAction? updateGesture({
@@ -39,7 +39,8 @@ class NativeVideoGestureController {
     }
 
     final delta = -primaryDelta / sensitivity;
-    final nextValue = (_baseValue + delta).clamp(0.0, 1.0);
+    final nextValue = (_currentValue + delta).clamp(0.0, 1.0);
+    _currentValue = nextValue;
     final percent = (nextValue * 100).round();
     final hint = side == NativeVideoGestureControlSide.brightness
         ? '亮度 $percent%'

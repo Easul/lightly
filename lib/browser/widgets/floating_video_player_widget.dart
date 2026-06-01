@@ -91,11 +91,17 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
         value.duration > Duration.zero &&
         value.position >= value.duration - const Duration(milliseconds: 300);
     final didEnterError = !_lastHasError && hasError;
+    final didStartPlaying = !_lastIsPlaying && isPlaying;
 
     _lastIsPlaying = isPlaying;
     _lastHasError = hasError;
 
     if (!mounted) {
+      return;
+    }
+
+    if (didStartPlaying && !_controlsTimerActive) {
+      _showControlsTemporarily();
       return;
     }
 
@@ -121,13 +127,15 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     }
   }
 
+  bool get _controlsTimerActive => _controlsTimer?.isActive == true;
+
   void _showControlsTemporarily() {
     if (widget.isLocked) return;
     setState(() {
       _controlsVisible = true;
     });
     _controlsTimer?.cancel();
-    _controlsTimer = Timer(const Duration(seconds: 3), () {
+    _controlsTimer = Timer(const Duration(seconds: 5), () {
       if (mounted &&
           widget.controller?.value.isPlaying == true &&
           !widget.isLocked) {
@@ -326,6 +334,24 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
 
     return GestureDetector(
       onTap: _showControlsTemporarily,
+      onVerticalDragStart: _isFullscreen && !widget.isLocked
+          ? (details) {
+              final box = context.findRenderObject() as RenderBox?;
+              _startGesture(
+                details,
+                box?.size.width ?? MediaQuery.of(context).size.width,
+              );
+            }
+          : null,
+      onVerticalDragUpdate: _isFullscreen && !widget.isLocked
+          ? _updateGesture
+          : null,
+      onVerticalDragEnd: _isFullscreen && !widget.isLocked
+          ? (_) => _endGesture()
+          : null,
+      onVerticalDragCancel: _isFullscreen && !widget.isLocked
+          ? _endGesture
+          : null,
       child: Container(
         color: Colors.black,
         child: Stack(
@@ -355,82 +381,54 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 child: AnimatedOpacity(
                   opacity: _controlsVisible ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 200),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Only allow brightness/volume gestures in fullscreen mode
-                      final enableGestureControls = _isFullscreen;
-                      return GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onVerticalDragStart: enableGestureControls
-                            ? (details) =>
-                                  _startGesture(details, constraints.maxWidth)
-                            : null,
-                        onVerticalDragUpdate: enableGestureControls
-                            ? _updateGesture
-                            : null,
-                        onVerticalDragEnd: enableGestureControls
-                            ? (_) => _endGesture()
-                            : null,
-                        onVerticalDragCancel: enableGestureControls
-                            ? _endGesture
-                            : null,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.6),
-                                Colors.transparent,
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.6),
-                              ],
-                              stops: const [0.0, 0.2, 0.7, 1.0],
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              _buildTopBar(context),
-                              Expanded(
-                                child: Center(
-                                  child: GestureDetector(
-                                    onTap: _togglePlayPause,
-                                    child: Container(
-                                      width:
-                                          widget.mode == FloatingPlayerMode.mini
-                                          ? 52
-                                          : 64,
-                                      height:
-                                          widget.mode == FloatingPlayerMode.mini
-                                          ? 52
-                                          : 64,
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        value.isPlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                        color: Colors.white,
-                                        size:
-                                            widget.mode ==
-                                                FloatingPlayerMode.mini
-                                            ? 28
-                                            : 36,
-                                      ),
-                                    ),
-                                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.6),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.6),
+                        ],
+                        stops: const [0.0, 0.2, 0.7, 1.0],
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildTopBar(context),
+                        Expanded(
+                          child: Center(
+                            child: GestureDetector(
+                              onTap: _togglePlayPause,
+                              child: Container(
+                                width: widget.mode == FloatingPlayerMode.mini
+                                    ? 52
+                                    : 64,
+                                height: widget.mode == FloatingPlayerMode.mini
+                                    ? 52
+                                    : 64,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  value.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.white,
+                                  size: widget.mode == FloatingPlayerMode.mini
+                                      ? 28
+                                      : 36,
                                 ),
                               ),
-                              _buildBottomBar(),
-                            ],
+                            ),
                           ),
                         ),
-                      );
-                    },
+                        _buildBottomBar(),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -48,5 +48,28 @@ void main() {
         isNull,
       );
     });
+
+    test('vertical gesture accumulates smooth brightness deltas', () {
+      final controller = NativeVideoGestureController();
+      controller.startGesture(
+        localDx: 10,
+        maxWidth: 100,
+        brightness: 0.5,
+        volume: 0.2,
+      );
+
+      final first = controller.updateGesture(
+        primaryDelta: -16,
+        sensitivity: 320,
+      );
+      final second = controller.updateGesture(
+        primaryDelta: -16,
+        sensitivity: 320,
+      );
+
+      expect(first?.side, NativeVideoGestureControlSide.brightness);
+      expect(first?.nextValue, closeTo(0.55, 0.001));
+      expect(second?.nextValue, closeTo(0.60, 0.001));
+    });
   });
 }
