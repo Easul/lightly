@@ -8,6 +8,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Path
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -54,6 +56,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     }
 
     private var textOverlayView: View? = null
+    private var disconnectOverlayView: View? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -80,6 +83,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         hideTextOverlay()
+        hideDisconnectOverlay()
         instance = null
         Log.i(TAG, "AccessibilityService destroyed")
         super.onDestroy()
@@ -89,37 +93,16 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
         hideTextOverlay()
 
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(28, 22, 28, 22)
-            setBackgroundColor(Color.argb(235, 17, 24, 39))
-        }
-        val messageView = TextView(this).apply {
-            this.text = text
-            setTextColor(Color.WHITE)
-            textSize = 18f
-        }
-        val closeButton = Button(this).apply {
-            this.text = "关闭"
-            setOnClickListener { hideTextOverlay() }
-        }
-        container.addView(
-            messageView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ),
-        )
-        container.addView(
-            closeButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { gravity = Gravity.END },
+        val container = buildGlobalOverlayCard(
+            title = "远程文字提示",
+            message = text,
+            accentColor = Color.rgb(124, 58, 237),
+            iconText = "T",
+            onClose = { hideTextOverlay() },
         )
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -127,6 +110,9 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            horizontalMargin = 0.06f
+            y = dp(18)
         }
 
         try {
@@ -135,6 +121,163 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show text overlay", e)
         }
+    }
+
+    fun showDisconnectOverlay(message: String) {
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        hideDisconnectOverlay()
+
+        val container = buildGlobalOverlayCard(
+            title = "对方已断开",
+            message = message,
+            accentColor = Color.rgb(220, 38, 38),
+            iconText = "!",
+            onClose = { hideDisconnectOverlay() },
+        )
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            horizontalMargin = 0.06f
+            y = dp(18)
+        }
+
+        try {
+            windowManager.addView(container, params)
+            disconnectOverlayView = container
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show disconnect overlay", e)
+        }
+    }
+
+    private fun buildGlobalOverlayCard(
+        title: String,
+        message: String,
+        accentColor: Int,
+        iconText: String,
+        onClose: () -> Unit,
+    ): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = roundedDrawable(
+                color = Color.argb(244, 17, 24, 39),
+                radius = dp(26).toFloat(),
+                strokeColor = Color.argb(34, 255, 255, 255),
+                strokeWidth = dp(1),
+            )
+            elevation = dp(18).toFloat()
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val icon = TextView(this).apply {
+            text = iconText
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            background = roundedDrawable(
+                color = accentColor,
+                radius = dp(15).toFloat(),
+            )
+        }
+        header.addView(
+            icon,
+            LinearLayout.LayoutParams(dp(40), dp(40)),
+        )
+        val titleView = TextView(this).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            includeFontPadding = false
+        }
+        header.addView(
+            titleView,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = dp(12)
+            },
+        )
+        val closeButton = Button(this).apply {
+            text = "关闭"
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            minHeight = 0
+            minWidth = 0
+            minimumHeight = 0
+            minimumWidth = 0
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            background = roundedDrawable(
+                color = Color.argb(32, 255, 255, 255),
+                radius = dp(999).toFloat(),
+                strokeColor = Color.argb(45, 255, 255, 255),
+                strokeWidth = dp(1),
+            )
+            setOnClickListener { onClose() }
+        }
+        header.addView(
+            closeButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        container.addView(header)
+
+        val messageView = TextView(this).apply {
+            this.text = message
+            setTextColor(Color.rgb(229, 231, 235))
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setLineSpacing(0f, 1.15f)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = roundedDrawable(
+                color = Color.argb(18, 255, 255, 255),
+                radius = dp(18).toFloat(),
+                strokeColor = Color.argb(24, 255, 255, 255),
+                strokeWidth = dp(1),
+            )
+        }
+        container.addView(
+            messageView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(14)
+            },
+        )
+        return container
+    }
+
+    private fun roundedDrawable(
+        color: Int,
+        radius: Float,
+        strokeColor: Int? = null,
+        strokeWidth: Int = 0,
+    ): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(color)
+            cornerRadius = radius
+            if (strokeColor != null && strokeWidth > 0) {
+                setStroke(strokeWidth, strokeColor)
+            }
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     fun hideTextOverlay() {
@@ -146,6 +289,18 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             Log.w(TAG, "Failed to remove text overlay", e)
         } finally {
             textOverlayView = null
+        }
+    }
+
+    fun hideDisconnectOverlay() {
+        val overlay = disconnectOverlayView ?: return
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        try {
+            windowManager.removeView(overlay)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove disconnect overlay", e)
+        } finally {
+            disconnectOverlayView = null
         }
     }
 

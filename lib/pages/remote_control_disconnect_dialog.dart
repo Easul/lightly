@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
 import '../theme/app_theme.dart';
@@ -7,7 +8,25 @@ Future<void> showRemoteDisconnectDialog({
   required BuildContext context,
   required String message,
 }) async {
+  const channel = MethodChannel('remote_control');
   final dialogContext = AppToast.navigatorKey.currentContext ?? context;
+  try {
+    final didShowGlobalOverlay = await channel.invokeMethod<bool>(
+      'showDisconnectOverlay',
+      {'message': message},
+    );
+    if (didShowGlobalOverlay == true) {
+      return;
+    }
+  } on MissingPluginException {
+    // Fall back to the in-app dialog on platforms without the native overlay.
+  } catch (_) {
+    // Fall back to the in-app dialog if the accessibility overlay is unavailable.
+  }
+
+  if (!dialogContext.mounted) {
+    return;
+  }
   await showGeneralDialog<void>(
     context: dialogContext,
     useRootNavigator: true,

@@ -760,6 +760,17 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    "showDisconnectOverlay" -> {
+                        val message = call.argument<String>("message") ?: "对方已断开远程连接。"
+                        val service = RemoteControlAccessibilityService.instance
+                        if (service == null) {
+                            result.success(false)
+                        } else {
+                            service.showDisconnectOverlay(message)
+                            result.success(true)
+                        }
+                    }
+
                     "checkAccessibilityPermission" -> {
                         try {
                             val isRunning = RemoteControlAccessibilityService.isRunning
