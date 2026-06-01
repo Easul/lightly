@@ -228,7 +228,7 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       return;
     }
 
-    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_loadStatus());
     });
   }

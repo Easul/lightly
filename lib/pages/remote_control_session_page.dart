@@ -62,6 +62,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   @override
   void dispose() {
     if (!_isClosingSession) {
+      _isClosingSession = true;
       unawaited(widget.service.disconnect());
     }
     _stateSubscription.cancel();
@@ -73,8 +74,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     if (!mounted) {
       return;
     }
-    if (state == RemoteControlState.disconnected ||
-        state == RemoteControlState.error) {
+    if (!widget.service.isLocalDisconnectRequested &&
+        (state == RemoteControlState.disconnected ||
+            state == RemoteControlState.error)) {
       unawaited(_showDisconnectDialog(state));
     }
   }
@@ -84,44 +86,26 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       return;
     }
     _disconnectDialogVisible = true;
-    final shouldReconnect = await showDialog<bool>(
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('远程连接已断开'),
+        title: const Text('对方已断开'),
         content: Text(
           state == RemoteControlState.error
               ? '与 ${widget.remoteHost} 的连接异常中断。'
-              : '与 ${widget.remoteHost} 的连接已断开，可能是对端离线或网络中断。',
+              : '对方已断开远程连接。',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('关闭'),
-          ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('重连'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
           ),
         ],
       ),
     );
     _disconnectDialogVisible = false;
     if (!mounted) {
-      return;
-    }
-    if (shouldReconnect == true) {
-      try {
-        await widget.service.reconnectLastController();
-        if (mounted) {
-          _showToast('已重新连接');
-        }
-      } catch (error) {
-        if (mounted) {
-          _showToast('重连失败: $error');
-          unawaited(_showDisconnectDialog(RemoteControlState.error));
-        }
-      }
       return;
     }
     _isClosingSession = true;

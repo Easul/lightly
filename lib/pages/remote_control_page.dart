@@ -72,7 +72,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _applyPortConfigToInputs(_portConfig);
     _loadSettings();
     _loadPeers();
-    _peerRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    _peerRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_loadPeers(showLoading: false));
     });
   }
@@ -149,8 +149,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     if (!mounted) return;
     final shouldShowDisconnectDialog =
         _hadConnectedSession &&
+        !_service.isLocalDisconnectRequested &&
         (state == RemoteControlState.disconnected ||
             state == RemoteControlState.error);
+    final shouldRefreshPeers = state == RemoteControlState.connected;
     setState(() {
       _isConnecting = state == RemoteControlState.connecting;
       _isReceiverAudioEnabled = _service.isLocalAudioEnabled;
@@ -163,6 +165,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         _errorMessage = null;
       }
     });
+    if (shouldRefreshPeers) {
+      unawaited(_loadPeers(showLoading: false));
+    }
     if (shouldShowDisconnectDialog &&
         ModalRoute.of(context)?.isCurrent == true) {
       unawaited(_showDisconnectDialog(state));
@@ -174,52 +179,25 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       return;
     }
     _disconnectDialogVisible = true;
-    final reconnect = await showDialog<bool>(
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('远程连接已断开'),
+        title: const Text('对方已断开'),
         content: Text(
           state == RemoteControlState.error
-              ? '远程连接异常中断，请检查对端是否在线。'
-              : '远程连接已断开，可能是对端离线或网络中断。',
+              ? '对方连接异常中断，请检查网络或对端状态。'
+              : '对方已断开远程连接。',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('关闭'),
-          ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('重连'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
           ),
         ],
       ),
     );
     _disconnectDialogVisible = false;
-    if (!mounted) {
-      return;
-    }
-    if (reconnect == true) {
-      if (_service.mode == RemoteControlMode.receiver) {
-        await _startReceiver();
-      } else {
-        try {
-          setState(() => _isConnecting = true);
-          await _service.reconnectLastController();
-          if (mounted) {
-            _showToast('已重新连接');
-          }
-        } catch (error) {
-          if (mounted) {
-            setState(() {
-              _isConnecting = false;
-              _errorMessage = '重连失败: $error';
-            });
-          }
-        }
-      }
-    }
   }
 
   void _handleMessage(protocol.ControlMessage message) {
