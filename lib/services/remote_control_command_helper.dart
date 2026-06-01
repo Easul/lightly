@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -47,6 +48,7 @@ class RemoteControlCommandHelper {
     required Future<void> Function(int messageId, bool success, [String? error])
     sendAck,
     required void Function(HeartbeatMessage message) onHeartbeat,
+    required Future<void> Function() shutdownReceiver,
     required void Function(String message, {Object? error}) log,
   }) {
     try {
@@ -72,6 +74,10 @@ class RemoteControlCommandHelper {
               .catchError((Object error) {
                 log('Failed to show receiver overlay text: $error');
               });
+          return;
+        }
+        if (message.action == 'shutdown_receiver') {
+          unawaited(shutdownReceiver());
           return;
         }
         recordStatusMessage(message);

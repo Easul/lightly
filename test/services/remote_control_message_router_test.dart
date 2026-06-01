@@ -83,6 +83,7 @@ void main() {
           }
         },
         onHeartbeat: receivedHeartbeats.add,
+        shutdownReceiver: () async {},
         log: (_, {error}) {},
       );
 
@@ -116,6 +117,7 @@ void main() {
         },
         sendAck: (messageId, success, [error]) async {},
         onHeartbeat: (_) {},
+        shutdownReceiver: () async {},
         log: (_, {error}) {},
       );
 
@@ -142,6 +144,7 @@ void main() {
         updateBitrate: (_) async {},
         sendAck: (messageId, success, [error]) async {},
         onHeartbeat: (_) {},
+        shutdownReceiver: () async {},
         log: (_, {error}) {},
       );
 

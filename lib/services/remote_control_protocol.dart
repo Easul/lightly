@@ -368,6 +368,15 @@ class StatusMessage extends ControlMessage {
     );
   }
 
+  factory StatusMessage.shutdownReceiver() {
+    return StatusMessage(
+      action: 'shutdown_receiver',
+      data: const {},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   @override
   Map<String, dynamic> toJson() {
     return {

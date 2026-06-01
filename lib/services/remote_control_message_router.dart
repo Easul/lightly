@@ -32,6 +32,7 @@ class RemoteControlMessageRouter {
     required Future<void> Function(int messageId, bool success, [String? error])
     sendAck,
     required void Function(HeartbeatMessage message) onHeartbeat,
+    required Future<void> Function() shutdownReceiver,
     required void Function(String message, {Object? error}) log,
   }) {
     final commands = _commandHelper.decodeBufferedLines(
@@ -50,6 +51,7 @@ class RemoteControlMessageRouter {
         updateBitrate: updateBitrate,
         sendAck: sendAck,
         onHeartbeat: onHeartbeat,
+        shutdownReceiver: shutdownReceiver,
         log: log,
       );
     }
