@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart';
@@ -34,13 +35,7 @@ class NativeVideoPlayerPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('视频播放'),
-      ),
-      body: NativeVideoPlayerView(videoUrl: videoUrl),
+      body: SafeArea(child: NativeVideoPlayerView(videoUrl: videoUrl)),
     );
   }
 }
@@ -150,8 +145,26 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     _playbackCoordinator = NativeVideoPlaybackCoordinator(
       playbackPreparationService: _videoPlaybackPreparationService,
       createVideoController: (playbackUrl) async {
+        final uri = Uri.parse(playbackUrl);
+        final scheme = uri.scheme.toLowerCase();
+        if (scheme == 'content') {
+          return VideoPlayerController.contentUri(
+            uri,
+            videoPlayerOptions: VideoPlayerOptions(
+              allowBackgroundPlayback: true,
+            ),
+          );
+        }
+        if (scheme == 'file') {
+          return VideoPlayerController.file(
+            File.fromUri(uri),
+            videoPlayerOptions: VideoPlayerOptions(
+              allowBackgroundPlayback: true,
+            ),
+          );
+        }
         return VideoPlayerController.networkUrl(
-          Uri.parse(playbackUrl),
+          uri,
           videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
         );
       },
@@ -325,7 +338,10 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     }
 
     if (_errorMessage != null) {
-      return NativeVideoErrorView(message: _errorMessage!);
+      return NativeVideoErrorView(
+        message: _errorMessage!,
+        onClose: Navigator.of(context).maybePop,
+      );
     }
 
     final chewieController = _chewieController;
@@ -339,6 +355,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
         compact: widget.compact,
         resolvedTitle: _resolvedTitle,
         onDownload: _downloadCurrentVideo,
+        onClose: widget.compact ? null : Navigator.of(context).maybePop,
         gestureHintNotifier: _gestureHintNotifier,
         onVerticalDragStart: (details) =>
             _startGesture(details, constraints.maxWidth),

@@ -33,21 +33,40 @@ class NativeVideoLoadingView extends StatelessWidget {
 }
 
 class NativeVideoErrorView extends StatelessWidget {
-  const NativeVideoErrorView({super.key, required this.message});
+  const NativeVideoErrorView({super.key, required this.message, this.onClose});
 
   final String message;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          style: const TextStyle(color: Colors.white),
-          textAlign: TextAlign.center,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
-      ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Material(
+            color: Colors.black.withValues(alpha: 0.45),
+            shape: const CircleBorder(),
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: '关闭',
+              onPressed: onClose ?? Navigator.of(context).maybePop,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
