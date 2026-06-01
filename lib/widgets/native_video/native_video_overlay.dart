@@ -11,6 +11,8 @@ class NativeVideoOverlay extends StatefulWidget {
     required this.compact,
     required this.resolvedTitle,
     required this.onDownload,
+    required this.isMuted,
+    required this.onMuteToggle,
     this.onClose,
     required this.gestureHintNotifier,
     required this.onVerticalDragStart,
@@ -23,6 +25,8 @@ class NativeVideoOverlay extends StatefulWidget {
   final bool compact;
   final String? resolvedTitle;
   final VoidCallback onDownload;
+  final bool isMuted;
+  final VoidCallback onMuteToggle;
   final VoidCallback? onClose;
   final ValueListenable<String?> gestureHintNotifier;
   final GestureDragStartCallback onVerticalDragStart;
@@ -45,6 +49,9 @@ class _NativeVideoOverlayState extends State<NativeVideoOverlay> {
   }
 
   void _showOverlayControlsTemporarily() {
+    if (!mounted) {
+      return;
+    }
     setState(() => _overlayControlsVisible = true);
     _controlsTimer?.cancel();
     _controlsTimer = Timer(const Duration(seconds: 5), () {
@@ -54,10 +61,68 @@ class _NativeVideoOverlayState extends State<NativeVideoOverlay> {
     });
   }
 
+  void _hideOverlayControls() {
+    _controlsTimer?.cancel();
+    if (mounted && _overlayControlsVisible) {
+      setState(() => _overlayControlsVisible = false);
+    }
+  }
+
+  void _handleSurfaceTap() {
+    if (_overlayControlsVisible) {
+      _hideOverlayControls();
+    } else {
+      _showOverlayControlsTemporarily();
+    }
+  }
+
   @override
   void dispose() {
     _controlsTimer?.cancel();
     super.dispose();
+  }
+
+  Widget _buildVideoSurface(BuildContext context) {
+    final videoController = widget.chewieController.videoPlayerController;
+    return ValueListenableBuilder(
+      valueListenable: videoController,
+      builder: (context, value, child) {
+        if (!value.hasError) {
+          return Chewie(controller: widget.chewieController);
+        }
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  value.errorDescription?.isNotEmpty == true
+                      ? '视频播放失败\n${value.errorDescription}'
+                      : '视频播放失败',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+            if (widget.onClose != null)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    tooltip: '关闭',
+                    onPressed: widget.onClose,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -68,16 +133,14 @@ class _NativeVideoOverlayState extends State<NativeVideoOverlay> {
           builder: (context, constraints) {
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: _showOverlayControlsTemporarily,
+              onTap: _handleSurfaceTap,
               onVerticalDragStart: widget.onVerticalDragStart,
               onVerticalDragUpdate: widget.onVerticalDragUpdate,
               onVerticalDragEnd: widget.onVerticalDragEnd,
               onVerticalDragCancel: widget.onVerticalDragCancel,
               child: Stack(
                 children: [
-                  Positioned.fill(
-                    child: Chewie(controller: widget.chewieController),
-                  ),
+                  Positioned.fill(child: _buildVideoSurface(context)),
                   Positioned(
                     top: 12,
                     right: 12,
@@ -89,6 +152,21 @@ class _NativeVideoOverlayState extends State<NativeVideoOverlay> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Material(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                icon: Icon(
+                                  widget.isMuted
+                                      ? Icons.volume_off_rounded
+                                      : Icons.volume_up_rounded,
+                                  color: Colors.white,
+                                ),
+                                tooltip: widget.isMuted ? '取消静音' : '静音',
+                                onPressed: widget.onMuteToggle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             Material(
                               color: Colors.black.withValues(alpha: 0.45),
                               borderRadius: BorderRadius.circular(20),

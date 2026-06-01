@@ -116,6 +116,8 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
   String? _resolvedPlaybackUrl;
   double _brightness = 0.5;
   double _volume = 0.5;
+  double _previousPlayerVolume = 1.0;
+  bool _isMuted = false;
 
   @override
   void initState() {
@@ -285,6 +287,25 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     unawaited(VolumeController.instance.setVolume(value));
   }
 
+  void _toggleMute() {
+    final controller = _videoPlayerController;
+    if (controller == null) {
+      return;
+    }
+    setState(() {
+      if (_isMuted) {
+        _isMuted = false;
+        unawaited(controller.setVolume(_previousPlayerVolume));
+      } else {
+        _previousPlayerVolume = _previousPlayerVolume <= 0
+            ? 1.0
+            : _previousPlayerVolume;
+        _isMuted = true;
+        unawaited(controller.setVolume(0));
+      }
+    });
+  }
+
   String _resolveDownloadFileName() {
     final title = _resolvedTitle?.trim();
     if (title != null && title.isNotEmpty) {
@@ -355,6 +376,8 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
         compact: widget.compact,
         resolvedTitle: _resolvedTitle,
         onDownload: _downloadCurrentVideo,
+        isMuted: _isMuted,
+        onMuteToggle: _toggleMute,
         onClose: widget.compact ? null : Navigator.of(context).maybePop,
         gestureHintNotifier: _gestureHintNotifier,
         onVerticalDragStart: (details) =>
