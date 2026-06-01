@@ -107,6 +107,7 @@ class RemoteControlService {
 
   Map<String, dynamic>? _latestRemoteScreenInfo;
   ScreenFrame? _latestRemoteScreenFrame;
+  ScreenFrame? _latestRemoteKeyFrame;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
   bool _audioDiagnosticsLoggingReady = false;
@@ -607,8 +608,31 @@ class RemoteControlService {
   }
 
   Future<void> refreshLatestRemoteFrame() async {
+    final latestSpsFrame = latestScreenSps == null
+        ? null
+        : ScreenFrame(
+            type: ScreenFrameType.config,
+            data: latestScreenSps!,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          );
+    final latestPpsFrame = latestScreenPps == null
+        ? null
+        : ScreenFrame(
+            type: ScreenFrameType.config,
+            data: latestScreenPps!,
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          );
+    final latestKeyFrame = _latestRemoteKeyFrame;
     final latestFrame = _latestRemoteScreenFrame;
-    if (latestFrame != null) {
+    if (latestSpsFrame != null) {
+      _screenFrameController.add(latestSpsFrame);
+    }
+    if (latestPpsFrame != null) {
+      _screenFrameController.add(latestPpsFrame);
+    }
+    if (latestKeyFrame != null) {
+      _screenFrameController.add(latestKeyFrame);
+    } else if (latestFrame != null) {
       _screenFrameController.add(latestFrame);
     }
     await requestKeyFrame();
@@ -774,6 +798,9 @@ class RemoteControlService {
         isKeyFrame: frame.type == ScreenFrameType.keyFrame,
       );
       _latestRemoteScreenFrame = frame;
+      if (frame.type == ScreenFrameType.keyFrame) {
+        _latestRemoteKeyFrame = frame;
+      }
       _screenFrameController.add(frame);
       _markConnectionReady();
     }
@@ -946,18 +973,14 @@ class RemoteControlService {
 
   void _handleControlError(dynamic error) {
     developer.log('Control channel error: $error', name: 'RemoteControl');
-    unawaited(() async {
-      await _resetControllerConnection(stopNative: true);
-      _markUnexpectedControllerDisconnect('control-error');
-    }());
+    _markUnexpectedControllerDisconnect('control-error');
+    unawaited(_resetControllerConnection(stopNative: true));
   }
 
   void _handleControlDone() {
     developer.log('Control channel closed', name: 'RemoteControl');
-    unawaited(() async {
-      await _resetControllerConnection(stopNative: true);
-      _markUnexpectedControllerDisconnect('control-done');
-    }());
+    _markUnexpectedControllerDisconnect('control-done');
+    unawaited(_resetControllerConnection(stopNative: true));
   }
 
   void _handleScreenError(
@@ -1059,6 +1082,7 @@ class RemoteControlService {
     _screenServer = null;
     _screenFramePipeline.reset();
     _latestRemoteScreenFrame = null;
+    _latestRemoteKeyFrame = null;
     _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
     _targetHost = null;

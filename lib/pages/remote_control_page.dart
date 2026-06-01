@@ -52,6 +52,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
   Timer? _peerRefreshTimer;
+  bool _hadConnectedSession = false;
+  bool _disconnectDialogVisible = false;
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
@@ -119,7 +121,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       if (networkInfo != null) {
         final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
           networkInfo,
-          'default',
+          _easyTierService.currentInstanceName ?? 'ruoqing_vpn',
         ).where((peer) => peer['remoteReachable'] == 'true').toList();
         if (!mounted) return;
         setState(() {
@@ -145,10 +147,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   void _handleStateChange(RemoteControlState state) {
     if (!mounted) return;
+    final shouldShowDisconnectDialog =
+        _hadConnectedSession &&
+        (state == RemoteControlState.disconnected ||
+            state == RemoteControlState.error);
     setState(() {
       _isConnecting = state == RemoteControlState.connecting;
       _isReceiverAudioEnabled = _service.isLocalAudioEnabled;
       if (state == RemoteControlState.connected) {
+        _hadConnectedSession = true;
         _errorMessage = null;
       } else if (state == RemoteControlState.error) {
         _errorMessage = '连接失败';
@@ -156,6 +163,63 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         _errorMessage = null;
       }
     });
+    if (shouldShowDisconnectDialog &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      unawaited(_showDisconnectDialog(state));
+    }
+  }
+
+  Future<void> _showDisconnectDialog(RemoteControlState state) async {
+    if (_disconnectDialogVisible || !mounted) {
+      return;
+    }
+    _disconnectDialogVisible = true;
+    final reconnect = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('远程连接已断开'),
+        content: Text(
+          state == RemoteControlState.error
+              ? '远程连接异常中断，请检查对端是否在线。'
+              : '远程连接已断开，可能是对端离线或网络中断。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('关闭'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('重连'),
+          ),
+        ],
+      ),
+    );
+    _disconnectDialogVisible = false;
+    if (!mounted) {
+      return;
+    }
+    if (reconnect == true) {
+      if (_service.mode == RemoteControlMode.receiver) {
+        await _startReceiver();
+      } else {
+        try {
+          setState(() => _isConnecting = true);
+          await _service.reconnectLastController();
+          if (mounted) {
+            _showToast('已重新连接');
+          }
+        } catch (error) {
+          if (mounted) {
+            setState(() {
+              _isConnecting = false;
+              _errorMessage = '重连失败: $error';
+            });
+          }
+        }
+      }
+    }
   }
 
   void _handleMessage(protocol.ControlMessage message) {
@@ -174,6 +238,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     setState(() {
       _isConnecting = true;
       _errorMessage = null;
+      _hadConnectedSession = false;
     });
 
     try {
@@ -245,6 +310,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _hostController.text = host;
       _isConnecting = true;
       _errorMessage = null;
+      _hadConnectedSession = false;
     });
 
     int? proxyPort;
