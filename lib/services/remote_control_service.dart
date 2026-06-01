@@ -106,8 +106,6 @@ class RemoteControlService {
   static const int _latestFrameBatchThreshold = 3;
 
   Map<String, dynamic>? _latestRemoteScreenInfo;
-  ScreenFrame? _latestRemoteScreenFrame;
-  ScreenFrame? _latestRemoteKeyFrame;
   int _messageIdCounter = 0;
   Timer? _heartbeatTimer;
   bool _audioDiagnosticsLoggingReady = false;
@@ -137,6 +135,7 @@ class RemoteControlService {
   RemoteControlMode get mode => _mode;
   RemoteControlConfig? get config => _config;
   bool get isConnected => _state == RemoteControlState.connected;
+  bool get isLocalDisconnectRequested => _disconnectRequested;
   Uint8List? get latestScreenSps =>
       _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
   Uint8List? get latestScreenPps =>
@@ -284,6 +283,7 @@ class RemoteControlService {
     RemoteControlConfig? config,
   }) async {
     _mode = RemoteControlMode.receiver;
+    _disconnectRequested = false;
     _config = config ?? await RemoteControlConfig.defaultConfig();
     final ports = _config!.ports;
 
@@ -608,33 +608,6 @@ class RemoteControlService {
   }
 
   Future<void> refreshLatestRemoteFrame() async {
-    final latestSpsFrame = latestScreenSps == null
-        ? null
-        : ScreenFrame(
-            type: ScreenFrameType.config,
-            data: latestScreenSps!,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-          );
-    final latestPpsFrame = latestScreenPps == null
-        ? null
-        : ScreenFrame(
-            type: ScreenFrameType.config,
-            data: latestScreenPps!,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-          );
-    final latestKeyFrame = _latestRemoteKeyFrame;
-    final latestFrame = _latestRemoteScreenFrame;
-    if (latestSpsFrame != null) {
-      _screenFrameController.add(latestSpsFrame);
-    }
-    if (latestPpsFrame != null) {
-      _screenFrameController.add(latestPpsFrame);
-    }
-    if (latestKeyFrame != null) {
-      _screenFrameController.add(latestKeyFrame);
-    } else if (latestFrame != null) {
-      _screenFrameController.add(latestFrame);
-    }
     await requestKeyFrame();
   }
 
@@ -797,10 +770,6 @@ class RemoteControlService {
         frameSize: frame.data.length,
         isKeyFrame: frame.type == ScreenFrameType.keyFrame,
       );
-      _latestRemoteScreenFrame = frame;
-      if (frame.type == ScreenFrameType.keyFrame) {
-        _latestRemoteKeyFrame = frame;
-      }
       _screenFrameController.add(frame);
       _markConnectionReady();
     }
@@ -1081,8 +1050,6 @@ class RemoteControlService {
     _screenServer?.close();
     _screenServer = null;
     _screenFramePipeline.reset();
-    _latestRemoteScreenFrame = null;
-    _latestRemoteKeyFrame = null;
     _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
     _targetHost = null;

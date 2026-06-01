@@ -255,6 +255,9 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
 
   ScreenFrame? _takeNextQueuedFrame() {
     if (_pendingConfigFrames.isNotEmpty) {
+      if (_pendingKeyFrame == null) {
+        return null;
+      }
       return _pendingConfigFrames.removeAt(0);
     }
     if (_pendingKeyFrame != null) {
