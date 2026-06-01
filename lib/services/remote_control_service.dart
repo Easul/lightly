@@ -120,6 +120,7 @@ class RemoteControlService {
   List<String> _lastControllerAvailableHosts = const <String>[];
   int _lastControllerDiscoveryDelayMs = 0;
   DateTime? _lastWebRtcRecoveryAt;
+  bool _receiverSessionActive = false;
 
   // 视频流质量控制
   static const int _maxBitrate = 8000000;
@@ -287,6 +288,7 @@ class RemoteControlService {
   }) async {
     _mode = RemoteControlMode.receiver;
     _disconnectRequested = false;
+    _receiverSessionActive = false;
     _config = config ?? await RemoteControlConfig.defaultConfig();
     final ports = _config!.ports;
 
@@ -679,9 +681,8 @@ class RemoteControlService {
     );
     _receiverControlSocket = client;
     _targetHost = client.remoteAddress.address;
+    _receiverSessionActive = false;
     _missedHeartbeatCount = 0;
-    _updateState(RemoteControlState.connected);
-    _startHeartbeat();
     unawaited(_sendPortConfigStatus());
     unawaited(_sendScreenInfoStatus());
 
@@ -694,12 +695,45 @@ class RemoteControlService {
         developer.log('Control client disconnected', name: 'RemoteControl');
         unawaited(stopAudioCapture());
         unawaited(_voiceCoordinator.close());
+        final wasActiveSession = _receiverSessionActive;
+        _receiverSessionActive = false;
         _receiverControlSocket = null;
-        _updateState(RemoteControlState.disconnected);
+        if (wasActiveSession) {
+          unawaited(_showRemoteDisconnectOverlay('对方已断开远程连接。'));
+          _updateState(RemoteControlState.disconnected);
+        } else if (_mode == RemoteControlMode.receiver) {
+          _updateState(RemoteControlState.idle);
+        }
         _stopScreenFrameWatchdog();
         _stopHeartbeat();
       },
     );
+  }
+
+  void _markReceiverSessionActive() {
+    if (_mode != RemoteControlMode.receiver || _receiverSessionActive) {
+      return;
+    }
+    _receiverSessionActive = true;
+    _missedHeartbeatCount = 0;
+    _updateState(RemoteControlState.connected);
+    _startHeartbeat();
+  }
+
+  Future<bool> _showRemoteDisconnectOverlay(String message) async {
+    try {
+      return await _channel.invokeMethod<bool>('showDisconnectOverlay', {
+            'message': message,
+          }) ??
+          false;
+    } catch (e) {
+      developer.log(
+        'Failed to show disconnect overlay: $e',
+        name: 'RemoteControl',
+        error: e,
+      );
+      return false;
+    }
   }
 
   void _handleScreenConnection(Socket client) {
@@ -708,6 +742,7 @@ class RemoteControlService {
       name: 'RemoteControl',
     );
     _receiverScreenSocket = client;
+    _markReceiverSessionActive();
     developer.log(
       'Receiver screen socket ready: remote=${client.remoteAddress.address}:${client.remotePort} local=${client.address.address}:${client.port}',
       name: 'RemoteControl',
@@ -925,6 +960,7 @@ class RemoteControlService {
   }
 
   void _handleReceiverControlData(Uint8List data) {
+    _markReceiverSessionActive();
     _messageRouter.dispatchReceiverData(
       data,
       channel: _channel,
@@ -1021,6 +1057,7 @@ class RemoteControlService {
 
   void _handleHeartbeatReceived(HeartbeatMessage message) {
     _missedHeartbeatCount = 0;
+    _markReceiverSessionActive();
     _markConnectionReady();
   }
 
@@ -1056,6 +1093,8 @@ class RemoteControlService {
     if (_mode == RemoteControlMode.receiver) {
       unawaited(stopAudioCapture());
       unawaited(_voiceCoordinator.close());
+      unawaited(_showRemoteDisconnectOverlay('对方已断开远程连接。'));
+      _receiverSessionActive = false;
       _receiverControlSocket?.destroy();
       _receiverControlSocket = null;
       _receiverScreenSocket?.destroy();
@@ -1103,6 +1142,7 @@ class RemoteControlService {
     _messageRouter.resetAll();
     _latestRemoteScreenInfo = null;
     _targetHost = null;
+    _receiverSessionActive = false;
 
     try {
       await _channel.invokeMethod('stop');
