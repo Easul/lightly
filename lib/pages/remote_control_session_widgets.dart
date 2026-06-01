@@ -42,10 +42,12 @@ class RemoteSessionScaffold extends StatelessWidget {
   const RemoteSessionScaffold({
     super.key,
     required this.onCloseSession,
+    required this.onBackPressed,
     required this.builder,
   });
 
   final VoidCallback onCloseSession;
+  final VoidCallback onBackPressed;
   final Widget Function(BuildContext context, BoxConstraints constraints)
   builder;
 
@@ -55,7 +57,7 @@ class RemoteSessionScaffold extends StatelessWidget {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          onCloseSession();
+          onBackPressed();
         }
       },
       child: Scaffold(

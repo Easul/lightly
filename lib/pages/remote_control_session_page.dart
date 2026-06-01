@@ -165,6 +165,36 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  Future<void> _handleBackPressed() async {
+    if (_isClosingSession) {
+      return;
+    }
+    if (widget.service.mode != RemoteControlMode.controller) {
+      await _closeSession();
+      return;
+    }
+    final shouldClose = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('关闭远程控制？'),
+        content: const Text('返回将断开当前远程控制并关闭被控端，是否继续？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('关闭远程控制'),
+          ),
+        ],
+      ),
+    );
+    if (shouldClose == true) {
+      await _closeSession();
+    }
+  }
+
   void _handleRemoteSurfaceInteraction() {
     if (!_isControlsVisible && !_isActionPopupVisible) {
       return;
@@ -320,6 +350,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   Widget build(BuildContext context) {
     return RemoteSessionScaffold(
       onCloseSession: () => unawaited(_closeSession()),
+      onBackPressed: () => unawaited(_handleBackPressed()),
       builder: (context, constraints) {
         final fittedRect = computeRemoteSessionFittedRect(
           constraints.biggest,
