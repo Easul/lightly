@@ -31,7 +31,7 @@ Offset resolveRemoteTailOffset({
   final tailTop = (fittedRect.top + 8).clamp(8.0, constraints.maxHeight - 40);
   final resolvedOffset = currentOffset ?? Offset(tailLeft, tailTop);
   final tailWidth = isPopupVisible ? 248.0 : 56.0;
-  final tailHeight = isPopupVisible ? 260.0 : 36.0;
+  final tailHeight = isPopupVisible ? 300.0 : 36.0;
   return Offset(
     resolvedOffset.dx.clamp(8.0, constraints.maxWidth - tailWidth),
     resolvedOffset.dy.clamp(8.0, constraints.maxHeight - tailHeight),
@@ -83,6 +83,7 @@ class RemoteSessionViewport extends StatelessWidget {
     required this.displayRect,
     required this.remoteCaptureSize,
     required this.remoteScreenSize,
+    required this.useTrajectorySwipe,
     required this.initialSps,
     required this.initialPps,
     required this.latestSpsProvider,
@@ -96,6 +97,7 @@ class RemoteSessionViewport extends StatelessWidget {
   final Rect displayRect;
   final Size remoteCaptureSize;
   final Size remoteScreenSize;
+  final bool useTrajectorySwipe;
   final Uint8List? initialSps;
   final Uint8List? initialPps;
   final Uint8List? Function() latestSpsProvider;
@@ -137,6 +139,7 @@ class RemoteSessionViewport extends StatelessWidget {
               RemoteControlGestureOverlay(
                 displayScreenSize: remoteCaptureSize,
                 targetScreenSize: remoteScreenSize,
+                useTrajectorySwipe: useTrajectorySwipe,
                 onGesture: onGesture,
                 onInteraction: onInteraction,
               ),
@@ -156,6 +159,7 @@ class FloatingTailControls extends StatelessWidget {
     required this.isVoiceEnabled,
     required this.isRemoteMicEnabled,
     required this.isReceiverMode,
+    required this.useTrajectorySwipe,
     required this.isPopupVisible,
     required this.onTailTap,
     required this.onTailDragUpdate,
@@ -164,6 +168,8 @@ class FloatingTailControls extends StatelessWidget {
     required this.onOverlayTextTap,
     required this.onKeyboardTap,
     required this.onRefreshTap,
+    required this.onTrajectoryToggleTap,
+    required this.onWakeScreenTap,
     required this.onMinimizeTap,
     required this.onBackTap,
     required this.onHomeTap,
@@ -176,6 +182,7 @@ class FloatingTailControls extends StatelessWidget {
   final bool isVoiceEnabled;
   final bool isRemoteMicEnabled;
   final bool isReceiverMode;
+  final bool useTrajectorySwipe;
   final bool isPopupVisible;
   final VoidCallback onTailTap;
   final ValueChanged<DragUpdateDetails> onTailDragUpdate;
@@ -184,6 +191,8 @@ class FloatingTailControls extends StatelessWidget {
   final VoidCallback onOverlayTextTap;
   final VoidCallback onKeyboardTap;
   final VoidCallback onRefreshTap;
+  final VoidCallback onTrajectoryToggleTap;
+  final VoidCallback onWakeScreenTap;
   final VoidCallback onMinimizeTap;
   final VoidCallback onBackTap;
   final VoidCallback onHomeTap;
@@ -288,6 +297,22 @@ class FloatingTailControls extends StatelessWidget {
                             accentColor: const Color(0xFF2563EB),
                             onTap: onRefreshTap,
                           ),
+                          if (!isReceiverMode)
+                            TailActionChip(
+                              icon: useTrajectorySwipe
+                                  ? Icons.swipe_rounded
+                                  : Icons.timeline_rounded,
+                              label: useTrajectorySwipe ? '单向滑动' : '轨迹滑动',
+                              accentColor: const Color(0xFF0F766E),
+                              onTap: onTrajectoryToggleTap,
+                            ),
+                          if (!isReceiverMode)
+                            TailActionChip(
+                              icon: Icons.light_mode_rounded,
+                              label: '点亮屏幕',
+                              accentColor: const Color(0xFFF59E0B),
+                              onTap: onWakeScreenTap,
+                            ),
                           TailActionChip(
                             icon: Icons.radar_rounded,
                             label: '悬浮',

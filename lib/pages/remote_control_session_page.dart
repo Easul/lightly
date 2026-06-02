@@ -37,6 +37,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   bool _isAudioEnabled = false;
   bool _isVoiceEnabled = true;
   bool _isRemoteMicEnabled = false;
+  bool _useTrajectorySwipe = false;
   bool _isControlsVisible = true;
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
@@ -152,6 +153,16 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
 
   Future<void> _requestKeyFrame() async {
     await widget.service.refreshLatestRemoteFrame();
+  }
+
+  void _toggleTrajectorySwipe() {
+    setState(() => _useTrajectorySwipe = !_useTrajectorySwipe);
+    _showToast(_useTrajectorySwipe ? '已切换为轨迹滑动' : '已切换为单向滑动');
+  }
+
+  Future<void> _wakeReceiverScreen() async {
+    await widget.service.wakeReceiverScreen();
+    _showToast('已发送点亮屏幕命令');
   }
 
   Future<void> _closeSession() async {
@@ -431,6 +442,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
               frameStream: widget.service.screenFrameStream,
               remoteCaptureSize: _remoteCaptureSize,
               remoteScreenSize: _remoteScreenSize,
+              useTrajectorySwipe: _useTrajectorySwipe,
               initialSps: widget.service.latestScreenSps,
               initialPps: widget.service.latestScreenPps,
               latestSpsProvider: () => widget.service.latestScreenSps,
@@ -450,6 +462,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   isRemoteMicEnabled: _isRemoteMicEnabled,
                   isReceiverMode:
                       widget.service.mode == RemoteControlMode.receiver,
+                  useTrajectorySwipe: _useTrajectorySwipe,
                   isPopupVisible: _isActionPopupVisible,
                   onTailTap: _toggleTailPopup,
                   onTailDragUpdate: (details) =>
@@ -459,6 +472,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   onOverlayTextTap: _showOverlayTextSheet,
                   onKeyboardTap: _showKeyboardSheet,
                   onRefreshTap: _requestKeyFrame,
+                  onTrajectoryToggleTap: _toggleTrajectorySwipe,
+                  onWakeScreenTap: () => unawaited(_wakeReceiverScreen()),
                   onMinimizeTap: () => _minimizeSession(constraints.biggest),
                   onBackTap: () => _handleGlobalAction('back'),
                   onHomeTap: () => _handleGlobalAction('home'),
