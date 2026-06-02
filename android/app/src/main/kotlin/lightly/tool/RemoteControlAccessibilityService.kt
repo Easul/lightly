@@ -8,10 +8,14 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Path
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Gravity
@@ -57,6 +61,8 @@ class RemoteControlAccessibilityService : AccessibilityService() {
 
     private var textOverlayView: View? = null
     private var disconnectOverlayView: View? = null
+    private var annotationOverlayView: View? = null
+    private val overlayHandler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -84,6 +90,8 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         hideTextOverlay()
         hideDisconnectOverlay()
+        hideAnnotationOverlay()
+        overlayHandler.removeCallbacksAndMessages(null)
         instance = null
         Log.i(TAG, "AccessibilityService destroyed")
         super.onDestroy()
@@ -154,6 +162,44 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             disconnectOverlayView = container
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show disconnect overlay", e)
+        }
+    }
+
+    fun showAnnotationCircle(centerX: Float, centerY: Float, radius: Float) {
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        val center = normalizePoint(centerX, centerY) ?: return
+        val bounds = gestureBounds() ?: return
+        val safeRadius = radius
+            .takeIf { it.isFinite() && it > 0f }
+            ?.coerceIn(dp(12).toFloat(), maxOf(bounds.width, bounds.height))
+            ?: return
+        hideAnnotationOverlay()
+
+        val overlay = AnnotationCircleView(
+            context = this,
+            centerX = center.x,
+            centerY = center.y,
+            radius = safeRadius,
+        )
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+
+        try {
+            windowManager.addView(overlay, params)
+            annotationOverlayView = overlay
+            overlayHandler.postDelayed({ hideAnnotationOverlay() }, 3000L)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show annotation circle", e)
         }
     }
 
@@ -301,6 +347,46 @@ class RemoteControlAccessibilityService : AccessibilityService() {
             Log.w(TAG, "Failed to remove disconnect overlay", e)
         } finally {
             disconnectOverlayView = null
+        }
+    }
+
+    fun hideAnnotationOverlay() {
+        val overlay = annotationOverlayView ?: return
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        try {
+            windowManager.removeView(overlay)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove annotation overlay", e)
+        } finally {
+            annotationOverlayView = null
+        }
+    }
+
+    private class AnnotationCircleView(
+        context: Context,
+        private val centerX: Float,
+        private val centerY: Float,
+        private val radius: Float,
+    ) : View(context) {
+        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = Color.rgb(250, 204, 21)
+            strokeWidth = context.resources.displayMetrics.density * 5f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = Color.argb(96, 250, 204, 21)
+            strokeWidth = context.resources.displayMetrics.density * 13f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            canvas.drawCircle(centerX, centerY, radius, glowPaint)
+            canvas.drawCircle(centerX, centerY, radius, strokePaint)
         }
     }
 

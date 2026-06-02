@@ -271,6 +271,13 @@ class RemoteControlService(private val context: Context) {
                     RemoteControlAccessibilityService.instance?.showTextOverlay(text)
                 }
             }
+            "annotation_circle" -> {
+                val payload = data ?: return
+                val centerX = payload.optDouble("centerX").toFloat()
+                val centerY = payload.optDouble("centerY").toFloat()
+                val radius = payload.optDouble("radius").toFloat()
+                RemoteControlAccessibilityService.instance?.showAnnotationCircle(centerX, centerY, radius)
+            }
             "wake_screen" -> wakeScreen()
             else -> Log.w(TAG, "Unknown status action: $action")
         }
