@@ -76,6 +76,14 @@ class RemoteControlCommandHelper {
               });
           return;
         }
+        if (message.action == 'wake_screen') {
+          channel
+              .invokeMethod('executeCommand', {'command': command})
+              .catchError((Object error) {
+                log('Failed to wake receiver screen: $error');
+              });
+          return;
+        }
         if (message.action == 'shutdown_receiver') {
           unawaited(shutdownReceiver());
           return;

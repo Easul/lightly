@@ -537,6 +537,14 @@ class RemoteControlService {
     );
   }
 
+  Future<void> wakeReceiverScreen() async {
+    if (_controllerControlSocket == null) return;
+    final message = StatusMessage.wakeScreen();
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+  }
+
   Future<void> requestReceiverShutdown() async {
     if (_controllerControlSocket == null) return;
     final message = StatusMessage.shutdownReceiver();
