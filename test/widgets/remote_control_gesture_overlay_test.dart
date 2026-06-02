@@ -52,6 +52,50 @@ void main() {
     expect(emittedRadius, 160);
   });
 
+  testWidgets('annotation mode emits closed circles near the start point', (
+    tester,
+  ) async {
+    double? emittedRadius;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: RemoteControlGestureOverlay(
+              displayScreenSize: const Size(200, 200),
+              targetScreenSize: const Size(400, 400),
+              useAnnotationMode: true,
+              onAnnotationCircle:
+                  ({
+                    required double centerX,
+                    required double centerY,
+                    required double radius,
+                  }) {
+                    emittedRadius = radius;
+                  },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(const Offset(100, 20));
+    await gesture.moveTo(const Offset(180, 100));
+    await tester.pump();
+    await gesture.moveTo(const Offset(100, 180));
+    await tester.pump();
+    await gesture.moveTo(const Offset(20, 100));
+    await tester.pump();
+    await gesture.moveTo(const Offset(104, 23));
+    await tester.pump();
+    await gesture.up();
+
+    expect(emittedRadius, 160);
+  });
+
   test('swipe trail paint uses stroke mode instead of polygon fill', () {
     final paint = createSwipeTrailPaint();
 

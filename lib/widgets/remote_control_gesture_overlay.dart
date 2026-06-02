@@ -169,7 +169,7 @@ class _RemoteControlGestureOverlayState
     final distance = _panStart != null ? (localPos - _panStart!).distance : 0.0;
 
     if (widget.useAnnotationMode) {
-      if (_isPanning && distance >= _swipeMinDistance) {
+      if (_annotationPathDistance(localPos) >= _swipeMinDistance) {
         _sendAnnotationCircle(localPos, widgetSize);
       }
     } else if (_isPanning && distance >= _swipeMinDistance) {
@@ -215,31 +215,30 @@ class _RemoteControlGestureOverlayState
     _resetGestureState();
   }
 
+  double _annotationPathDistance(Offset localPos) {
+    final bounds = _boundsForPoints(<Offset>[
+      if (_panPoints.isEmpty) _panStart! else ..._panPoints,
+      localPos,
+    ]);
+    return bounds.width > bounds.height ? bounds.width : bounds.height;
+  }
+
   void _sendAnnotationCircle(Offset localPos, Size widgetSize) {
     final rawPoints = <Offset>[
       if (_panPoints.isEmpty) _panStart! else ..._panPoints,
       localPos,
     ];
     final points = rawPoints.map((point) => _scaleToLocal(point, widgetSize));
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = double.negativeInfinity;
-    var maxY = double.negativeInfinity;
-    for (final point in points) {
-      minX = point.dx < minX ? point.dx : minX;
-      minY = point.dy < minY ? point.dy : minY;
-      maxX = point.dx > maxX ? point.dx : maxX;
-      maxY = point.dy > maxY ? point.dy : maxY;
-    }
-    if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
+    final bounds = _boundsForPoints(points);
+    if (bounds == Rect.zero) {
       return;
     }
     final radius =
-        ((maxX - minX) > (maxY - minY) ? maxX - minX : maxY - minY) / 2;
+        (bounds.width > bounds.height ? bounds.width : bounds.height) / 2;
     if (radius <= 0) return;
     widget.onAnnotationCircle?.call(
-      centerX: (minX + maxX) / 2,
-      centerY: (minY + maxY) / 2,
+      centerX: bounds.center.dx,
+      centerY: bounds.center.dy,
       radius: radius,
     );
   }
@@ -282,6 +281,23 @@ class _RemoteControlGestureOverlayState
   }
 }
 
+Rect _boundsForPoints(Iterable<Offset> points) {
+  var minX = double.infinity;
+  var minY = double.infinity;
+  var maxX = double.negativeInfinity;
+  var maxY = double.negativeInfinity;
+  for (final point in points) {
+    minX = point.dx < minX ? point.dx : minX;
+    minY = point.dy < minY ? point.dy : minY;
+    maxX = point.dx > maxX ? point.dx : maxX;
+    maxY = point.dy > maxY ? point.dy : maxY;
+  }
+  if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
+    return Rect.zero;
+  }
+  return Rect.fromLTRB(minX, minY, maxX, maxY);
+}
+
 class _AnnotationTrailPainter extends CustomPainter {
   final Offset start;
   final Offset current;
@@ -310,7 +326,7 @@ class _AnnotationTrailPainter extends CustomPainter {
       canvas.drawLine(start, current, trailPaint);
     }
 
-    final rect = _boundsFor(rawPoints);
+    final rect = _boundsForPoints(rawPoints);
     if (rect.width > 0 || rect.height > 0) {
       final radius = (rect.width > rect.height ? rect.width : rect.height) / 2;
       final previewPaint = Paint()
@@ -320,23 +336,6 @@ class _AnnotationTrailPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round;
       canvas.drawCircle(rect.center, radius, previewPaint);
     }
-  }
-
-  Rect _boundsFor(List<Offset> rawPoints) {
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = double.negativeInfinity;
-    var maxY = double.negativeInfinity;
-    for (final point in rawPoints) {
-      minX = point.dx < minX ? point.dx : minX;
-      minY = point.dy < minY ? point.dy : minY;
-      maxX = point.dx > maxX ? point.dx : maxX;
-      maxY = point.dy > maxY ? point.dy : maxY;
-    }
-    if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
-      return Rect.zero;
-    }
-    return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
   @override
