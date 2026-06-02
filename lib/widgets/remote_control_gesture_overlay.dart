@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/remote_control_protocol.dart' as protocol;
 
+typedef RemoteAnnotationCircleCallback =
+    void Function({
+      required double centerX,
+      required double centerY,
+      required double radius,
+    });
+
 @visibleForTesting
 Paint createSwipeTrailPaint() {
   return Paint()
@@ -11,20 +18,34 @@ Paint createSwipeTrailPaint() {
     ..strokeJoin = StrokeJoin.round;
 }
 
+@visibleForTesting
+Paint createAnnotationTrailPaint() {
+  return Paint()
+    ..color = const Color(0xFFFACC15).withValues(alpha: 0.78)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 4.5
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+}
+
 class RemoteControlGestureOverlay extends StatefulWidget {
   final Function(protocol.GestureCommand)? onGesture;
+  final RemoteAnnotationCircleCallback? onAnnotationCircle;
   final Size displayScreenSize;
   final Size targetScreenSize;
   final VoidCallback? onInteraction;
   final bool useTrajectorySwipe;
+  final bool useAnnotationMode;
 
   const RemoteControlGestureOverlay({
     super.key,
     this.onGesture,
+    this.onAnnotationCircle,
     required this.displayScreenSize,
     required this.targetScreenSize,
     this.onInteraction,
     this.useTrajectorySwipe = false,
+    this.useAnnotationMode = false,
   });
 
   @override
@@ -147,7 +168,11 @@ class _RemoteControlGestureOverlayState
     final localPos = _clampToWidgetBounds(event.localPosition, widgetSize);
     final distance = _panStart != null ? (localPos - _panStart!).distance : 0.0;
 
-    if (_isPanning && distance >= _swipeMinDistance) {
+    if (widget.useAnnotationMode) {
+      if (_isPanning && distance >= _swipeMinDistance) {
+        _sendAnnotationCircle(localPos, widgetSize);
+      }
+    } else if (_isPanning && distance >= _swipeMinDistance) {
       final start = _scaleToLocal(_panStart!, widgetSize);
       final end = _scaleToLocal(localPos, widgetSize);
       final swipeDurationMs = duration.inMilliseconds.clamp(90, 220);
@@ -190,6 +215,35 @@ class _RemoteControlGestureOverlayState
     _resetGestureState();
   }
 
+  void _sendAnnotationCircle(Offset localPos, Size widgetSize) {
+    final rawPoints = <Offset>[
+      if (_panPoints.isEmpty) _panStart! else ..._panPoints,
+      localPos,
+    ];
+    final points = rawPoints.map((point) => _scaleToLocal(point, widgetSize));
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = double.negativeInfinity;
+    var maxY = double.negativeInfinity;
+    for (final point in points) {
+      minX = point.dx < minX ? point.dx : minX;
+      minY = point.dy < minY ? point.dy : minY;
+      maxX = point.dx > maxX ? point.dx : maxX;
+      maxY = point.dy > maxY ? point.dy : maxY;
+    }
+    if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
+      return;
+    }
+    final radius =
+        ((maxX - minX) > (maxY - minY) ? maxX - minX : maxY - minY) / 2;
+    if (radius <= 0) return;
+    widget.onAnnotationCircle?.call(
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+      radius: radius,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -208,17 +262,86 @@ class _RemoteControlGestureOverlayState
             if (_isPanning && _panStart != null && _panCurrent != null)
               Positioned.fill(
                 child: CustomPaint(
-                  painter: _SwipeTrailPainter(
-                    start: _panStart!,
-                    current: _panCurrent!,
-                    points: _panPoints,
-                  ),
+                  painter: widget.useAnnotationMode
+                      ? _AnnotationTrailPainter(
+                          start: _panStart!,
+                          current: _panCurrent!,
+                          points: _panPoints,
+                        )
+                      : _SwipeTrailPainter(
+                          start: _panStart!,
+                          current: _panCurrent!,
+                          points: _panPoints,
+                        ),
                 ),
               ),
           ],
         );
       },
     );
+  }
+}
+
+class _AnnotationTrailPainter extends CustomPainter {
+  final Offset start;
+  final Offset current;
+  final List<Offset> points;
+
+  _AnnotationTrailPainter({
+    required this.start,
+    required this.current,
+    required this.points,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trailPaint = createAnnotationTrailPaint();
+    final rawPoints = <Offset>[
+      if (points.isEmpty) start else ...points,
+      current,
+    ];
+    if (rawPoints.length > 1) {
+      final path = Path()..moveTo(rawPoints.first.dx, rawPoints.first.dy);
+      for (final point in rawPoints.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(path, trailPaint);
+    } else {
+      canvas.drawLine(start, current, trailPaint);
+    }
+
+    final rect = _boundsFor(rawPoints);
+    if (rect.width > 0 || rect.height > 0) {
+      final radius = (rect.width > rect.height ? rect.width : rect.height) / 2;
+      final previewPaint = Paint()
+        ..color = const Color(0xFFFACC15).withValues(alpha: 0.34)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawCircle(rect.center, radius, previewPaint);
+    }
+  }
+
+  Rect _boundsFor(List<Offset> rawPoints) {
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = double.negativeInfinity;
+    var maxY = double.negativeInfinity;
+    for (final point in rawPoints) {
+      minX = point.dx < minX ? point.dx : minX;
+      minY = point.dy < minY ? point.dy : minY;
+      maxX = point.dx > maxX ? point.dx : maxX;
+      maxY = point.dy > maxY ? point.dy : maxY;
+    }
+    if (!minX.isFinite || !minY.isFinite || !maxX.isFinite || !maxY.isFinite) {
+      return Rect.zero;
+    }
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnnotationTrailPainter oldDelegate) {
+    return oldDelegate.start != start || oldDelegate.current != current;
   }
 }
 
