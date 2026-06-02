@@ -542,15 +542,41 @@ class RemoteControlService {
     required double centerY,
     required double radius,
   }) async {
-    if (_controllerControlSocket == null || radius <= 0) return;
+    final socket = _controllerControlSocket;
+    if (socket == null) {
+      developer.log(
+        'Skipping annotation circle without control socket: center=($centerX,$centerY) radius=$radius',
+        name: 'RemoteControl',
+      );
+      return;
+    }
+    if (radius <= 0) {
+      developer.log(
+        'Skipping annotation circle with invalid radius: center=($centerX,$centerY) radius=$radius',
+        name: 'RemoteControl',
+      );
+      return;
+    }
     final message = StatusMessage.annotationCircle(
       centerX: centerX,
       centerY: centerY,
       radius: radius,
     );
-    _controllerControlSocket!.add(
-      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    final payload = '${RemoteControlCodec.encode(message)}\n';
+    developer.log(
+      'Sending annotation circle: center=($centerX,$centerY) radius=$radius',
+      name: 'RemoteControl',
     );
+    try {
+      socket.add(utf8.encode(payload));
+      await socket.flush();
+    } catch (e) {
+      developer.log(
+        'Failed to send annotation circle: $e',
+        name: 'RemoteControl',
+        error: e,
+      );
+    }
   }
 
   Future<void> wakeReceiverScreen() async {

@@ -77,6 +77,9 @@ class RemoteControlCommandHelper {
           return;
         }
         if (message.action == 'annotation_circle') {
+          log(
+            'Forwarding receiver annotation circle to native: data=${message.data}',
+          );
           channel
               .invokeMethod('executeCommand', {'command': command})
               .catchError((Object error) {
