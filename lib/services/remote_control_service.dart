@@ -636,6 +636,62 @@ class RemoteControlService {
   }
 
   Future<void> refreshLatestRemoteFrame() async {
+    if (_mode == RemoteControlMode.controller &&
+        _controllerControlSocket != null &&
+        _config?.enableScreen == true) {
+      await _reconnectControllerScreenChannel();
+      return;
+    }
+    await requestKeyFrame();
+  }
+
+  Future<void> _reconnectControllerScreenChannel() async {
+    final host = _lastControllerHost;
+    final config = _config;
+    if (host == null || config == null) {
+      await requestKeyFrame();
+      return;
+    }
+
+    developer.log(
+      'Reconnecting controller screen channel: host=$host screenPort=${config.ports.screenPort} proxy=$_lastControllerUseProxy',
+      name: 'RemoteControl',
+    );
+    final oldSocket = _controllerScreenSocket;
+    _controllerScreenSocket = null;
+    oldSocket?.destroy();
+    _screenFramePipeline.reset();
+    _screenHealth.markAwaitingRecoveryKeyFrame(true);
+    _stopScreenFrameWatchdog();
+
+    try {
+      final screenSocket = await _lifecycleHelper.connectControllerScreenSocket(
+        host: host,
+        config: config,
+        useProxy: _lastControllerUseProxy,
+        proxyPort: _lastControllerProxyPort,
+        onScreenDataRaw: _handleScreenDataRaw,
+        onScreenError: (error, socket) => _handleScreenError(
+          error,
+          socket: socket,
+          mode: RemoteControlMode.controller,
+        ),
+        onScreenDone: (socket) => _handleScreenDone(
+          socket: socket,
+          mode: RemoteControlMode.controller,
+        ),
+      );
+      _controllerScreenSocket = screenSocket;
+      _startScreenFrameWatchdog();
+    } catch (e) {
+      developer.log(
+        'Failed to reconnect controller screen channel: $e',
+        name: 'RemoteControl',
+        error: e,
+      );
+      _startScreenFrameWatchdog();
+    }
+
     await requestKeyFrame();
   }
 

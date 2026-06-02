@@ -67,6 +67,31 @@ class RemoteControlLifecycleHelper {
     );
   }
 
+  Future<Socket> connectControllerScreenSocket({
+    required String host,
+    required RemoteControlConfig config,
+    bool useProxy = false,
+    int? proxyPort,
+    required void Function(Uint8List) onScreenDataRaw,
+    required void Function(dynamic error, Socket socket) onScreenError,
+    required void Function(Socket socket) onScreenDone,
+  }) async {
+    final screenConnection = await _connectSocket(
+      host: host,
+      port: config.ports.screenPort,
+      useProxy: useProxy,
+      proxyPort: proxyPort,
+    );
+    final screenSocket = screenConnection.socket;
+    screenSocket.setOption(SocketOption.tcpNoDelay, true);
+    screenConnection.stream.listen(
+      onScreenDataRaw,
+      onError: (error) => onScreenError(error, screenSocket),
+      onDone: () => onScreenDone(screenSocket),
+    );
+    return screenSocket;
+  }
+
   Future<_ConnectedSocket> _connectSocket({
     required String host,
     required int port,
