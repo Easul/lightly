@@ -378,6 +378,36 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
+    fun performTrajectory(points: List<Pair<Float, Float>>, duration: Long = 300): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            Log.w(TAG, "performTrajectory requires API 24+")
+            return false
+        }
+        if (points.size < 2) {
+            Log.w(TAG, "performTrajectory requires at least two points")
+            return false
+        }
+
+        val normalized = points.mapNotNull { normalizePoint(it.first, it.second) }
+        if (normalized.size < 2) {
+            Log.w(TAG, "performTrajectory has too few valid points")
+            return false
+        }
+
+        val path = Path()
+        path.moveTo(normalized.first().x, normalized.first().y)
+        for (point in normalized.drop(1)) {
+            path.lineTo(point.x, point.y)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, duration.coerceAtLeast(1L))
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke)
+            .build()
+
+        Log.d(TAG, "performTrajectory: points=${normalized.size} duration=$duration")
+        return dispatchGesture(gesture, null, null)
+    }
+
     /**
      * 长按
      * 

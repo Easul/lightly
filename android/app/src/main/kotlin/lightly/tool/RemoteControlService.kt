@@ -7,6 +7,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
@@ -185,6 +186,21 @@ class RemoteControlService(private val context: Context) {
                 val duration = data.optLong("duration", 300)
                 service.performSwipe(startX, startY, endX, endY, duration)
             }
+            "trajectory" -> {
+                val pointsJson = data.optJSONArray("points")
+                val points = mutableListOf<Pair<Float, Float>>()
+                if (pointsJson != null) {
+                    for (index in 0 until pointsJson.length()) {
+                        val point = pointsJson.optJSONObject(index) ?: continue
+                        points.add(
+                            point.optDouble("x").toFloat() to
+                                point.optDouble("y").toFloat(),
+                        )
+                    }
+                }
+                val duration = data.optLong("duration", 300)
+                service.performTrajectory(points, duration)
+            }
             "longPress", "long_press" -> {
                 val x = data.optDouble("x").toFloat()
                 val y = data.optDouble("y").toFloat()
@@ -255,7 +271,29 @@ class RemoteControlService(private val context: Context) {
                     RemoteControlAccessibilityService.instance?.showTextOverlay(text)
                 }
             }
+            "wake_screen" -> wakeScreen()
             else -> Log.w(TAG, "Unknown status action: $action")
+        }
+    }
+
+    private fun wakeScreen() {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager == null) {
+            Log.w(TAG, "PowerManager unavailable for wakeScreen")
+            return
+        }
+        @Suppress("DEPRECATION")
+        val wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+            "$TAG:wakeScreen",
+        )
+        try {
+            wakeLock.acquire(1800L)
+            Log.d(TAG, "wakeScreen requested")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to wake screen", e)
         }
     }
 
