@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import '../services/remote_control_protocol.dart' as protocol;
 
+@visibleForTesting
+Paint createSwipeTrailPaint() {
+  return Paint()
+    ..color = Colors.blue.withValues(alpha: 0.3)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 4.0
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+}
+
 class RemoteControlGestureOverlay extends StatefulWidget {
   final Function(protocol.GestureCommand)? onGesture;
   final Size displayScreenSize;
@@ -225,10 +235,7 @@ class _SwipeTrailPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.blue.withValues(alpha: 0.3)
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round;
+    final paint = createSwipeTrailPaint();
 
     if (points.length > 1) {
       final path = Path()..moveTo(points.first.dx, points.first.dy);
