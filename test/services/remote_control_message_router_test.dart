@@ -45,6 +45,30 @@ void main() {
       expect(messages.last, isA<StatusMessage>());
     });
 
+    test('codec preserves trajectory gestures and wake screen status', () {
+      final trajectory = GestureCommand.trajectory(
+        points: const [OffsetPoint(x: 1, y: 2), OffsetPoint(x: 3, y: 4)],
+        duration: 350,
+      );
+      final decodedTrajectory = RemoteControlCodec.decode(
+        RemoteControlCodec.encode(trajectory),
+      );
+
+      expect(decodedTrajectory, isA<GestureCommand>());
+      final gesture = decodedTrajectory as GestureCommand;
+      expect(gesture.action, GestureAction.trajectory);
+      expect(gesture.points, hasLength(2));
+      expect(gesture.points.last.x, 3);
+      expect(gesture.duration, 350);
+
+      final wake = RemoteControlCodec.decode(
+        RemoteControlCodec.encode(StatusMessage.wakeScreen()),
+      );
+
+      expect(wake, isA<StatusMessage>());
+      expect((wake as StatusMessage).action, 'wake_screen');
+    });
+
     test('resetController clears partial controller payload', () {
       final router = RemoteControlMessageRouter();
       router.decodeControllerMessages(

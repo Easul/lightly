@@ -4,7 +4,7 @@ import 'dart:convert';
 enum ControlMessageType { gesture, keyboard, heartbeat, status, error, ack }
 
 /// 手势动作类型
-enum GestureAction { tap, swipe, longPress, pinch }
+enum GestureAction { tap, swipe, trajectory, longPress, pinch }
 
 /// 全局操作类型
 enum GlobalAction { back, home, recents }
@@ -57,6 +57,7 @@ class GestureCommand extends ControlMessage {
   final double? centerX;
   final double? centerY;
   final double? scale;
+  final List<OffsetPoint> points;
   final int duration;
 
   GestureCommand({
@@ -72,6 +73,7 @@ class GestureCommand extends ControlMessage {
     this.centerX,
     this.centerY,
     this.scale,
+    this.points = const <OffsetPoint>[],
     this.duration = 100,
   }) : super(type: ControlMessageType.gesture);
 
@@ -124,6 +126,19 @@ class GestureCommand extends ControlMessage {
     );
   }
 
+  factory GestureCommand.trajectory({
+    required List<OffsetPoint> points,
+    int duration = 300,
+  }) {
+    return GestureCommand(
+      action: GestureAction.trajectory,
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      points: points,
+      duration: duration,
+    );
+  }
+
   factory GestureCommand.pinch({
     required double centerX,
     required double centerY,
@@ -156,6 +171,10 @@ class GestureCommand extends ControlMessage {
         data['startY'] = startY;
         data['endX'] = endX;
         data['endY'] = endY;
+        data['duration'] = duration;
+        break;
+      case GestureAction.trajectory:
+        data['points'] = points.map((point) => point.toJson()).toList();
         data['duration'] = duration;
         break;
       case GestureAction.longPress:
@@ -200,7 +219,27 @@ class GestureCommand extends ControlMessage {
       centerX: (data['centerX'] as num?)?.toDouble(),
       centerY: (data['centerY'] as num?)?.toDouble(),
       scale: (data['scale'] as num?)?.toDouble(),
+      points: (data['points'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OffsetPoint.fromJson)
+          .toList(),
       duration: data['duration'] as int? ?? 100,
+    );
+  }
+}
+
+class OffsetPoint {
+  final double x;
+  final double y;
+
+  const OffsetPoint({required this.x, required this.y});
+
+  Map<String, dynamic> toJson() => {'x': x, 'y': y};
+
+  factory OffsetPoint.fromJson(Map<String, dynamic> json) {
+    return OffsetPoint(
+      x: (json['x'] as num?)?.toDouble() ?? 0,
+      y: (json['y'] as num?)?.toDouble() ?? 0,
     );
   }
 }
@@ -371,6 +410,15 @@ class StatusMessage extends ControlMessage {
   factory StatusMessage.shutdownReceiver() {
     return StatusMessage(
       action: 'shutdown_receiver',
+      data: const {},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  factory StatusMessage.wakeScreen() {
+    return StatusMessage(
+      action: 'wake_screen',
       data: const {},
       id: DateTime.now().millisecondsSinceEpoch,
       timestamp: DateTime.now().millisecondsSinceEpoch,
