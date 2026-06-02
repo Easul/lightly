@@ -6,6 +6,7 @@ class RemoteControlGestureOverlay extends StatefulWidget {
   final Size displayScreenSize;
   final Size targetScreenSize;
   final VoidCallback? onInteraction;
+  final bool useTrajectorySwipe;
 
   const RemoteControlGestureOverlay({
     super.key,
@@ -13,6 +14,7 @@ class RemoteControlGestureOverlay extends StatefulWidget {
     required this.displayScreenSize,
     required this.targetScreenSize,
     this.onInteraction,
+    this.useTrajectorySwipe = false,
   });
 
   @override
@@ -24,6 +26,7 @@ class _RemoteControlGestureOverlayState
     extends State<RemoteControlGestureOverlay> {
   Offset? _panStart;
   Offset? _panCurrent;
+  final List<Offset> _panPoints = <Offset>[];
   bool _isPanning = false;
   DateTime? _touchStartTime;
 
@@ -90,6 +93,9 @@ class _RemoteControlGestureOverlayState
     setState(() {
       _panStart = clamped;
       _panCurrent = clamped;
+      _panPoints
+        ..clear()
+        ..add(clamped);
       _isPanning = false;
       _touchStartTime = DateTime.now();
     });
@@ -100,6 +106,7 @@ class _RemoteControlGestureOverlayState
     setState(() {
       _panStart = null;
       _panCurrent = null;
+      _panPoints.clear();
       _isPanning = false;
       _touchStartTime = null;
     });
@@ -113,6 +120,10 @@ class _RemoteControlGestureOverlayState
 
     setState(() {
       _panCurrent = nextPosition;
+      if (_panPoints.isEmpty ||
+          (nextPosition - _panPoints.last).distance >= 6.0) {
+        _panPoints.add(nextPosition);
+      }
       if (distance > _swipeMinDistance) {
         _isPanning = true;
       }
@@ -130,15 +141,32 @@ class _RemoteControlGestureOverlayState
       final start = _scaleToLocal(_panStart!, widgetSize);
       final end = _scaleToLocal(localPos, widgetSize);
       final swipeDurationMs = duration.inMilliseconds.clamp(90, 220);
-      widget.onGesture?.call(
-        protocol.GestureCommand.swipe(
-          startX: start.dx,
-          startY: start.dy,
-          endX: end.dx,
-          endY: end.dy,
-          duration: swipeDurationMs,
-        ),
-      );
+      if (widget.useTrajectorySwipe) {
+        final rawPoints = <Offset>[
+          if (_panPoints.isEmpty) _panStart! else ..._panPoints,
+          localPos,
+        ];
+        final points = rawPoints
+            .map((point) => _scaleToLocal(point, widgetSize))
+            .map((point) => protocol.OffsetPoint(x: point.dx, y: point.dy))
+            .toList();
+        widget.onGesture?.call(
+          protocol.GestureCommand.trajectory(
+            points: points,
+            duration: duration.inMilliseconds.clamp(180, 900),
+          ),
+        );
+      } else {
+        widget.onGesture?.call(
+          protocol.GestureCommand.swipe(
+            startX: start.dx,
+            startY: start.dy,
+            endX: end.dx,
+            endY: end.dy,
+            duration: swipeDurationMs,
+          ),
+        );
+      }
     } else if (duration >= _longPressThreshold) {
       final pos = _scaleToLocal(localPos, widgetSize);
       widget.onGesture?.call(
@@ -173,6 +201,7 @@ class _RemoteControlGestureOverlayState
                   painter: _SwipeTrailPainter(
                     start: _panStart!,
                     current: _panCurrent!,
+                    points: _panPoints,
                   ),
                 ),
               ),
@@ -186,20 +215,34 @@ class _RemoteControlGestureOverlayState
 class _SwipeTrailPainter extends CustomPainter {
   final Offset start;
   final Offset current;
+  final List<Offset> points;
 
-  _SwipeTrailPainter({required this.start, required this.current});
+  _SwipeTrailPainter({
+    required this.start,
+    required this.current,
+    required this.points,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blue.withOpacity(0.3)
+      ..color = Colors.blue.withValues(alpha: 0.3)
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawLine(start, current, paint);
+    if (points.length > 1) {
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      path.lineTo(current.dx, current.dy);
+      canvas.drawPath(path, paint);
+    } else {
+      canvas.drawLine(start, current, paint);
+    }
 
     final circlePaint = Paint()
-      ..color = Colors.blue.withOpacity(0.5)
+      ..color = Colors.blue.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(start, 8, circlePaint);
