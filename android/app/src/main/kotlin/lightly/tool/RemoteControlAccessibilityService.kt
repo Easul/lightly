@@ -62,6 +62,7 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     private var textOverlayView: View? = null
     private var disconnectOverlayView: View? = null
     private var annotationOverlayView: View? = null
+    private var annotationHideRunnable: Runnable? = null
     private val overlayHandler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
@@ -166,13 +167,28 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     }
 
     fun showAnnotationCircle(centerX: Float, centerY: Float, radius: Float) {
-        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val center = normalizePoint(centerX, centerY) ?: return
-        val bounds = gestureBounds() ?: return
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        if (windowManager == null) {
+            Log.w(TAG, "Cannot show annotation circle: WindowManager unavailable")
+            return
+        }
+        val center = normalizePoint(centerX, centerY)
+        if (center == null) {
+            Log.w(TAG, "Cannot show annotation circle: invalid center=($centerX,$centerY)")
+            return
+        }
+        val bounds = gestureBounds()
+        if (bounds == null) {
+            Log.w(TAG, "Cannot show annotation circle: gesture bounds unavailable")
+            return
+        }
         val safeRadius = radius
             .takeIf { it.isFinite() && it > 0f }
             ?.coerceIn(dp(12).toFloat(), maxOf(bounds.width, bounds.height))
-            ?: return
+        if (safeRadius == null) {
+            Log.w(TAG, "Cannot show annotation circle: invalid radius=$radius")
+            return
+        }
         hideAnnotationOverlay()
 
         val overlay = AnnotationCircleView(
@@ -197,7 +213,14 @@ class RemoteControlAccessibilityService : AccessibilityService() {
         try {
             windowManager.addView(overlay, params)
             annotationOverlayView = overlay
-            overlayHandler.postDelayed({ hideAnnotationOverlay() }, 3000L)
+            val hideRunnable = Runnable {
+                if (annotationOverlayView === overlay) {
+                    hideAnnotationOverlay()
+                }
+            }
+            annotationHideRunnable = hideRunnable
+            overlayHandler.postDelayed(hideRunnable, 3000L)
+            Log.d(TAG, "showAnnotationCircle: center=(${center.x}, ${center.y}) radius=$safeRadius")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show annotation circle", e)
         }
@@ -351,6 +374,8 @@ class RemoteControlAccessibilityService : AccessibilityService() {
     }
 
     fun hideAnnotationOverlay() {
+        annotationHideRunnable?.let { overlayHandler.removeCallbacks(it) }
+        annotationHideRunnable = null
         val overlay = annotationOverlayView ?: return
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
         try {

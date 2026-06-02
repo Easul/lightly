@@ -272,11 +272,21 @@ class RemoteControlService(private val context: Context) {
                 }
             }
             "annotation_circle" -> {
-                val payload = data ?: return
+                val payload = data
+                if (payload == null) {
+                    Log.w(TAG, "annotation_circle missing data")
+                    return
+                }
                 val centerX = payload.optDouble("centerX").toFloat()
                 val centerY = payload.optDouble("centerY").toFloat()
                 val radius = payload.optDouble("radius").toFloat()
-                RemoteControlAccessibilityService.instance?.showAnnotationCircle(centerX, centerY, radius)
+                val service = RemoteControlAccessibilityService.instance
+                if (service == null) {
+                    Log.w(TAG, "AccessibilityService not running for annotation_circle")
+                    return
+                }
+                Log.d(TAG, "execute annotation_circle: center=($centerX,$centerY) radius=$radius")
+                service.showAnnotationCircle(centerX, centerY, radius)
             }
             "wake_screen" -> wakeScreen()
             else -> Log.w(TAG, "Unknown status action: $action")
