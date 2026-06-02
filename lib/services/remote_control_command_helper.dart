@@ -76,6 +76,14 @@ class RemoteControlCommandHelper {
               });
           return;
         }
+        if (message.action == 'annotation_circle') {
+          channel
+              .invokeMethod('executeCommand', {'command': command})
+              .catchError((Object error) {
+                log('Failed to show receiver annotation circle: $error');
+              });
+          return;
+        }
         if (message.action == 'wake_screen') {
           channel
               .invokeMethod('executeCommand', {'command': command})

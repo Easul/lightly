@@ -537,6 +537,22 @@ class RemoteControlService {
     );
   }
 
+  Future<void> sendAnnotationCircle({
+    required double centerX,
+    required double centerY,
+    required double radius,
+  }) async {
+    if (_controllerControlSocket == null || radius <= 0) return;
+    final message = StatusMessage.annotationCircle(
+      centerX: centerX,
+      centerY: centerY,
+      radius: radius,
+    );
+    _controllerControlSocket!.add(
+      utf8.encode('${RemoteControlCodec.encode(message)}\n'),
+    );
+  }
+
   Future<void> wakeReceiverScreen() async {
     if (_controllerControlSocket == null) return;
     final message = StatusMessage.wakeScreen();
