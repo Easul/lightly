@@ -38,6 +38,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   bool _isVoiceEnabled = true;
   bool _isRemoteMicEnabled = false;
   bool _useTrajectorySwipe = false;
+  bool _useAnnotationMode = false;
   bool _isControlsVisible = true;
   bool _isActionPopupVisible = false;
   Offset? _tailOffset;
@@ -111,6 +112,20 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     widget.service.sendGesture(command);
   }
 
+  void _handleAnnotationCircle({
+    required double centerX,
+    required double centerY,
+    required double radius,
+  }) {
+    unawaited(
+      widget.service.sendAnnotationCircle(
+        centerX: centerX,
+        centerY: centerY,
+        radius: radius,
+      ),
+    );
+  }
+
   void _handleGlobalAction(String action) {
     switch (action) {
       case 'back':
@@ -158,6 +173,11 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   void _toggleTrajectorySwipe() {
     setState(() => _useTrajectorySwipe = !_useTrajectorySwipe);
     _showToast(_useTrajectorySwipe ? '已切换为轨迹滑动' : '已切换为单向滑动');
+  }
+
+  void _toggleAnnotationMode() {
+    setState(() => _useAnnotationMode = !_useAnnotationMode);
+    _showToast(_useAnnotationMode ? '已开启标注，圈选后会显示在被控端' : '已关闭标注');
   }
 
   Future<void> _wakeReceiverScreen() async {
@@ -453,12 +473,14 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
               remoteCaptureSize: _remoteCaptureSize,
               remoteScreenSize: _remoteScreenSize,
               useTrajectorySwipe: _useTrajectorySwipe,
+              useAnnotationMode: _useAnnotationMode,
               initialSps: widget.service.latestScreenSps,
               initialPps: widget.service.latestScreenPps,
               latestSpsProvider: () => widget.service.latestScreenSps,
               latestPpsProvider: () => widget.service.latestScreenPps,
               onViewerReady: _requestKeyFrame,
               onGesture: _handleGesture,
+              onAnnotationCircle: _handleAnnotationCircle,
               onInteraction: _handleRemoteSurfaceInteraction,
             ),
             if (_isControlsVisible || _isActionPopupVisible)
@@ -473,6 +495,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   isReceiverMode:
                       widget.service.mode == RemoteControlMode.receiver,
                   useTrajectorySwipe: _useTrajectorySwipe,
+                  useAnnotationMode: _useAnnotationMode,
                   isPopupVisible: _isActionPopupVisible,
                   onTailTap: _toggleTailPopup,
                   onTailDragUpdate: (details) =>
@@ -483,6 +506,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   onKeyboardTap: _showKeyboardSheet,
                   onRefreshTap: _requestKeyFrame,
                   onTrajectoryToggleTap: _toggleTrajectorySwipe,
+                  onAnnotationToggleTap: _toggleAnnotationMode,
                   onWakeScreenTap: () => unawaited(_wakeReceiverScreen()),
                   onMinimizeTap: () => _minimizeSession(constraints.biggest),
                   onBackTap: () => _handleGlobalAction('back'),

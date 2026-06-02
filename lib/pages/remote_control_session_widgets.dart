@@ -84,12 +84,14 @@ class RemoteSessionViewport extends StatelessWidget {
     required this.remoteCaptureSize,
     required this.remoteScreenSize,
     required this.useTrajectorySwipe,
+    required this.useAnnotationMode,
     required this.initialSps,
     required this.initialPps,
     required this.latestSpsProvider,
     required this.latestPpsProvider,
     required this.onViewerReady,
     required this.onGesture,
+    required this.onAnnotationCircle,
     required this.onInteraction,
   });
 
@@ -98,12 +100,14 @@ class RemoteSessionViewport extends StatelessWidget {
   final Size remoteCaptureSize;
   final Size remoteScreenSize;
   final bool useTrajectorySwipe;
+  final bool useAnnotationMode;
   final Uint8List? initialSps;
   final Uint8List? initialPps;
   final Uint8List? Function() latestSpsProvider;
   final Uint8List? Function() latestPpsProvider;
   final Future<void> Function() onViewerReady;
   final ValueChanged<protocol.GestureCommand> onGesture;
+  final RemoteAnnotationCircleCallback onAnnotationCircle;
   final VoidCallback onInteraction;
 
   @override
@@ -140,7 +144,9 @@ class RemoteSessionViewport extends StatelessWidget {
                 displayScreenSize: remoteCaptureSize,
                 targetScreenSize: remoteScreenSize,
                 useTrajectorySwipe: useTrajectorySwipe,
+                useAnnotationMode: useAnnotationMode,
                 onGesture: onGesture,
+                onAnnotationCircle: onAnnotationCircle,
                 onInteraction: onInteraction,
               ),
             ],
@@ -160,6 +166,7 @@ class FloatingTailControls extends StatelessWidget {
     required this.isRemoteMicEnabled,
     required this.isReceiverMode,
     required this.useTrajectorySwipe,
+    required this.useAnnotationMode,
     required this.isPopupVisible,
     required this.onTailTap,
     required this.onTailDragUpdate,
@@ -169,6 +176,7 @@ class FloatingTailControls extends StatelessWidget {
     required this.onKeyboardTap,
     required this.onRefreshTap,
     required this.onTrajectoryToggleTap,
+    required this.onAnnotationToggleTap,
     required this.onWakeScreenTap,
     required this.onMinimizeTap,
     required this.onBackTap,
@@ -184,6 +192,7 @@ class FloatingTailControls extends StatelessWidget {
   final bool isRemoteMicEnabled;
   final bool isReceiverMode;
   final bool useTrajectorySwipe;
+  final bool useAnnotationMode;
   final bool isPopupVisible;
   final VoidCallback onTailTap;
   final ValueChanged<DragUpdateDetails> onTailDragUpdate;
@@ -193,6 +202,7 @@ class FloatingTailControls extends StatelessWidget {
   final VoidCallback onKeyboardTap;
   final VoidCallback onRefreshTap;
   final VoidCallback onTrajectoryToggleTap;
+  final VoidCallback onAnnotationToggleTap;
   final VoidCallback onWakeScreenTap;
   final VoidCallback onMinimizeTap;
   final VoidCallback onBackTap;
@@ -307,6 +317,17 @@ class FloatingTailControls extends StatelessWidget {
                               label: useTrajectorySwipe ? '单向滑动' : '轨迹滑动',
                               accentColor: const Color(0xFF0F766E),
                               onTap: onTrajectoryToggleTap,
+                            ),
+                          if (!isReceiverMode)
+                            TailActionChip(
+                              icon: useAnnotationMode
+                                  ? Icons.edit_off_rounded
+                                  : Icons.gesture_rounded,
+                              label: useAnnotationMode ? '结束标注' : '标注',
+                              accentColor: useAnnotationMode
+                                  ? const Color(0xFFEAB308)
+                                  : const Color(0xFFCA8A04),
+                              onTap: onAnnotationToggleTap,
                             ),
                           if (!isReceiverMode)
                             TailActionChip(
