@@ -407,6 +407,19 @@ class StatusMessage extends ControlMessage {
     );
   }
 
+  factory StatusMessage.annotationCircle({
+    required double centerX,
+    required double centerY,
+    required double radius,
+  }) {
+    return StatusMessage(
+      action: 'annotation_circle',
+      data: {'centerX': centerX, 'centerY': centerY, 'radius': radius},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   factory StatusMessage.shutdownReceiver() {
     return StatusMessage(
       action: 'shutdown_receiver',

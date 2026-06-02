@@ -45,7 +45,7 @@ void main() {
       expect(messages.last, isA<StatusMessage>());
     });
 
-    test('codec preserves trajectory gestures and wake screen status', () {
+    test('codec preserves trajectory gestures and receiver status actions', () {
       final trajectory = GestureCommand.trajectory(
         points: const [OffsetPoint(x: 1, y: 2), OffsetPoint(x: 3, y: 4)],
         duration: 350,
@@ -67,6 +67,19 @@ void main() {
 
       expect(wake, isA<StatusMessage>());
       expect((wake as StatusMessage).action, 'wake_screen');
+
+      final annotation = RemoteControlCodec.decode(
+        RemoteControlCodec.encode(
+          StatusMessage.annotationCircle(centerX: 12, centerY: 34, radius: 56),
+        ),
+      );
+
+      expect(annotation, isA<StatusMessage>());
+      final annotationStatus = annotation as StatusMessage;
+      expect(annotationStatus.action, 'annotation_circle');
+      expect(annotationStatus.data['centerX'], 12);
+      expect(annotationStatus.data['centerY'], 34);
+      expect(annotationStatus.data['radius'], 56);
     });
 
     test('resetController clears partial controller payload', () {
