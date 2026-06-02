@@ -174,6 +174,7 @@ class FloatingTailControls extends StatelessWidget {
     required this.onBackTap,
     required this.onHomeTap,
     required this.onRecentsTap,
+    required this.onTemporaryCloseTap,
     required this.onCloseTap,
   });
 
@@ -197,6 +198,7 @@ class FloatingTailControls extends StatelessWidget {
   final VoidCallback onBackTap;
   final VoidCallback onHomeTap;
   final VoidCallback onRecentsTap;
+  final VoidCallback onTemporaryCloseTap;
   final VoidCallback onCloseTap;
 
   @override
@@ -337,6 +339,13 @@ class FloatingTailControls extends StatelessWidget {
                             accentColor: const Color(0xFF4B5563),
                             onTap: onRecentsTap,
                           ),
+                          if (!isReceiverMode)
+                            TailActionChip(
+                              icon: Icons.pause_circle_outline_rounded,
+                              label: '临时关闭',
+                              accentColor: const Color(0xFFEA580C),
+                              onTap: onTemporaryCloseTap,
+                            ),
                           TailActionChip(
                             icon: Icons.close,
                             label: '关闭',

@@ -178,6 +178,16 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  Future<void> _temporaryCloseControllerSession() async {
+    if (_isClosingSession) {
+      return;
+    }
+    _isClosingSession = true;
+    await widget.service.stopAudioCapture();
+    await widget.service.disconnect();
+    if (mounted) Navigator.pop(context);
+  }
+
   Future<void> _handleBackPressed() async {
     if (_isClosingSession) {
       return;
@@ -478,6 +488,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   onBackTap: () => _handleGlobalAction('back'),
                   onHomeTap: () => _handleGlobalAction('home'),
                   onRecentsTap: () => _handleGlobalAction('recents'),
+                  onTemporaryCloseTap: () =>
+                      unawaited(_temporaryCloseControllerSession()),
                   onCloseTap: _closeSession,
                 ),
               )
