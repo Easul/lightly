@@ -386,7 +386,7 @@ class RemoteMinimizedFloatingDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
-              colors: [Color(0xFF0891B2), Color(0xFF22D3EE)],
+              colors: [AppColors.primary, Color(0xFF8EBF7A)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -396,7 +396,7 @@ class RemoteMinimizedFloatingDot extends StatelessWidget {
             ),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x660891B2),
+                color: Color(0x6663B746),
                 blurRadius: 18,
                 offset: Offset(0, 8),
               ),
@@ -408,7 +408,7 @@ class RemoteMinimizedFloatingDot extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Icon(Icons.radar_rounded, color: Colors.white, size: 28),
+                const Icon(Icons.radar_rounded, color: Colors.white, size: 23),
                 Positioned(
                   right: 12,
                   top: 12,
