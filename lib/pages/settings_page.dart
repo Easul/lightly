@@ -115,6 +115,117 @@ class _SettingsPageState extends State<SettingsPage> {
     _formController.applySettings(settings);
   }
 
+  BrowserProxyNode _buildProxyNodeFromForm({
+    required String id,
+    required String name,
+  }) {
+    final settings = _buildSettingsFromForm();
+    return BrowserProxyNode(
+      id: id,
+      name: name.trim().isEmpty ? _defaultProxyNodeName(settings) : name.trim(),
+      proxyHost: settings.proxyHost,
+      proxyPort: settings.proxyPort,
+      proxyScheme: settings.proxyProtocol,
+      proxyUuid: settings.proxyUuid,
+      proxyTlsEnabled: settings.proxyTlsEnabled,
+      proxyTlsInsecure: settings.proxyTlsInsecure,
+      proxyServerName: settings.proxyServerName,
+      proxyTransportType: settings.proxyTransportType,
+      proxyTransportPath: settings.proxyTransportPath,
+      proxyTransportHost: settings.proxyTransportHost,
+      proxyPacketEncoding: settings.proxyPacketEncoding,
+    );
+  }
+
+  String _defaultProxyNodeName(BrowserSettings settings) {
+    final protocol = BrowserProxyProtocol.label(settings.proxyProtocol);
+    final host = settings.proxyHost.trim();
+    if (host.isEmpty) return '$protocol 节点';
+    final port = settings.proxyPort?.toString();
+    return port == null || port.isEmpty
+        ? '$protocol $host'
+        : '$protocol $host:$port';
+  }
+
+  void _syncSelectedProxyNodeFromForm() {
+    final selectedId = _formController.selectedProxyNodeId;
+    if (selectedId == null) return;
+    final index = _formController.proxyNodes.indexWhere(
+      (node) => node.id == selectedId,
+    );
+    if (index < 0) return;
+    final current = _formController.proxyNodes[index];
+    final updated = _buildProxyNodeFromForm(id: current.id, name: current.name);
+    _formController.proxyNodes = <BrowserProxyNode>[
+      ..._formController.proxyNodes.take(index),
+      updated,
+      ..._formController.proxyNodes.skip(index + 1),
+    ];
+  }
+
+  void _handleProxyFormChanged() {
+    setState(_syncSelectedProxyNodeFromForm);
+    _markSectionDirty();
+  }
+
+  void _addCurrentProxyNode({String? preferredName}) {
+    final settings = _buildSettingsFromForm();
+    if (settings.proxyHost.trim().isEmpty || settings.proxyPort == null) {
+      _showSnackBar('请先填写节点地址和端口');
+      return;
+    }
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final node = _buildProxyNodeFromForm(
+      id: id,
+      name: preferredName ?? _defaultProxyNodeName(settings),
+    );
+    setState(() {
+      _formController.proxyNodes = <BrowserProxyNode>[
+        ..._formController.proxyNodes,
+        node,
+      ];
+      _formController.selectedProxyNodeId = node.id;
+    });
+    _markSectionDirty();
+    _showSnackBar('已添加代理节点：${node.name}');
+  }
+
+  void _selectProxyNode(String nodeId) {
+    BrowserProxyNode? node;
+    for (final item in _formController.proxyNodes) {
+      if (item.id == nodeId) {
+        node = item;
+        break;
+      }
+    }
+    if (node == null) return;
+    final selectedNode = node;
+    setState(() {
+      _syncSelectedProxyNodeFromForm();
+      _formController.selectedProxyNodeId = selectedNode.id;
+      _formController.applyProxyNode(selectedNode);
+    });
+    _markSectionDirty();
+  }
+
+  void _deleteProxyNode(String nodeId) {
+    final wasSelected = _formController.selectedProxyNodeId == nodeId;
+    final nodes = _formController.proxyNodes
+        .where((node) => node.id != nodeId)
+        .toList();
+    setState(() {
+      _formController.proxyNodes = nodes;
+      if (wasSelected) {
+        final next = nodes.isEmpty ? null : nodes.first;
+        _formController.selectedProxyNodeId = next?.id;
+        if (next != null) {
+          _formController.applyProxyNode(next);
+        }
+      }
+    });
+    _markSectionDirty();
+  }
+
   Future<void> _parseNodeLink() async {
     final link = _formController.nodeLinkController.text.trim();
     if (link.isEmpty) {
@@ -134,6 +245,17 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       setState(() {
         _applyProxySettingsToForm(result.settings);
+        if (_formController.selectedProxyNodeId == null) {
+          final id = DateTime.now().microsecondsSinceEpoch.toString();
+          final node = _buildProxyNodeFromForm(id: id, name: result.node.name);
+          _formController.proxyNodes = <BrowserProxyNode>[
+            ..._formController.proxyNodes,
+            node,
+          ];
+          _formController.selectedProxyNodeId = node.id;
+        } else {
+          _syncSelectedProxyNodeFromForm();
+        }
         _errorMessage = null;
       });
       _markSectionDirty();
@@ -212,6 +334,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   BrowserSettings _buildSettingsFromForm() {
+    _syncSelectedProxyNodeFromForm();
     return _formController.buildSettings();
   }
 
@@ -521,6 +644,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _formController.proxyServerNameController.clear();
       }
     });
+    _syncSelectedProxyNodeFromForm();
     _markSectionDirty();
   }
 
@@ -531,6 +655,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _formController.proxyTlsInsecure = false;
       }
     });
+    _syncSelectedProxyNodeFromForm();
     _markSectionDirty();
   }
 
@@ -538,6 +663,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _formController.selectedTransportType = value;
     });
+    _syncSelectedProxyNodeFromForm();
     _markSectionDirty();
   }
 
@@ -545,6 +671,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _formController.proxyPacketEncoding = value;
     });
+    _syncSelectedProxyNodeFromForm();
     _markSectionDirty();
   }
 
@@ -552,6 +679,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _formController.proxyTlsInsecure = value;
     });
+    _syncSelectedProxyNodeFromForm();
     _markSectionDirty();
   }
 
@@ -594,6 +722,10 @@ class _SettingsPageState extends State<SettingsPage> {
         onHandleProxyToggle: _handleProxyToggle,
         onParseNodeLink: _parseNodeLink,
         onTestNodeSpeed: _testNodeSpeed,
+        onAddProxyNode: _addCurrentProxyNode,
+        onSelectProxyNode: _selectProxyNode,
+        onDeleteProxyNode: _deleteProxyNode,
+        onProxyConfigurationChanged: _handleProxyFormChanged,
         onProxyProtocolChanged: _handleProxyProtocolChanged,
         onProxyTlsEnabledChanged: _handleProxyTlsEnabledChanged,
         onProxyTransportTypeChanged: _handleProxyTransportTypeChanged,
