@@ -56,12 +56,14 @@
 - [开发指南](docs/development.md)
 - [架构文档](docs/architecture.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
+- [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
 
 ### English
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
+- [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
 ## 技术栈
 

@@ -132,3 +132,4 @@ docs: update xxx
 - [Quick Start](quickstart.en.md)
 - [Architecture](architecture.en.md)
 - [EasyTier Build Notes](easytier-build.en.md)
+- [Sharing EasyTier State with Monitor](easytier-state-sharing.en.md)

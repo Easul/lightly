@@ -642,6 +642,7 @@ class MainActivity : FlutterActivity() {
                             }
                             startService(intent)
                             EasyTierJNI.stopAllInstances()
+                            EasyTierStateStore.clear()
                             easyTierRunningConfig = null
                             result.success(true)
                         } catch (e: Exception) {
@@ -652,6 +653,9 @@ class MainActivity : FlutterActivity() {
                     "getNetworkInfo" -> {
                         try {
                             val info = EasyTierJNI.collectNetworkInfos(10)
+                            if (!info.isNullOrBlank()) {
+                                EasyTierStateStore.refreshFromJni()
+                            }
                             result.success(info)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -1017,6 +1021,7 @@ class MainActivity : FlutterActivity() {
             if (res == 0) {
                 easyTierRunningConfig = config
                 startEasyTierMonitor(instanceName)
+                EasyTierStateStore.markStarted(instanceName)
                 Log.d("EasyTier", "VPN started successfully")
                 result.success(true)
             } else {
@@ -1061,6 +1066,7 @@ class MainActivity : FlutterActivity() {
         easyTierMissingInfoTicks = 0
         easyTierNotRunningTicks = 0
         easyTierRestartInProgress = false
+        EasyTierStateStore.clear()
     }
 
     private fun monitorEasyTierStatus() {
@@ -1081,6 +1087,12 @@ class MainActivity : FlutterActivity() {
             val root = JSONObject(infosJson)
             val map = root.optJSONObject("map") ?: return
             val networkInfo = map.optJSONObject(instanceName) ?: return
+            EasyTierStateStore.updateFromNetworkInfo(
+                instanceName,
+                infosJson,
+                extractVirtualIpv4(networkInfo),
+                networkInfo.optBoolean("running", false),
+            )
             val peerCount = networkInfo.optJSONArray("peers")?.length() ?: 0
             val routeCount = networkInfo.optJSONArray("routes")?.length() ?: 0
             val myNodeInfo = networkInfo.optJSONObject("my_node_info")

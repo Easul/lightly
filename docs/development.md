@@ -132,3 +132,4 @@ docs: update xxx
 - [快速入门](quickstart.md)
 - [架构文档](architecture.md)
 - [EasyTier 编译记录](easytier-build.md)
+- [EasyTier 状态共享给 Monitor](easytier-state-sharing.md)

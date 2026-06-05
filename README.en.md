@@ -56,12 +56,14 @@ Requirements:
 - [Development Guide (CN)](docs/development.md)
 - [Architecture (CN)](docs/architecture.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
+- [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
 
 ### English
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
+- [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
 ## Tech Stack
 

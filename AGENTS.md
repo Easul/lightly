@@ -624,6 +624,25 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - auto-refresh look broken even though polling was running
 - Also, if users need to copy diagnostics, prefer preserving the raw JSON string returned by `collectNetworkInfos()` and formatting it with a JSON encoder; avoid relying on Dart `Map.toString()` for export/copy because it is harder to read and can appear truncated or structurally ambiguous.
 
+### EasyTier state sharing for Monitor app
+
+- Lightly exposes current EasyTier runtime state through a signature-permission protected Android ContentProvider so the separate monitor app can reuse Lightly's active P2P VPN instead of starting a conflicting VPN.
+- Provider URI: `content://lightly.tool.easytier/network_info`.
+- Caller permission: `lightly.tool.permission.READ_EASYTIER_STATE` with `signature` protection level. The monitor app must request this permission and be signed with the same certificate as Lightly.
+- Returned columns:
+  - `instance_name`
+  - `raw_network_info_json`
+  - `virtual_ipv4`
+  - `updated_at`
+  - `is_running`
+  - `error_message`
+- Treat `raw_network_info_json` as the source of truth; it is the raw `EasyTierJNI.collectNetworkInfos(10)` JSON and should remain compatible with `EasyTierNetworkInfoAnalyzer`.
+- Related files:
+  - `android/app/src/main/AndroidManifest.xml`
+  - `android/app/src/main/kotlin/lightly/tool/EasyTierInfoProvider.kt`
+  - `android/app/src/main/kotlin/lightly/tool/EasyTierStateStore.kt`
+  - `android/app/src/main/kotlin/lightly/tool/MainActivity.kt`
+
 ### EasyTier local service exposure pitfall
 
 - If local app services should be reachable over EasyTier IP, do not exclude the whole app from VPN routing with `addDisallowedApplication(...)`.
