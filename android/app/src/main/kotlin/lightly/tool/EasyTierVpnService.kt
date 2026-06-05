@@ -76,7 +76,6 @@ class EasyTierVpnService : VpnService() {
         }
 
         val ipv4Address = intent?.getStringExtra("ipv4_address")
-        val proxyCidrs = intent?.getStringArrayListExtra("proxy_cidrs") ?: arrayListOf()
         instanceName = intent?.getStringExtra("instance_name")
 
         if (ipv4Address == null || instanceName == null) {
@@ -85,11 +84,11 @@ class EasyTierVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        Log.i(TAG, "Starting VPN Service - IPv4: $ipv4Address, Proxy CIDRs: $proxyCidrs, Instance: $instanceName")
+        Log.i(TAG, "Starting VPN Service - IPv4: $ipv4Address, Instance: $instanceName")
 
         thread {
             try {
-                setupVpnInterface(ipv4Address, proxyCidrs)
+                setupVpnInterface(ipv4Address)
             } catch (t: Throwable) {
                 Log.e(TAG, "VPN setup failed", t)
                 stopSelf()
@@ -99,7 +98,7 @@ class EasyTierVpnService : VpnService() {
         return START_STICKY
     }
 
-    private fun setupVpnInterface(ipv4Address: String, proxyCidrs: List<String>) {
+    private fun setupVpnInterface(ipv4Address: String) {
         try {
             val (ip, networkLength) = parseIpv4Address(ipv4Address)
             val networkAddress = EasyTierRouteNormalizer.toNetworkAddress(ip, networkLength)
@@ -116,16 +115,6 @@ class EasyTierVpnService : VpnService() {
                 Log.d(TAG, "Added primary EasyTier route: $networkAddress/$networkLength (host $ip)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to add EasyTier subnet route $networkAddress/$networkLength for host $ip", e)
-            }
-
-            proxyCidrs.forEach { cidr ->
-                try {
-                    val (routeIp, routeLength) = EasyTierRouteNormalizer.parseRoute(cidr)
-                    builder.addRoute(routeIp, routeLength)
-                    Log.d(TAG, "Added route: $routeIp/$routeLength")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to parse CIDR: $cidr", e)
-                }
             }
 
             vpnInterface = builder.establish()

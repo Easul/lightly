@@ -43,7 +43,6 @@ class MainActivity : FlutterActivity() {
     private var easyTierMonitorRunnable: Runnable? = null
     private var easyTierRunningInstanceName: String? = null
     private var easyTierCurrentIpv4: String? = null
-    private var easyTierCurrentProxyCidrs: List<String> = emptyList()
     private var easyTierMonitorTick = 0
     private var easyTierRunningConfig: String? = null
     private var easyTierMissingInfoTicks = 0
@@ -1035,7 +1034,6 @@ class MainActivity : FlutterActivity() {
         stopEasyTierMonitor()
         easyTierRunningInstanceName = instanceName
         easyTierCurrentIpv4 = null
-        easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
         easyTierMissingInfoTicks = 0
         easyTierNotRunningTicks = 0
@@ -1059,7 +1057,6 @@ class MainActivity : FlutterActivity() {
         easyTierMonitorRunnable = null
         easyTierRunningInstanceName = null
         easyTierCurrentIpv4 = null
-        easyTierCurrentProxyCidrs = emptyList()
         easyTierMonitorTick = 0
         easyTierMissingInfoTicks = 0
         easyTierNotRunningTicks = 0
@@ -1115,11 +1112,9 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            val proxyCidrs = extractProxyCidrs(networkInfo)
-            if (virtualIpv4 != easyTierCurrentIpv4 || proxyCidrs != easyTierCurrentProxyCidrs) {
+            if (virtualIpv4 != easyTierCurrentIpv4) {
                 easyTierCurrentIpv4 = virtualIpv4
-                easyTierCurrentProxyCidrs = proxyCidrs
-                restartEasyTierVpnService(instanceName, virtualIpv4, proxyCidrs)
+                restartEasyTierVpnService(instanceName, virtualIpv4)
             }
         } catch (e: Exception) {
             Log.e("EasyTier", "Failed to parse network info JSON", e)
@@ -1215,22 +1210,6 @@ class MainActivity : FlutterActivity() {
         return "$ip/$networkLength"
     }
 
-    private fun extractProxyCidrs(networkInfo: JSONObject): List<String> {
-        val routes = networkInfo.optJSONArray("routes") ?: return emptyList()
-        val proxyCidrs = mutableListOf<String>()
-        for (i in 0 until routes.length()) {
-            val route = routes.optJSONObject(i) ?: continue
-            val cidrs = route.optJSONArray("proxy_cidrs") ?: continue
-            for (j in 0 until cidrs.length()) {
-                val cidr = cidrs.optString(j)
-                if (cidr.isNotBlank()) {
-                    proxyCidrs.add(cidr)
-                }
-            }
-        }
-        return proxyCidrs
-    }
-
     private fun restartEasyTierInstance(reason: String) {
         val config = easyTierRunningConfig
         val instanceName = easyTierRunningInstanceName
@@ -1244,7 +1223,6 @@ class MainActivity : FlutterActivity() {
             val res = EasyTierJNI.runNetworkInstance(config)
             if (res == 0) {
                 easyTierCurrentIpv4 = null
-                easyTierCurrentProxyCidrs = emptyList()
                 easyTierMissingInfoTicks = 0
                 easyTierNotRunningTicks = 0
                 Log.i("EasyTier", "EasyTier instance restarted: reason=$reason")
@@ -1259,18 +1237,17 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun restartEasyTierVpnService(instanceName: String, ipv4: String, proxyCidrs: List<String>) {
+    private fun restartEasyTierVpnService(instanceName: String, ipv4: String) {
         val stopIntent = Intent(this, EasyTierVpnService::class.java)
         stopService(stopIntent)
 
         val startIntent = Intent(this, EasyTierVpnService::class.java).apply {
             putExtra("ipv4_address", ipv4)
-            putStringArrayListExtra("proxy_cidrs", ArrayList(proxyCidrs))
             putExtra("instance_name", instanceName)
         }
 
         startService(startIntent)
-        Log.i("EasyTier", "Started EasyTierVpnService with IPv4=$ipv4 proxyCidrs=$proxyCidrs")
+        Log.i("EasyTier", "Started EasyTierVpnService with IPv4=$ipv4 routes=virtual-subnet-only")
     }
 
     override fun onRequestPermissionsResult(
