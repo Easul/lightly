@@ -303,7 +303,7 @@ class _ProxyNodeListCardState extends State<_ProxyNodeListCard> {
                 ),
                 subtitle: Text(
                   '${BrowserProxyProtocol.label(node.proxyProtocol)} · ${node.proxyHost}:$port',
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 selected: selected,

@@ -245,17 +245,13 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       setState(() {
         _applyProxySettingsToForm(result.settings);
-        if (_formController.selectedProxyNodeId == null) {
-          final id = DateTime.now().microsecondsSinceEpoch.toString();
-          final node = _buildProxyNodeFromForm(id: id, name: result.node.name);
-          _formController.proxyNodes = <BrowserProxyNode>[
-            ..._formController.proxyNodes,
-            node,
-          ];
-          _formController.selectedProxyNodeId = node.id;
-        } else {
-          _syncSelectedProxyNodeFromForm();
-        }
+        final id = DateTime.now().microsecondsSinceEpoch.toString();
+        final node = _buildProxyNodeFromForm(id: id, name: result.node.name);
+        _formController.proxyNodes = <BrowserProxyNode>[
+          ..._formController.proxyNodes,
+          node,
+        ];
+        _formController.selectedProxyNodeId = node.id;
         _errorMessage = null;
       });
       _markSectionDirty();

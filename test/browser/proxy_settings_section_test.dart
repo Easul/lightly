@@ -95,6 +95,7 @@ void main() {
 
     expect(find.text('主节点'), findsOneWidget);
     expect(find.text('VLESS · proxy.example.com:443'), findsOneWidget);
+    expect(find.text('VLESS proxy.example.com:443'), findsNothing);
 
     await tester.tap(find.text('主节点'));
     expect(selectedNodeId, 'node-1');
