@@ -12,6 +12,8 @@ class BrowserSettingsFormData {
     required this.proxyTransportPath,
     required this.proxyTransportHost,
     required this.proxyBypassDomains,
+    required this.proxyNodes,
+    required this.selectedProxyNodeId,
     required this.localHttpRootPath,
     required this.localHttpPortText,
     required this.localHttpUploadKey,
@@ -39,6 +41,8 @@ class BrowserSettingsFormData {
       proxyTransportPath: settings.proxyTransportPath,
       proxyTransportHost: settings.proxyTransportHost,
       proxyBypassDomains: settings.proxyBypassDomains,
+      proxyNodes: settings.proxyNodes,
+      selectedProxyNodeId: settings.selectedProxyNodeId,
       localHttpRootPath: settings.localHttpRootPath,
       localHttpPortText: settings.localHttpServerPort?.toString() ?? '',
       localHttpUploadKey: settings.localHttpUploadKey,
@@ -65,6 +69,8 @@ class BrowserSettingsFormData {
   final String proxyTransportPath;
   final String proxyTransportHost;
   final String proxyBypassDomains;
+  final List<BrowserProxyNode> proxyNodes;
+  final String? selectedProxyNodeId;
   final String localHttpRootPath;
   final String localHttpPortText;
   final String localHttpUploadKey;
@@ -94,6 +100,8 @@ class BrowserSettingsFormData {
       proxyTransportPath: proxyTransportPath,
       proxyTransportHost: proxyTransportHost,
       proxyPacketEncoding: proxyPacketEncoding,
+      proxyNodes: proxyNodes,
+      selectedProxyNodeId: selectedProxyNodeId,
       proxyBypassDomains: proxyBypassDomains,
       localProxyPort: int.tryParse(localProxyPortText),
       localHttpServerEnabled: localHttpServerEnabled,

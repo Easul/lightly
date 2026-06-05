@@ -29,6 +29,8 @@ class BrowserSettingsFormController {
   bool openNewWindowInTab = true;
 
   String selectedProtocol = BrowserProxyProtocol.http;
+  List<BrowserProxyNode> proxyNodes = const <BrowserProxyNode>[];
+  String? selectedProxyNodeId;
   String proxyPacketEncoding = '';
   String selectedTransportType = '';
 
@@ -58,6 +60,20 @@ class BrowserSettingsFormController {
     applyFormData(BrowserSettingsFormData.fromSettings(settings));
   }
 
+  void applyProxyNode(BrowserProxyNode node) {
+    selectedProtocol = node.proxyProtocol;
+    proxyHostController.text = node.proxyHost;
+    proxyPortController.text = node.proxyPort?.toString() ?? '';
+    proxyUuidController.text = node.proxyUuid;
+    proxyServerNameController.text = node.proxyServerName;
+    proxyTransportPathController.text = node.proxyTransportPath;
+    proxyTransportHostController.text = node.proxyTransportHost;
+    selectedTransportType = node.proxyTransportType;
+    proxyPacketEncoding = node.proxyPacketEncoding;
+    proxyTlsEnabled = node.proxyTlsEnabled;
+    proxyTlsInsecure = node.proxyTlsInsecure;
+  }
+
   void applyFormData(BrowserSettingsFormData formData) {
     homepageController.text = formData.homepageUrl;
     proxyEnabled = formData.proxyEnabled;
@@ -74,6 +90,8 @@ class BrowserSettingsFormController {
     localHttpUploadKeyController.text = formData.localHttpUploadKey;
     nativeVideoParserApiController.text = formData.nativeVideoParserApiBaseUrl;
     selectedProtocol = formData.selectedProtocol;
+    proxyNodes = List<BrowserProxyNode>.from(formData.proxyNodes);
+    selectedProxyNodeId = formData.selectedProxyNodeId;
     proxyPacketEncoding = formData.proxyPacketEncoding;
     selectedTransportType = formData.selectedTransportType;
     proxyTlsEnabled = formData.proxyTlsEnabled;
@@ -98,6 +116,8 @@ class BrowserSettingsFormController {
       proxyTransportPath: proxyTransportPathController.text.trim(),
       proxyTransportHost: proxyTransportHostController.text.trim(),
       proxyBypassDomains: proxyBypassDomainsController.text.trim(),
+      proxyNodes: proxyNodes,
+      selectedProxyNodeId: selectedProxyNodeId,
       localHttpRootPath: localHttpRootPathController.text.trim(),
       localHttpPortText: localHttpPortController.text.trim(),
       localHttpUploadKey: localHttpUploadKeyController.text.trim(),

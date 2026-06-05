@@ -39,6 +39,8 @@ void main() {
       expect(formData.localProxyPortText, '23333');
       expect(formData.selectedProtocol, BrowserProxyProtocol.vless);
       expect(formData.proxyTlsEnabled, isTrue);
+      expect(formData.proxyNodes, isEmpty);
+      expect(formData.selectedProxyNodeId, isNull);
       expect(formData.localHttpPortText, '3001');
       expect(
         formData.nativeVideoParserApiBaseUrl,
@@ -59,6 +61,8 @@ void main() {
         proxyTransportPath: '/ws',
         proxyTransportHost: 'example.com',
         proxyBypassDomains: 'localhost',
+        proxyNodes: <BrowserProxyNode>[],
+        selectedProxyNodeId: null,
         localHttpRootPath: '/tmp/files',
         localHttpPortText: '3001',
         localHttpUploadKey: 'upload-key',
