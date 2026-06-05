@@ -344,10 +344,14 @@ class EasyTierConfigurationSection extends StatelessWidget {
     required this.enableP2p,
     required this.peerController,
     required this.peers,
+    required this.peerRemarks,
+    required this.activePeerIndex,
     required this.onDhcpChanged,
     required this.onEnableP2pChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
+    required this.onSelectPeer,
+    required this.onPeerRemarkChanged,
   });
 
   final TextEditingController instanceNameController;
@@ -359,10 +363,14 @@ class EasyTierConfigurationSection extends StatelessWidget {
   final bool enableP2p;
   final TextEditingController peerController;
   final List<String> peers;
+  final List<String> peerRemarks;
+  final int? activePeerIndex;
   final ValueChanged<bool> onDhcpChanged;
   final ValueChanged<bool> onEnableP2pChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
+  final ValueChanged<int> onSelectPeer;
+  final void Function(int index, String remark) onPeerRemarkChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -444,6 +452,15 @@ class EasyTierConfigurationSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text('节点地址 (Peers)', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          peers.isEmpty
+              ? '添加多个节点后，仅启用当前选中的一个节点。'
+              : '运行时仅连接已启用的节点，其余节点保留但不会写入运行配置。',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: peerController,
@@ -465,16 +482,25 @@ class EasyTierConfigurationSection extends StatelessWidget {
         ),
         if (peers.isNotEmpty) ...[
           const SizedBox(height: 8),
-          ...peers.asMap().entries.map(
-            (entry) => Container(
+          ...peers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final isActive = activePeerIndex == index;
+            final remark = index < peerRemarks.length ? peerRemarks[index] : '';
+            return Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                color: isActive
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer.withValues(alpha: 0.42)
+                    : Theme.of(context).colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
+                  color: isActive
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               child: Row(
@@ -486,21 +512,49 @@ class EasyTierConfigurationSection extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: SelectableText(
-                      entry.value,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SelectableText(
+                          entry.value,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          key: ValueKey(
+                            'easytier-peer-remark-$index-${entry.value}',
+                          ),
+                          initialValue: remark,
+                          minLines: 1,
+                          maxLines: 2,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: '备注',
+                            hintText: '例如：家里主节点 / 公司中转',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              onPeerRemarkChanged(index, value),
+                        ),
+                      ],
                     ),
+                  ),
+                  Switch(
+                    value: isActive,
+                    onChanged: (_) => onSelectPeer(index),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () => onRemovePeer(entry.key),
+                    onPressed: () => onRemovePeer(index),
                   ),
                 ],
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ],
     );
