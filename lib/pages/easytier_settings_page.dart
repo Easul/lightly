@@ -41,6 +41,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
   bool _dhcp = false;
   bool _enableP2p = true;
   List<String> _peers = [];
+  List<String> _peerRemarks = [];
+  int? _activePeerIndex;
   bool _isRunning = false;
   bool _isLoading = false;
   String? _statusMessage;
@@ -98,6 +100,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       ipv4: _dhcp ? null : _ipv4Controller.text.trim(),
       dhcp: _dhcp,
       peers: List<String>.from(_peers),
+      peerRemarks: List<String>.from(_normalizedPeerRemarks()),
+      activePeerIndex: _effectiveActivePeerIndex(),
       enableP2p: _enableP2p,
       hostname: _hostnameController.text.trim().isEmpty
           ? null
@@ -133,6 +137,11 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     _hostnameController.text = profile.config.hostname ?? '';
     _enableP2p = profile.config.enableP2p;
     _peers = List<String>.from(profile.config.peers);
+    _peerRemarks = _normalizePeerRemarks(profile.config.peerRemarks, _peers);
+    _activePeerIndex = _normalizeActivePeerIndex(
+      profile.config.activePeerIndex,
+      _peers,
+    );
     _selectedProfileId = profile.id;
     _isApplyingProfile = false;
     if (mounted) {
@@ -349,6 +358,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     if (peer.isNotEmpty) {
       setState(() {
         _peers.add(peer);
+        _peerRemarks.add('');
+        _activePeerIndex ??= 0;
         _peerController.clear();
       });
       unawaited(_persistCurrentProfile());
@@ -357,9 +368,58 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
 
   void _removePeer(int index) {
     setState(() {
+      final activeIndex = _effectiveActivePeerIndex();
       _peers.removeAt(index);
+      if (index < _peerRemarks.length) {
+        _peerRemarks.removeAt(index);
+      }
+      if (_peers.isEmpty) {
+        _activePeerIndex = null;
+      } else if (activeIndex == index) {
+        _activePeerIndex = index.clamp(0, _peers.length - 1);
+      } else if (activeIndex != null && activeIndex > index) {
+        _activePeerIndex = activeIndex - 1;
+      }
     });
     unawaited(_persistCurrentProfile());
+  }
+
+  void _selectPeer(int index) {
+    if (index < 0 || index >= _peers.length) return;
+    setState(() {
+      _activePeerIndex = index;
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
+  void _updatePeerRemark(int index, String remark) {
+    if (index < 0 || index >= _peers.length) return;
+    setState(() {
+      _peerRemarks = _normalizedPeerRemarks();
+      _peerRemarks[index] = remark;
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
+  int? _effectiveActivePeerIndex() {
+    return _normalizeActivePeerIndex(_activePeerIndex, _peers);
+  }
+
+  List<String> _normalizedPeerRemarks() {
+    return _normalizePeerRemarks(_peerRemarks, _peers);
+  }
+
+  List<String> _normalizePeerRemarks(List<String> remarks, List<String> peers) {
+    return List<String>.generate(
+      peers.length,
+      (index) => index < remarks.length ? remarks[index] : '',
+    );
+  }
+
+  int? _normalizeActivePeerIndex(int? index, List<String> peers) {
+    if (peers.isEmpty) return null;
+    if (index == null || index < 0 || index >= peers.length) return 0;
+    return index;
   }
 
   Future<void> _startVpn() async {
@@ -466,6 +526,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
         enableP2p: _enableP2p,
         peerController: _peerController,
         peers: _peers,
+        peerRemarks: _normalizedPeerRemarks(),
+        activePeerIndex: _effectiveActivePeerIndex(),
         onSelectProfile: (profileId) => unawaited(_selectProfile(profileId)),
         onCreateProfile: () => unawaited(_createNewProfile()),
         onDeleteProfile: () => unawaited(_deleteCurrentProfile()),
@@ -488,6 +550,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
         },
         onAddPeer: _addPeer,
         onRemovePeer: _removePeer,
+        onSelectPeer: _selectPeer,
+        onPeerRemarkChanged: _updatePeerRemark,
       ),
     );
   }

@@ -30,6 +30,8 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.enableP2p,
     required this.peerController,
     required this.peers,
+    required this.peerRemarks,
+    required this.activePeerIndex,
     required this.onSelectProfile,
     required this.onCreateProfile,
     required this.onDeleteProfile,
@@ -42,6 +44,8 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.onEnableP2pChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
+    required this.onSelectPeer,
+    required this.onPeerRemarkChanged,
   });
 
   final GlobalKey<FormState> formKey;
@@ -68,6 +72,8 @@ class EasyTierSettingsBody extends StatelessWidget {
   final bool enableP2p;
   final TextEditingController peerController;
   final List<String> peers;
+  final List<String> peerRemarks;
+  final int? activePeerIndex;
   final ValueChanged<String?> onSelectProfile;
   final VoidCallback onCreateProfile;
   final VoidCallback onDeleteProfile;
@@ -80,6 +86,8 @@ class EasyTierSettingsBody extends StatelessWidget {
   final ValueChanged<bool> onEnableP2pChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
+  final ValueChanged<int> onSelectPeer;
+  final void Function(int index, String remark) onPeerRemarkChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -157,10 +165,14 @@ class EasyTierSettingsBody extends StatelessWidget {
                 enableP2p: enableP2p,
                 peerController: peerController,
                 peers: peers,
+                peerRemarks: peerRemarks,
+                activePeerIndex: activePeerIndex,
                 onDhcpChanged: onDhcpChanged,
                 onEnableP2pChanged: onEnableP2pChanged,
                 onAddPeer: onAddPeer,
                 onRemovePeer: onRemovePeer,
+                onSelectPeer: onSelectPeer,
+                onPeerRemarkChanged: onPeerRemarkChanged,
               ),
             ],
           ),
