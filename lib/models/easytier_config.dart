@@ -5,6 +5,8 @@ class EasyTierConfig {
   final String? ipv4;
   final bool dhcp;
   final List<String> peers;
+  final List<String> peerRemarks;
+  final int? activePeerIndex;
   final List<String> listeners;
   final int? socks5Port;
   final bool enableP2p;
@@ -17,6 +19,8 @@ class EasyTierConfig {
     this.ipv4,
     this.dhcp = false,
     this.peers = const [],
+    this.peerRemarks = const [],
+    this.activePeerIndex,
     this.listeners = const [],
     this.socks5Port,
     this.enableP2p = true,
@@ -38,12 +42,11 @@ class EasyTierConfig {
       buffer.writeln('ipv4 = "$ipv4"');
     }
 
-    if (peers.isNotEmpty) {
-      for (final peer in peers) {
-        buffer.writeln('');
-        buffer.writeln('[[peer]]');
-        buffer.writeln('uri = "$peer"');
-      }
+    final activePeer = _activePeerUri();
+    if (activePeer != null) {
+      buffer.writeln('');
+      buffer.writeln('[[peer]]');
+      buffer.writeln('uri = "$activePeer"');
     }
 
     if (listeners.isNotEmpty) {
@@ -83,6 +86,9 @@ class EasyTierConfig {
       ipv4: json['ipv4'] as String?,
       dhcp: json['dhcp'] as bool? ?? false,
       peers: (json['peers'] as List<dynamic>?)?.cast<String>() ?? [],
+      peerRemarks:
+          (json['peerRemarks'] as List<dynamic>?)?.cast<String>() ?? [],
+      activePeerIndex: json['activePeerIndex'] as int?,
       listeners: (json['listeners'] as List<dynamic>?)?.cast<String>() ?? [],
       socks5Port: json['socks5Port'] as int?,
       enableP2p: json['enableP2p'] as bool? ?? true,
@@ -98,10 +104,21 @@ class EasyTierConfig {
       'ipv4': ipv4,
       'dhcp': dhcp,
       'peers': peers,
+      'peerRemarks': peerRemarks,
+      'activePeerIndex': activePeerIndex,
       'listeners': listeners,
       'socks5Port': socks5Port,
       'enableP2p': enableP2p,
       'hostname': hostname,
     };
+  }
+
+  String? _activePeerUri() {
+    if (peers.isEmpty) return null;
+    final index = activePeerIndex ?? 0;
+    if (index < 0 || index >= peers.length) {
+      return peers.first;
+    }
+    return peers[index];
   }
 }
