@@ -39,6 +39,113 @@ class BrowserProxyProtocol {
   }
 }
 
+class BrowserProxyNode {
+  const BrowserProxyNode({
+    required this.id,
+    required this.name,
+    required this.proxyHost,
+    required this.proxyPort,
+    required this.proxyScheme,
+    required this.proxyUuid,
+    required this.proxyTlsEnabled,
+    required this.proxyTlsInsecure,
+    required this.proxyServerName,
+    required this.proxyTransportType,
+    required this.proxyTransportPath,
+    required this.proxyTransportHost,
+    required this.proxyPacketEncoding,
+  });
+
+  final String id;
+  final String name;
+  final String proxyHost;
+  final int? proxyPort;
+  final String proxyScheme;
+  final String proxyUuid;
+  final bool proxyTlsEnabled;
+  final bool proxyTlsInsecure;
+  final String proxyServerName;
+  final String proxyTransportType;
+  final String proxyTransportPath;
+  final String proxyTransportHost;
+  final String proxyPacketEncoding;
+
+  String get proxyProtocol => BrowserProxyProtocol.normalize(proxyScheme);
+
+  BrowserProxyNode copyWith({
+    String? id,
+    String? name,
+    String? proxyHost,
+    int? proxyPort,
+    bool clearProxyPort = false,
+    String? proxyScheme,
+    String? proxyUuid,
+    bool? proxyTlsEnabled,
+    bool? proxyTlsInsecure,
+    String? proxyServerName,
+    String? proxyTransportType,
+    String? proxyTransportPath,
+    String? proxyTransportHost,
+    String? proxyPacketEncoding,
+  }) {
+    return BrowserProxyNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      proxyHost: proxyHost ?? this.proxyHost,
+      proxyPort: clearProxyPort ? null : proxyPort ?? this.proxyPort,
+      proxyScheme: proxyScheme ?? this.proxyScheme,
+      proxyUuid: proxyUuid ?? this.proxyUuid,
+      proxyTlsEnabled: proxyTlsEnabled ?? this.proxyTlsEnabled,
+      proxyTlsInsecure: proxyTlsInsecure ?? this.proxyTlsInsecure,
+      proxyServerName: proxyServerName ?? this.proxyServerName,
+      proxyTransportType: proxyTransportType ?? this.proxyTransportType,
+      proxyTransportPath: proxyTransportPath ?? this.proxyTransportPath,
+      proxyTransportHost: proxyTransportHost ?? this.proxyTransportHost,
+      proxyPacketEncoding: proxyPacketEncoding ?? this.proxyPacketEncoding,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'proxyHost': proxyHost,
+      'proxyPort': proxyPort,
+      'proxyScheme': proxyProtocol,
+      'proxyUuid': proxyUuid,
+      'proxyTlsEnabled': proxyTlsEnabled,
+      'proxyTlsInsecure': proxyTlsInsecure,
+      'proxyServerName': proxyServerName,
+      'proxyTransportType': proxyTransportType,
+      'proxyTransportPath': proxyTransportPath,
+      'proxyTransportHost': proxyTransportHost,
+      'proxyPacketEncoding': proxyPacketEncoding,
+    };
+  }
+
+  factory BrowserProxyNode.fromJson(Map<String, dynamic> json) {
+    return BrowserProxyNode(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      proxyHost: json['proxyHost'] as String? ?? '',
+      proxyPort: (json['proxyPort'] as num?)?.toInt(),
+      proxyScheme: BrowserProxyProtocol.normalize(
+        json['proxyProtocol'] as String? ?? json['proxyScheme'] as String?,
+      ),
+      proxyUuid:
+          json['proxyUuid'] as String? ??
+          (json['proxyPassword'] as String? ?? ''),
+      proxyTlsEnabled: json['proxyTlsEnabled'] as bool? ?? false,
+      proxyTlsInsecure: json['proxyTlsInsecure'] as bool? ?? false,
+      proxyServerName: json['proxyServerName'] as String? ?? '',
+      proxyTransportType: json['proxyTransportType'] as String? ?? '',
+      proxyTransportPath: json['proxyTransportPath'] as String? ?? '',
+      proxyTransportHost: json['proxyTransportHost'] as String? ?? '',
+      proxyPacketEncoding: json['proxyPacketEncoding'] as String? ?? '',
+    );
+  }
+}
+
 class BrowserSettings {
   static const List<String> _builtInProxyBypassDomains = <String>[
     'google.com',
@@ -62,6 +169,8 @@ class BrowserSettings {
     required this.proxyTransportPath,
     required this.proxyTransportHost,
     required this.proxyPacketEncoding,
+    required this.proxyNodes,
+    required this.selectedProxyNodeId,
     required this.proxyBypassDomains,
     required this.localProxyPort,
     required this.localHttpServerEnabled,
@@ -87,6 +196,8 @@ class BrowserSettings {
   final String proxyTransportPath;
   final String proxyTransportHost;
   final String proxyPacketEncoding;
+  final List<BrowserProxyNode> proxyNodes;
+  final String? selectedProxyNodeId;
   final String proxyBypassDomains;
   final int? localProxyPort;
   final bool localHttpServerEnabled;
@@ -128,6 +239,8 @@ class BrowserSettings {
       proxyTransportPath: '',
       proxyTransportHost: '',
       proxyPacketEncoding: '',
+      proxyNodes: <BrowserProxyNode>[],
+      selectedProxyNodeId: null,
       proxyBypassDomains: '',
       localProxyPort: 23333,
       localHttpServerEnabled: false,
@@ -156,6 +269,9 @@ class BrowserSettings {
     String? proxyTransportPath,
     String? proxyTransportHost,
     String? proxyPacketEncoding,
+    List<BrowserProxyNode>? proxyNodes,
+    String? selectedProxyNodeId,
+    bool clearSelectedProxyNodeId = false,
     String? proxyBypassDomains,
     int? localProxyPort,
     bool clearLocalProxyPort = false,
@@ -183,6 +299,10 @@ class BrowserSettings {
       proxyTransportPath: proxyTransportPath ?? this.proxyTransportPath,
       proxyTransportHost: proxyTransportHost ?? this.proxyTransportHost,
       proxyPacketEncoding: proxyPacketEncoding ?? this.proxyPacketEncoding,
+      proxyNodes: proxyNodes ?? this.proxyNodes,
+      selectedProxyNodeId: clearSelectedProxyNodeId
+          ? null
+          : selectedProxyNodeId ?? this.selectedProxyNodeId,
       proxyBypassDomains: proxyBypassDomains ?? this.proxyBypassDomains,
       localProxyPort: clearLocalProxyPort
           ? null
@@ -220,6 +340,8 @@ class BrowserSettings {
       'proxyTransportPath': proxyTransportPath,
       'proxyTransportHost': proxyTransportHost,
       'proxyPacketEncoding': proxyPacketEncoding,
+      'proxyNodes': proxyNodes.map((node) => node.toJson()).toList(),
+      'selectedProxyNodeId': selectedProxyNodeId,
       'proxyBypassDomains': proxyBypassDomains,
       'localProxyPort': localProxyPort,
       'localHttpServerEnabled': localHttpServerEnabled,
@@ -252,6 +374,15 @@ class BrowserSettings {
       proxyTransportPath: json['proxyTransportPath'] as String? ?? '',
       proxyTransportHost: json['proxyTransportHost'] as String? ?? '',
       proxyPacketEncoding: json['proxyPacketEncoding'] as String? ?? '',
+      proxyNodes: (json['proxyNodes'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                BrowserProxyNode.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .where((node) => node.id.isNotEmpty)
+          .toList(),
+      selectedProxyNodeId: json['selectedProxyNodeId'] as String?,
       proxyBypassDomains: json['proxyBypassDomains'] as String? ?? '',
       localProxyPort: (json['localProxyPort'] as num?)?.toInt() ?? 23333,
       localHttpServerEnabled: json['localHttpServerEnabled'] as bool? ?? false,

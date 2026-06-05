@@ -170,6 +170,40 @@ void main() {
       expect(settings.openNewWindowInTab, isFalse);
     });
 
+    test('proxy nodes persist through json', () {
+      final settings = BrowserSettings.defaults().copyWith(
+        proxyNodes: const <BrowserProxyNode>[
+          BrowserProxyNode(
+            id: 'node-1',
+            name: '主节点',
+            proxyHost: 'proxy.example.com',
+            proxyPort: 443,
+            proxyScheme: BrowserProxyProtocol.vless,
+            proxyUuid: 'uuid',
+            proxyTlsEnabled: true,
+            proxyTlsInsecure: false,
+            proxyServerName: 'sni.example.com',
+            proxyTransportType: 'ws',
+            proxyTransportPath: '/ws',
+            proxyTransportHost: 'cdn.example.com',
+            proxyPacketEncoding: 'xudp',
+          ),
+        ],
+        selectedProxyNodeId: 'node-1',
+      );
+
+      final restored = BrowserSettings.fromJson(settings.toJson());
+
+      expect(restored.selectedProxyNodeId, 'node-1');
+      expect(restored.proxyNodes, hasLength(1));
+      expect(restored.proxyNodes.single.name, '主节点');
+      expect(
+        restored.proxyNodes.single.proxyProtocol,
+        BrowserProxyProtocol.vless,
+      );
+      expect(restored.proxyNodes.single.proxyTransportPath, '/ws');
+    });
+
     test(
       'native video parser setting restores from json and trims trailing slash',
       () {
