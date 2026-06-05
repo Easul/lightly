@@ -119,7 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required String id,
     required String name,
   }) {
-    final settings = _buildSettingsFromForm();
+    final settings = _formController.readFormData().toBrowserSettings();
     return BrowserProxyNode(
       id: id,
       name: name.trim().isEmpty ? _defaultProxyNodeName(settings) : name.trim(),

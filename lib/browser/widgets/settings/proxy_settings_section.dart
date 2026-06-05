@@ -155,7 +155,7 @@ class ProxySettingsSection extends StatelessWidget {
   }
 }
 
-class _ProxyNodeListCard extends StatelessWidget {
+class _ProxyNodeListCard extends StatefulWidget {
   const _ProxyNodeListCard({
     required this.nodes,
     required this.selectedNodeId,
@@ -169,6 +169,21 @@ class _ProxyNodeListCard extends StatelessWidget {
   final VoidCallback onAddProxyNode;
   final ValueChanged<String> onSelectProxyNode;
   final ValueChanged<String> onDeleteProxyNode;
+
+  @override
+  State<_ProxyNodeListCard> createState() => _ProxyNodeListCardState();
+}
+
+class _ProxyNodeListCardState extends State<_ProxyNodeListCard> {
+  late bool _expanded = widget.nodes.length <= 2;
+
+  @override
+  void didUpdateWidget(_ProxyNodeListCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.nodes.isEmpty && widget.nodes.isNotEmpty) {
+      _expanded = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -197,15 +212,27 @@ class _ProxyNodeListCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (widget.nodes.isNotEmpty) ...[
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _expanded = !_expanded;
+                  });
+                },
+                icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                label: Text(_expanded ? '收起' : '展开'),
+              ),
+              const SizedBox(width: 4),
+            ],
             TextButton.icon(
-              onPressed: onAddProxyNode,
+              onPressed: widget.onAddProxyNode,
               icon: const Icon(Icons.add),
               label: const Text('添加当前'),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        if (nodes.isEmpty)
+        if (widget.nodes.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -221,9 +248,25 @@ class _ProxyNodeListCard extends StatelessWidget {
               ),
             ),
           )
+        else if (!_expanded)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Text(
+              '已保存 ${widget.nodes.length} 个节点，点击“展开”查看或切换。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
         else
-          ...nodes.map((node) {
-            final selected = node.id == selectedNodeId;
+          ...widget.nodes.map((node) {
+            final selected = node.id == widget.selectedNodeId;
             final port = node.proxyPort?.toString() ?? '-';
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -264,11 +307,11 @@ class _ProxyNodeListCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 selected: selected,
-                onTap: () => onSelectProxyNode(node.id),
+                onTap: () => widget.onSelectProxyNode(node.id),
                 trailing: IconButton(
                   tooltip: '删除节点',
                   icon: const Icon(Icons.delete_outline),
-                  onPressed: () => onDeleteProxyNode(node.id),
+                  onPressed: () => widget.onDeleteProxyNode(node.id),
                 ),
               ),
             );
