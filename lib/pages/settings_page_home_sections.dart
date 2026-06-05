@@ -27,6 +27,10 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
+    required this.onAddProxyNode,
+    required this.onSelectProxyNode,
+    required this.onDeleteProxyNode,
+    required this.onProxyConfigurationChanged,
     required this.onProxyProtocolChanged,
     required this.onProxyTlsEnabledChanged,
     required this.onProxyTransportTypeChanged,
@@ -58,6 +62,10 @@ class SettingsPageHomeSections extends StatelessWidget {
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
+  final VoidCallback onAddProxyNode;
+  final ValueChanged<String> onSelectProxyNode;
+  final ValueChanged<String> onDeleteProxyNode;
+  final VoidCallback onProxyConfigurationChanged;
   final ValueChanged<String> onProxyProtocolChanged;
   final ValueChanged<bool> onProxyTlsEnabledChanged;
   final ValueChanged<String> onProxyTransportTypeChanged;
@@ -117,6 +125,8 @@ class SettingsPageHomeSections extends StatelessWidget {
                     ? '本地 mixed 端口（HTTP + SOCKS5）：${proxyService.localProxyPort?.toString() ?? '未启动'}'
                     : '代理地址：${formController.proxyHostController.text.trim().isEmpty ? '未设置' : '${formController.proxyHostController.text.trim()}:${formController.proxyPortController.text.trim()}'}',
                 nodeLinkController: formController.nodeLinkController,
+                proxyNodes: formController.proxyNodes,
+                selectedProxyNodeId: formController.selectedProxyNodeId,
                 errorMessage: errorMessage,
                 selectedProtocol: formController.selectedProtocol,
                 showsUuidField: formController.showsUuidField,
@@ -146,6 +156,10 @@ class SettingsPageHomeSections extends StatelessWidget {
                 onToggle: onHandleProxyToggle,
                 onParse: onParseNodeLink,
                 onTestSpeed: onTestNodeSpeed,
+                onAddProxyNode: onAddProxyNode,
+                onSelectProxyNode: onSelectProxyNode,
+                onDeleteProxyNode: onDeleteProxyNode,
+                onConfigurationChanged: onProxyConfigurationChanged,
                 onProtocolChanged: onProxyProtocolChanged,
                 onTlsEnabledChanged: onProxyTlsEnabledChanged,
                 onTransportTypeChanged: onProxyTransportTypeChanged,

@@ -76,6 +76,10 @@ class SettingsPageBody extends StatelessWidget {
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
+    required this.onAddProxyNode,
+    required this.onSelectProxyNode,
+    required this.onDeleteProxyNode,
+    required this.onProxyConfigurationChanged,
     required this.onProxyProtocolChanged,
     required this.onProxyTlsEnabledChanged,
     required this.onProxyTransportTypeChanged,
@@ -108,6 +112,10 @@ class SettingsPageBody extends StatelessWidget {
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
+  final VoidCallback onAddProxyNode;
+  final ValueChanged<String> onSelectProxyNode;
+  final ValueChanged<String> onDeleteProxyNode;
+  final VoidCallback onProxyConfigurationChanged;
   final ValueChanged<String> onProxyProtocolChanged;
   final ValueChanged<bool> onProxyTlsEnabledChanged;
   final ValueChanged<String> onProxyTransportTypeChanged;
@@ -143,6 +151,10 @@ class SettingsPageBody extends StatelessWidget {
           onHandleProxyToggle: onHandleProxyToggle,
           onParseNodeLink: onParseNodeLink,
           onTestNodeSpeed: onTestNodeSpeed,
+          onAddProxyNode: onAddProxyNode,
+          onSelectProxyNode: onSelectProxyNode,
+          onDeleteProxyNode: onDeleteProxyNode,
+          onProxyConfigurationChanged: onProxyConfigurationChanged,
           onProxyProtocolChanged: onProxyProtocolChanged,
           onProxyTlsEnabledChanged: onProxyTlsEnabledChanged,
           onProxyTransportTypeChanged: onProxyTransportTypeChanged,
