@@ -13,6 +13,8 @@ class ProxySettingsSection extends StatelessWidget {
     required this.stateColor,
     required this.detailText,
     required this.nodeLinkController,
+    required this.proxyNodes,
+    required this.selectedProxyNodeId,
     required this.errorMessage,
     required this.selectedProtocol,
     required this.showsUuidField,
@@ -35,6 +37,10 @@ class ProxySettingsSection extends StatelessWidget {
     required this.onToggle,
     required this.onParse,
     required this.onTestSpeed,
+    required this.onAddProxyNode,
+    required this.onSelectProxyNode,
+    required this.onDeleteProxyNode,
+    required this.onConfigurationChanged,
     required this.onProtocolChanged,
     required this.onTlsEnabledChanged,
     required this.onTransportTypeChanged,
@@ -49,6 +55,8 @@ class ProxySettingsSection extends StatelessWidget {
   final Color stateColor;
   final String detailText;
   final TextEditingController nodeLinkController;
+  final List<BrowserProxyNode> proxyNodes;
+  final String? selectedProxyNodeId;
   final String? errorMessage;
   final String selectedProtocol;
   final bool showsUuidField;
@@ -71,6 +79,10 @@ class ProxySettingsSection extends StatelessWidget {
   final ValueChanged<bool> onToggle;
   final Future<void> Function() onParse;
   final Future<void> Function() onTestSpeed;
+  final VoidCallback onAddProxyNode;
+  final ValueChanged<String> onSelectProxyNode;
+  final ValueChanged<String> onDeleteProxyNode;
+  final VoidCallback onConfigurationChanged;
   final ValueChanged<String> onProtocolChanged;
   final ValueChanged<bool> onTlsEnabledChanged;
   final ValueChanged<String> onTransportTypeChanged;
@@ -99,6 +111,14 @@ class ProxySettingsSection extends StatelessWidget {
           onTestSpeed: onTestSpeed,
         ),
         const SizedBox(height: 16),
+        _ProxyNodeListCard(
+          nodes: proxyNodes,
+          selectedNodeId: selectedProxyNodeId,
+          onAddProxyNode: onAddProxyNode,
+          onSelectProxyNode: onSelectProxyNode,
+          onDeleteProxyNode: onDeleteProxyNode,
+        ),
+        const SizedBox(height: 16),
         SettingsCard(
           children: [
             ProxyConfigurationForm(
@@ -121,6 +141,7 @@ class ProxySettingsSection extends StatelessWidget {
               proxyTransportPathController: proxyTransportPathController,
               proxyTransportHostController: proxyTransportHostController,
               proxyBypassDomainsController: proxyBypassDomainsController,
+              onConfigurationChanged: onConfigurationChanged,
               onProtocolChanged: onProtocolChanged,
               onTlsEnabledChanged: onTlsEnabledChanged,
               onTransportTypeChanged: onTransportTypeChanged,
@@ -129,6 +150,129 @@ class ProxySettingsSection extends StatelessWidget {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _ProxyNodeListCard extends StatelessWidget {
+  const _ProxyNodeListCard({
+    required this.nodes,
+    required this.selectedNodeId,
+    required this.onAddProxyNode,
+    required this.onSelectProxyNode,
+    required this.onDeleteProxyNode,
+  });
+
+  final List<BrowserProxyNode> nodes;
+  final String? selectedNodeId;
+  final VoidCallback onAddProxyNode;
+  final ValueChanged<String> onSelectProxyNode;
+  final ValueChanged<String> onDeleteProxyNode;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SettingsCard(
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.storage_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '代理节点列表',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '点击节点可填充到上方表单；保存设置时会更新当前选中节点。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onAddProxyNode,
+              icon: const Icon(Icons.add),
+              label: const Text('添加当前'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (nodes.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Text(
+              '还没有保存的节点。可解析节点链接后自动加入，或填写表单后点“添加当前”。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          ...nodes.map((node) {
+            final selected = node.id == selectedNodeId;
+            final port = node.proxyPort?.toString() ?? '-';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: selected
+                    ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+                    : colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: selected
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant,
+                ),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+                leading: CircleAvatar(
+                  backgroundColor: selected
+                      ? colorScheme.primary
+                      : colorScheme.surfaceContainerHighest,
+                  foregroundColor: selected
+                      ? colorScheme.onPrimary
+                      : colorScheme.onSurfaceVariant,
+                  child: Text(
+                    BrowserProxyProtocol.label(
+                      node.proxyProtocol,
+                    ).substring(0, 1),
+                  ),
+                ),
+                title: Text(
+                  node.name.trim().isEmpty ? '未命名节点' : node.name.trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${BrowserProxyProtocol.label(node.proxyProtocol)} · ${node.proxyHost}:$port',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                selected: selected,
+                onTap: () => onSelectProxyNode(node.id),
+                trailing: IconButton(
+                  tooltip: '删除节点',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => onDeleteProxyNode(node.id),
+                ),
+              ),
+            );
+          }),
       ],
     );
   }
@@ -156,6 +300,7 @@ class ProxyConfigurationForm extends StatelessWidget {
     required this.proxyTransportPathController,
     required this.proxyTransportHostController,
     required this.proxyBypassDomainsController,
+    required this.onConfigurationChanged,
     required this.onProtocolChanged,
     required this.onTlsEnabledChanged,
     required this.onTransportTypeChanged,
@@ -182,6 +327,7 @@ class ProxyConfigurationForm extends StatelessWidget {
   final TextEditingController proxyTransportPathController;
   final TextEditingController proxyTransportHostController;
   final TextEditingController proxyBypassDomainsController;
+  final VoidCallback onConfigurationChanged;
   final ValueChanged<String> onProtocolChanged;
   final ValueChanged<bool> onTlsEnabledChanged;
   final ValueChanged<String> onTransportTypeChanged;
@@ -217,6 +363,7 @@ class ProxyConfigurationForm extends StatelessWidget {
       TextField(
         controller: proxyHostController,
         enabled: proxyEnabled,
+        onChanged: (_) => onConfigurationChanged(),
         decoration: InputDecoration(
           labelText: selectedProtocol == BrowserProxyProtocol.http
               ? 'HTTP 代理地址'
@@ -228,6 +375,7 @@ class ProxyConfigurationForm extends StatelessWidget {
       TextField(
         controller: proxyPortController,
         enabled: proxyEnabled,
+        onChanged: (_) => onConfigurationChanged(),
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: '服务器端口',
@@ -238,6 +386,7 @@ class ProxyConfigurationForm extends StatelessWidget {
       TextField(
         controller: localProxyPortController,
         enabled: proxyEnabled,
+        onChanged: (_) => onConfigurationChanged(),
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: '本地代理端口（HTTP + SOCKS5，留空随机）',
@@ -252,6 +401,7 @@ class ProxyConfigurationForm extends StatelessWidget {
         TextField(
           controller: proxyUuidController,
           enabled: proxyEnabled,
+          onChanged: (_) => onConfigurationChanged(),
           decoration: InputDecoration(
             labelText: selectedProtocol == BrowserProxyProtocol.http
                 ? '密码（可选）'
@@ -286,6 +436,7 @@ class ProxyConfigurationForm extends StatelessWidget {
           TextField(
             controller: proxyTransportPathController,
             enabled: proxyEnabled,
+            onChanged: (_) => onConfigurationChanged(),
             decoration: const InputDecoration(
               labelText: 'WebSocket 路径',
               hintText: '/path',
@@ -296,6 +447,7 @@ class ProxyConfigurationForm extends StatelessWidget {
           TextField(
             controller: proxyTransportHostController,
             enabled: proxyEnabled,
+            onChanged: (_) => onConfigurationChanged(),
             decoration: const InputDecoration(
               labelText: 'WebSocket Host 头（可选）',
               prefixIcon: Icon(Icons.http_outlined),
@@ -328,6 +480,7 @@ class ProxyConfigurationForm extends StatelessWidget {
           TextField(
             controller: proxyTransportHostController,
             enabled: proxyEnabled,
+            onChanged: (_) => onConfigurationChanged(),
             decoration: const InputDecoration(
               labelText: '混淆密码',
               prefixIcon: Icon(Icons.password_outlined),
@@ -370,6 +523,7 @@ class ProxyConfigurationForm extends StatelessWidget {
           TextField(
             controller: proxyServerNameController,
             enabled: proxyEnabled,
+            onChanged: (_) => onConfigurationChanged(),
             decoration: const InputDecoration(
               labelText: 'TLS 服务器名称（SNI，可选）',
               helperText: '与证书域名不一致时可手动填写',
@@ -399,6 +553,7 @@ class ProxyConfigurationForm extends StatelessWidget {
       TextField(
         controller: proxyBypassDomainsController,
         enabled: proxyEnabled,
+        onChanged: (_) => onConfigurationChanged(),
         maxLines: 3,
         decoration: const InputDecoration(
           labelText: '不走代理的域名',
