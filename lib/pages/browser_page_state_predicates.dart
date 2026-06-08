@@ -42,6 +42,41 @@ class BrowserPageStatePredicates {
     return videoPlayerCoordinator.shouldOpenNativeVideoFromUrl(url, settings);
   }
 
+  bool canShowYoutubeScrollPlayButton({
+    required String url,
+    required BrowserSettings settings,
+  }) {
+    if (!settings.canResolveYoutubeWithNativePlayer) {
+      return false;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return false;
+    }
+    final host = uri.host.toLowerCase();
+    return host == 'm.youtube.com' &&
+        uri.path == '/watch' &&
+        (uri.queryParameters['v']?.trim().isNotEmpty ?? false);
+  }
+
+  bool shouldRevealYoutubeScrollPlayButton({
+    required double previousY,
+    required double nextY,
+    required bool isEligible,
+    double threshold = 32,
+  }) {
+    return isEligible && nextY - previousY >= threshold;
+  }
+
+  bool shouldHideYoutubeScrollPlayButton({
+    required double previousY,
+    required double nextY,
+    required bool isEligible,
+    double threshold = 32,
+  }) {
+    return !isEligible || previousY - nextY >= threshold;
+  }
+
   bool shouldUseProxy({
     required BrowserSettings settings,
     required bool proxySupported,

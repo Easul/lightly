@@ -155,6 +155,8 @@ class BrowserPageBodySection extends StatelessWidget {
     required this.webViewChild,
     required this.freezeWebViewForOverlay,
     required this.statusMessage,
+    required this.youtubePlayButtonVisible,
+    required this.onYoutubePlayPressed,
   });
 
   final bool isFavoritesPage;
@@ -162,6 +164,8 @@ class BrowserPageBodySection extends StatelessWidget {
   final Widget webViewChild;
   final bool freezeWebViewForOverlay;
   final ValueListenable<String> statusMessage;
+  final bool youtubePlayButtonVisible;
+  final VoidCallback onYoutubePlayPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +180,14 @@ class BrowserPageBodySection extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ColoredBox(color: Theme.of(context).colorScheme.surface),
-              Offstage(offstage: freezeWebViewForOverlay, child: webViewChild),
+              IgnorePointer(
+                ignoring: freezeWebViewForOverlay,
+                child: webViewChild,
+              ),
+              BrowserYoutubePlayBubble(
+                visible: youtubePlayButtonVisible,
+                onPressed: onYoutubePlayPressed,
+              ),
             ],
           ),
         ),
@@ -190,6 +201,98 @@ class BrowserPageBodySection extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class BrowserYoutubePlayBubble extends StatelessWidget {
+  const BrowserYoutubePlayBubble({
+    super.key,
+    required this.visible,
+    required this.onPressed,
+  });
+
+  final bool visible;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Positioned(
+      right: 18,
+      bottom: 18,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, 0.45),
+          duration: const Duration(milliseconds: 420),
+          curve: visible ? Curves.elasticOut : Curves.easeInCubic,
+          child: AnimatedScale(
+            scale: visible ? 1 : 0.78,
+            duration: const Duration(milliseconds: 360),
+            curve: visible ? Curves.elasticOut : Curves.easeInCubic,
+            child: AnimatedOpacity(
+              opacity: visible ? 1 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Material(
+                color: Colors.transparent,
+                elevation: visible ? 10 : 0,
+                shadowColor: colorScheme.primary.withValues(alpha: 0.34),
+                borderRadius: BorderRadius.circular(999),
+                child: InkWell(
+                  onTap: onPressed,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [colorScheme.primary, colorScheme.tertiary],
+                      ),
+                      border: Border.all(
+                        color: colorScheme.onPrimary.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: colorScheme.onPrimary.withValues(
+                              alpha: 0.18,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            color: colorScheme.onPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '解析播放',
+                          style: TextStyle(
+                            color: colorScheme.onPrimary,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

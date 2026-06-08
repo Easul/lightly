@@ -1,5 +1,6 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/models/browser_tab_session.dart';
 import 'package:lightly/pages/browser_page_state_predicates.dart';
 
@@ -73,6 +74,92 @@ void main() {
         expect(
           predicates.shouldRebuildAfterAddressLoad(wasFavoritesPage: false),
           isFalse,
+        );
+      });
+    });
+
+    group('canShowYoutubeScrollPlayButton', () {
+      final enabledSettings = BrowserSettings.defaults().copyWith(
+        nativeVideoPlayerEnabled: true,
+      );
+      final parserDisabledSettings = enabledSettings.copyWith(
+        nativeVideoParserApiBaseUrl: '',
+      );
+
+      test('allows mobile youtube watch pages when parser is enabled', () {
+        expect(
+          predicates.canShowYoutubeScrollPlayButton(
+            url: 'https://m.youtube.com/watch?v=abc123',
+            settings: enabledSettings,
+          ),
+          isTrue,
+        );
+      });
+
+      test('rejects desktop youtube, non-watch, and disabled parser cases', () {
+        expect(
+          predicates.canShowYoutubeScrollPlayButton(
+            url: 'https://www.youtube.com/watch?v=abc123',
+            settings: enabledSettings,
+          ),
+          isFalse,
+        );
+        expect(
+          predicates.canShowYoutubeScrollPlayButton(
+            url: 'https://m.youtube.com/shorts/abc123',
+            settings: enabledSettings,
+          ),
+          isFalse,
+        );
+        expect(
+          predicates.canShowYoutubeScrollPlayButton(
+            url: 'https://m.youtube.com/watch?v=abc123',
+            settings: parserDisabledSettings,
+          ),
+          isFalse,
+        );
+      });
+    });
+
+    group('youtube scroll play button visibility', () {
+      test(
+        'reveals on upward page scroll and hides on downward page scroll',
+        () {
+          expect(
+            predicates.shouldRevealYoutubeScrollPlayButton(
+              previousY: 20,
+              nextY: 60,
+              isEligible: true,
+            ),
+            isTrue,
+          );
+          expect(
+            predicates.shouldHideYoutubeScrollPlayButton(
+              previousY: 60,
+              nextY: 20,
+              isEligible: true,
+            ),
+            isTrue,
+          );
+        },
+      );
+
+      test('hides when current page is not eligible', () {
+        expect(
+          predicates.shouldRevealYoutubeScrollPlayButton(
+            previousY: 20,
+            nextY: 80,
+            isEligible: false,
+          ),
+          isFalse,
+        );
+        expect(
+          predicates.shouldHideYoutubeScrollPlayButton(
+            previousY: 20,
+            nextY: 80,
+            isEligible: false,
+          ),
+          isTrue,
         );
       });
     });

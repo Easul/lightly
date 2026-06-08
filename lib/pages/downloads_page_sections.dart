@@ -36,6 +36,7 @@ class DownloadsList extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onInstall,
+    required this.onPlayVideo,
     required this.onDelete,
   });
 
@@ -44,6 +45,7 @@ class DownloadsList extends StatelessWidget {
   final ValueChanged<BrowserDownloadRecord> onPause;
   final ValueChanged<BrowserDownloadRecord> onResume;
   final ValueChanged<BrowserDownloadRecord> onInstall;
+  final ValueChanged<BrowserDownloadRecord> onPlayVideo;
   final ValueChanged<BrowserDownloadRecord> onDelete;
 
   @override
@@ -61,6 +63,7 @@ class DownloadsList extends StatelessWidget {
             onPause: onPause,
             onResume: onResume,
             onInstall: onInstall,
+            onPlayVideo: onPlayVideo,
             onDelete: onDelete,
           );
         },
@@ -76,6 +79,7 @@ class DownloadRecordCard extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onInstall,
+    required this.onPlayVideo,
     required this.onDelete,
   });
 
@@ -83,6 +87,7 @@ class DownloadRecordCard extends StatelessWidget {
   final ValueChanged<BrowserDownloadRecord> onPause;
   final ValueChanged<BrowserDownloadRecord> onResume;
   final ValueChanged<BrowserDownloadRecord> onInstall;
+  final ValueChanged<BrowserDownloadRecord> onPlayVideo;
   final ValueChanged<BrowserDownloadRecord> onDelete;
 
   bool get _canInstall =>
@@ -122,6 +127,12 @@ class DownloadRecordCard extends StatelessWidget {
                 onPressed: () => onInstall(record),
                 child: const Text('安装'),
               ),
+            if (isPlayableDownloadedVideo(record))
+              IconButton.filledTonal(
+                onPressed: () => onPlayVideo(record),
+                tooltip: '播放视频',
+                icon: const Icon(Icons.play_arrow_rounded),
+              ),
             TextButton(
               onPressed: () => onDelete(record),
               child: const Text('删除'),
@@ -132,6 +143,33 @@ class DownloadRecordCard extends StatelessWidget {
     );
   }
 }
+
+bool isPlayableDownloadedVideo(BrowserDownloadRecord record) {
+  if (record.status != 'completed') {
+    return false;
+  }
+  final savedPath = record.savedPath?.trim();
+  if (savedPath == null || savedPath.isEmpty) {
+    return false;
+  }
+  final name = record.fileName.toLowerCase();
+  final path = savedPath.toLowerCase();
+  return _videoExtensions.any(
+    (extension) => name.endsWith(extension) || path.endsWith(extension),
+  );
+}
+
+const List<String> _videoExtensions = [
+  '.mp4',
+  '.m4v',
+  '.mkv',
+  '.webm',
+  '.mov',
+  '.avi',
+  '.flv',
+  '.3gp',
+  '.ts',
+];
 
 class _DownloadRecordDetails extends StatelessWidget {
   const _DownloadRecordDetails({required this.record});

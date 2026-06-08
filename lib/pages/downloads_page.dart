@@ -12,6 +12,7 @@ import '../browser/services/browser_shared_services.dart';
 import '../services/app_toast.dart';
 import 'downloads_page_dialogs.dart';
 import 'downloads_page_sections.dart';
+import 'native_video_player_page.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -61,6 +62,23 @@ class _DownloadsPageState extends State<DownloadsPage> {
       }
       _showToast('安装失败，请稍后重试');
     }
+  }
+
+  Future<void> _playVideo(BrowserDownloadRecord record) async {
+    final savedPath = record.savedPath?.trim();
+    if (savedPath == null || savedPath.isEmpty) {
+      _showToast('视频文件路径不存在');
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return NativeVideoPlayerDialog(
+          videoUrl: Uri.file(savedPath).toString(),
+        );
+      },
+    );
   }
 
   Future<void> _deleteRecord(BrowserDownloadRecord record) async {
@@ -249,6 +267,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                 onPause: (record) => unawaited(_pauseDownload(record)),
                 onResume: (record) => unawaited(_resumeDownload(record)),
                 onInstall: (record) => unawaited(_installApk(record)),
+                onPlayVideo: (record) => unawaited(_playVideo(record)),
                 onDelete: (record) => unawaited(_deleteRecord(record)),
               );
             },

@@ -180,6 +180,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
   PullToRefreshController? _pullToRefreshController;
+  bool _youtubePlayButtonVisible = false;
+  double _lastYoutubeScrollY = 0;
   BrowserTabSession? get _activeTab => _tabCoordinator.activeTab;
   String? get _activeTabId => _tabCoordinator.activeTabId;
   List<BrowserTabSession> get _tabs => _tabCoordinator.tabs;
@@ -590,6 +592,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         findInteractionController: _findController.interactionController,
       ),
       statusMessage: _statusMessageNotifier,
+      youtubePlayButtonVisible: !isFavoritesPage && _youtubePlayButtonVisible,
+      onYoutubePlayPressed: () {
+        unawaited(_openCurrentYoutubeWithNativePlayer());
+      },
     );
   }
 
@@ -621,6 +627,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       });
     }
     _syncUrlForTabIfNeeded(hostedTabId, url?.toString());
+    _hideYoutubePlayButtonIfUrlIsIneligible(url?.toString());
   }
 
   Future<void> _handleWebViewLoadStop({
@@ -728,6 +735,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
     _updateScrollPositionForTabIfNeeded(hostedTabId, y.toDouble());
+    if (_isActiveTabId(hostedTabId)) {
+      _updateYoutubePlayButtonForScroll(y.toDouble());
+    }
   }
 
   void _handleWebViewTitleChanged({
@@ -1130,6 +1140,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!result.isActiveTab || nextUrl == null) {
       return;
     }
+    _hideYoutubePlayButtonIfUrlIsIneligible(nextUrl);
     if (result.didChangeUrl &&
         !_addressFocusNode.hasFocus &&
         _addressController.text != nextUrl) {
@@ -1166,6 +1177,66 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     double scrollPosition,
   ) {
     _tabCoordinator.updateScrollPositionForTabIfNeeded(tabId, scrollPosition);
+  }
+
+  bool _canShowYoutubeScrollPlayButton([String? url]) {
+    return _statePredicates.canShowYoutubeScrollPlayButton(
+      url: url ?? _currentUrl,
+      settings: _settings,
+    );
+  }
+
+  void _hideYoutubePlayButtonIfUrlIsIneligible(String? url) {
+    if (_canShowYoutubeScrollPlayButton(url)) {
+      return;
+    }
+    _lastYoutubeScrollY = 0;
+    if (!_youtubePlayButtonVisible || !mounted) {
+      return;
+    }
+    _setStateIfVisible(() {
+      _youtubePlayButtonVisible = false;
+    });
+  }
+
+  void _updateYoutubePlayButtonForScroll(double scrollY) {
+    final previousY = _lastYoutubeScrollY;
+    _lastYoutubeScrollY = scrollY;
+    final isEligible = _canShowYoutubeScrollPlayButton();
+    final shouldShow = _statePredicates.shouldRevealYoutubeScrollPlayButton(
+      previousY: previousY,
+      nextY: scrollY,
+      isEligible: isEligible,
+    );
+    final shouldHide = _statePredicates.shouldHideYoutubeScrollPlayButton(
+      previousY: previousY,
+      nextY: scrollY,
+      isEligible: isEligible,
+    );
+    final nextVisible = shouldShow
+        ? true
+        : shouldHide
+        ? false
+        : _youtubePlayButtonVisible;
+    if (nextVisible == _youtubePlayButtonVisible || !mounted) {
+      return;
+    }
+    _setStateIfVisible(() {
+      _youtubePlayButtonVisible = nextVisible;
+    });
+  }
+
+  Future<void> _openCurrentYoutubeWithNativePlayer() async {
+    if (!_canShowYoutubeScrollPlayButton()) {
+      _hideYoutubePlayButtonIfUrlIsIneligible(_currentUrl);
+      return;
+    }
+    if (mounted) {
+      _setStateIfVisible(() {
+        _youtubePlayButtonVisible = false;
+      });
+    }
+    await _handleExplicitYoutubeInput(_currentUrl);
   }
 
   Future<void> _refreshNavigationState([
