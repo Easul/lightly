@@ -397,11 +397,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         );
       },
       detachCurrentController: () {
-        final currentTabId = _activeTabId;
         _webViewController = null;
-        if (currentTabId != null) {
-          _updateTabById(currentTabId, hasAttachedWebView: false);
-        }
       },
       unfocusAddressBar: _addressFocusNode.unfocus,
       syncAddressBar: _syncAddressBarForCurrentTab,
