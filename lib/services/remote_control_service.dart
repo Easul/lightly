@@ -14,6 +14,7 @@ import 'remote_control_message_router.dart';
 import 'remote_control_protocol.dart';
 import 'remote_control_receiver_startup_coordinator.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
+import 'remote_control_screen_frame_sender.dart';
 import 'remote_control_screen_health_coordinator.dart';
 import 'remote_control_status_bridge.dart';
 import 'remote_control_voice_coordinator.dart';
@@ -88,6 +89,8 @@ class RemoteControlService {
       const RemoteControlReceiverStartupCoordinator();
   final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
       RemoteControlScreenFramePipelineCoordinator();
+  late final RemoteControlScreenFrameSender _screenFrameSender =
+      RemoteControlScreenFrameSender(log: _logMessage);
   final RemoteControlStatusBridge _statusBridge =
       const RemoteControlStatusBridge();
   final RemoteControlScreenHealthCoordinator _screenHealth =
@@ -275,33 +278,11 @@ class RemoteControlService {
   }
 
   void _sendScreenFrameOverTcp(ScreenFrame frame) {
-    try {
-      final header = ByteData(5);
-      header.setUint8(0, frame.type == ScreenFrameType.keyFrame ? 0x02 : 0x03);
-      header.setUint32(1, frame.data.length, Endian.big);
-      _receiverScreenSocket!.add([
-        ...header.buffer.asUint8List(),
-        ...frame.data,
-      ]);
-    } catch (e) {
-      developer.log('Failed to send screen frame: $e', name: 'RemoteControl');
-    }
+    _screenFrameSender.enqueueFrame(frame);
   }
 
   void _sendScreenConfigOverTcp(Uint8List sps, Uint8List pps) {
-    try {
-      final spsHeader = ByteData(5);
-      spsHeader.setUint8(0, 0x01);
-      spsHeader.setUint32(1, sps.length, Endian.big);
-      _receiverScreenSocket!.add([...spsHeader.buffer.asUint8List(), ...sps]);
-
-      final ppsHeader = ByteData(5);
-      ppsHeader.setUint8(0, 0x01);
-      ppsHeader.setUint32(1, pps.length, Endian.big);
-      _receiverScreenSocket!.add([...ppsHeader.buffer.asUint8List(), ...pps]);
-    } catch (e) {
-      developer.log('Failed to send screen config: $e', name: 'RemoteControl');
-    }
+    _screenFrameSender.sendConfig(sps, pps);
   }
 
   Future<RemoteControlPortConfig> startReceiver({
@@ -527,6 +508,7 @@ class RemoteControlService {
     );
     _receiverControlSocket = null;
     _receiverScreenSocket = null;
+    _screenFrameSender.reset();
     _controlServer = null;
     _screenServer = null;
   }
@@ -880,6 +862,7 @@ class RemoteControlService {
       name: 'RemoteControl',
     );
     _receiverScreenSocket = client;
+    _screenFrameSender.attach(client);
     _markReceiverSessionActive();
     developer.log(
       'Receiver screen socket ready: remote=${client.remoteAddress.address}:${client.remotePort} local=${client.address.address}:${client.port}',
@@ -1172,6 +1155,7 @@ class RemoteControlService {
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
+      _screenFrameSender.detach(socket);
     }
   }
 
@@ -1193,6 +1177,7 @@ class RemoteControlService {
     }
     if (activeReceiverSocket) {
       _receiverScreenSocket = null;
+      _screenFrameSender.detach(socket);
     }
   }
 
@@ -1258,6 +1243,7 @@ class RemoteControlService {
       _receiverControlSocket = null;
       _receiverScreenSocket?.destroy();
       _receiverScreenSocket = null;
+      _screenFrameSender.reset();
       _updateState(RemoteControlState.disconnected);
       _scheduleReceiverAutoShutdown();
     }
@@ -1328,6 +1314,7 @@ class RemoteControlService {
     _controllerScreenSocket = null;
     _receiverScreenSocket?.destroy();
     _receiverScreenSocket = null;
+    _screenFrameSender.reset();
     _controlServer?.close();
     _controlServer = null;
     _screenServer?.close();
