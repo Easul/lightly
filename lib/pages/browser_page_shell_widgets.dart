@@ -179,13 +179,7 @@ class BrowserPageBodySection extends StatelessWidget {
               ColoredBox(color: Theme.of(context).colorScheme.surface),
               IgnorePointer(
                 ignoring: freezeWebViewForOverlay,
-                child: TickerMode(
-                  enabled: !freezeWebViewForOverlay,
-                  child: Offstage(
-                    offstage: freezeWebViewForOverlay,
-                    child: webViewChild,
-                  ),
-                ),
+                child: webViewChild,
               ),
               BrowserYoutubePlayBubble(
                 visible: youtubePlayButtonVisible,

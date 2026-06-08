@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/pages/browser_page_shell_widgets.dart';
 
 void main() {
-  testWidgets('freezing WebView keeps child state mounted', (tester) async {
+  testWidgets('freezing WebView keeps child mounted and attached', (
+    tester,
+  ) async {
     var disposeCount = 0;
     final statusMessage = ValueNotifier<String>('');
 
@@ -31,11 +33,7 @@ void main() {
 
     await tester.pumpWidget(buildHost(frozen: true));
     expect(disposeCount, 0);
-    expect(
-      find.byKey(const ValueKey('webview-probe'), skipOffstage: false),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('webview-probe')), findsNothing);
+    expect(find.byKey(const ValueKey('webview-probe')), findsOneWidget);
 
     await tester.pumpWidget(buildHost(frozen: false));
     expect(disposeCount, 0);
