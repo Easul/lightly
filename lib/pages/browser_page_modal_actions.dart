@@ -52,7 +52,6 @@ Future<void> showBrowserMoreActionsModal({
   required VoidCallback onEnterFloatingWindowMode,
   required VoidCallback onExitApp,
   required VoidCallback? onOpenFavoritesMenu,
-  required VoidCallback onFindInPage,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -69,7 +68,6 @@ Future<void> showBrowserMoreActionsModal({
       onEnterFloatingWindowMode: onEnterFloatingWindowMode,
       onExitApp: onExitApp,
       onOpenFavoritesMenu: onOpenFavoritesMenu,
-      onFindInPage: onFindInPage,
     ),
   );
 }

@@ -33,7 +33,6 @@ class BrowserWebViewHost extends StatelessWidget {
     this.onEnterFullscreen,
     this.onExitFullscreen,
     this.pullToRefreshController,
-    this.findInteractionController,
   });
 
   final bool enabled;
@@ -94,7 +93,6 @@ class BrowserWebViewHost extends StatelessWidget {
   final void Function(InAppWebViewController controller)? onEnterFullscreen;
   final void Function(InAppWebViewController controller)? onExitFullscreen;
   final PullToRefreshController? pullToRefreshController;
-  final FindInteractionController? findInteractionController;
 
   static BrowserWebViewViewportPolicy viewportPolicyForUrl(String initialUrl) {
     final uri = Uri.tryParse(initialUrl);
@@ -193,7 +191,6 @@ class BrowserWebViewHost extends StatelessWidget {
               allowsBackForwardNavigationGestures: true,
               allowsInlineMediaPlayback: true,
               userAgent: viewportPolicy.userAgent,
-              isFindInteractionEnabled: true,
             ),
             onPermissionRequest: (controller, permissionRequest) async {
               return PermissionResponse(
@@ -237,7 +234,6 @@ class BrowserWebViewHost extends StatelessWidget {
               }
             },
             pullToRefreshController: pullToRefreshController,
-            findInteractionController: findInteractionController,
           ),
         ),
         ValueListenableBuilder<int>(

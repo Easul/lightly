@@ -103,7 +103,6 @@ class BrowserPageBottomBar extends StatelessWidget {
     required this.onHome,
     required this.onOpenTabs,
     required this.onOpenMoreActions,
-    required this.onFindInPage,
   });
 
   final ValueListenable<bool> canGoBack;
@@ -116,7 +115,6 @@ class BrowserPageBottomBar extends StatelessWidget {
   final VoidCallback onHome;
   final Future<void> Function() onOpenTabs;
   final Future<void> Function() onOpenMoreActions;
-  final Future<void> Function() onFindInPage;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +138,6 @@ class BrowserPageBottomBar extends StatelessWidget {
           onHome: onHome,
           onOpenTabs: onOpenTabs,
           onOpenMoreActions: onOpenMoreActions,
-          onFindInPage: onFindInPage,
         );
       },
     );
@@ -182,7 +179,13 @@ class BrowserPageBodySection extends StatelessWidget {
               ColoredBox(color: Theme.of(context).colorScheme.surface),
               IgnorePointer(
                 ignoring: freezeWebViewForOverlay,
-                child: webViewChild,
+                child: TickerMode(
+                  enabled: !freezeWebViewForOverlay,
+                  child: Offstage(
+                    offstage: freezeWebViewForOverlay,
+                    child: webViewChild,
+                  ),
+                ),
               ),
               BrowserYoutubePlayBubble(
                 visible: youtubePlayButtonVisible,

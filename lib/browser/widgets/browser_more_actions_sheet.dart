@@ -14,7 +14,6 @@ class BrowserMoreActionsSheet extends StatelessWidget {
     required this.onEnterFloatingWindowMode,
     required this.onExitApp,
     this.onOpenFavoritesMenu,
-    this.onFindInPage,
   });
 
   final bool proxyEnabled;
@@ -28,7 +27,6 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   final VoidCallback onEnterFloatingWindowMode;
   final VoidCallback onExitApp;
   final VoidCallback? onOpenFavoritesMenu;
-  final VoidCallback? onFindInPage;
 
   static const double _sheetMaxHeightFactor = 0.35;
 
@@ -90,14 +88,6 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onCloseTab();
-                  },
-                ),
-                _ActionItem(
-                  icon: Icons.find_in_page_rounded,
-                  label: '页面内查找',
-                  onTap: () {
-                    Navigator.pop(context);
-                    onFindInPage?.call();
                   },
                 ),
                 if (onOpenFavoritesMenu != null)

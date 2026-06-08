@@ -85,25 +85,6 @@ void main() {
       expect(harness.rebuildCount, 1);
     });
 
-    test('tracks deferred find-in-page request', () {
-      expect(
-        harness.manager.shouldShowFindInPageAfterMoreActionsCloses,
-        isFalse,
-      );
-
-      harness.manager.markShowFindInPageAfterMoreActionsCloses();
-      expect(
-        harness.manager.shouldShowFindInPageAfterMoreActionsCloses,
-        isTrue,
-      );
-
-      harness.manager.clearShowFindInPageAfterMoreActionsCloses();
-      expect(
-        harness.manager.shouldShowFindInPageAfterMoreActionsCloses,
-        isFalse,
-      );
-    });
-
     test(
       'does not call callbacks after dispose cancels settle timer',
       () async {

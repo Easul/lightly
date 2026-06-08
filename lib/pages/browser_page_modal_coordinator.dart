@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../browser/models/browser_tab_session.dart';
-import '../browser/services/browser_find_controller.dart';
-import '../browser/widgets/browser_find_in_page_sheet.dart';
 import '../browser/widgets/browser_favorites_menu_sheet.dart';
 import 'browser_page_modal_actions.dart';
 import 'browser_page_overlay_state_manager.dart';
@@ -32,7 +30,6 @@ typedef BrowserMoreActionsPresenter =
       required VoidCallback onEnterFloatingWindowMode,
       required VoidCallback onExitApp,
       required VoidCallback? onOpenFavoritesMenu,
-      required VoidCallback onFindInPage,
     });
 
 typedef BrowserFavoritesMenuPresenter =
@@ -42,24 +39,16 @@ typedef BrowserFavoritesMenuPresenter =
       required VoidCallback onToggleReorderMode,
     });
 
-typedef BrowserFindInPagePresenter =
-    Future<void> Function({
-      required BuildContext context,
-      required BrowserFindController findController,
-    });
-
 class BrowserPageModalCoordinator {
   const BrowserPageModalCoordinator({
     this.showTabSwitcherModal = showBrowserTabSwitcherModal,
     this.showMoreActionsModal = showBrowserMoreActionsModal,
     this.showFavoritesMenuSheet = showBrowserFavoritesMenuSheet,
-    this.showFindInPageSheet = showBrowserFindInPageSheet,
   });
 
   final BrowserTabSwitcherPresenter showTabSwitcherModal;
   final BrowserMoreActionsPresenter showMoreActionsModal;
   final BrowserFavoritesMenuPresenter showFavoritesMenuSheet;
-  final BrowserFindInPagePresenter showFindInPageSheet;
 
   Future<void> showTabSwitcher({
     required BrowserPageOverlayStateManager overlayStateManager,
@@ -101,7 +90,6 @@ class BrowserPageModalCoordinator {
     required VoidCallback onEnterFloatingWindowMode,
     required VoidCallback onExitApp,
     required VoidCallback? onOpenFavoritesMenu,
-    required VoidCallback onFindInPage,
   }) async {
     overlayStateManager.handleOverlayOpened();
     try {
@@ -118,7 +106,6 @@ class BrowserPageModalCoordinator {
         onEnterFloatingWindowMode: onEnterFloatingWindowMode,
         onExitApp: onExitApp,
         onOpenFavoritesMenu: onOpenFavoritesMenu,
-        onFindInPage: onFindInPage,
       );
     } finally {
       overlayStateManager.handleOverlayClosed();
@@ -137,22 +124,6 @@ class BrowserPageModalCoordinator {
         context: context,
         onAddFavorite: onAddFavorite,
         onToggleReorderMode: onToggleReorderMode,
-      );
-    } finally {
-      overlayStateManager.handleOverlayClosed();
-    }
-  }
-
-  Future<void> showFindInPage({
-    required BrowserPageOverlayStateManager overlayStateManager,
-    required BuildContext context,
-    required BrowserFindController findController,
-  }) async {
-    overlayStateManager.handleOverlayOpened(pauseWebView: false);
-    try {
-      await showFindInPageSheet(
-        context: context,
-        findController: findController,
       );
     } finally {
       overlayStateManager.handleOverlayClosed();

@@ -29,7 +29,6 @@ class BrowserPageOverlayStateManager {
   int _overlayDepth = 0;
   Timer? _overlaySettledTimer;
   bool _hasDeferredOverlayRebuild = false;
-  bool _showFindInPageAfterMoreActionsCloses = false;
   bool _disposed = false;
 
   bool get shouldSkipRebuild =>
@@ -39,25 +38,8 @@ class BrowserPageOverlayStateManager {
   bool get shouldFreezeWebView =>
       _overlayDepth > 0 || _overlaySettledTimer != null;
 
-  bool get shouldShowFindInPageAfterMoreActionsCloses =>
-      _showFindInPageAfterMoreActionsCloses;
-
   bool get shouldResumeControllerOnAttach =>
       _coordinator.shouldResumeControllerOnAttach(overlayDepth: _overlayDepth);
-
-  void markShowFindInPageAfterMoreActionsCloses() {
-    if (_disposed) {
-      return;
-    }
-    _showFindInPageAfterMoreActionsCloses = true;
-  }
-
-  void clearShowFindInPageAfterMoreActionsCloses() {
-    if (_disposed) {
-      return;
-    }
-    _showFindInPageAfterMoreActionsCloses = false;
-  }
 
   void handleAppResumed() {
     if (_disposed || !_isMounted()) {

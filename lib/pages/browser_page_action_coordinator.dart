@@ -3,13 +3,6 @@ import 'browser_page_route_handler.dart';
 class BrowserPageActionCoordinator {
   const BrowserPageActionCoordinator();
 
-  bool canShowFindInPage({
-    required bool isFindAvailable,
-    required bool isFavoritesPage,
-  }) {
-    return isFindAvailable && !isFavoritesPage;
-  }
-
   Future<void> applyDataManagementPlan({
     required BrowserPageDataManagementActionPlan plan,
     required Future<void> Function() reloadSettings,

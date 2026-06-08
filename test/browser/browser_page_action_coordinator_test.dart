@@ -6,33 +6,6 @@ void main() {
   group('BrowserPageActionCoordinator', () {
     const coordinator = BrowserPageActionCoordinator();
 
-    test(
-      'canShowFindInPage requires find availability and non-favorites page',
-      () {
-        expect(
-          coordinator.canShowFindInPage(
-            isFindAvailable: true,
-            isFavoritesPage: false,
-          ),
-          isTrue,
-        );
-        expect(
-          coordinator.canShowFindInPage(
-            isFindAvailable: false,
-            isFavoritesPage: false,
-          ),
-          isFalse,
-        );
-        expect(
-          coordinator.canShowFindInPage(
-            isFindAvailable: true,
-            isFavoritesPage: true,
-          ),
-          isFalse,
-        );
-      },
-    );
-
     test('applyDataManagementPlan executes enabled actions in order', () async {
       final calls = <String>[];
       await coordinator.applyDataManagementPlan(

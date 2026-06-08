@@ -15,7 +15,6 @@ import 'browser_external_url_launcher_service.dart';
 import 'browser_favorite_service.dart';
 import 'browser_favorites_coordinator.dart';
 import 'browser_favorite_status_tracker.dart';
-import 'browser_find_controller.dart';
 import 'browser_fullscreen_manager.dart';
 import 'browser_history_recorder.dart';
 import 'browser_history_service.dart';
@@ -53,7 +52,6 @@ class BrowserPageServices {
     required this.downloadCoordinator,
     required this.externalAppHandler,
     required this.favoriteStatusTracker,
-    required this.findController,
     required this.fullscreenManager,
     required this.historyRecorder,
     required this.longPressHandler,
@@ -96,7 +94,6 @@ class BrowserPageServices {
     final favoriteStatusTracker = BrowserFavoriteStatusTracker(
       favoriteService: favoriteService,
     );
-    final findController = BrowserFindController();
     final fullscreenManager = BrowserFullscreenManager();
     final videoDetectionCoordinator = BrowserVideoDetectionCoordinator(
       tracker: videoDetectionTracker,
@@ -161,7 +158,6 @@ class BrowserPageServices {
       downloadCoordinator: downloadCoordinator,
       externalAppHandler: externalAppHandler,
       favoriteStatusTracker: favoriteStatusTracker,
-      findController: findController,
       fullscreenManager: fullscreenManager,
       historyRecorder: historyRecorder,
       longPressHandler: longPressHandler,
@@ -192,7 +188,6 @@ class BrowserPageServices {
   final BrowserDownloadCoordinator downloadCoordinator;
   final BrowserExternalAppHandler externalAppHandler;
   final BrowserFavoriteStatusTracker favoriteStatusTracker;
-  final BrowserFindController findController;
   final BrowserFullscreenManager fullscreenManager;
   final BrowserHistoryRecorder historyRecorder;
   final BrowserLongPressHandler longPressHandler;
@@ -211,7 +206,6 @@ class BrowserPageServices {
   void dispose() {
     suggestionService.dispose();
     favoriteStatusTracker.dispose();
-    findController.dispose();
   }
 }
 

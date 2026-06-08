@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/models/browser_tab_session.dart';
-import 'package:lightly/browser/services/browser_find_controller.dart';
 import 'package:lightly/pages/browser_page_lifecycle_coordinator.dart';
 import 'package:lightly/pages/browser_page_modal_coordinator.dart';
 import 'package:lightly/pages/browser_page_overlay_state_manager.dart';
@@ -92,12 +91,10 @@ void main() {
               required onEnterFloatingWindowMode,
               required onExitApp,
               required onOpenFavoritesMenu,
-              required onFindInPage,
             }) async {
               expect(proxyEnabled, isTrue);
               expect(isFavorited, isFalse);
               onToggleFavorite?.call();
-              onFindInPage();
             },
       );
 
@@ -115,44 +112,12 @@ void main() {
         onEnterFloatingWindowMode: () {},
         onExitApp: () {},
         onOpenFavoritesMenu: null,
-        onFindInPage: () => calls.add('find'),
       );
 
-      expect(calls, <String>['favorite', 'find']);
+      expect(calls, <String>['favorite']);
       expect(harness.pauseCount, 1);
       expect(harness.lastTrimKeepAlives, isTrue);
       expect(harness.rebuildCount, 2);
-      await tester.pump(const Duration(milliseconds: 350));
-    });
-
-    testWidgets('showFindInPage tracks overlay without pausing WebView', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _Host(
-          onBuild: (buildContext) {
-            context = buildContext;
-          },
-        ),
-      );
-      var presenterCalled = false;
-      final coordinator = BrowserPageModalCoordinator(
-        showFindInPageSheet:
-            ({required context, required findController}) async {
-              presenterCalled = true;
-            },
-      );
-
-      await coordinator.showFindInPage(
-        overlayStateManager: harness.manager,
-        context: context,
-        findController: BrowserFindController(),
-      );
-
-      expect(presenterCalled, isTrue);
-      expect(harness.pauseCount, 0);
-      expect(harness.rebuildCount, 2);
-      expect(harness.manager.shouldFreezeWebView, isTrue);
       await tester.pump(const Duration(milliseconds: 350));
     });
 

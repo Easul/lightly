@@ -15,7 +15,6 @@ class BrowserBottomBar extends StatefulWidget {
     required this.onHome,
     required this.onOpenTabs,
     required this.onOpenMoreActions,
-    this.onFindInPage,
   });
 
   final bool canGoBack;
@@ -28,7 +27,6 @@ class BrowserBottomBar extends StatefulWidget {
   final VoidCallback onHome;
   final VoidCallback onOpenTabs;
   final VoidCallback onOpenMoreActions;
-  final VoidCallback? onFindInPage;
 
   @override
   State<BrowserBottomBar> createState() => _BrowserBottomBarState();

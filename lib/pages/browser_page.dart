@@ -19,7 +19,6 @@ import '../browser/services/browser_favorite_status_controller.dart';
 import '../browser/services/browser_favorite_service.dart';
 import '../browser/services/browser_favorite_status_tracker.dart';
 import '../browser/services/browser_favorites_coordinator.dart';
-import '../browser/services/browser_find_controller.dart';
 import '../browser/services/browser_fullscreen_manager.dart';
 import '../browser/services/browser_history_recorder.dart';
 import '../browser/services/browser_imported_document_service.dart';
@@ -135,7 +134,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _services.externalAppHandler;
   BrowserFavoriteStatusTracker get _favoriteStatusTracker =>
       _services.favoriteStatusTracker;
-  BrowserFindController get _findController => _services.findController;
   BrowserFullscreenManager get _fullscreenManager =>
       _services.fullscreenManager;
   BrowserHistoryRecorder get _historyRecorder => _services.historyRecorder;
@@ -243,7 +241,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           await _webViewController?.reload();
         },
       );
-      _findController.initialize();
     }
     _initialize();
     _setupExternalUrlListener();
@@ -477,7 +474,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _overlayStateManager.dispose();
     _favoriteStatusController.dispose();
     unawaited(_videoPlayerCoordinator.dispose());
-    _findController.dispose();
     _pullToRefreshController?.dispose();
     super.dispose();
   }
@@ -585,7 +581,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           );
         },
         pullToRefreshController: _pullToRefreshController,
-        findInteractionController: _findController.interactionController,
       ),
       statusMessage: _statusMessageNotifier,
       youtubePlayButtonVisible: !isFavoritesPage && _youtubePlayButtonVisible,
@@ -1891,18 +1886,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onOpenFavoritesMenu: _isFavoritesPage(_currentUrl)
           ? _showFavoritesMenu
           : null,
-      onFindInPage: () {
-        _overlayStateManager.markShowFindInPageAfterMoreActionsCloses();
-      },
     );
-
-    if (_overlayStateManager.shouldShowFindInPageAfterMoreActionsCloses) {
-      _overlayStateManager.clearShowFindInPageAfterMoreActionsCloses();
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      if (mounted) {
-        await _showFindInPage();
-      }
-    }
   }
 
   Future<void> _enterFloatingButtonMode() async {
@@ -1963,36 +1947,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _showFindInPage() async {
-    if (_isFavoritesPage(_currentUrl)) {
-      await _loadAddress(_settings.homepageUrl);
-      if (!mounted) {
-        return;
-      }
-      _rebuildWhenVisible();
-      if (!mounted) {
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      if (!mounted || _isFavoritesPage(_currentUrl)) {
-        return;
-      }
-    }
-
-    if (!_actionCoordinator.canShowFindInPage(
-      isFindAvailable: _findController.isAvailable,
-      isFavoritesPage: _isFavoritesPage(_currentUrl),
-    )) {
-      return;
-    }
-
-    await _modalCoordinator.showFindInPage(
-      overlayStateManager: _overlayStateManager,
-      context: context,
-      findController: _findController,
-    );
-  }
-
   void _showSnackBar(String message) {
     if (!mounted) {
       return;
@@ -2032,7 +1986,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         drawer: AppDrawer(onOpenSettings: _openSettings),
         onDrawerChanged: (isOpened) {
           if (isOpened) {
-            _handleOverlayOpened();
+            _handleOverlayOpened(trimKeepAlives: false);
           } else {
             _handleOverlayClosed();
           }
@@ -2079,7 +2033,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             onHome: _showFavoritesHome,
             onOpenTabs: _showTabSwitcher,
             onOpenMoreActions: _showMoreActions,
-            onFindInPage: _showFindInPage,
           ),
         ),
       ),
