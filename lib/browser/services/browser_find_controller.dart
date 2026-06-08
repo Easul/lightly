@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class BrowserFindController {
-  BrowserFindController();
+  BrowserFindController({FindInteractionController? interactionController})
+    : _interactionController = interactionController;
 
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   FindInteractionController? _interactionController;
-  InAppWebViewController? _webViewController;
   int _currentMatch = 0;
   int _matchCount = 0;
 
@@ -17,11 +17,10 @@ class BrowserFindController {
   int get currentMatch => _currentMatch;
   int get matchCount => _matchCount;
 
-  void attachWebViewController(InAppWebViewController controller) {
-    _webViewController = controller;
-  }
-
   void initialize() {
+    if (_interactionController != null) {
+      return;
+    }
     if (InAppWebViewPlatform.instance == null) {
       return;
     }
@@ -40,12 +39,6 @@ class BrowserFindController {
   }
 
   Future<void> clearMatches() async {
-    final controller = _webViewController;
-    if (controller != null) {
-      // ignore: deprecated_member_use
-      await controller.clearMatches();
-      return;
-    }
     await _interactionController?.clearMatches();
   }
 
@@ -61,23 +54,29 @@ class BrowserFindController {
       return;
     }
     resetResults();
-    final controller = _webViewController;
-    if (controller != null) {
-      // ignore: deprecated_member_use
-      await controller.findAllAsync(find: trimmed);
+    final interactionController = _interactionController;
+    if (interactionController == null) {
       return;
     }
-    await _interactionController?.findAll(find: trimmed);
+    await interactionController.findAll(find: trimmed);
+    await refreshActiveSession();
   }
 
   Future<void> findNext({required bool forward}) async {
-    final controller = _webViewController;
-    if (controller != null) {
-      // ignore: deprecated_member_use
-      await controller.findNext(forward: forward);
+    await _interactionController?.findNext(forward: forward);
+    await refreshActiveSession();
+  }
+
+  Future<void> refreshActiveSession() async {
+    final session = await _interactionController?.getActiveFindSession();
+    if (session == null) {
       return;
     }
-    await _interactionController?.findNext(forward: forward);
+    _currentMatch = session.highlightedResultIndex < 0
+        ? 0
+        : session.highlightedResultIndex;
+    _matchCount = session.resultCount;
+    revision.value++;
   }
 
   void dispose() {

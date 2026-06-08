@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:lightly/browser/services/browser_find_controller.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() {
   group('BrowserFindController', () {
@@ -54,33 +54,39 @@ void main() {
       expect(controller.revision.value, before + 1);
     });
 
-    test('uses attached WebView controller for find operations', () async {
-      final webViewController = _FakeWebViewController();
-      controller.attachWebViewController(webViewController);
+    test('uses find interaction controller for search operations', () async {
+      final interactionController = _FakeFindInteractionController();
+      controller.dispose();
+      controller = BrowserFindController(
+        interactionController: interactionController,
+      );
 
       await controller.findAll(' keyword ');
       await controller.findNext(forward: false);
       await controller.clearMatches();
 
-      expect(webViewController.lastFindText, 'keyword');
-      expect(webViewController.lastFindForward, isFalse);
-      expect(webViewController.clearMatchCalls, 1);
+      expect(interactionController.lastFindText, 'keyword');
+      expect(interactionController.lastFindForward, isFalse);
+      expect(interactionController.clearMatchCalls, 1);
+      expect(controller.currentMatch, 1);
+      expect(controller.matchCount, 3);
     });
   });
 }
 
-class _FakeWebViewController extends Fake implements InAppWebViewController {
+class _FakeFindInteractionController extends Fake
+    implements FindInteractionController {
   String? lastFindText;
   bool? lastFindForward;
   int clearMatchCalls = 0;
 
   @override
-  Future<void> findAllAsync({required String find}) async {
+  Future<void> findAll({String? find}) async {
     lastFindText = find;
   }
 
   @override
-  Future<void> findNext({required bool forward}) async {
+  Future<void> findNext({bool forward = true}) async {
     lastFindForward = forward;
   }
 
@@ -88,4 +94,16 @@ class _FakeWebViewController extends Fake implements InAppWebViewController {
   Future<void> clearMatches() async {
     clearMatchCalls++;
   }
+
+  @override
+  Future<FindSession?> getActiveFindSession() async {
+    return FindSession(
+      highlightedResultIndex: 1,
+      resultCount: 3,
+      searchResultDisplayStyle: SearchResultDisplayStyle.CURRENT_AND_TOTAL,
+    );
+  }
+
+  @override
+  void dispose({bool isKeepAlive = false}) {}
 }

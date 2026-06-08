@@ -19,6 +19,8 @@ Future<void> showBrowserFindInPageSheet({
       return;
     }
     await findController.findAll(keyword);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await findController.refreshActiveSession();
   }
 
   await showModalBottomSheet<void>(
@@ -94,6 +96,7 @@ Future<void> showBrowserFindInPageSheet({
                         onPressed: hasMatches
                             ? () async {
                                 await findController.findNext(forward: false);
+                                await findController.refreshActiveSession();
                               }
                             : null,
                       ),
@@ -102,6 +105,7 @@ Future<void> showBrowserFindInPageSheet({
                         onPressed: hasMatches
                             ? () async {
                                 await findController.findNext(forward: true);
+                                await findController.refreshActiveSession();
                               }
                             : null,
                       ),

@@ -6,13 +6,18 @@ import 'package:open_filex/open_filex.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_download_record.dart';
 import '../browser/proxy_service.dart';
+import '../browser/services/browser_download_coordinator.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_shared_services.dart';
+import '../browser/services/browser_video_detection_tracker.dart';
+import '../browser/services/browser_video_player_coordinator.dart';
+import '../browser/services/browser_video_playback_preparation_service.dart';
+import '../browser/services/external_api_video_source_resolver.dart';
+import '../browser/services/video_proxy_server.dart';
 import '../services/app_toast.dart';
 import 'downloads_page_dialogs.dart';
 import 'downloads_page_sections.dart';
-import 'native_video_player_page.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -29,6 +34,49 @@ class _DownloadsPageState extends State<DownloadsPage> {
   BrowserSettingsService get _settingsService =>
       _sharedServices.settingsService;
   ProxyService get _proxyService => _sharedServices.proxyService;
+  late final BrowserVideoDetectionTracker _videoDetectionTracker;
+  late final VideoProxyServer _videoProxyServer;
+  late final BrowserDownloadCoordinator _downloadCoordinator;
+  late final BrowserVideoPlayerCoordinator _videoPlayerCoordinator;
+
+  @override
+  void initState() {
+    super.initState();
+    _videoDetectionTracker = BrowserVideoDetectionTracker();
+    _videoProxyServer = VideoProxyServer();
+    _downloadCoordinator = BrowserDownloadCoordinator(
+      downloadService: _downloadService,
+      downloadStore: _downloadStore,
+      proxyService: _proxyService,
+    );
+    final playbackPreparationService = BrowserVideoPlaybackPreparationService(
+      loadSettings: _settingsService.loadSettings,
+      resolveVideoSource: (url, settings) {
+        final resolver = ExternalApiVideoSourceResolver(
+          apiBaseUrl: settings.normalizedNativeVideoParserApiBaseUrl,
+          proxyService: _proxyService,
+          settings: settings,
+        );
+        return resolver.resolve(url);
+      },
+      ensureProxyServer: (settings) {
+        return _videoProxyServer.start(
+          proxyService: _proxyService,
+          settings: settings,
+        );
+      },
+      buildProxyPlaybackUrl: _videoProxyServer.buildProxyUrl,
+      redactDownloadUrl: BrowserDownloadCoordinator.redactDownloadUrl,
+    );
+    _videoPlayerCoordinator = BrowserVideoPlayerCoordinator(
+      playbackPreparationService: playbackPreparationService,
+      downloadCoordinator: _downloadCoordinator,
+      videoDetectionTracker: _videoDetectionTracker,
+      stopProxyServer: _videoProxyServer.stop,
+      onShowSnackBar: _showToast,
+      onDebugLog: (_) {},
+    );
+  }
 
   void _showToast(String message) {
     unawaited(AppToast.show(message));
@@ -71,16 +119,22 @@ class _DownloadsPageState extends State<DownloadsPage> {
       return;
     }
 
-    await showDialog<void>(
+    final settings = await _settingsService.loadSettings();
+    if (!mounted) {
+      return;
+    }
+    await _videoPlayerCoordinator.showFloatingVideoPlayer(
       context: context,
-      builder: (dialogContext) {
-        return NativeVideoPlayerDialog(
-          videoUrl: Uri.file(savedPath).toString(),
-          resolveYouTube: false,
-          showDownloadAction: false,
-        );
-      },
+      url: Uri.file(savedPath).toString(),
+      settings: settings,
+      currentPageTitle: '视频播放',
     );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_videoPlayerCoordinator.dispose());
+    super.dispose();
   }
 
   Future<void> _deleteRecord(BrowserDownloadRecord record) async {
