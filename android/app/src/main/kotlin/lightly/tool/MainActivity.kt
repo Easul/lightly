@@ -616,6 +616,7 @@ class MainActivity : FlutterActivity() {
 
                         if (!useAndroidVpn) {
                             Log.d("EasyTier", "Starting EasyTier without Android VpnService")
+                            stopEasyTierVpnService()
                             startVpnWithConfig(config, instanceName, result, useAndroidVpn = false)
                             return@setMethodCallHandler
                         }
@@ -645,10 +646,7 @@ class MainActivity : FlutterActivity() {
                     "stopVpn" -> {
                         try {
                             stopEasyTierMonitor()
-                            val intent = Intent(this, EasyTierVpnService::class.java).apply {
-                                action = EasyTierVpnService.ACTION_STOP
-                            }
-                            startService(intent)
+                            stopEasyTierVpnService()
                             EasyTierJNI.stopAllInstances()
                             EasyTierStateStore.clear()
                             easyTierRunningConfig = null
@@ -1034,10 +1032,10 @@ class MainActivity : FlutterActivity() {
             val res = EasyTierJNI.runNetworkInstance(config)
             if (res == 0) {
                 easyTierRunningConfig = config
-                easyTierUseAndroidVpn = useAndroidVpn
                 startEasyTierMonitor(instanceName)
+                easyTierUseAndroidVpn = useAndroidVpn
                 EasyTierStateStore.markStarted(instanceName)
-                Log.d("EasyTier", "VPN started successfully")
+                Log.d("EasyTier", "EasyTier instance started successfully useAndroidVpn=$useAndroidVpn")
                 result.success(true)
             } else {
                 val error = EasyTierJNI.getLastError()
@@ -1270,6 +1268,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun restartEasyTierVpnService(instanceName: String, ipv4: String) {
+        if (!easyTierUseAndroidVpn) {
+            Log.w("EasyTier", "Ignoring EasyTierVpnService start request while no-tun mode is active")
+            return
+        }
+
         val stopIntent = Intent(this, EasyTierVpnService::class.java)
         stopService(stopIntent)
 
@@ -1280,6 +1283,14 @@ class MainActivity : FlutterActivity() {
 
         startService(startIntent)
         Log.i("EasyTier", "Started EasyTierVpnService with IPv4=$ipv4 routes=virtual-subnet-only")
+    }
+
+    private fun stopEasyTierVpnService() {
+        val intent = Intent(this, EasyTierVpnService::class.java).apply {
+            action = EasyTierVpnService.ACTION_STOP
+        }
+        startService(intent)
+        stopService(Intent(this, EasyTierVpnService::class.java))
     }
 
     override fun onRequestPermissionsResult(
