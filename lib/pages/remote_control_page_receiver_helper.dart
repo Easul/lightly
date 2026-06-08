@@ -18,11 +18,19 @@ class RemoteControlPageReceiverHelper {
   Future<RemoteControlPortConfig> startReceiverFlow({
     required MethodChannel channel,
     required RemoteControlService service,
-    required Future<bool> Function() ensureVpnForRemoteControl,
+    required Future<bool> Function({bool noTunMode}) ensureVpnForRemoteControl,
+    required bool useNoTunMode,
   }) async {
-    final config = await RemoteControlConfig.defaultConfig();
+    final defaultConfig = await RemoteControlConfig.defaultConfig();
+    final config = RemoteControlConfig(
+      ports: defaultConfig.ports,
+      enableScreen: defaultConfig.enableScreen,
+      enableVoice: !useNoTunMode,
+      screenFps: defaultConfig.screenFps,
+      screenBitrate: defaultConfig.screenBitrate,
+    );
 
-    final vpnStarted = await ensureVpnForRemoteControl();
+    final vpnStarted = await ensureVpnForRemoteControl(noTunMode: useNoTunMode);
     if (!vpnStarted) {
       throw const RemoteControlPageReceiverStartException(
         '请先在设置中配置并选择一个 P2P 网络配置',

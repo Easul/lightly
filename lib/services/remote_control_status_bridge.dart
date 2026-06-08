@@ -51,6 +51,17 @@ class RemoteControlStatusBridge {
     );
   }
 
+  Future<void> sendVoiceCapabilityStatus({
+    required Socket? receiverControlSocket,
+    required bool enabled,
+  }) async {
+    if (receiverControlSocket == null) return;
+    final status = StatusMessage.voiceCapability(enabled: enabled);
+    receiverControlSocket.add(
+      utf8.encode('${RemoteControlCodec.encode(status)}\n'),
+    );
+  }
+
   Future<void> sendHeartbeat({required Socket? controllerControlSocket}) async {
     if (controllerControlSocket == null) return;
     final message = HeartbeatMessage.now();
@@ -94,6 +105,7 @@ class RemoteControlStatusBridge {
     required void Function(Map<String, dynamic>) onScreenInfo,
     required void Function() markConnectionReady,
     required void Function(RemoteControlPortConfig) onPortConfig,
+    required void Function(bool enabled) onVoiceCapability,
   }) {
     if (message is! StatusMessage) {
       return;
@@ -110,6 +122,11 @@ class RemoteControlStatusBridge {
       if (ports != null) {
         onPortConfig(ports);
       }
+      return;
+    }
+
+    if (message.action == 'voice_capability') {
+      onVoiceCapability(message.data['enabled'] == true);
     }
   }
 }

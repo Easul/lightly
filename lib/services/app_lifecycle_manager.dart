@@ -73,11 +73,24 @@ class AppLifecycleManager extends WidgetsBindingObserver {
   }
 
   /// 远程控制被控端启动时检查并启动 VPN
-  Future<bool> ensureVpnForRemoteControl() async {
+  Future<bool> ensureVpnForRemoteControl({bool noTunMode = false}) async {
+    if (noTunMode) {
+      if (_easyTierService.isRunning) {
+        await _easyTierService.stopVpn();
+      }
+      return _startSelectedEasyTierProfile(useAndroidVpn: false);
+    }
+
     if (_easyTierService.isRunning) {
       return true;
     }
 
+    return _startSelectedEasyTierProfile(useAndroidVpn: true);
+  }
+
+  Future<bool> _startSelectedEasyTierProfile({
+    required bool useAndroidVpn,
+  }) async {
     try {
       final selectedId = await _profileService.getSelectedProfileId();
       final profiles = await _profileService.loadProfiles();
@@ -96,7 +109,10 @@ class AppLifecycleManager extends WidgetsBindingObserver {
         return false;
       }
 
-      return await _easyTierService.startVpn(targetProfile.config);
+      if (useAndroidVpn) {
+        return await _easyTierService.startVpn(targetProfile.config);
+      }
+      return await _easyTierService.startNoTun(targetProfile.config);
     } catch (e) {
       return false;
     }

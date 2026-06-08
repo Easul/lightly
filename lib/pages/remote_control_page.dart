@@ -53,6 +53,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   BrowserSettings? _settings;
   bool _isProxyRunning = false;
   bool _isReceiverRunning = false;
+  bool _useReceiverNoTunMode = false;
   Timer? _peerRefreshTimer;
   bool _hadConnectedSession = false;
   bool _disconnectDialogVisible = false;
@@ -221,6 +222,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         service: _service,
         ensureVpnForRemoteControl:
             AppLifecycleManager().ensureVpnForRemoteControl,
+        useNoTunMode: _useReceiverNoTunMode,
       );
 
       if (!mounted) return;
@@ -289,6 +291,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       if (mounted) {
         _showToast('请先等待主控端连接后再切换麦克风');
       }
+      return;
+    }
+    if (!_service.isVoiceEnabled) {
+      _showToast('非 VPN 模式会禁用若轻实时通话');
       return;
     }
 
@@ -484,6 +490,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       state: _service.state,
       isConnecting: _isConnecting,
       isReceiverRunning: _isReceiverRunning,
+      useNoTunMode: _useReceiverNoTunMode,
+      onUseNoTunModeChanged: (value) {
+        setState(() => _useReceiverNoTunMode = value);
+      },
       onToggleReceiverMic: _toggleReceiverMic,
       onToggleReceiver: _toggleReceiver,
     );

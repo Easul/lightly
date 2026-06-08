@@ -64,6 +64,8 @@ class RemoteControlReceiverSection extends StatelessWidget {
   final RemoteControlState state;
   final bool isConnecting;
   final bool isReceiverRunning;
+  final bool useNoTunMode;
+  final ValueChanged<bool> onUseNoTunModeChanged;
   final VoidCallback onToggleReceiverMic;
   final VoidCallback onToggleReceiver;
 
@@ -74,6 +76,8 @@ class RemoteControlReceiverSection extends StatelessWidget {
     required this.state,
     required this.isConnecting,
     required this.isReceiverRunning,
+    required this.useNoTunMode,
+    required this.onUseNoTunModeChanged,
     required this.onToggleReceiverMic,
     required this.onToggleReceiver,
   });
@@ -102,6 +106,50 @@ class RemoteControlReceiverSection extends StatelessWidget {
               ),
               const SizedBox(height: 16),
             ],
+            Card(
+              margin: EdgeInsets.zero,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.vpn_lock_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '使用非 VPN 模式',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        Switch(
+                          value: useNoTunMode,
+                          onChanged: isReceiverRunning
+                              ? null
+                              : onUseNoTunModeChanged,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      useNoTunMode
+                          ? '将使用 EasyTier no-tun 运行，不建立 Android VPN；该模式会禁止若轻实时通话。'
+                          : '默认使用 EasyTier VPN 组网，可启用若轻实时通话。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -121,12 +169,16 @@ class RemoteControlReceiverSection extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isReceiverAudioEnabled ? '麦克风已开启' : '麦克风默认关闭',
+                          useNoTunMode
+                              ? '实时通话不可用'
+                              : (isReceiverAudioEnabled ? '麦克风已开启' : '麦克风默认关闭'),
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          state == RemoteControlState.connected
+                          useNoTunMode
+                              ? '非 VPN 模式会禁用本地与远端开麦'
+                              : state == RemoteControlState.connected
                               ? (isReceiverAudioEnabled
                                     ? '主控端当前可以听到被控端声音'
                                     : '主控端当前听不到被控端声音')
@@ -141,7 +193,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   FilledButton.tonalIcon(
-                    onPressed: onToggleReceiverMic,
+                    onPressed: useNoTunMode ? null : onToggleReceiverMic,
                     icon: Icon(
                       isReceiverAudioEnabled ? Icons.mic_off : Icons.mic,
                     ),

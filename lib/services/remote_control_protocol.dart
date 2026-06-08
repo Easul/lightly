@@ -398,6 +398,15 @@ class StatusMessage extends ControlMessage {
     );
   }
 
+  factory StatusMessage.voiceCapability({required bool enabled}) {
+    return StatusMessage(
+      action: 'voice_capability',
+      data: {'enabled': enabled},
+      id: DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   factory StatusMessage.overlayText({required String text}) {
     return StatusMessage(
       action: 'overlay_text',

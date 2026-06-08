@@ -64,6 +64,20 @@ class EasyTierService {
   }
 
   Future<bool> startVpn(EasyTierConfig config) async {
+    return _startInstance(config, useAndroidVpn: true);
+  }
+
+  Future<bool> startNoTun(EasyTierConfig config) async {
+    return _startInstance(
+      config.copyWith(noTun: true, enableKcpProxy: true, enableQuicProxy: true),
+      useAndroidVpn: false,
+    );
+  }
+
+  Future<bool> _startInstance(
+    EasyTierConfig config, {
+    required bool useAndroidVpn,
+  }) async {
     try {
       final configString = config.toToml();
       _configString = configString;
@@ -75,6 +89,7 @@ class EasyTierService {
       final result = await _channel.invokeMethod<bool>('startVpn', {
         'config': configString,
         'instanceName': config.instanceName,
+        'useAndroidVpn': useAndroidVpn,
       });
 
       if (result == true) {

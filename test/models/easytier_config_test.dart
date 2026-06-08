@@ -36,5 +36,26 @@ void main() {
       expect(restored.peerRemarks, config.peerRemarks);
       expect(restored.activePeerIndex, 0);
     });
+
+    test('toToml emits no-tun and proxy acceleration flags', () {
+      final config = EasyTierConfig(
+        instanceName: 'vpn',
+        networkName: 'network',
+        noTun: true,
+        enableKcpProxy: true,
+        enableQuicProxy: true,
+        portForwards: const <String>['tcp://0.0.0.0:18080/10.126.126.1:18080'],
+      );
+
+      final toml = config.toToml();
+
+      expect(toml, contains('no_tun = true'));
+      expect(toml, contains('enable_kcp_proxy = true'));
+      expect(toml, contains('enable_quic_proxy = true'));
+      expect(
+        toml,
+        contains('port_forward = ["tcp://0.0.0.0:18080/10.126.126.1:18080"]'),
+      );
+    });
   });
 }

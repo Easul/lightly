@@ -142,7 +142,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
 
   Future<void> _toggleAudio() async {
     if (!_isVoiceEnabled) {
-      _showToast('内置代理连接暂不支持语音');
+      _showToast('当前连接模式不支持若轻实时通话');
       return;
     }
     if (_isAudioEnabled) {
@@ -428,6 +428,20 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
         _remoteCaptureSize = nextCaptureSize;
       });
       unawaited(_requestKeyFrame());
+      return;
+    }
+    if (message is protocol.StatusMessage &&
+        message.action == 'voice_capability') {
+      final enabled = message.data['enabled'] == true;
+      if (mounted && _isVoiceEnabled != enabled) {
+        setState(() {
+          _isVoiceEnabled = enabled;
+          if (!enabled) {
+            _isAudioEnabled = false;
+            _isRemoteMicEnabled = false;
+          }
+        });
+      }
       return;
     }
     if (message is protocol.StatusMessage &&

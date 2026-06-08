@@ -48,6 +48,7 @@ class MainActivity : FlutterActivity() {
     private var easyTierMissingInfoTicks = 0
     private var easyTierNotRunningTicks = 0
     private var easyTierRestartInProgress = false
+    private var easyTierUseAndroidVpn = true
     private var remoteControlService: RemoteControlService? = null
 
     private var initialIntentUrl: String? = null
@@ -604,11 +605,18 @@ class MainActivity : FlutterActivity() {
                     "startVpn" -> {
                         val config = call.argument<String>("config")
                         val instanceName = call.argument<String>("instanceName")
+                        val useAndroidVpn = call.argument<Boolean>("useAndroidVpn") ?: true
                         Log.d("EasyTier", "startVpn called with config length: ${config?.length ?: 0}")
                         
                         if (config.isNullOrBlank() || instanceName.isNullOrBlank()) {
                             Log.e("EasyTier", "Config is null or blank")
                             result.error("INVALID_CONFIG", "Config and instanceName are required", null)
+                            return@setMethodCallHandler
+                        }
+
+                        if (!useAndroidVpn) {
+                            Log.d("EasyTier", "Starting EasyTier without Android VpnService")
+                            startVpnWithConfig(config, instanceName, result, useAndroidVpn = false)
                             return@setMethodCallHandler
                         }
                         
@@ -625,7 +633,7 @@ class MainActivity : FlutterActivity() {
                         }
 
                         Log.d("EasyTier", "VPN permission already granted, starting VPN directly")
-                        startVpnWithConfig(config, instanceName, result)
+                        startVpnWithConfig(config, instanceName, result, useAndroidVpn = true)
                     }
                     
                     "checkVpnPermission" -> {
@@ -644,6 +652,7 @@ class MainActivity : FlutterActivity() {
                             EasyTierJNI.stopAllInstances()
                             EasyTierStateStore.clear()
                             easyTierRunningConfig = null
+                            easyTierUseAndroidVpn = true
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("EXCEPTION", e.message, null)
@@ -965,7 +974,7 @@ class MainActivity : FlutterActivity() {
 
         if (resultCode == RESULT_OK && config != null && instanceName != null) {
             Log.d("EasyTier", "VPN permission granted by user, starting VPN")
-            startVpnWithConfig(config, instanceName, pendingResult)
+            startVpnWithConfig(config, instanceName, pendingResult, useAndroidVpn = true)
         } else {
             Log.e("EasyTier", "VPN permission denied by user, resultCode: $resultCode")
             pendingResult.error("VPN_PERMISSION_DENIED", "User denied VPN permission", null)
@@ -1014,12 +1023,18 @@ class MainActivity : FlutterActivity() {
         pendingDecoderPps = null
     }
 
-    private fun startVpnWithConfig(config: String, instanceName: String, result: MethodChannel.Result) {
+    private fun startVpnWithConfig(
+        config: String,
+        instanceName: String,
+        result: MethodChannel.Result,
+        useAndroidVpn: Boolean = true,
+    ) {
         try {
             Log.d("EasyTier", "Starting EasyTier instance with config")
             val res = EasyTierJNI.runNetworkInstance(config)
             if (res == 0) {
                 easyTierRunningConfig = config
+                easyTierUseAndroidVpn = useAndroidVpn
                 startEasyTierMonitor(instanceName)
                 EasyTierStateStore.markStarted(instanceName)
                 Log.d("EasyTier", "VPN started successfully")
@@ -1066,6 +1081,7 @@ class MainActivity : FlutterActivity() {
         easyTierMissingInfoTicks = 0
         easyTierNotRunningTicks = 0
         easyTierRestartInProgress = false
+        easyTierUseAndroidVpn = true
         EasyTierStateStore.clear()
     }
 
@@ -1126,7 +1142,11 @@ class MainActivity : FlutterActivity() {
 
             if (virtualIpv4 != easyTierCurrentIpv4) {
                 easyTierCurrentIpv4 = virtualIpv4
-                restartEasyTierVpnService(instanceName, virtualIpv4)
+                if (easyTierUseAndroidVpn) {
+                    restartEasyTierVpnService(instanceName, virtualIpv4)
+                } else {
+                    Log.i("EasyTier", "EasyTier no-tun mode active; skipping Android VpnService route for IPv4=$virtualIpv4")
+                }
             }
         } catch (e: Exception) {
             Log.e("EasyTier", "Failed to parse network info JSON", e)

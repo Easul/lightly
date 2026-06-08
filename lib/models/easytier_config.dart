@@ -11,6 +11,10 @@ class EasyTierConfig {
   final int? socks5Port;
   final bool enableP2p;
   final String? hostname;
+  final bool noTun;
+  final bool enableKcpProxy;
+  final bool enableQuicProxy;
+  final List<String> portForwards;
 
   EasyTierConfig({
     required this.instanceName,
@@ -25,7 +29,49 @@ class EasyTierConfig {
     this.socks5Port,
     this.enableP2p = true,
     this.hostname,
+    this.noTun = false,
+    this.enableKcpProxy = false,
+    this.enableQuicProxy = false,
+    this.portForwards = const [],
   });
+
+  EasyTierConfig copyWith({
+    String? instanceName,
+    String? networkName,
+    String? networkSecret,
+    String? ipv4,
+    bool? dhcp,
+    List<String>? peers,
+    List<String>? peerRemarks,
+    int? activePeerIndex,
+    List<String>? listeners,
+    int? socks5Port,
+    bool? enableP2p,
+    String? hostname,
+    bool? noTun,
+    bool? enableKcpProxy,
+    bool? enableQuicProxy,
+    List<String>? portForwards,
+  }) {
+    return EasyTierConfig(
+      instanceName: instanceName ?? this.instanceName,
+      networkName: networkName ?? this.networkName,
+      networkSecret: networkSecret ?? this.networkSecret,
+      ipv4: ipv4 ?? this.ipv4,
+      dhcp: dhcp ?? this.dhcp,
+      peers: peers ?? this.peers,
+      peerRemarks: peerRemarks ?? this.peerRemarks,
+      activePeerIndex: activePeerIndex ?? this.activePeerIndex,
+      listeners: listeners ?? this.listeners,
+      socks5Port: socks5Port ?? this.socks5Port,
+      enableP2p: enableP2p ?? this.enableP2p,
+      hostname: hostname ?? this.hostname,
+      noTun: noTun ?? this.noTun,
+      enableKcpProxy: enableKcpProxy ?? this.enableKcpProxy,
+      enableQuicProxy: enableQuicProxy ?? this.enableQuicProxy,
+      portForwards: portForwards ?? this.portForwards,
+    );
+  }
 
   String toToml() {
     final buffer = StringBuffer();
@@ -62,6 +108,14 @@ class EasyTierConfig {
       buffer.writeln('socks5_proxy = "socks5://127.0.0.1:$socks5Port"');
     }
 
+    if (portForwards.isNotEmpty) {
+      buffer.writeln('');
+      final encodedPortForwards = portForwards
+          .map((forward) => '"$forward"')
+          .join(', ');
+      buffer.writeln('port_forward = [$encodedPortForwards]');
+    }
+
     buffer.writeln('');
     buffer.writeln('[network_identity]');
     buffer.writeln('network_name = "$networkName"');
@@ -74,6 +128,15 @@ class EasyTierConfig {
     buffer.writeln('');
     buffer.writeln('[flags]');
     buffer.writeln('disable_p2p = ${!enableP2p}');
+    if (noTun) {
+      buffer.writeln('no_tun = true');
+    }
+    if (enableKcpProxy) {
+      buffer.writeln('enable_kcp_proxy = true');
+    }
+    if (enableQuicProxy) {
+      buffer.writeln('enable_quic_proxy = true');
+    }
 
     return buffer.toString();
   }
@@ -93,6 +156,11 @@ class EasyTierConfig {
       socks5Port: json['socks5Port'] as int?,
       enableP2p: json['enableP2p'] as bool? ?? true,
       hostname: json['hostname'] as String?,
+      noTun: json['noTun'] as bool? ?? false,
+      enableKcpProxy: json['enableKcpProxy'] as bool? ?? false,
+      enableQuicProxy: json['enableQuicProxy'] as bool? ?? false,
+      portForwards:
+          (json['portForwards'] as List<dynamic>?)?.cast<String>() ?? [],
     );
   }
 
@@ -110,6 +178,10 @@ class EasyTierConfig {
       'socks5Port': socks5Port,
       'enableP2p': enableP2p,
       'hostname': hostname,
+      'noTun': noTun,
+      'enableKcpProxy': enableKcpProxy,
+      'enableQuicProxy': enableQuicProxy,
+      'portForwards': portForwards,
     };
   }
 

@@ -259,6 +259,21 @@ class RemoteControlService {
     }
   }
 
+  Future<void> _sendVoiceCapabilityStatus() async {
+    try {
+      await _statusBridge.sendVoiceCapabilityStatus(
+        receiverControlSocket: _receiverControlSocket,
+        enabled: isVoiceEnabled,
+      );
+    } catch (e) {
+      developer.log(
+        'Failed to send voice capability status: $e',
+        name: 'RemoteControl',
+        error: e,
+      );
+    }
+  }
+
   void _sendScreenFrameOverTcp(ScreenFrame frame) {
     try {
       final header = ByteData(5);
@@ -805,6 +820,7 @@ class RemoteControlService {
     _receiverSessionActive = false;
     _missedHeartbeatCount = 0;
     unawaited(_sendPortConfigStatus());
+    unawaited(_sendVoiceCapabilityStatus());
     unawaited(_sendScreenInfoStatus());
 
     _lifecycleHelper.attachReceiverControlClient(
@@ -1061,6 +1077,23 @@ class RemoteControlService {
           screenBitrate: _config?.screenBitrate ?? 2000000,
           enableVoice: _config?.enableVoice ?? true,
         );
+      },
+      onVoiceCapability: (enabled) {
+        if ((_config?.enableVoice ?? true) == enabled) {
+          return;
+        }
+        _config = RemoteControlConfig(
+          ports: _config?.ports ?? RemoteControlPortConfig.custom(),
+          enableScreen: _config?.enableScreen ?? true,
+          screenFps: _config?.screenFps ?? 15,
+          screenBitrate: _config?.screenBitrate ?? 2000000,
+          enableVoice: enabled,
+        );
+        if (!enabled) {
+          unawaited(stopAudioCapture());
+          unawaited(stopAudioPlayback());
+        }
+        _messageController.add(message);
       },
     );
   }
