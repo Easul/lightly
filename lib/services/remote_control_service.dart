@@ -149,6 +149,8 @@ class RemoteControlService {
   bool get isLocalDisconnectRequested => _disconnectRequested;
   bool get isReceiverHostRunning =>
       _mode == RemoteControlMode.receiver && _controlServer != null;
+  bool get isReceiverNoTunMode =>
+      _mode == RemoteControlMode.receiver && _config?.enableVoice == false;
   Uint8List? get latestScreenSps =>
       _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
   Uint8List? get latestScreenPps =>

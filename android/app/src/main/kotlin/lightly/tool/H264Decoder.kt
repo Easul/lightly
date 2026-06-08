@@ -15,6 +15,7 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
     companion object {
         private const val TAG = "H264Decoder"
         private const val MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC
+        private const val DEQUEUE_TIMEOUT_US = 1_000L
     }
 
     private var decoder: MediaCodec? = null
@@ -70,7 +71,7 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
 
         try {
             val normalizedData = normalizeAccessUnit(data, isKeyFrame)
-            val inputIndex = decoder!!.dequeueInputBuffer(10000)
+            val inputIndex = decoder!!.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
             if (inputIndex >= 0) {
                 val inputBuffer = decoder!!.getInputBuffer(inputIndex)
                 inputBuffer?.clear()
@@ -81,7 +82,7 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
             }
 
             val bufferInfo = MediaCodec.BufferInfo()
-            var outputIndex = decoder!!.dequeueOutputBuffer(bufferInfo, 10000)
+            var outputIndex = decoder!!.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)
             while (outputIndex >= 0) {
                 decoder!!.releaseOutputBuffer(outputIndex, true)
                 decodedFrameCount += 1

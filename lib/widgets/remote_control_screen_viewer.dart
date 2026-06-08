@@ -303,7 +303,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
             children: [
               CircularProgressIndicator(color: Colors.white),
               SizedBox(height: 16),
-              Text('正在初始化屏幕...', style: const TextStyle(color: Colors.white54)),
+              Text('正在初始化屏幕...', style: TextStyle(color: Colors.white54)),
             ],
           ),
         ),

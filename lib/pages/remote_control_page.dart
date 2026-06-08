@@ -26,6 +26,66 @@ class RemoteControlPage extends StatefulWidget {
   State<RemoteControlPage> createState() => _RemoteControlPageState();
 }
 
+@visibleForTesting
+class RemoteControlPageStateSnapshot {
+  const RemoteControlPageStateSnapshot({
+    required this.selectedMode,
+    required this.portConfig,
+    required this.isConnecting,
+    required this.isReceiverAudioEnabled,
+    required this.isReceiverRunning,
+    required this.useReceiverNoTunMode,
+    required this.hadConnectedSession,
+  });
+
+  final RemoteControlMode selectedMode;
+  final RemoteControlPortConfig? portConfig;
+  final bool isConnecting;
+  final bool isReceiverAudioEnabled;
+  final bool isReceiverRunning;
+  final bool useReceiverNoTunMode;
+  final bool hadConnectedSession;
+
+  factory RemoteControlPageStateSnapshot.fromValues({
+    required RemoteControlMode currentSelectedMode,
+    required RemoteControlMode serviceMode,
+    required RemoteControlState serviceState,
+    required RemoteControlPortConfig? servicePorts,
+    required bool isReceiverHostRunning,
+    required bool isReceiverNoTunMode,
+    required bool isLocalAudioEnabled,
+  }) {
+    final receiverMode = serviceMode == RemoteControlMode.receiver;
+    return RemoteControlPageStateSnapshot(
+      selectedMode: receiverMode
+          ? RemoteControlMode.receiver
+          : currentSelectedMode,
+      portConfig: servicePorts,
+      isConnecting: serviceState == RemoteControlState.connecting,
+      isReceiverAudioEnabled: isLocalAudioEnabled,
+      isReceiverRunning: isReceiverHostRunning,
+      useReceiverNoTunMode: receiverMode && isReceiverNoTunMode,
+      hadConnectedSession:
+          isReceiverHostRunning && serviceState == RemoteControlState.connected,
+    );
+  }
+
+  factory RemoteControlPageStateSnapshot.fromService({
+    required RemoteControlMode currentSelectedMode,
+    required RemoteControlService service,
+  }) {
+    return RemoteControlPageStateSnapshot.fromValues(
+      currentSelectedMode: currentSelectedMode,
+      serviceMode: service.mode,
+      serviceState: service.state,
+      servicePorts: service.config?.ports,
+      isReceiverHostRunning: service.isReceiverHostRunning,
+      isReceiverNoTunMode: service.isReceiverNoTunMode,
+      isLocalAudioEnabled: service.isLocalAudioEnabled,
+    );
+  }
+}
+
 class _RemoteControlPageState extends State<RemoteControlPage> {
   static const MethodChannel _channel = MethodChannel('remote_control');
   final RemoteControlService _service = RemoteControlService();
@@ -71,13 +131,27 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     super.initState();
     _stateSubscription = _service.stateStream.listen(_handleStateChange);
     _messageSubscription = _service.messageStream.listen(_handleMessage);
-    _portConfig = _service.config?.ports;
+    _syncReceiverStateFromService();
     _applyPortConfigToInputs(_portConfig);
     _loadSettings();
     _loadPeers();
     _peerRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_loadPeers(showLoading: false));
     });
+  }
+
+  void _syncReceiverStateFromService() {
+    final snapshot = RemoteControlPageStateSnapshot.fromService(
+      currentSelectedMode: _selectedMode,
+      service: _service,
+    );
+    _selectedMode = snapshot.selectedMode;
+    _portConfig = snapshot.portConfig;
+    _isConnecting = snapshot.isConnecting;
+    _isReceiverAudioEnabled = snapshot.isReceiverAudioEnabled;
+    _isReceiverRunning = snapshot.isReceiverRunning;
+    _useReceiverNoTunMode = snapshot.useReceiverNoTunMode;
+    _hadConnectedSession = snapshot.hadConnectedSession;
   }
 
   Future<void> _loadSettings() async {
