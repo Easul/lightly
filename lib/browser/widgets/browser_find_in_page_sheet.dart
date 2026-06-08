@@ -14,7 +14,7 @@ Future<void> showBrowserFindInPageSheet({
   Future<void> runSearch(String value) async {
     final keyword = value.trim();
     if (keyword.isEmpty) {
-      findController.clearMatches();
+      await findController.clearMatches();
       findController.resetResults();
       return;
     }
@@ -108,7 +108,7 @@ Future<void> showBrowserFindInPageSheet({
                       IconButton(
                         icon: const Icon(Icons.close),
                         onPressed: () {
-                          findController.clearMatches();
+                          unawaited(findController.clearMatches());
                           Navigator.of(context).pop();
                         },
                       ),
@@ -125,6 +125,6 @@ Future<void> showBrowserFindInPageSheet({
 
   searchDebounce?.cancel();
   searchController.dispose();
-  findController.clearMatches();
+  await findController.clearMatches();
   findController.resetResults();
 }

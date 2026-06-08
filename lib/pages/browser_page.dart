@@ -528,6 +528,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             }
             unawaited(_restoreSavedScrollPosition(controller, hostedTabId));
           }
+          _findController.attachWebViewController(controller);
           if (_overlayStateManager.shouldResumeControllerOnAttach) {
             _resumeWebViewFromOverlay();
           } else {

@@ -41,9 +41,16 @@ class NativeVideoPlayerPage extends StatelessWidget {
 }
 
 class NativeVideoPlayerDialog extends StatelessWidget {
-  const NativeVideoPlayerDialog({super.key, required this.videoUrl});
+  const NativeVideoPlayerDialog({
+    super.key,
+    required this.videoUrl,
+    this.resolveYouTube = true,
+    this.showDownloadAction = true,
+  });
 
   final String videoUrl;
+  final bool resolveYouTube;
+  final bool showDownloadAction;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +64,12 @@ class NativeVideoPlayerDialog extends StatelessWidget {
           children: [
             const NativeVideoDialogHeader(),
             Expanded(
-              child: NativeVideoPlayerView(videoUrl: videoUrl, compact: true),
+              child: NativeVideoPlayerView(
+                videoUrl: videoUrl,
+                compact: true,
+                resolveYouTube: resolveYouTube,
+                showDownloadAction: showDownloadAction,
+              ),
             ),
           ],
         ),
@@ -71,10 +83,14 @@ class NativeVideoPlayerView extends StatefulWidget {
     super.key,
     required this.videoUrl,
     this.compact = false,
+    this.resolveYouTube = true,
+    this.showDownloadAction = true,
   });
 
   final String videoUrl;
   final bool compact;
+  final bool resolveYouTube;
+  final bool showDownloadAction;
 
   @override
   State<NativeVideoPlayerView> createState() => _NativeVideoPlayerViewState();
@@ -187,6 +203,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
   }
 
   bool get _isYouTubeUrl =>
+      widget.resolveYouTube &&
       deriveYouTubeLongPressTargets(widget.videoUrl) != null &&
       (widget.videoUrl.contains('youtube.com') ||
           widget.videoUrl.contains('youtu.be'));
@@ -375,7 +392,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
         chewieController: chewieController,
         compact: widget.compact,
         resolvedTitle: _resolvedTitle,
-        onDownload: _downloadCurrentVideo,
+        onDownload: widget.showDownloadAction ? _downloadCurrentVideo : null,
         isMuted: _isMuted,
         onMuteToggle: _toggleMute,
         onClose: widget.compact ? null : Navigator.of(context).maybePop,

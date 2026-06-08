@@ -24,7 +24,7 @@ class NativeVideoOverlay extends StatefulWidget {
   final ChewieController chewieController;
   final bool compact;
   final String? resolvedTitle;
-  final VoidCallback onDownload;
+  final VoidCallback? onDownload;
   final bool isMuted;
   final VoidCallback onMuteToggle;
   final VoidCallback? onClose;
@@ -166,19 +166,21 @@ class _NativeVideoOverlayState extends State<NativeVideoOverlay> {
                                 onPressed: widget.onMuteToggle,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Material(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(20),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.download_rounded,
-                                  color: Colors.white,
+                            if (widget.onDownload != null) ...[
+                              const SizedBox(width: 8),
+                              Material(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(20),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.download_rounded,
+                                    color: Colors.white,
+                                  ),
+                                  tooltip: '下载视频',
+                                  onPressed: widget.onDownload,
                                 ),
-                                tooltip: '下载视频',
-                                onPressed: widget.onDownload,
                               ),
-                            ),
+                            ],
                             if (widget.onClose != null) ...[
                               const SizedBox(width: 8),
                               Material(

@@ -76,6 +76,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
       builder: (dialogContext) {
         return NativeVideoPlayerDialog(
           videoUrl: Uri.file(savedPath).toString(),
+          resolveYouTube: false,
+          showDownloadAction: false,
         );
       },
     );

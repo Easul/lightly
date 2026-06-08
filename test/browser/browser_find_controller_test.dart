@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:lightly/browser/services/browser_find_controller.dart';
 
 void main() {
@@ -52,5 +53,39 @@ void main() {
 
       expect(controller.revision.value, before + 1);
     });
+
+    test('uses attached WebView controller for find operations', () async {
+      final webViewController = _FakeWebViewController();
+      controller.attachWebViewController(webViewController);
+
+      await controller.findAll(' keyword ');
+      await controller.findNext(forward: false);
+      await controller.clearMatches();
+
+      expect(webViewController.lastFindText, 'keyword');
+      expect(webViewController.lastFindForward, isFalse);
+      expect(webViewController.clearMatchCalls, 1);
+    });
   });
+}
+
+class _FakeWebViewController extends Fake implements InAppWebViewController {
+  String? lastFindText;
+  bool? lastFindForward;
+  int clearMatchCalls = 0;
+
+  @override
+  Future<void> findAllAsync({required String find}) async {
+    lastFindText = find;
+  }
+
+  @override
+  Future<void> findNext({required bool forward}) async {
+    lastFindForward = forward;
+  }
+
+  @override
+  Future<void> clearMatches() async {
+    clearMatchCalls++;
+  }
 }

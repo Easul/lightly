@@ -7,6 +7,7 @@ class BrowserFindController {
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   FindInteractionController? _interactionController;
+  InAppWebViewController? _webViewController;
   int _currentMatch = 0;
   int _matchCount = 0;
 
@@ -15,6 +16,10 @@ class BrowserFindController {
   bool get isAvailable => _interactionController != null;
   int get currentMatch => _currentMatch;
   int get matchCount => _matchCount;
+
+  void attachWebViewController(InAppWebViewController controller) {
+    _webViewController = controller;
+  }
 
   void initialize() {
     if (InAppWebViewPlatform.instance == null) {
@@ -34,8 +39,14 @@ class BrowserFindController {
     revision.value++;
   }
 
-  void clearMatches() {
-    _interactionController?.clearMatches();
+  Future<void> clearMatches() async {
+    final controller = _webViewController;
+    if (controller != null) {
+      // ignore: deprecated_member_use
+      await controller.clearMatches();
+      return;
+    }
+    await _interactionController?.clearMatches();
   }
 
   void resetResults() {
@@ -50,11 +61,22 @@ class BrowserFindController {
       return;
     }
     resetResults();
-    await _interactionController?.setSearchText(trimmed);
+    final controller = _webViewController;
+    if (controller != null) {
+      // ignore: deprecated_member_use
+      await controller.findAllAsync(find: trimmed);
+      return;
+    }
     await _interactionController?.findAll(find: trimmed);
   }
 
   Future<void> findNext({required bool forward}) async {
+    final controller = _webViewController;
+    if (controller != null) {
+      // ignore: deprecated_member_use
+      await controller.findNext(forward: forward);
+      return;
+    }
     await _interactionController?.findNext(forward: forward);
   }
 
