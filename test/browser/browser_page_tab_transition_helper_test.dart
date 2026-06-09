@@ -38,7 +38,7 @@ void main() {
       },
     );
 
-    test('prepareClosedTab trims background keepAlives', () async {
+    test('prepareClosedTab keeps background keepAlives intact', () async {
       final calls = <String>[];
 
       await helper.prepareClosedTab(
@@ -49,10 +49,10 @@ void main() {
       );
 
       expect(calls.first, 'pauseCurrentWebView');
-      expect(calls, contains('trimBackgroundKeepAlives'));
+      expect(calls, isNot(contains('trimBackgroundKeepAlives')));
     });
 
-    test('prepareCloseAllTabs trims background keepAlives', () async {
+    test('prepareCloseAllTabs avoids redundant keepAlive trimming', () async {
       final calls = <String>[];
 
       await helper.prepareCloseAllTabs(
@@ -62,7 +62,7 @@ void main() {
             calls.add('applyStatusAfterTransition'),
       );
 
-      expect(calls, contains('trimBackgroundKeepAlives'));
+      expect(calls, isNot(contains('trimBackgroundKeepAlives')));
     });
   });
 }

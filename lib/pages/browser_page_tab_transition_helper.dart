@@ -55,7 +55,6 @@ class BrowserPageTabTransitionHelper {
     deps.syncAddressBar();
     await deps.checkFavoriteStatus(url);
     deps.resetProgress();
-    deps.trimBackgroundKeepAlives();
     applyStatusAfterTransition();
   }
 
@@ -68,7 +67,6 @@ class BrowserPageTabTransitionHelper {
     deps.syncAddressBar();
     await deps.checkFavoriteStatus(url);
     deps.resetProgress();
-    deps.trimBackgroundKeepAlives();
     applyStatusAfterTransition();
   }
 }

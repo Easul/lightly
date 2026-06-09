@@ -72,7 +72,7 @@ void main() {
       },
     );
 
-    test('prepareClosedTab trims keepalives before status', () async {
+    test('prepareClosedTab keeps retained WebViews before status', () async {
       final calls = <String>[];
 
       await coordinator.prepareClosedTab(
@@ -88,7 +88,6 @@ void main() {
         'sync-address',
         'favorite:https://example.com',
         'progress',
-        'trim',
         'status',
       ]);
     });
@@ -107,7 +106,6 @@ void main() {
         'sync-address',
         'favorite:https://example.com',
         'progress',
-        'trim',
         'status',
       ]);
     });
