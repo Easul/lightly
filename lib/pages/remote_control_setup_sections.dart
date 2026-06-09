@@ -263,6 +263,7 @@ class RemoteControlReceiverSection extends StatelessWidget {
 class RemoteControlControllerSection extends StatelessWidget {
   final List<Map<String, String>> peers;
   final bool isEasyTierRunning;
+  final bool isEasyTierNoTunMode;
   final bool isLoadingPeers;
   final TextEditingController hostController;
   final TextEditingController controlPortController;
@@ -282,6 +283,7 @@ class RemoteControlControllerSection extends StatelessWidget {
     super.key,
     required this.peers,
     required this.isEasyTierRunning,
+    required this.isEasyTierNoTunMode,
     required this.isLoadingPeers,
     required this.hostController,
     required this.controlPortController,
@@ -337,6 +339,23 @@ class RemoteControlControllerSection extends StatelessWidget {
                 label: const Text('刷新设备列表'),
               ),
             const SizedBox(height: 16),
+            if (isEasyTierNoTunMode) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '当前 P2P VPN 使用非 VPN 模式，主控端会继续通过非 VPN 模式连接被控端。',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Card(
               margin: EdgeInsets.zero,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,

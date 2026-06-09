@@ -577,6 +577,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     return RemoteControlControllerSection(
       peers: _peers,
       isEasyTierRunning: _easyTierService.isRunning,
+      isEasyTierNoTunMode: _easyTierService.isNoTunMode,
       isLoadingPeers: _isLoadingPeers,
       hostController: _hostController,
       controlPortController: _controlPortController,
