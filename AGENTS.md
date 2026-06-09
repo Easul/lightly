@@ -656,6 +656,9 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - If local app services should be reachable over EasyTier IP, do not exclude the whole app from VPN routing with `addDisallowedApplication(...)`.
 - Also note that Dart `HttpServer.bind(..., shared: false)` may behave poorly in multi-interface mobile VPN scenarios.
+- P2P VPN supports the same no-VPN / no-tun mode as the remote-control receiver. When that mode is enabled from P2P settings, start EasyTier with `no_tun = true` and without Android `VpnService`; remote-control controller UI should only show a hint and continue connecting through the same non-VPN path.
+- If the P2P no-tun instance is already running and the receiver also starts in no-VPN mode, reuse the existing EasyTier instance instead of stopping/restarting it.
+- For no-tun exposure of non-Lightly services, use the structured port-mapping list in P2P settings. Each entry emits a same-port EasyTier `port_forward` rule like `tcp://0.0.0.0:<port>/127.0.0.1:<port>` and preserves the user's remark/name for UI only.
 - For this repo:
   - local HTTP file server should bind `0.0.0.0` when VPN/LAN exposure is desired
   - clipboard server should use `shared: true`
