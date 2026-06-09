@@ -104,6 +104,11 @@ These patterns were introduced to eliminate jank during normal browsing. Do not 
   - The injected `MutationObserver` in `_injectVideoDetectionScript()` uses a `180ms` debounce (`scheduleReport`) instead of calling `reportVideo()` on every DOM mutation.
   - Removing this debounce will cause continuous JS overhead on dynamic pages.
 
+- **Retained WebViews must not be trimmed during tab-preserving UI transitions.**
+  - Normal overlays and routine tab close/switch transitions should not dispose background `InAppWebViewKeepAlive` objects.
+  - Android platform-view disposal can race with the next WebView attach and surface as white screens or stale content from a closed tab.
+  - When loading a real URL from the favorites pseudo-page, or when the active tab has no live WebView controller, recreate the active tab keepAlive before rebuilding so the requested URL gets a fresh native WebView.
+
 ## Required verification when touching VLESS / proxy / WebView code
 
 Run at least these commands:
