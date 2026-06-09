@@ -37,10 +37,22 @@ void main() {
       arguments?['config'],
       contains('socks5_proxy = "socks5://127.0.0.1:11080"'),
     );
-    expect(arguments?['config'], contains('bind_addr = "0.0.0.0:18080"'));
-    expect(arguments?['config'], contains('dst_addr = "127.0.0.1:18080"'));
-    expect(arguments?['config'], contains('bind_addr = "0.0.0.0:18088"'));
-    expect(arguments?['config'], contains('dst_addr = "127.0.0.1:18088"'));
+    expect(
+      arguments?['config'],
+      isNot(contains('bind_addr = "0.0.0.0:18080"')),
+    );
+    expect(
+      arguments?['config'],
+      isNot(contains('dst_addr = "127.0.0.1:18080"')),
+    );
+    expect(
+      arguments?['config'],
+      isNot(contains('bind_addr = "0.0.0.0:18088"')),
+    );
+    expect(
+      arguments?['config'],
+      isNot(contains('dst_addr = "127.0.0.1:18088"')),
+    );
     expect(EasyTierService().isNoTunMode, isTrue);
     expect(EasyTierService().usesAndroidVpn, isFalse);
     expect(EasyTierService().activeNoTunSocksPort, 11080);

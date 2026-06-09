@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
-import '../models/remote_control_config.dart';
 
 class EasyTierService {
   static const MethodChannel _channel = MethodChannel('easytier_vpn');
@@ -84,29 +83,7 @@ class EasyTierService {
       enableKcpProxy: true,
       enableQuicProxy: true,
       socks5Port: config.socks5Port ?? noTunSocksPort,
-      portForwards: _mergePortForwards(
-        config.portForwards,
-        _remoteControlPortForwards(),
-      ),
     );
-  }
-
-  List<String> _mergePortForwards(
-    List<String> existing,
-    List<String> defaults,
-  ) {
-    return <String>{...existing, ...defaults}.toList();
-  }
-
-  List<String> _remoteControlPortForwards() {
-    return <String>[
-      for (
-        var port = RemoteControlPortConfig.minBasePort;
-        port <= RemoteControlPortConfig.maxBasePort + 1;
-        port++
-      )
-        'tcp://0.0.0.0:$port/127.0.0.1:$port',
-    ];
   }
 
   Future<bool> _startInstance(
