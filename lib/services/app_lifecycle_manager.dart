@@ -75,6 +75,9 @@ class AppLifecycleManager extends WidgetsBindingObserver {
   /// 远程控制被控端启动时检查并启动 VPN
   Future<bool> ensureVpnForRemoteControl({bool noTunMode = false}) async {
     if (noTunMode) {
+      if (_easyTierService.isNoTunMode) {
+        return true;
+      }
       if (_easyTierService.isRunning) {
         await _easyTierService.stopVpn();
       }
