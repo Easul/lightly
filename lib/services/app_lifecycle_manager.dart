@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/easytier_network_profile.dart';
+import '../models/remote_control_config.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_profile_service.dart';
 import '../services/remote_control_service.dart';
@@ -91,8 +92,42 @@ class AppLifecycleManager extends WidgetsBindingObserver {
     return _startSelectedEasyTierProfile(useAndroidVpn: true);
   }
 
+  Future<bool> ensureNoTunForRemoteControlTarget({
+    required String targetHost,
+    required Iterable<RemoteControlPortConfig> candidatePorts,
+  }) async {
+    final normalizedHost = targetHost.trim();
+    if (normalizedHost.isEmpty) {
+      return false;
+    }
+
+    final targetForwards = _remoteControlTargetPortForwards(
+      normalizedHost,
+      candidatePorts,
+    );
+    return _startSelectedEasyTierProfile(
+      useAndroidVpn: false,
+      extraPortForwards: targetForwards,
+    );
+  }
+
+  List<String> _remoteControlTargetPortForwards(
+    String targetHost,
+    Iterable<RemoteControlPortConfig> candidatePorts,
+  ) {
+    final ports = <int>{};
+    for (final config in candidatePorts) {
+      ports.add(config.controlPort);
+      ports.add(config.screenPort);
+    }
+    return <String>[
+      for (final port in ports) 'tcp://127.0.0.1:$port/$targetHost:$port',
+    ];
+  }
+
   Future<bool> _startSelectedEasyTierProfile({
     required bool useAndroidVpn,
+    List<String> extraPortForwards = const <String>[],
   }) async {
     try {
       final selectedId = await _profileService.getSelectedProfileId();
@@ -112,10 +147,19 @@ class AppLifecycleManager extends WidgetsBindingObserver {
         return false;
       }
 
+      final config = extraPortForwards.isEmpty
+          ? targetProfile.config
+          : targetProfile.config.copyWith(
+              portForwards: <String>{
+                ...targetProfile.config.portForwards,
+                ...extraPortForwards,
+              }.toList(),
+            );
+
       if (useAndroidVpn) {
-        return await _easyTierService.startVpn(targetProfile.config);
+        return await _easyTierService.startVpn(config);
       }
-      return await _easyTierService.startNoTun(targetProfile.config);
+      return await _easyTierService.startNoTun(config);
     } catch (e) {
       return false;
     }

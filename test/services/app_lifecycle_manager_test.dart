@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/models/easytier_config.dart';
+import 'package:lightly/models/remote_control_config.dart';
 import 'package:lightly/services/app_lifecycle_manager.dart';
 import 'package:lightly/services/easytier_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +15,37 @@ void main() {
     await EasyTierService().stopVpn();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(easyTierChannel, null);
+  });
+
+  test('controller no-vpn prepares local forwards to target peer', () async {
+    SharedPreferences.setMockInitialValues({});
+    Map<dynamic, dynamic>? arguments;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(easyTierChannel, (call) async {
+          if (call.method == 'startVpn') {
+            arguments = Map<dynamic, dynamic>.from(call.arguments as Map);
+            return true;
+          }
+          if (call.method == 'stopVpn') {
+            return true;
+          }
+          return null;
+        });
+
+    final prepared = await AppLifecycleManager()
+        .ensureNoTunForRemoteControlTarget(
+          targetHost: '10.126.126.2',
+          candidatePorts: const <RemoteControlPortConfig>[
+            RemoteControlPortConfig(controlPort: 18080, screenPort: 18081),
+          ],
+        );
+
+    expect(prepared, isTrue);
+    expect(arguments?['useAndroidVpn'], isFalse);
+    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:18080"'));
+    expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18080"'));
+    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:18081"'));
+    expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18081"'));
   });
 
   test(

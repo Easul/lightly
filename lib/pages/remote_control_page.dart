@@ -427,6 +427,26 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _hadConnectedSession = false;
     });
 
+    final noTunControllerMode = _easyTierService.isNoTunMode;
+    final candidatePorts = _buildCandidatePorts();
+    final connectHost = noTunControllerMode ? '127.0.0.1' : host;
+
+    if (noTunControllerMode) {
+      final prepared = await AppLifecycleManager()
+          .ensureNoTunForRemoteControlTarget(
+            targetHost: host,
+            candidatePorts: candidatePorts,
+          );
+      if (!prepared) {
+        if (!mounted) return;
+        setState(() {
+          _isConnecting = false;
+          _errorMessage = '无法准备 P2P 非 VPN 端口转发';
+        });
+        return;
+      }
+    }
+
     int? proxyPort;
     try {
       proxyPort = await _connectionHelper.ensureInternalProxyReady(
@@ -444,8 +464,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
       service: _service,
-      host: host,
-      useInternalProxy: _useInternalProxy,
+      host: connectHost,
+      useInternalProxy: !noTunControllerMode && _useInternalProxy,
       proxyPort: proxyPort,
     );
     if (discoveredPorts != null && mounted) {
@@ -454,14 +474,17 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       });
       _applyPortConfigToInputs(discoveredPorts);
     }
+    final portsToTry = discoveredPorts != null
+        ? <RemoteControlPortConfig>[discoveredPorts]
+        : candidatePorts;
 
     Object? lastError;
-    for (final ports in _buildCandidatePorts()) {
+    for (final ports in portsToTry) {
       try {
         await _service.connectToReceiver(
-          host,
+          connectHost,
           ports,
-          useProxy: _useInternalProxy,
+          useProxy: !noTunControllerMode && _useInternalProxy,
           proxyPort: proxyPort,
         );
         if (!mounted) {
@@ -512,11 +535,27 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     });
     _applyPortConfigToInputs(null);
 
+    final noTunControllerMode = _easyTierService.isNoTunMode;
+    final candidatePorts = _portConfigHelper.buildCandidatePorts(null);
+    final probeHost = noTunControllerMode ? '127.0.0.1' : host;
+    if (noTunControllerMode) {
+      final prepared = await AppLifecycleManager()
+          .ensureNoTunForRemoteControlTarget(
+            targetHost: host,
+            candidatePorts: candidatePorts,
+          );
+      if (!prepared) {
+        return;
+      }
+    }
+
     final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
       service: _service,
-      host: host,
-      useInternalProxy: _useInternalProxy,
-      proxyPort: _useInternalProxy ? _proxyService.localProxyPort : null,
+      host: probeHost,
+      useInternalProxy: !noTunControllerMode && _useInternalProxy,
+      proxyPort: !noTunControllerMode && _useInternalProxy
+          ? _proxyService.localProxyPort
+          : null,
     );
     if (!mounted || discoveredPorts == null) {
       return;

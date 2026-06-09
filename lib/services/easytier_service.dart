@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
+import '../models/remote_control_config.dart';
 
 class EasyTierService {
   static const MethodChannel _channel = MethodChannel('easytier_vpn');
+  static const int noTunSocksPort = 11080;
 
   static final EasyTierService _instance = EasyTierService._internal();
   factory EasyTierService() => _instance;
@@ -17,6 +19,7 @@ class EasyTierService {
   String? _currentInstanceName;
   String? _lastRawNetworkInfo;
   bool _usesAndroidVpn = true;
+  int? _activeNoTunSocksPort;
 
   bool get isRunning => _isRunning;
   String? get lastError => _lastError;
@@ -25,6 +28,7 @@ class EasyTierService {
   String? get lastRawNetworkInfo => _lastRawNetworkInfo;
   bool get usesAndroidVpn => _usesAndroidVpn;
   bool get isNoTunMode => _isRunning && !_usesAndroidVpn;
+  int? get activeNoTunSocksPort => isNoTunMode ? _activeNoTunSocksPort : null;
 
   Future<bool> parseConfig(String config) async {
     try {
@@ -71,10 +75,38 @@ class EasyTierService {
   }
 
   Future<bool> startNoTun(EasyTierConfig config) async {
-    return _startInstance(
-      config.copyWith(noTun: true, enableKcpProxy: true, enableQuicProxy: true),
-      useAndroidVpn: false,
+    return _startInstance(_prepareNoTunConfig(config), useAndroidVpn: false);
+  }
+
+  EasyTierConfig _prepareNoTunConfig(EasyTierConfig config) {
+    return config.copyWith(
+      noTun: true,
+      enableKcpProxy: true,
+      enableQuicProxy: true,
+      socks5Port: config.socks5Port ?? noTunSocksPort,
+      portForwards: _mergePortForwards(
+        config.portForwards,
+        _remoteControlPortForwards(),
+      ),
     );
+  }
+
+  List<String> _mergePortForwards(
+    List<String> existing,
+    List<String> defaults,
+  ) {
+    return <String>{...existing, ...defaults}.toList();
+  }
+
+  List<String> _remoteControlPortForwards() {
+    return <String>[
+      for (
+        var port = RemoteControlPortConfig.minBasePort;
+        port <= RemoteControlPortConfig.maxBasePort + 1;
+        port++
+      )
+        'tcp://0.0.0.0:$port/127.0.0.1:$port',
+    ];
   }
 
   Future<bool> _startInstance(
@@ -99,16 +131,21 @@ class EasyTierService {
         _isRunning = true;
         _currentInstanceName = config.instanceName;
         _usesAndroidVpn = useAndroidVpn;
+        _activeNoTunSocksPort = useAndroidVpn ? null : config.socks5Port;
         _lastError = null;
         developer.log('VPN started successfully', name: 'EasyTier');
         return true;
       } else {
         _lastError = await getLastError();
+        if (!useAndroidVpn) {
+          _activeNoTunSocksPort = null;
+        }
         developer.log('VPN start failed: $_lastError', name: 'EasyTier');
         return false;
       }
     } on PlatformException catch (e) {
       _isRunning = false;
+      _activeNoTunSocksPort = null;
       _lastError = e.message;
       developer.log(
         'VPN start exception: ${e.message}',
@@ -126,6 +163,7 @@ class EasyTierService {
       _isRunning = false;
       _currentInstanceName = null;
       _usesAndroidVpn = true;
+      _activeNoTunSocksPort = null;
       developer.log('VPN stopped', name: 'EasyTier');
     } on PlatformException catch (e) {
       _lastError = e.message;
