@@ -1,3 +1,32 @@
+class EasyTierPortMapping {
+  const EasyTierPortMapping({required this.port, this.remark = ''});
+
+  final int port;
+  final String remark;
+
+  EasyTierPortMapping copyWith({int? port, String? remark}) {
+    return EasyTierPortMapping(
+      port: port ?? this.port,
+      remark: remark ?? this.remark,
+    );
+  }
+
+  String toPortForward() {
+    return 'tcp://0.0.0.0:$port/127.0.0.1:$port';
+  }
+
+  factory EasyTierPortMapping.fromJson(Map<String, dynamic> json) {
+    return EasyTierPortMapping(
+      port: json['port'] as int? ?? 0,
+      remark: json['remark'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'port': port, 'remark': remark};
+  }
+}
+
 class EasyTierConfig {
   final String instanceName;
   final String networkName;
@@ -15,6 +44,7 @@ class EasyTierConfig {
   final bool enableKcpProxy;
   final bool enableQuicProxy;
   final List<String> portForwards;
+  final List<EasyTierPortMapping> portMappings;
 
   EasyTierConfig({
     required this.instanceName,
@@ -33,6 +63,7 @@ class EasyTierConfig {
     this.enableKcpProxy = false,
     this.enableQuicProxy = false,
     this.portForwards = const [],
+    this.portMappings = const [],
   });
 
   EasyTierConfig copyWith({
@@ -52,6 +83,7 @@ class EasyTierConfig {
     bool? enableKcpProxy,
     bool? enableQuicProxy,
     List<String>? portForwards,
+    List<EasyTierPortMapping>? portMappings,
   }) {
     return EasyTierConfig(
       instanceName: instanceName ?? this.instanceName,
@@ -70,6 +102,7 @@ class EasyTierConfig {
       enableKcpProxy: enableKcpProxy ?? this.enableKcpProxy,
       enableQuicProxy: enableQuicProxy ?? this.enableQuicProxy,
       portForwards: portForwards ?? this.portForwards,
+      portMappings: portMappings ?? this.portMappings,
     );
   }
 
@@ -108,9 +141,10 @@ class EasyTierConfig {
       buffer.writeln('socks5_proxy = "socks5://127.0.0.1:$socks5Port"');
     }
 
-    if (portForwards.isNotEmpty) {
+    final effectivePortForwards = _effectivePortForwards();
+    if (effectivePortForwards.isNotEmpty) {
       buffer.writeln('');
-      final encodedPortForwards = portForwards
+      final encodedPortForwards = effectivePortForwards
           .map((forward) => '"$forward"')
           .join(', ');
       buffer.writeln('port_forward = [$encodedPortForwards]');
@@ -161,6 +195,16 @@ class EasyTierConfig {
       enableQuicProxy: json['enableQuicProxy'] as bool? ?? false,
       portForwards:
           (json['portForwards'] as List<dynamic>?)?.cast<String>() ?? [],
+      portMappings:
+          (json['portMappings'] as List<dynamic>?)
+              ?.map(
+                (item) => EasyTierPortMapping.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .where((mapping) => mapping.port > 0 && mapping.port < 65536)
+              .toList() ??
+          const <EasyTierPortMapping>[],
     );
   }
 
@@ -182,7 +226,18 @@ class EasyTierConfig {
       'enableKcpProxy': enableKcpProxy,
       'enableQuicProxy': enableQuicProxy,
       'portForwards': portForwards,
+      'portMappings': portMappings.map((mapping) => mapping.toJson()).toList(),
     };
+  }
+
+  List<String> _effectivePortForwards() {
+    final forwards = <String>[
+      ...portForwards,
+      ...portMappings
+          .where((mapping) => mapping.port > 0 && mapping.port < 65536)
+          .map((mapping) => mapping.toPortForward()),
+    ];
+    return forwards.toSet().toList();
   }
 
   String? _activePeerUri() {
