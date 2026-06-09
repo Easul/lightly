@@ -83,6 +83,8 @@ class EasyTierService {
       enableKcpProxy: true,
       enableQuicProxy: true,
       socks5Port: config.socks5Port ?? noTunSocksPort,
+      portForwards: const <String>[],
+      portMappings: const <EasyTierPortMapping>[],
     );
   }
 

@@ -25,7 +25,14 @@ void main() {
         });
 
     final success = await EasyTierService().startNoTun(
-      EasyTierConfig(instanceName: 'receiver', networkName: 'network'),
+      EasyTierConfig(
+        instanceName: 'receiver',
+        networkName: 'network',
+        portForwards: const <String>['tcp://0.0.0.0:18080/127.0.0.1:18080'],
+        portMappings: const <EasyTierPortMapping>[
+          EasyTierPortMapping(port: 18080),
+        ],
+      ),
     );
 
     expect(success, isTrue);
@@ -53,6 +60,7 @@ void main() {
       arguments?['config'],
       isNot(contains('dst_addr = "127.0.0.1:18088"')),
     );
+    expect(arguments?['config'], isNot(contains('[[port_forward]]')));
     expect(EasyTierService().isNoTunMode, isTrue);
     expect(EasyTierService().usesAndroidVpn, isFalse);
     expect(EasyTierService().activeNoTunSocksPort, 11080);
