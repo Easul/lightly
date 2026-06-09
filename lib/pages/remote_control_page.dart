@@ -429,32 +429,25 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     final noTunControllerMode = _easyTierService.isNoTunMode;
     final candidatePorts = _buildCandidatePorts();
-    final connectHost = noTunControllerMode ? '127.0.0.1' : host;
-    NoTunRemoteControlForwardPlan? forwardPlan;
-
-    if (noTunControllerMode) {
-      forwardPlan = await AppLifecycleManager()
-          .ensureNoTunForRemoteControlTarget(
-            targetHost: host,
-            candidatePorts: candidatePorts,
-          );
-      if (forwardPlan == null) {
-        if (!mounted) return;
-        setState(() {
-          _isConnecting = false;
-          _errorMessage = '无法准备 P2P 非 VPN 端口转发';
-        });
-        return;
-      }
+    final noTunProxyPort = _easyTierService.activeNoTunSocksPort;
+    if (noTunControllerMode && noTunProxyPort == null) {
+      if (!mounted) return;
+      setState(() {
+        _isConnecting = false;
+        _errorMessage = 'P2P 非 VPN 代理端口不可用';
+      });
+      return;
     }
 
     int? proxyPort;
     try {
-      proxyPort = await _connectionHelper.ensureInternalProxyReady(
-        useInternalProxy: _useInternalProxy,
-        settings: _settings,
-        proxyService: _proxyService,
-      );
+      proxyPort = noTunControllerMode
+          ? noTunProxyPort
+          : await _connectionHelper.ensureInternalProxyReady(
+              useInternalProxy: _useInternalProxy,
+              settings: _settings,
+              proxyService: _proxyService,
+            );
     } on RemoteControlPageConnectionException catch (error) {
       if (mounted) {
         _showToast(error.message);
@@ -465,8 +458,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
       service: _service,
-      host: connectHost,
-      useInternalProxy: !noTunControllerMode && _useInternalProxy,
+      host: host,
+      useInternalProxy: noTunControllerMode || _useInternalProxy,
       proxyPort: proxyPort,
     );
     if (discoveredPorts != null && mounted) {
@@ -481,12 +474,11 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     Object? lastError;
     for (final ports in portsToTry) {
-      final transportPorts = forwardPlan?.localPortsFor(ports) ?? ports;
       try {
         await _service.connectToReceiver(
-          connectHost,
-          transportPorts,
-          useProxy: !noTunControllerMode && _useInternalProxy,
+          host,
+          ports,
+          useProxy: noTunControllerMode || _useInternalProxy,
           proxyPort: proxyPort,
         );
         if (!mounted) {
@@ -538,26 +530,18 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _applyPortConfigToInputs(null);
 
     final noTunControllerMode = _easyTierService.isNoTunMode;
-    final candidatePorts = _portConfigHelper.buildCandidatePorts(null);
-    final probeHost = noTunControllerMode ? '127.0.0.1' : host;
-    if (noTunControllerMode) {
-      final forwardPlan = await AppLifecycleManager()
-          .ensureNoTunForRemoteControlTarget(
-            targetHost: host,
-            candidatePorts: candidatePorts,
-          );
-      if (forwardPlan == null) {
-        return;
-      }
+    final noTunProxyPort = _easyTierService.activeNoTunSocksPort;
+    if (noTunControllerMode && noTunProxyPort == null) {
+      return;
     }
 
     final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
       service: _service,
-      host: probeHost,
-      useInternalProxy: !noTunControllerMode && _useInternalProxy,
-      proxyPort: !noTunControllerMode && _useInternalProxy
-          ? _proxyService.localProxyPort
-          : null,
+      host: host,
+      useInternalProxy: noTunControllerMode || _useInternalProxy,
+      proxyPort: noTunControllerMode
+          ? noTunProxyPort
+          : _proxyService.localProxyPort,
     );
     if (!mounted || discoveredPorts == null) {
       return;

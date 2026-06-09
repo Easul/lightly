@@ -3,52 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/easytier_network_profile.dart';
-import '../models/remote_control_config.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_profile_service.dart';
 import '../services/remote_control_service.dart';
-
-class NoTunRemoteControlForwardPlan {
-  NoTunRemoteControlForwardPlan._(this._localPortsByRemotePort);
-
-  static const int _localForwardBasePort = 19080;
-
-  final Map<int, int> _localPortsByRemotePort;
-
-  List<String> portForwards(String targetHost) {
-    return <String>[
-      for (final entry in _localPortsByRemotePort.entries)
-        'tcp://127.0.0.1:${entry.value}/$targetHost:${entry.key}',
-    ];
-  }
-
-  RemoteControlPortConfig localPortsFor(RemoteControlPortConfig remotePorts) {
-    return RemoteControlPortConfig(
-      controlPort:
-          _localPortsByRemotePort[remotePorts.controlPort] ??
-          remotePorts.controlPort,
-      screenPort:
-          _localPortsByRemotePort[remotePorts.screenPort] ??
-          remotePorts.screenPort,
-    );
-  }
-
-  static NoTunRemoteControlForwardPlan fromRemotePorts(
-    Iterable<RemoteControlPortConfig> candidatePorts,
-  ) {
-    final remotePorts = <int>{};
-    for (final config in candidatePorts) {
-      remotePorts.add(config.controlPort);
-      remotePorts.add(config.screenPort);
-    }
-
-    final sortedRemotePorts = remotePorts.toList()..sort();
-    return NoTunRemoteControlForwardPlan._(<int, int>{
-      for (var i = 0; i < sortedRemotePorts.length; i++)
-        sortedRemotePorts[i]: _localForwardBasePort + i,
-    });
-  }
-}
 
 class AppLifecycleManager extends WidgetsBindingObserver {
   static final AppLifecycleManager _instance = AppLifecycleManager._internal();
@@ -134,32 +91,8 @@ class AppLifecycleManager extends WidgetsBindingObserver {
     return _startSelectedEasyTierProfile(useAndroidVpn: true);
   }
 
-  Future<NoTunRemoteControlForwardPlan?> ensureNoTunForRemoteControlTarget({
-    required String targetHost,
-    required Iterable<RemoteControlPortConfig> candidatePorts,
-  }) async {
-    final normalizedHost = targetHost.trim();
-    if (normalizedHost.isEmpty) {
-      return null;
-    }
-
-    final forwardPlan = NoTunRemoteControlForwardPlan.fromRemotePorts(
-      candidatePorts,
-    );
-    final started = await _startSelectedEasyTierProfile(
-      useAndroidVpn: false,
-      extraPortForwards: forwardPlan.portForwards(normalizedHost),
-    );
-    if (!started) {
-      return null;
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    return forwardPlan;
-  }
-
   Future<bool> _startSelectedEasyTierProfile({
     required bool useAndroidVpn,
-    List<String> extraPortForwards = const <String>[],
   }) async {
     try {
       final selectedId = await _profileService.getSelectedProfileId();
@@ -179,19 +112,10 @@ class AppLifecycleManager extends WidgetsBindingObserver {
         return false;
       }
 
-      final config = extraPortForwards.isEmpty
-          ? targetProfile.config
-          : targetProfile.config.copyWith(
-              portForwards: <String>{
-                ...targetProfile.config.portForwards,
-                ...extraPortForwards,
-              }.toList(),
-            );
-
       if (useAndroidVpn) {
-        return await _easyTierService.startVpn(config);
+        return await _easyTierService.startVpn(targetProfile.config);
       }
-      return await _easyTierService.startNoTun(config);
+      return await _easyTierService.startNoTun(targetProfile.config);
     } catch (e) {
       return false;
     }

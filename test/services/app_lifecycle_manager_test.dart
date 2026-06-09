@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/models/easytier_config.dart';
-import 'package:lightly/models/remote_control_config.dart';
 import 'package:lightly/services/app_lifecycle_manager.dart';
 import 'package:lightly/services/easytier_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +16,7 @@ void main() {
         .setMockMethodCallHandler(easyTierChannel, null);
   });
 
-  test('controller no-vpn prepares local forwards to target peer', () async {
+  test('receiver no-vpn startup does not add port forwards', () async {
     SharedPreferences.setMockInitialValues({});
     Map<dynamic, dynamic>? arguments;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -32,28 +31,13 @@ void main() {
           return null;
         });
 
-    final forwardPlan = await AppLifecycleManager()
-        .ensureNoTunForRemoteControlTarget(
-          targetHost: '10.126.126.2',
-          candidatePorts: const <RemoteControlPortConfig>[
-            RemoteControlPortConfig(controlPort: 18080, screenPort: 18081),
-          ],
-        );
-
-    expect(forwardPlan, isNotNull);
-    expect(arguments?['useAndroidVpn'], isFalse);
-    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:19080"'));
-    expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18080"'));
-    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:19081"'));
-    expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18081"'));
-    expect(
-      forwardPlan!.localPortsFor(
-        const RemoteControlPortConfig(controlPort: 18080, screenPort: 18081),
-      ),
-      isA<RemoteControlPortConfig>()
-          .having((ports) => ports.controlPort, 'controlPort', 19080)
-          .having((ports) => ports.screenPort, 'screenPort', 19081),
+    final started = await AppLifecycleManager().ensureVpnForRemoteControl(
+      noTunMode: true,
     );
+
+    expect(started, isTrue);
+    expect(arguments?['useAndroidVpn'], isFalse);
+    expect(arguments?['config'], isNot(contains('[[port_forward]]')));
   });
 
   test(
