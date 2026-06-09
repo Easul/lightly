@@ -47,6 +47,7 @@ import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_coordinator.dart';
 import 'browser_page_notifier_sync.dart';
+import 'browser_page_overlay_load_freeze_coordinator.dart';
 import 'browser_page_overlay_state_manager.dart';
 import 'browser_page_settings_helper.dart';
 import 'browser_page_site_security_helper.dart';
@@ -111,6 +112,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageStatePredicates();
   final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
   final BrowserPageAddressSync _addressSync = const BrowserPageAddressSync();
+  final BrowserPageOverlayLoadFreezeCoordinator _overlayLoadFreezeCoordinator =
+      BrowserPageOverlayLoadFreezeCoordinator();
   late final BrowserPageOverlayStateManager _overlayStateManager;
 
   void _logDebug(String message) {
@@ -250,6 +253,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      _overlayLoadFreezeCoordinator.cancel();
       unawaited(_tabService.saveSessions());
       unawaited(_importedDocumentService.cleanupUnfavoritedImportedFiles());
     } else if (state == AppLifecycleState.resumed) {
@@ -277,6 +281,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         }
       },
     );
+    _overlayLoadFreezeCoordinator.schedule(
+      isMounted: () => mounted,
+      hasOpenOverlay: () => _overlayStateManager.hasOpenOverlay,
+      activeTabId: () => _activeTabId,
+      currentUrl: () => _currentUrl,
+      isLoading: () => _isLoading,
+      isFavoritesPage: _isFavoritesPage,
+      stopLoading: _stopLoadingForOverlayFreeze,
+    );
   }
 
   void _resumeWebViewFromOverlay() {
@@ -290,6 +303,38 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       evaluateJavascript: (source) {
         _webViewController?.evaluateJavascript(source: source);
       },
+    );
+    _overlayLoadFreezeCoordinator.resume(
+      isMounted: () => mounted,
+      activeTabId: () => _activeTabId,
+      currentUrl: () => _currentUrl,
+      isFavoritesPage: _isFavoritesPage,
+      reload: _reloadAfterOverlayFreeze,
+    );
+  }
+
+  void _stopLoadingForOverlayFreeze() {
+    final controller = _webViewController;
+    if (controller == null) {
+      return;
+    }
+    _updateActiveTab(isLoading: false);
+    _syncNotifiers();
+    unawaited(controller.stopLoading().catchError((_) {}));
+  }
+
+  void _reloadAfterOverlayFreeze(String url) {
+    final controller = _webViewController;
+    if (controller == null) {
+      return;
+    }
+    _updateActiveTab(isLoading: true);
+    _updateProgressIfNeeded(0);
+    _syncNotifiers();
+    unawaited(
+      controller
+          .loadUrl(urlRequest: URLRequest(url: WebUri(url)))
+          .catchError((_) {}),
     );
   }
 
@@ -470,6 +515,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _isSecureNotifier.dispose();
     _tabCountNotifier.dispose();
     _statusMessageNotifier.dispose();
+    _overlayLoadFreezeCoordinator.cancel();
     _overlayStateManager.dispose();
     _favoriteStatusController.dispose();
     unawaited(_videoPlayerCoordinator.dispose());

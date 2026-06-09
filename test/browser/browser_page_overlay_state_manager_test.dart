@@ -22,6 +22,7 @@ void main() {
       expect(harness.rebuildCount, 1);
       expect(harness.manager.shouldSkipRebuild, isTrue);
       expect(harness.manager.shouldFreezeWebView, isTrue);
+      expect(harness.manager.hasOpenOverlay, isTrue);
       expect(harness.manager.shouldResumeControllerOnAttach, isFalse);
     });
 
@@ -46,6 +47,7 @@ void main() {
       expect(harness.rebuildCount, 3);
       expect(harness.manager.shouldSkipRebuild, isFalse);
       expect(harness.manager.shouldFreezeWebView, isFalse);
+      expect(harness.manager.hasOpenOverlay, isFalse);
       expect(harness.manager.shouldResumeControllerOnAttach, isTrue);
     });
 

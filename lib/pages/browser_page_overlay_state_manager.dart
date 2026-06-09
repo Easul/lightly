@@ -38,6 +38,8 @@ class BrowserPageOverlayStateManager {
   bool get shouldFreezeWebView =>
       _overlayDepth > 0 || _overlaySettledTimer != null;
 
+  bool get hasOpenOverlay => _overlayDepth > 0;
+
   bool get shouldResumeControllerOnAttach =>
       _coordinator.shouldResumeControllerOnAttach(overlayDepth: _overlayDepth);
 
