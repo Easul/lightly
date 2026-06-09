@@ -33,5 +33,28 @@ void main() {
     expect(arguments?['config'], contains('no_tun = true'));
     expect(arguments?['config'], contains('enable_kcp_proxy = true'));
     expect(arguments?['config'], contains('enable_quic_proxy = true'));
+    expect(EasyTierService().isNoTunMode, isTrue);
+    expect(EasyTierService().usesAndroidVpn, isFalse);
+  });
+
+  test('startVpn tracks Android VPN runtime mode', () async {
+    Map<dynamic, dynamic>? arguments;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'startVpn') {
+            arguments = Map<dynamic, dynamic>.from(call.arguments as Map);
+            return true;
+          }
+          return null;
+        });
+
+    final success = await EasyTierService().startVpn(
+      EasyTierConfig(instanceName: 'vpn', networkName: 'network'),
+    );
+
+    expect(success, isTrue);
+    expect(arguments?['useAndroidVpn'], isTrue);
+    expect(EasyTierService().isNoTunMode, isFalse);
+    expect(EasyTierService().usesAndroidVpn, isTrue);
   });
 }

@@ -46,15 +46,18 @@ class EasyTierStopResult {
 class EasyTierRuntimeStatusController {
   const EasyTierRuntimeStatusController({
     required Future<bool> Function(EasyTierConfig config) startVpn,
+    required Future<bool> Function(EasyTierConfig config) startNoTun,
     required Future<void> Function() stopVpn,
     required Future<Map<String, dynamic>?> Function() getNetworkInfo,
     required String? Function() readLastError,
   }) : _startVpn = startVpn,
+       _startNoTun = startNoTun,
        _stopVpn = stopVpn,
        _getNetworkInfo = getNetworkInfo,
        _readLastError = readLastError;
 
   final Future<bool> Function(EasyTierConfig config) _startVpn;
+  final Future<bool> Function(EasyTierConfig config) _startNoTun;
   final Future<void> Function() _stopVpn;
   final Future<Map<String, dynamic>?> Function() _getNetworkInfo;
   final String? Function() _readLastError;
@@ -83,13 +86,18 @@ class EasyTierRuntimeStatusController {
     }
   }
 
-  Future<EasyTierStartResult> startVpn(EasyTierConfig config) async {
+  Future<EasyTierStartResult> startVpn(
+    EasyTierConfig config, {
+    required bool useNoTunMode,
+  }) async {
     try {
-      final success = await _startVpn(config);
+      final success = useNoTunMode
+          ? await _startNoTun(config)
+          : await _startVpn(config);
       if (success) {
-        return const EasyTierStartResult(
+        return EasyTierStartResult(
           isRunning: true,
-          statusMessage: 'VPN 启动成功',
+          statusMessage: useNoTunMode ? '非 VPN 模式启动成功' : 'VPN 启动成功',
           errorMessage: null,
           shouldLoadStatus: true,
         );

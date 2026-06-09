@@ -7,6 +7,7 @@ void main() {
     test('loadStatus returns next ip and restart hint', () async {
       final controller = EasyTierRuntimeStatusController(
         startVpn: (_) async => true,
+        startNoTun: (_) async => true,
         stopVpn: () async {},
         getNetworkInfo: () async => <String, dynamic>{
           'map': <String, dynamic>{
@@ -36,12 +37,14 @@ void main() {
     test('startVpn surfaces failure and success states', () async {
       final successController = EasyTierRuntimeStatusController(
         startVpn: (_) async => true,
+        startNoTun: (_) async => true,
         stopVpn: () async {},
         getNetworkInfo: () async => null,
         readLastError: () => null,
       );
       final failureController = EasyTierRuntimeStatusController(
         startVpn: (_) async => false,
+        startNoTun: (_) async => false,
         stopVpn: () async {},
         getNetworkInfo: () async => null,
         readLastError: () => 'boom',
@@ -59,8 +62,14 @@ void main() {
         hostname: '',
       );
 
-      final success = await successController.startVpn(config);
-      final failure = await failureController.startVpn(config);
+      final success = await successController.startVpn(
+        config,
+        useNoTunMode: false,
+      );
+      final failure = await failureController.startVpn(
+        config,
+        useNoTunMode: false,
+      );
 
       expect(success.isRunning, isTrue);
       expect(success.shouldLoadStatus, isTrue);
@@ -71,12 +80,14 @@ void main() {
     test('stopVpn returns stop state and error state', () async {
       final successController = EasyTierRuntimeStatusController(
         startVpn: (_) async => true,
+        startNoTun: (_) async => true,
         stopVpn: () async {},
         getNetworkInfo: () async => null,
         readLastError: () => null,
       );
       final failureController = EasyTierRuntimeStatusController(
         startVpn: (_) async => true,
+        startNoTun: (_) async => true,
         stopVpn: () async => throw Exception('stop failed'),
         getNetworkInfo: () async => null,
         readLastError: () => null,

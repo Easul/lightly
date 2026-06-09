@@ -16,12 +16,15 @@ class EasyTierService {
   String? _configString;
   String? _currentInstanceName;
   String? _lastRawNetworkInfo;
+  bool _usesAndroidVpn = true;
 
   bool get isRunning => _isRunning;
   String? get lastError => _lastError;
   String? get configString => _configString;
   String? get currentInstanceName => _currentInstanceName;
   String? get lastRawNetworkInfo => _lastRawNetworkInfo;
+  bool get usesAndroidVpn => _usesAndroidVpn;
+  bool get isNoTunMode => _isRunning && !_usesAndroidVpn;
 
   Future<bool> parseConfig(String config) async {
     try {
@@ -95,6 +98,7 @@ class EasyTierService {
       if (result == true) {
         _isRunning = true;
         _currentInstanceName = config.instanceName;
+        _usesAndroidVpn = useAndroidVpn;
         _lastError = null;
         developer.log('VPN started successfully', name: 'EasyTier');
         return true;
@@ -121,6 +125,7 @@ class EasyTierService {
       await _channel.invokeMethod('stopVpn');
       _isRunning = false;
       _currentInstanceName = null;
+      _usesAndroidVpn = true;
       developer.log('VPN stopped', name: 'EasyTier');
     } on PlatformException catch (e) {
       _lastError = e.message;
