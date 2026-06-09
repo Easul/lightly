@@ -8,6 +8,48 @@ import '../services/easytier_service.dart';
 import '../services/easytier_profile_service.dart';
 import '../services/remote_control_service.dart';
 
+class NoTunRemoteControlForwardPlan {
+  NoTunRemoteControlForwardPlan._(this._localPortsByRemotePort);
+
+  static const int _localForwardBasePort = 19080;
+
+  final Map<int, int> _localPortsByRemotePort;
+
+  List<String> portForwards(String targetHost) {
+    return <String>[
+      for (final entry in _localPortsByRemotePort.entries)
+        'tcp://127.0.0.1:${entry.value}/$targetHost:${entry.key}',
+    ];
+  }
+
+  RemoteControlPortConfig localPortsFor(RemoteControlPortConfig remotePorts) {
+    return RemoteControlPortConfig(
+      controlPort:
+          _localPortsByRemotePort[remotePorts.controlPort] ??
+          remotePorts.controlPort,
+      screenPort:
+          _localPortsByRemotePort[remotePorts.screenPort] ??
+          remotePorts.screenPort,
+    );
+  }
+
+  static NoTunRemoteControlForwardPlan fromRemotePorts(
+    Iterable<RemoteControlPortConfig> candidatePorts,
+  ) {
+    final remotePorts = <int>{};
+    for (final config in candidatePorts) {
+      remotePorts.add(config.controlPort);
+      remotePorts.add(config.screenPort);
+    }
+
+    final sortedRemotePorts = remotePorts.toList()..sort();
+    return NoTunRemoteControlForwardPlan._(<int, int>{
+      for (var i = 0; i < sortedRemotePorts.length; i++)
+        sortedRemotePorts[i]: _localForwardBasePort + i,
+    });
+  }
+}
+
 class AppLifecycleManager extends WidgetsBindingObserver {
   static final AppLifecycleManager _instance = AppLifecycleManager._internal();
   factory AppLifecycleManager() => _instance;
@@ -92,37 +134,27 @@ class AppLifecycleManager extends WidgetsBindingObserver {
     return _startSelectedEasyTierProfile(useAndroidVpn: true);
   }
 
-  Future<bool> ensureNoTunForRemoteControlTarget({
+  Future<NoTunRemoteControlForwardPlan?> ensureNoTunForRemoteControlTarget({
     required String targetHost,
     required Iterable<RemoteControlPortConfig> candidatePorts,
   }) async {
     final normalizedHost = targetHost.trim();
     if (normalizedHost.isEmpty) {
-      return false;
+      return null;
     }
 
-    final targetForwards = _remoteControlTargetPortForwards(
-      normalizedHost,
+    final forwardPlan = NoTunRemoteControlForwardPlan.fromRemotePorts(
       candidatePorts,
     );
-    return _startSelectedEasyTierProfile(
+    final started = await _startSelectedEasyTierProfile(
       useAndroidVpn: false,
-      extraPortForwards: targetForwards,
+      extraPortForwards: forwardPlan.portForwards(normalizedHost),
     );
-  }
-
-  List<String> _remoteControlTargetPortForwards(
-    String targetHost,
-    Iterable<RemoteControlPortConfig> candidatePorts,
-  ) {
-    final ports = <int>{};
-    for (final config in candidatePorts) {
-      ports.add(config.controlPort);
-      ports.add(config.screenPort);
+    if (!started) {
+      return null;
     }
-    return <String>[
-      for (final port in ports) 'tcp://127.0.0.1:$port/$targetHost:$port',
-    ];
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    return forwardPlan;
   }
 
   Future<bool> _startSelectedEasyTierProfile({

@@ -689,13 +689,14 @@ class RemoteControlService {
   Future<void> _reconnectControllerScreenChannel() async {
     final host = _lastControllerHost;
     final config = _config;
-    if (host == null || config == null) {
+    final transportPorts = _lastControllerPorts ?? config?.ports;
+    if (host == null || config == null || transportPorts == null) {
       await requestKeyFrame();
       return;
     }
 
     developer.log(
-      'Reconnecting controller screen channel: host=$host screenPort=${config.ports.screenPort} proxy=$_lastControllerUseProxy',
+      'Reconnecting controller screen channel: host=$host screenPort=${transportPorts.screenPort} proxy=$_lastControllerUseProxy',
       name: 'RemoteControl',
     );
     final oldSocket = _controllerScreenSocket;
@@ -708,7 +709,13 @@ class RemoteControlService {
     try {
       final screenSocket = await _lifecycleHelper.connectControllerScreenSocket(
         host: host,
-        config: config,
+        config: RemoteControlConfig(
+          ports: transportPorts,
+          enableScreen: config.enableScreen,
+          enableVoice: config.enableVoice,
+          screenFps: config.screenFps,
+          screenBitrate: config.screenBitrate,
+        ),
         useProxy: _lastControllerUseProxy,
         proxyPort: _lastControllerProxyPort,
         onScreenDataRaw: _handleScreenDataRaw,

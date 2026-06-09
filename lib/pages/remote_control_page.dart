@@ -430,14 +430,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     final noTunControllerMode = _easyTierService.isNoTunMode;
     final candidatePorts = _buildCandidatePorts();
     final connectHost = noTunControllerMode ? '127.0.0.1' : host;
+    NoTunRemoteControlForwardPlan? forwardPlan;
 
     if (noTunControllerMode) {
-      final prepared = await AppLifecycleManager()
+      forwardPlan = await AppLifecycleManager()
           .ensureNoTunForRemoteControlTarget(
             targetHost: host,
             candidatePorts: candidatePorts,
           );
-      if (!prepared) {
+      if (forwardPlan == null) {
         if (!mounted) return;
         setState(() {
           _isConnecting = false;
@@ -480,10 +481,11 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
     Object? lastError;
     for (final ports in portsToTry) {
+      final transportPorts = forwardPlan?.localPortsFor(ports) ?? ports;
       try {
         await _service.connectToReceiver(
           connectHost,
-          ports,
+          transportPorts,
           useProxy: !noTunControllerMode && _useInternalProxy,
           proxyPort: proxyPort,
         );
@@ -492,7 +494,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         }
         setState(() {
           _isConnecting = false;
-          _portConfig = _service.config?.ports ?? ports;
+          _portConfig = ports;
         });
         _applyPortConfigToInputs(_portConfig);
         await Navigator.push(
@@ -539,12 +541,12 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     final candidatePorts = _portConfigHelper.buildCandidatePorts(null);
     final probeHost = noTunControllerMode ? '127.0.0.1' : host;
     if (noTunControllerMode) {
-      final prepared = await AppLifecycleManager()
+      final forwardPlan = await AppLifecycleManager()
           .ensureNoTunForRemoteControlTarget(
             targetHost: host,
             candidatePorts: candidatePorts,
           );
-      if (!prepared) {
+      if (forwardPlan == null) {
         return;
       }
     }

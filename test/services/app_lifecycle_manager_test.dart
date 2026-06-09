@@ -32,7 +32,7 @@ void main() {
           return null;
         });
 
-    final prepared = await AppLifecycleManager()
+    final forwardPlan = await AppLifecycleManager()
         .ensureNoTunForRemoteControlTarget(
           targetHost: '10.126.126.2',
           candidatePorts: const <RemoteControlPortConfig>[
@@ -40,12 +40,20 @@ void main() {
           ],
         );
 
-    expect(prepared, isTrue);
+    expect(forwardPlan, isNotNull);
     expect(arguments?['useAndroidVpn'], isFalse);
-    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:18080"'));
+    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:19080"'));
     expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18080"'));
-    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:18081"'));
+    expect(arguments?['config'], contains('bind_addr = "127.0.0.1:19081"'));
     expect(arguments?['config'], contains('dst_addr = "10.126.126.2:18081"'));
+    expect(
+      forwardPlan!.localPortsFor(
+        const RemoteControlPortConfig(controlPort: 18080, screenPort: 18081),
+      ),
+      isA<RemoteControlPortConfig>()
+          .having((ports) => ports.controlPort, 'controlPort', 19080)
+          .having((ports) => ports.screenPort, 'screenPort', 19081),
+    );
   });
 
   test(
