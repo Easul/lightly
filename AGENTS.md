@@ -109,6 +109,10 @@ These patterns were introduced to eliminate jank during normal browsing. Do not 
   - Android platform-view disposal can race with the next WebView attach and surface as white screens or stale content from a closed tab.
   - When loading a real URL from the favorites pseudo-page, or when the active tab has no live WebView controller, recreate the active tab keepAlive before rebuilding so the requested URL gets a fresh native WebView.
 
+- **Long overlays should stop loading only after a delay.**
+  - Do not call `stopLoading()` immediately when opening the drawer or tab switcher; quick overlays should only soft-freeze.
+  - If the same active real WebView tab is still loading after the delay, stop that load and reload the same URL after the overlay settles, provided the active tab and URL still match.
+
 ## Required verification when touching VLESS / proxy / WebView code
 
 Run at least these commands:
