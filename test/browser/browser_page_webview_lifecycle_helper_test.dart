@@ -21,7 +21,7 @@ void main() {
       trimKeepAlivesCalled = false;
     });
 
-    test('pauseForOverlay calls all callbacks in order', () {
+    test('pauseForOverlay soft-freezes without native WebView pause', () {
       final callOrder = <String>[];
 
       helper.pauseForOverlay(
@@ -43,23 +43,18 @@ void main() {
         },
       );
 
-      expect(pauseTimersCalled, isTrue);
-      expect(pauseWebViewCalled, isTrue);
+      expect(pauseTimersCalled, isFalse);
+      expect(pauseWebViewCalled, isFalse);
       expect(evaluatedScripts, hasLength(1));
       expect(
         evaluatedScripts.first,
         contains('document.querySelector(\'video\')'),
       );
-      expect(trimKeepAlivesCalled, isTrue);
-      expect(callOrder, [
-        'pauseTimers',
-        'pauseWebView',
-        'evaluateJavascript',
-        'trimKeepAlives',
-      ]);
+      expect(trimKeepAlivesCalled, isFalse);
+      expect(callOrder, ['evaluateJavascript']);
     });
 
-    test('resumeFromOverlay calls all callbacks in order', () {
+    test('resumeFromOverlay resumes video without native WebView resume', () {
       final callOrder = <String>[];
 
       helper.resumeFromOverlay(
@@ -77,15 +72,11 @@ void main() {
         },
       );
 
-      expect(resumeTimersCalled, isTrue);
-      expect(resumeWebViewCalled, isTrue);
+      expect(resumeTimersCalled, isFalse);
+      expect(resumeWebViewCalled, isFalse);
       expect(evaluatedScripts, hasLength(1));
       expect(evaluatedScripts.first, contains('__lightlyOverlayPausedVideo'));
-      expect(callOrder, [
-        'resumeWebView',
-        'resumeTimers',
-        'evaluateJavascript',
-      ]);
+      expect(callOrder, ['evaluateJavascript']);
     });
 
     test('pauseForOverlay video script pauses playing video', () {

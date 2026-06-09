@@ -385,7 +385,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         if (controller == null) {
           return;
         }
-        controller.pause();
         unawaited(
           controller.evaluateJavascript(
             source:

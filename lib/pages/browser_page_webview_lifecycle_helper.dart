@@ -13,10 +13,14 @@ class BrowserPageWebViewLifecycleHelper {
     required void Function(String source) evaluateJavascript,
     required void Function() trimKeepAlives,
   }) {
-    pauseTimers();
-    pauseWebView();
+    // Keep the Android WebView renderer attached and running while overlays
+    // animate. Native pause()/pauseTimers() can restore as a blank platform
+    // view with retained keepAlive WebViews, especially after a tab has been in
+    // the background for a while. BrowserPage still freezes user interaction
+    // with IgnorePointer and defers parent rebuilds during the overlay. Do not
+    // trim retained tab WebViews here; tab-preserving overlays should not race
+    // native WebView disposal against platform-view attach/restore.
     evaluateJavascript(pauseVideoForOverlayScript);
-    trimKeepAlives();
   }
 
   void resumeFromOverlay({
@@ -24,8 +28,6 @@ class BrowserPageWebViewLifecycleHelper {
     required void Function() resumeWebView,
     required void Function(String source) evaluateJavascript,
   }) {
-    resumeWebView();
-    resumeTimers();
     evaluateJavascript(resumeVideoFromOverlayScript);
   }
 }
