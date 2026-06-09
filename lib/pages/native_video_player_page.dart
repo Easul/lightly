@@ -40,7 +40,7 @@ class NativeVideoPlayerPage extends StatelessWidget {
   }
 }
 
-class NativeVideoPlayerDialog extends StatelessWidget {
+class NativeVideoPlayerDialog extends StatefulWidget {
   const NativeVideoPlayerDialog({
     super.key,
     required this.videoUrl,
@@ -53,6 +53,27 @@ class NativeVideoPlayerDialog extends StatelessWidget {
   final bool showDownloadAction;
 
   @override
+  State<NativeVideoPlayerDialog> createState() =>
+      _NativeVideoPlayerDialogState();
+}
+
+class _NativeVideoPlayerDialogState extends State<NativeVideoPlayerDialog> {
+  String? _resolvedTitle;
+
+  void _handleResolvedTitle(String? title) {
+    final normalizedTitle = title?.trim();
+    final nextTitle = normalizedTitle?.isNotEmpty == true
+        ? normalizedTitle
+        : null;
+    if (_resolvedTitle == nextTitle || !mounted) {
+      return;
+    }
+    setState(() {
+      _resolvedTitle = nextTitle;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -62,13 +83,14 @@ class NativeVideoPlayerDialog extends StatelessWidget {
         height: MediaQuery.of(context).size.height * 0.5,
         child: Column(
           children: [
-            const NativeVideoDialogHeader(),
+            NativeVideoDialogHeader(title: _resolvedTitle),
             Expanded(
               child: NativeVideoPlayerView(
-                videoUrl: videoUrl,
+                videoUrl: widget.videoUrl,
                 compact: true,
-                resolveYouTube: resolveYouTube,
-                showDownloadAction: showDownloadAction,
+                resolveYouTube: widget.resolveYouTube,
+                showDownloadAction: widget.showDownloadAction,
+                onResolvedTitle: _handleResolvedTitle,
               ),
             ),
           ],
@@ -85,12 +107,14 @@ class NativeVideoPlayerView extends StatefulWidget {
     this.compact = false,
     this.resolveYouTube = true,
     this.showDownloadAction = true,
+    this.onResolvedTitle,
   });
 
   final String videoUrl;
   final bool compact;
   final bool resolveYouTube;
   final bool showDownloadAction;
+  final ValueChanged<String?>? onResolvedTitle;
 
   @override
   State<NativeVideoPlayerView> createState() => _NativeVideoPlayerViewState();
@@ -243,6 +267,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
         _chewieController = result.chewieController;
         _isInitializing = false;
       });
+      widget.onResolvedTitle?.call(result.resolvedTitle);
     } catch (e, stackTrace) {
       if (!mounted) return;
       _logDebug('NativeVideoPlayer: initialization failed: $e');
@@ -324,15 +349,11 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
   }
 
   String _resolveDownloadFileName() {
-    final title = _resolvedTitle?.trim();
-    if (title != null && title.isNotEmpty) {
-      final hasExtension = RegExp(r'\.[A-Za-z0-9]{2,5}$').hasMatch(title);
-      return _downloadService.sanitizeFileName(
-        hasExtension ? title : '$title.mp4',
-      );
-    }
-    return _downloadService.resolveFileNameFromUrl(
-      _resolvedPlaybackUrl ?? widget.videoUrl,
+    return resolveNativeVideoDownloadFileName(
+      downloadService: _downloadService,
+      resolvedTitle: _resolvedTitle,
+      resolvedPlaybackUrl: _resolvedPlaybackUrl,
+      originalVideoUrl: widget.videoUrl,
     );
   }
 

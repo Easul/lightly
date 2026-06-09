@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class NativeVideoDialogHeader extends StatelessWidget {
-  const NativeVideoDialogHeader({super.key});
+  const NativeVideoDialogHeader({super.key, this.title});
+
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -10,15 +12,30 @@ class NativeVideoDialogHeader extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
-          Expanded(
-            child: Text('视频播放', style: Theme.of(context).textTheme.titleSmall),
-          ),
+          Expanded(child: _NativeVideoDialogTitle(title: title)),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _NativeVideoDialogTitle extends StatelessWidget {
+  const _NativeVideoDialogTitle({required this.title});
+
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedTitle = title?.trim();
+    return Text(
+      resolvedTitle?.isNotEmpty == true ? resolvedTitle! : '视频播放',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleSmall,
     );
   }
 }

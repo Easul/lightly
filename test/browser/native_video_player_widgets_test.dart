@@ -58,4 +58,34 @@ void main() {
     expect(find.text('播放失败'), findsNothing);
     expect(find.text('open'), findsOneWidget);
   });
+
+  group('NativeVideoDialogHeader', () {
+    testWidgets('shows parser title with one-line ellipsis rules', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: NativeVideoDialogHeader(title: 'Example video title'),
+          ),
+        ),
+      );
+
+      final titleFinder = find.text('Example video title');
+      expect(titleFinder, findsOneWidget);
+      final title = tester.widget<Text>(titleFinder);
+      expect(title.maxLines, 1);
+      expect(title.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('falls back to generic title without parser title', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: NativeVideoDialogHeader())),
+      );
+
+      expect(find.text('视频播放'), findsOneWidget);
+    });
+  });
 }
