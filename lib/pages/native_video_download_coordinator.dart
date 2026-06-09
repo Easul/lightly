@@ -4,6 +4,24 @@ import '../browser/proxy_service.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 
+String resolveNativeVideoDownloadFileName({
+  required BrowserDownloadService downloadService,
+  required String? resolvedTitle,
+  required String? resolvedPlaybackUrl,
+  required String originalVideoUrl,
+}) {
+  final title = resolvedTitle?.trim();
+  if (title != null && title.isNotEmpty) {
+    final hasExtension = RegExp(r'\.[A-Za-z0-9]{2,5}$').hasMatch(title);
+    return downloadService.sanitizeFileName(
+      hasExtension ? title : '$title.mp4',
+    );
+  }
+  return downloadService.resolveFileNameFromUrl(
+    resolvedPlaybackUrl ?? originalVideoUrl,
+  );
+}
+
 typedef NativeVideoDownloadConfirmation =
     Future<DownloadConfirmationResult?> Function(BrowserDownloadRecord record);
 

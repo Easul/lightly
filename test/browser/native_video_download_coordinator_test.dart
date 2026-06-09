@@ -8,6 +8,48 @@ import 'package:lightly/pages/native_video_download_coordinator.dart';
 
 void main() {
   group('NativeVideoDownloadCoordinator', () {
+    test('resolveNativeVideoDownloadFileName uses parser title', () {
+      final service = BrowserDownloadService();
+
+      expect(
+        resolveNativeVideoDownloadFileName(
+          downloadService: service,
+          resolvedTitle: 'Example video title',
+          resolvedPlaybackUrl: 'https://cdn.example.com/videoplayback?id=1',
+          originalVideoUrl: 'https://youtube.com/watch?v=abc123',
+        ),
+        'Example video title.mp4',
+      );
+    });
+
+    test('resolveNativeVideoDownloadFileName preserves title extension', () {
+      final service = BrowserDownloadService();
+
+      expect(
+        resolveNativeVideoDownloadFileName(
+          downloadService: service,
+          resolvedTitle: 'Example/video:name.mp4',
+          resolvedPlaybackUrl: 'https://cdn.example.com/videoplayback?id=1',
+          originalVideoUrl: 'https://youtube.com/watch?v=abc123',
+        ),
+        'Example_video_name.mp4',
+      );
+    });
+
+    test('resolveNativeVideoDownloadFileName falls back to playback url', () {
+      final service = BrowserDownloadService();
+
+      expect(
+        resolveNativeVideoDownloadFileName(
+          downloadService: service,
+          resolvedTitle: ' ',
+          resolvedPlaybackUrl: 'https://cdn.example.com/video.mp4?token=abc',
+          originalVideoUrl: 'https://youtube.com/watch?v=abc123',
+        ),
+        'video.mp4',
+      );
+    });
+
     test('returns when user cancels confirmation', () async {
       final service = _FakeDownloadService();
       final store = _FakeDownloadStore();
