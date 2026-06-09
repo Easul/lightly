@@ -71,7 +71,7 @@ class BrowserPageAddressBarCoordinator {
       shouldLoadInCurrentWebView: !isFavoritesPage && hasWebViewController,
       shouldRebuildAfterAddressLoad: isFavoritesPage,
       shouldResetKeepAliveAfterAddressLoad:
-          !isFavoritesPage && !hasWebViewController,
+          isFavoritesPage || !hasWebViewController,
     );
   }
 }

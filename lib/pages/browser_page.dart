@@ -976,7 +976,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
     final activeTabId = _activeTabId;
     if (activeTabId != null) {
-      _tabService.ensureKeepAlive(activeTabId);
+      if (plan.shouldResetKeepAliveAfterAddressLoad) {
+        _tabService.resetKeepAlive(activeTabId, recreate: true);
+      } else {
+        _tabService.ensureKeepAlive(activeTabId);
+      }
     }
     _checkFavoriteStatus(target);
     if (_statusCoordinator.shouldClearAfterAddressLoad(
@@ -1003,7 +1007,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
 
     if (plan.shouldResetKeepAliveAfterAddressLoad && activeTabId != null) {
-      _tabService.resetKeepAlive(activeTabId, recreate: false);
       if (mounted) {
         _rebuildWhenVisible();
       }

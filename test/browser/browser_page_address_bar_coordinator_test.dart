@@ -57,7 +57,7 @@ void main() {
       expect(plan.target, 'https://www.google.com/search?q=hello%20world');
     });
 
-    test('rebuilds instead of loading when leaving favorites page', () {
+    test('rebuilds with fresh keepalive when leaving favorites page', () {
       final plan = coordinator.buildLoadPlan(
         rawValue: 'https://example.com',
         isProxyActive: false,
@@ -69,7 +69,7 @@ void main() {
       expect(plan.wasFavoritesPage, isTrue);
       expect(plan.shouldLoadInCurrentWebView, isFalse);
       expect(plan.shouldRebuildAfterAddressLoad, isTrue);
-      expect(plan.shouldResetKeepAliveAfterAddressLoad, isFalse);
+      expect(plan.shouldResetKeepAliveAfterAddressLoad, isTrue);
     });
 
     test('resets keepalive when non-favorites page has no controller', () {
