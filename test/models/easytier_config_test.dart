@@ -58,7 +58,13 @@ void main() {
       expect(
         toml,
         contains(
-          'port_forward = ["tcp://0.0.0.0:18080/10.126.126.1:18080", "tcp://0.0.0.0:8080/127.0.0.1:8080"]',
+          '[[port_forward]]\nbind_addr = "0.0.0.0:18080"\ndst_addr = "10.126.126.1:18080"\nproto = "tcp"',
+        ),
+      );
+      expect(
+        toml,
+        contains(
+          '[[port_forward]]\nbind_addr = "0.0.0.0:8080"\ndst_addr = "127.0.0.1:8080"\nproto = "tcp"',
         ),
       );
     });

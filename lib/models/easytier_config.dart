@@ -144,10 +144,17 @@ class EasyTierConfig {
     final effectivePortForwards = _effectivePortForwards();
     if (effectivePortForwards.isNotEmpty) {
       buffer.writeln('');
-      final encodedPortForwards = effectivePortForwards
-          .map((forward) => '"$forward"')
-          .join(', ');
-      buffer.writeln('port_forward = [$encodedPortForwards]');
+      for (final forward in effectivePortForwards) {
+        final config = _parsePortForward(forward);
+        if (config == null) {
+          continue;
+        }
+        buffer.writeln('[[port_forward]]');
+        buffer.writeln('bind_addr = "${config.bindAddr}"');
+        buffer.writeln('dst_addr = "${config.dstAddr}"');
+        buffer.writeln('proto = "${config.proto}"');
+        buffer.writeln('');
+      }
     }
 
     buffer.writeln('');
@@ -248,4 +255,32 @@ class EasyTierConfig {
     }
     return peers[index];
   }
+
+  _ParsedPortForward? _parsePortForward(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.scheme.isEmpty || uri.host.isEmpty || !uri.hasPort) {
+      return null;
+    }
+    final dst = uri.pathSegments.join('/');
+    if (dst.isEmpty) {
+      return null;
+    }
+    return _ParsedPortForward(
+      proto: uri.scheme,
+      bindAddr: '${uri.host}:${uri.port}',
+      dstAddr: dst,
+    );
+  }
+}
+
+class _ParsedPortForward {
+  const _ParsedPortForward({
+    required this.proto,
+    required this.bindAddr,
+    required this.dstAddr,
+  });
+
+  final String proto;
+  final String bindAddr;
+  final String dstAddr;
 }
