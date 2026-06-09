@@ -37,11 +37,15 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
   final _ipv4Controller = TextEditingController();
   final _hostnameController = TextEditingController();
   final _peerController = TextEditingController();
+  final _portMappingPortController = TextEditingController();
 
   bool _dhcp = false;
   bool _enableP2p = true;
+  bool _noTun = false;
+  bool _portMappingsExpanded = false;
   List<String> _peers = [];
   List<String> _peerRemarks = [];
+  List<EasyTierPortMapping> _portMappings = [];
   int? _activePeerIndex;
   bool _isRunning = false;
   bool _isLoading = false;
@@ -61,6 +65,7 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     _isRunning = _easyTierService.isRunning;
     _runtimeStatusController = EasyTierRuntimeStatusController(
       startVpn: _easyTierService.startVpn,
+      startNoTun: _easyTierService.startNoTun,
       stopVpn: _easyTierService.stopVpn,
       getNetworkInfo: _easyTierService.getNetworkInfo,
       readLastError: () => _easyTierService.lastError,
@@ -89,6 +94,7 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     _ipv4Controller.dispose();
     _hostnameController.dispose();
     _peerController.dispose();
+    _portMappingPortController.dispose();
     super.dispose();
   }
 
@@ -103,6 +109,8 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       peerRemarks: List<String>.from(_normalizedPeerRemarks()),
       activePeerIndex: _effectiveActivePeerIndex(),
       enableP2p: _enableP2p,
+      noTun: _noTun,
+      portMappings: List<EasyTierPortMapping>.from(_portMappings),
       hostname: _hostnameController.text.trim().isEmpty
           ? null
           : _hostnameController.text.trim(),
@@ -136,8 +144,10 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     _ipv4Controller.text = profile.config.ipv4 ?? '';
     _hostnameController.text = profile.config.hostname ?? '';
     _enableP2p = profile.config.enableP2p;
+    _noTun = profile.config.noTun;
     _peers = List<String>.from(profile.config.peers);
     _peerRemarks = _normalizePeerRemarks(profile.config.peerRemarks, _peers);
+    _portMappings = List<EasyTierPortMapping>.from(profile.config.portMappings);
     _activePeerIndex = _normalizeActivePeerIndex(
       profile.config.activePeerIndex,
       _peers,
@@ -401,6 +411,37 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     unawaited(_persistCurrentProfile());
   }
 
+  void _addPortMapping() {
+    final port = int.tryParse(_portMappingPortController.text.trim());
+    if (port == null || port <= 0 || port >= 65536) {
+      return;
+    }
+    setState(() {
+      if (!_portMappings.any((mapping) => mapping.port == port)) {
+        _portMappings.add(EasyTierPortMapping(port: port));
+      }
+      _portMappingPortController.clear();
+      _portMappingsExpanded = true;
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
+  void _removePortMapping(int index) {
+    if (index < 0 || index >= _portMappings.length) return;
+    setState(() {
+      _portMappings.removeAt(index);
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
+  void _updatePortMappingRemark(int index, String remark) {
+    if (index < 0 || index >= _portMappings.length) return;
+    setState(() {
+      _portMappings[index] = _portMappings[index].copyWith(remark: remark);
+    });
+    unawaited(_persistCurrentProfile());
+  }
+
   int? _effectiveActivePeerIndex() {
     return _normalizeActivePeerIndex(_activePeerIndex, _peers);
   }
@@ -428,11 +469,14 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _statusMessage = '正在启动 EasyTier VPN，必要时会请求系统权限...';
+      _statusMessage = _noTun
+          ? '正在启动 EasyTier 非 VPN 模式...'
+          : '正在启动 EasyTier VPN，必要时会请求系统权限...';
     });
 
     final result = await _runtimeStatusController.startVpn(
       _buildCurrentConfig(),
+      useNoTunMode: _noTun,
     );
     setState(() {
       _isLoading = false;
@@ -524,6 +568,10 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
         ipv4Controller: _ipv4Controller,
         hostnameController: _hostnameController,
         enableP2p: _enableP2p,
+        noTun: _noTun,
+        portMappingPortController: _portMappingPortController,
+        portMappings: _portMappings,
+        portMappingsExpanded: _portMappingsExpanded,
         peerController: _peerController,
         peers: _peers,
         peerRemarks: _normalizedPeerRemarks(),
@@ -548,6 +596,20 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
           });
           unawaited(_persistCurrentProfile());
         },
+        onNoTunChanged: (value) {
+          setState(() {
+            _noTun = value;
+          });
+          unawaited(_persistCurrentProfile());
+        },
+        onPortMappingsExpandedChanged: (value) {
+          setState(() {
+            _portMappingsExpanded = value;
+          });
+        },
+        onAddPortMapping: _addPortMapping,
+        onRemovePortMapping: _removePortMapping,
+        onPortMappingRemarkChanged: _updatePortMappingRemark,
         onAddPeer: _addPeer,
         onRemovePeer: _removePeer,
         onSelectPeer: _selectPeer,

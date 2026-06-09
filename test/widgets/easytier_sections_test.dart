@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/models/easytier_config.dart';
 import 'package:lightly/widgets/easytier/easytier_sections.dart';
 
 void main() {
@@ -22,6 +23,12 @@ void main() {
               ipv4Controller: TextEditingController(text: '10.126.126.2/24'),
               hostnameController: TextEditingController(),
               enableP2p: true,
+              noTun: true,
+              portMappingPortController: TextEditingController(),
+              portMappings: const <EasyTierPortMapping>[
+                EasyTierPortMapping(port: 8080, remark: 'NAS'),
+              ],
+              portMappingsExpanded: true,
               peerController: TextEditingController(),
               peers: const <String>[
                 'tcp://first.example.com:11010',
@@ -31,6 +38,11 @@ void main() {
               activePeerIndex: 0,
               onDhcpChanged: (_) {},
               onEnableP2pChanged: (_) {},
+              onNoTunChanged: (_) {},
+              onPortMappingsExpandedChanged: (_) {},
+              onAddPortMapping: () {},
+              onRemovePortMapping: (_) {},
+              onPortMappingRemarkChanged: (_, _) {},
               onAddPeer: () {},
               onRemovePeer: (_) {},
               onSelectPeer: (index) => selectedIndex = index,
@@ -49,6 +61,9 @@ void main() {
     expect(find.text('tcp://second.example.com:11010'), findsOneWidget);
     expect(find.text('家里'), findsOneWidget);
     expect(find.text('公司'), findsOneWidget);
+    expect(find.text('使用非 VPN 模式'), findsOneWidget);
+    expect(find.text('TCP 8080 → 本机 8080'), findsOneWidget);
+    expect(find.text('NAS'), findsOneWidget);
 
     await tester.ensureVisible(find.byType(Switch).last);
     await tester.tap(find.byType(Switch).last);

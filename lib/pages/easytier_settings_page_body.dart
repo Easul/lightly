@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/easytier_config.dart';
 import '../models/easytier_network_profile.dart';
 import '../widgets/easytier/easytier_sections.dart';
 
@@ -28,6 +29,10 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.ipv4Controller,
     required this.hostnameController,
     required this.enableP2p,
+    required this.noTun,
+    required this.portMappingPortController,
+    required this.portMappings,
+    required this.portMappingsExpanded,
     required this.peerController,
     required this.peers,
     required this.peerRemarks,
@@ -42,6 +47,11 @@ class EasyTierSettingsBody extends StatelessWidget {
     required this.onStopVpn,
     required this.onDhcpChanged,
     required this.onEnableP2pChanged,
+    required this.onNoTunChanged,
+    required this.onPortMappingsExpandedChanged,
+    required this.onAddPortMapping,
+    required this.onRemovePortMapping,
+    required this.onPortMappingRemarkChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
     required this.onSelectPeer,
@@ -70,6 +80,10 @@ class EasyTierSettingsBody extends StatelessWidget {
   final TextEditingController ipv4Controller;
   final TextEditingController hostnameController;
   final bool enableP2p;
+  final bool noTun;
+  final TextEditingController portMappingPortController;
+  final List<EasyTierPortMapping> portMappings;
+  final bool portMappingsExpanded;
   final TextEditingController peerController;
   final List<String> peers;
   final List<String> peerRemarks;
@@ -84,6 +98,11 @@ class EasyTierSettingsBody extends StatelessWidget {
   final VoidCallback onStopVpn;
   final ValueChanged<bool> onDhcpChanged;
   final ValueChanged<bool> onEnableP2pChanged;
+  final ValueChanged<bool> onNoTunChanged;
+  final ValueChanged<bool> onPortMappingsExpandedChanged;
+  final VoidCallback onAddPortMapping;
+  final ValueChanged<int> onRemovePortMapping;
+  final void Function(int index, String remark) onPortMappingRemarkChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
   final ValueChanged<int> onSelectPeer;
@@ -102,6 +121,7 @@ class EasyTierSettingsBody extends StatelessWidget {
             children: [
               EasyTierStatusCard(
                 isRunning: isRunning,
+                isNoTunMode: noTun,
                 statusMessage: statusMessage,
                 errorMessage: errorMessage,
               ),
@@ -149,6 +169,7 @@ class EasyTierSettingsBody extends StatelessWidget {
               EasyTierControlButtons(
                 isLoading: isLoading,
                 isRunning: isRunning,
+                isNoTunMode: noTun,
                 onStart: onStartVpn,
                 onStop: onStopVpn,
               ),
@@ -163,12 +184,21 @@ class EasyTierSettingsBody extends StatelessWidget {
                 ipv4Controller: ipv4Controller,
                 hostnameController: hostnameController,
                 enableP2p: enableP2p,
+                noTun: noTun,
+                portMappingPortController: portMappingPortController,
+                portMappings: portMappings,
+                portMappingsExpanded: portMappingsExpanded,
                 peerController: peerController,
                 peers: peers,
                 peerRemarks: peerRemarks,
                 activePeerIndex: activePeerIndex,
                 onDhcpChanged: onDhcpChanged,
                 onEnableP2pChanged: onEnableP2pChanged,
+                onNoTunChanged: onNoTunChanged,
+                onPortMappingsExpandedChanged: onPortMappingsExpandedChanged,
+                onAddPortMapping: onAddPortMapping,
+                onRemovePortMapping: onRemovePortMapping,
+                onPortMappingRemarkChanged: onPortMappingRemarkChanged,
                 onAddPeer: onAddPeer,
                 onRemovePeer: onRemovePeer,
                 onSelectPeer: onSelectPeer,

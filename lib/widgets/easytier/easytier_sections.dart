@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../models/easytier_config.dart';
+
 class EasyTierStatusCard extends StatelessWidget {
   const EasyTierStatusCard({
     super.key,
     required this.isRunning,
+    required this.isNoTunMode,
     required this.statusMessage,
     required this.errorMessage,
   });
 
   final bool isRunning;
+  final bool isNoTunMode;
   final String? statusMessage;
   final String? errorMessage;
 
@@ -28,7 +32,9 @@ class EasyTierStatusCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isRunning ? 'VPN 运行中' : 'VPN 未运行',
+                  isRunning
+                      ? (isNoTunMode ? '非 VPN 模式运行中' : 'VPN 运行中')
+                      : 'EasyTier 未运行',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
@@ -292,12 +298,14 @@ class EasyTierControlButtons extends StatelessWidget {
     super.key,
     required this.isLoading,
     required this.isRunning,
+    required this.isNoTunMode,
     required this.onStart,
     required this.onStop,
   });
 
   final bool isLoading;
   final bool isRunning;
+  final bool isNoTunMode;
   final VoidCallback onStart;
   final VoidCallback onStop;
 
@@ -315,7 +323,7 @@ class EasyTierControlButtons extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.play_arrow),
-            label: const Text('启动 VPN'),
+            label: Text(isNoTunMode ? '启动非 VPN' : '启动 VPN'),
           ),
         ),
         const SizedBox(width: 16),
@@ -324,7 +332,7 @@ class EasyTierControlButtons extends StatelessWidget {
             onPressed: isLoading || !isRunning ? null : onStop,
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             icon: const Icon(Icons.stop),
-            label: const Text('停止 VPN'),
+            label: const Text('停止 EasyTier'),
           ),
         ),
       ],
@@ -342,12 +350,21 @@ class EasyTierConfigurationSection extends StatelessWidget {
     required this.ipv4Controller,
     required this.hostnameController,
     required this.enableP2p,
+    required this.noTun,
+    required this.portMappingPortController,
+    required this.portMappings,
+    required this.portMappingsExpanded,
     required this.peerController,
     required this.peers,
     required this.peerRemarks,
     required this.activePeerIndex,
     required this.onDhcpChanged,
     required this.onEnableP2pChanged,
+    required this.onNoTunChanged,
+    required this.onPortMappingsExpandedChanged,
+    required this.onAddPortMapping,
+    required this.onRemovePortMapping,
+    required this.onPortMappingRemarkChanged,
     required this.onAddPeer,
     required this.onRemovePeer,
     required this.onSelectPeer,
@@ -361,12 +378,21 @@ class EasyTierConfigurationSection extends StatelessWidget {
   final TextEditingController ipv4Controller;
   final TextEditingController hostnameController;
   final bool enableP2p;
+  final bool noTun;
+  final TextEditingController portMappingPortController;
+  final List<EasyTierPortMapping> portMappings;
+  final bool portMappingsExpanded;
   final TextEditingController peerController;
   final List<String> peers;
   final List<String> peerRemarks;
   final int? activePeerIndex;
   final ValueChanged<bool> onDhcpChanged;
   final ValueChanged<bool> onEnableP2pChanged;
+  final ValueChanged<bool> onNoTunChanged;
+  final ValueChanged<bool> onPortMappingsExpandedChanged;
+  final VoidCallback onAddPortMapping;
+  final ValueChanged<int> onRemovePortMapping;
+  final void Function(int index, String remark) onPortMappingRemarkChanged;
   final VoidCallback onAddPeer;
   final ValueChanged<int> onRemovePeer;
   final ValueChanged<int> onSelectPeer;
@@ -449,6 +475,146 @@ class EasyTierConfigurationSection extends StatelessWidget {
           subtitle: const Text('允许与其他节点直接连接'),
           value: enableP2p,
           onChanged: onEnableP2pChanged,
+        ),
+        const SizedBox(height: 8),
+        Card(
+          margin: EdgeInsets.zero,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.vpn_key_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '使用非 VPN 模式',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    Switch(value: noTun, onChanged: onNoTunChanged),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  noTun
+                      ? '运行 EasyTier no-tun，不创建 Android 系统 VPN；远程控制会继续使用非 VPN 模式。'
+                      : '默认创建 Android VPN，适合直接访问虚拟网段。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          initiallyExpanded: portMappingsExpanded,
+          onExpansionChanged: onPortMappingsExpandedChanged,
+          leading: const Icon(Icons.settings_ethernet_rounded),
+          title: const Text('端口映射'),
+          subtitle: Text(
+            portMappings.isEmpty
+                ? '添加需要通过 P2P 暴露的本机 TCP 端口'
+                : '已配置 ${portMappings.length} 个端口',
+          ),
+          children: [
+            Text(
+              '非 VPN 模式下，除若轻远控端口外，可在这里暴露其他本机服务端口。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: portMappingPortController,
+                    decoration: const InputDecoration(
+                      labelText: '端口号',
+                      hintText: '例如: 8080',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: onAddPortMapping,
+                  icon: const Icon(Icons.add),
+                  label: const Text('添加'),
+                ),
+              ],
+            ),
+            if (portMappings.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ...portMappings.asMap().entries.map((entry) {
+                final index = entry.key;
+                final mapping = entry.value;
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.input_rounded),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SelectableText(
+                              'TCP ${mapping.port} → 本机 ${mapping.port}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              key: ValueKey(
+                                'easytier-port-mapping-remark-$index-${mapping.port}',
+                              ),
+                              initialValue: mapping.remark,
+                              minLines: 1,
+                              maxLines: 2,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                labelText: '名称备注',
+                                hintText: '例如：NAS / 相册服务 / 调试端口',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (value) =>
+                                  onPortMappingRemarkChanged(index, value),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () => onRemovePortMapping(index),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
         ),
         const SizedBox(height: 16),
         Text('节点地址 (Peers)', style: Theme.of(context).textTheme.titleMedium),
