@@ -659,6 +659,8 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - P2P VPN supports the same no-VPN / no-tun mode as the remote-control receiver. When that mode is enabled from P2P settings, start EasyTier with `no_tun = true` and without Android `VpnService`; remote-control controller UI should only show a hint and continue connecting through the same non-VPN path.
 - If the P2P no-tun instance is already running and the receiver also starts in no-VPN mode, reuse the existing EasyTier instance instead of stopping/restarting it.
 - For no-tun exposure of non-Lightly services, use the structured port-mapping list in P2P settings. Each entry emits a same-port EasyTier `port_forward` rule like `tcp://0.0.0.0:<port>/127.0.0.1:<port>` and preserves the user's remark/name for UI only.
+- For remote-control controller connections in no-tun mode, normal Dart sockets cannot route `10.126.*` directly because Android has no VPN route. Before probing/connecting, refresh the controller-side EasyTier no-tun instance with local `port_forward` rules like `tcp://127.0.0.1:<port>/<receiver_virtual_ip>:<port>` and connect Dart sockets to `127.0.0.1:<port>`.
+- Keep both control and screen ports in those controller-side forwards; probing only the control port is not enough for the final remote-control session.
 - For this repo:
   - local HTTP file server should bind `0.0.0.0` when VPN/LAN exposure is desired
   - clipboard server should use `shared: true`
