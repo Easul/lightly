@@ -171,8 +171,36 @@ class RemoteControlLifecycleHelper {
       await reader.readBytes(18);
     }
 
+    final buffered = reader.takeBuffered();
     await reader.dispose();
-    return _ConnectedSocket(socket: proxySocket, stream: incomingStream);
+    return _ConnectedSocket(
+      socket: proxySocket,
+      stream: _prependBufferedData(incomingStream, buffered),
+    );
+  }
+
+  Stream<Uint8List> _prependBufferedData(
+    Stream<Uint8List> source,
+    List<int> buffered,
+  ) {
+    if (buffered.isEmpty) {
+      return source;
+    }
+    late StreamController<Uint8List> controller;
+    StreamSubscription<Uint8List>? subscription;
+
+    controller = StreamController<Uint8List>(
+      onListen: () {
+        controller.add(Uint8List.fromList(buffered));
+        subscription = source.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+      },
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
   }
 
   void attachReceiverControlClient({
@@ -277,6 +305,12 @@ class _ProxySocketReader {
 
   Future<void> dispose() async {
     await _subscription?.cancel();
+  }
+
+  List<int> takeBuffered() {
+    final buffered = List<int>.from(_buffer);
+    _buffer.clear();
+    return buffered;
   }
 }
 
