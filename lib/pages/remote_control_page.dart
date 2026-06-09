@@ -86,6 +86,14 @@ class RemoteControlPageStateSnapshot {
   }
 }
 
+@visibleForTesting
+bool resolveReceiverNoTunMode({
+  required bool receiverNoTunMode,
+  required bool p2pNoTunMode,
+}) {
+  return p2pNoTunMode || receiverNoTunMode;
+}
+
 class _RemoteControlPageState extends State<RemoteControlPage> {
   static const MethodChannel _channel = MethodChannel('remote_control');
   final RemoteControlService _service = RemoteControlService();
@@ -151,7 +159,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _isReceiverAudioEnabled = snapshot.isReceiverAudioEnabled;
     _isReceiverRunning = snapshot.isReceiverRunning;
     _useReceiverNoTunMode = snapshot.useReceiverNoTunMode;
+    _syncReceiverNoTunModeFromP2p();
     _hadConnectedSession = snapshot.hadConnectedSession;
+  }
+
+  void _syncReceiverNoTunModeFromP2p() {
+    _useReceiverNoTunMode = resolveReceiverNoTunMode(
+      receiverNoTunMode: _useReceiverNoTunMode,
+      p2pNoTunMode: _easyTierService.isNoTunMode,
+    );
   }
 
   Future<void> _loadSettings() async {
@@ -182,6 +198,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   Future<void> _loadPeers({bool showLoading = true}) async {
+    if (_easyTierService.isNoTunMode && !_useReceiverNoTunMode && mounted) {
+      setState(_syncReceiverNoTunModeFromP2p);
+    }
+
     if (!_easyTierService.isRunning) {
       if (mounted && _peers.isNotEmpty) {
         setState(() => _peers = const <Map<String, String>>[]);
@@ -284,8 +304,13 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   Future<void> _startReceiver() async {
+    final effectiveNoTunMode = resolveReceiverNoTunMode(
+      receiverNoTunMode: _useReceiverNoTunMode,
+      p2pNoTunMode: _easyTierService.isNoTunMode,
+    );
     setState(() {
       _isConnecting = true;
+      _useReceiverNoTunMode = effectiveNoTunMode;
       _errorMessage = null;
       _hadConnectedSession = false;
     });
@@ -296,7 +321,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         service: _service,
         ensureVpnForRemoteControl:
             AppLifecycleManager().ensureVpnForRemoteControl,
-        useNoTunMode: _useReceiverNoTunMode,
+        useNoTunMode: effectiveNoTunMode,
       );
 
       if (!mounted) return;
@@ -558,13 +583,17 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   }
 
   Widget _buildReceiverSection() {
+    final effectiveNoTunMode = resolveReceiverNoTunMode(
+      receiverNoTunMode: _useReceiverNoTunMode,
+      p2pNoTunMode: _easyTierService.isNoTunMode,
+    );
     return RemoteControlReceiverSection(
       portConfig: _portConfig,
       isReceiverAudioEnabled: _isReceiverAudioEnabled,
       state: _service.state,
       isConnecting: _isConnecting,
       isReceiverRunning: _isReceiverRunning,
-      useNoTunMode: _useReceiverNoTunMode,
+      useNoTunMode: effectiveNoTunMode,
       onUseNoTunModeChanged: (value) {
         setState(() => _useReceiverNoTunMode = value);
       },

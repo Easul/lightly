@@ -40,4 +40,22 @@ void main() {
     expect(snapshot.useReceiverNoTunMode, isTrue);
     expect(snapshot.hadConnectedSession, isTrue);
   });
+
+  test('p2p no-vpn forces receiver no-vpn mode', () {
+    expect(
+      resolveReceiverNoTunMode(receiverNoTunMode: false, p2pNoTunMode: true),
+      isTrue,
+    );
+  });
+
+  test('p2p vpn mode preserves receiver no-vpn setting', () {
+    expect(
+      resolveReceiverNoTunMode(receiverNoTunMode: false, p2pNoTunMode: false),
+      isFalse,
+    );
+    expect(
+      resolveReceiverNoTunMode(receiverNoTunMode: true, p2pNoTunMode: false),
+      isTrue,
+    );
+  });
 }
