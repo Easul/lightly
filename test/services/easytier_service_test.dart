@@ -40,9 +40,14 @@ void main() {
     expect(arguments?['config'], contains('no_tun = true'));
     expect(arguments?['config'], contains('enable_kcp_proxy = true'));
     expect(arguments?['config'], contains('enable_quic_proxy = true'));
+    expect(arguments?['config'], contains('enable_socks5 = true'));
+    final activeSocksPort = EasyTierService().activeNoTunSocksPort;
+    expect(activeSocksPort, isNotNull);
+    expect(activeSocksPort, inInclusiveRange(11080, 11120));
+    expect(arguments?['config'], contains('socks5_port = $activeSocksPort'));
     expect(
       arguments?['config'],
-      contains('socks5_proxy = "socks5://127.0.0.1:11080"'),
+      contains('socks5_proxy = "socks5://0.0.0.0:$activeSocksPort"'),
     );
     expect(
       arguments?['config'],
@@ -63,7 +68,36 @@ void main() {
     expect(arguments?['config'], isNot(contains('[[port_forward]]')));
     expect(EasyTierService().isNoTunMode, isTrue);
     expect(EasyTierService().usesAndroidVpn, isFalse);
-    expect(EasyTierService().activeNoTunSocksPort, 11080);
+    expect(EasyTierService().activeNoTunSocksPort, activeSocksPort);
+  });
+
+  test('startNoTun preserves custom SOCKS port', () async {
+    Map<dynamic, dynamic>? arguments;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'startVpn') {
+            arguments = Map<dynamic, dynamic>.from(call.arguments as Map);
+            return true;
+          }
+          return null;
+        });
+
+    final success = await EasyTierService().startNoTun(
+      EasyTierConfig(
+        instanceName: 'receiver-custom',
+        networkName: 'network',
+        socks5Port: 11180,
+      ),
+    );
+
+    expect(success, isTrue);
+    expect(arguments?['config'], contains('enable_socks5 = true'));
+    expect(arguments?['config'], contains('socks5_port = 11180'));
+    expect(
+      arguments?['config'],
+      contains('socks5_proxy = "socks5://0.0.0.0:11180"'),
+    );
+    expect(EasyTierService().activeNoTunSocksPort, 11180);
   });
 
   test('startVpn tracks Android VPN runtime mode', () async {

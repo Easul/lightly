@@ -260,10 +260,18 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
   }
 
   List<String> _buildDiagnostics() {
-    return EasyTierNetworkInfoAnalyzer.buildDiagnostics(
+    final diagnostics = EasyTierNetworkInfoAnalyzer.buildDiagnostics(
       _networkInfo,
       _instanceNameController.text,
     );
+    final socksPort = _easyTierService.activeNoTunSocksPort;
+    if (socksPort == null) {
+      return diagnostics;
+    }
+    return <String>[
+      '非 VPN 模式 SOCKS5 端口：$socksPort（应用连接 127.0.0.1:$socksPort）',
+      ...diagnostics,
+    ];
   }
 
   String? _currentEasyTierIpv4() {
@@ -481,7 +489,10 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     setState(() {
       _isLoading = false;
       _isRunning = result.isRunning;
-      _statusMessage = result.statusMessage;
+      final socksPort = _easyTierService.activeNoTunSocksPort;
+      _statusMessage = socksPort == null
+          ? result.statusMessage
+          : '${result.statusMessage}，SOCKS5 端口：$socksPort';
       _errorMessage = result.errorMessage;
     });
     _updateRefreshTimer();

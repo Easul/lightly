@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
 
@@ -74,18 +75,49 @@ class EasyTierService {
   }
 
   Future<bool> startNoTun(EasyTierConfig config) async {
-    return _startInstance(_prepareNoTunConfig(config), useAndroidVpn: false);
+    return _startInstance(
+      await _prepareNoTunConfig(config),
+      useAndroidVpn: false,
+    );
   }
 
-  EasyTierConfig _prepareNoTunConfig(EasyTierConfig config) {
+  Future<EasyTierConfig> _prepareNoTunConfig(EasyTierConfig config) async {
+    final socks5Port = await _resolveNoTunSocksPort(config.socks5Port);
     return config.copyWith(
       noTun: true,
       enableKcpProxy: true,
       enableQuicProxy: true,
-      socks5Port: config.socks5Port ?? noTunSocksPort,
+      socks5Port: socks5Port,
       portForwards: const <String>[],
       portMappings: const <EasyTierPortMapping>[],
     );
+  }
+
+  Future<int> _resolveNoTunSocksPort(int? preferredPort) async {
+    final preferred = preferredPort ?? noTunSocksPort;
+    if (await _isLoopbackPortAvailable(preferred)) {
+      return preferred;
+    }
+
+    for (var port = noTunSocksPort + 1; port <= noTunSocksPort + 40; port++) {
+      if (await _isLoopbackPortAvailable(port)) {
+        return port;
+      }
+    }
+
+    return preferred;
+  }
+
+  Future<bool> _isLoopbackPortAvailable(int port) async {
+    ServerSocket? socket;
+    try {
+      socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
+      return true;
+    } on SocketException {
+      return false;
+    } finally {
+      await socket?.close();
+    }
   }
 
   Future<bool> _startInstance(
