@@ -14,6 +14,10 @@ import '../services/easytier_service_access_coordinator.dart';
 import '../services/easytier_service.dart';
 import 'easytier_settings_page_body.dart';
 
+part 'easytier_settings_profile_actions.dart';
+part 'easytier_settings_runtime_actions.dart';
+part 'easytier_settings_peer_form_actions.dart';
+
 class EasyTierSettingsPage extends StatefulWidget {
   const EasyTierSettingsPage({super.key});
 
@@ -58,6 +62,10 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
   bool _isApplyingProfile = false;
   Timer? _refreshTimer;
   String? _lastAppliedEasyTierIp;
+
+  void _updateState(VoidCallback update) {
+    setState(update);
+  }
 
   @override
   void initState() {
@@ -117,185 +125,12 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     );
   }
 
-  Future<void> _loadProfiles() async {
-    final result = await _profileCoordinator.loadProfiles();
-    if (!mounted) return;
-    setState(() {
-      _profiles = result.profiles;
-      _selectedProfileId = result.selectedProfile.id;
-    });
-    _applyProfile(result.selectedProfile);
-  }
-
   Future<void> _loadBrowserSettings() async {
     final settings = await _browserSettingsService.loadSettings();
     if (!mounted) return;
     setState(() {
       _browserSettings = settings;
     });
-  }
-
-  void _applyProfile(EasyTierNetworkProfile profile) {
-    _isApplyingProfile = true;
-    _instanceNameController.text = profile.config.instanceName;
-    _networkNameController.text = profile.config.networkName;
-    _networkSecretController.text = profile.config.networkSecret ?? '';
-    _dhcp = profile.config.dhcp;
-    _ipv4Controller.text = profile.config.ipv4 ?? '';
-    _hostnameController.text = profile.config.hostname ?? '';
-    _enableP2p = profile.config.enableP2p;
-    _noTun = profile.config.noTun;
-    _peers = List<String>.from(profile.config.peers);
-    _peerRemarks = _normalizePeerRemarks(profile.config.peerRemarks, _peers);
-    _portMappings = List<EasyTierPortMapping>.from(profile.config.portMappings);
-    _activePeerIndex = _normalizeActivePeerIndex(
-      profile.config.activePeerIndex,
-      _peers,
-    );
-    _selectedProfileId = profile.id;
-    _isApplyingProfile = false;
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _onFormChanged() {
-    if (_isApplyingProfile) return;
-    unawaited(_persistCurrentProfile());
-  }
-
-  Future<void> _persistCurrentProfile() async {
-    final result = await _profileCoordinator.persistCurrentProfile(
-      selectedId: _selectedProfileId,
-      profiles: _profiles,
-      currentConfig: _buildCurrentConfig(),
-    );
-    if (result == null || !mounted) return;
-    if (!mounted) return;
-    setState(() {
-      _profiles = result.profiles;
-    });
-  }
-
-  Future<void> _selectProfile(String? profileId) async {
-    final result = await _profileCoordinator.selectProfile(
-      profileId: profileId,
-      profiles: _profiles,
-    );
-    if (result == null) return;
-    _applyProfile(result.selectedProfile);
-  }
-
-  Future<void> _createNewProfile() async {
-    final result = await _profileCoordinator.createProfile(profiles: _profiles);
-    if (!mounted) return;
-    setState(() {
-      _profiles = result.profiles;
-    });
-    _applyProfile(result.selectedProfile);
-  }
-
-  Future<void> _deleteCurrentProfile() async {
-    final result = await _profileCoordinator.deleteCurrentProfile(
-      selectedProfileId: _selectedProfileId,
-      profiles: _profiles,
-    );
-    if (result == null) return;
-    if (!mounted) return;
-    setState(() {
-      _profiles = result.profiles;
-    });
-    _applyProfile(result.selectedProfile);
-  }
-
-  Future<void> _loadStatus() async {
-    if (_isRunning) {
-      final result = await _runtimeStatusController.loadStatus(
-        instanceName: _instanceNameController.text,
-        previousIp: _lastAppliedEasyTierIp,
-      );
-      if (!mounted) {
-        return;
-      }
-      if (result.errorMessage != null) {
-        setState(() {
-          _errorMessage = result.errorMessage;
-        });
-        return;
-      }
-      setState(() {
-        _networkInfo = result.networkInfo;
-        _lastAppliedEasyTierIp = result.nextIp;
-      });
-      if (result.shouldRestartServices) {
-        unawaited(_restartServicesForEasyTierIp());
-      }
-    }
-  }
-
-  Map<String, dynamic>? _currentInstanceNetworkInfo() {
-    return EasyTierNetworkInfoAnalyzer.currentInstanceNetworkInfo(
-      _networkInfo,
-      _instanceNameController.text,
-    );
-  }
-
-  void _updateRefreshTimer() {
-    _refreshTimer?.cancel();
-    if (!_isRunning) {
-      _refreshTimer = null;
-      return;
-    }
-
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      unawaited(_loadStatus());
-    });
-  }
-
-  List<Map<String, String>> _buildPeerSummaries() {
-    return EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
-      _networkInfo,
-      _instanceNameController.text,
-    );
-  }
-
-  List<String> _buildDiagnostics() {
-    final diagnostics = EasyTierNetworkInfoAnalyzer.buildDiagnostics(
-      _networkInfo,
-      _instanceNameController.text,
-    );
-    final socksPort = _easyTierService.activeNoTunSocksPort;
-    if (socksPort == null) {
-      return diagnostics;
-    }
-    return <String>[
-      '非 VPN 模式 SOCKS5 端口：$socksPort（应用连接 127.0.0.1:$socksPort）',
-      ...diagnostics,
-    ];
-  }
-
-  String? _currentEasyTierIpv4() {
-    final networkInfo = _currentInstanceNetworkInfo();
-    if (networkInfo == null) {
-      return null;
-    }
-    final myNodeInfo = networkInfo['my_node_info'];
-    if (myNodeInfo is! Map) {
-      return null;
-    }
-    return EasyTierNetworkInfoAnalyzer.decodeIpv4(
-      myNodeInfo['virtual_ipv4'] is Map
-          ? Map<String, dynamic>.from(myNodeInfo['virtual_ipv4'] as Map)
-          : null,
-    );
-  }
-
-  String _formattedNetworkInfoText() {
-    return EasyTierNetworkInfoAnalyzer.formattedNetworkInfoText(
-      rawNetworkInfo: _easyTierService.lastRawNetworkInfo,
-      networkInfo: _networkInfo,
-      instanceName: _instanceNameController.text,
-    );
   }
 
   Future<void> _enableLocalHttpVpnExposure() async {
@@ -369,160 +204,6 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('网络信息已复制')));
-  }
-
-  void _addPeer() {
-    final peer = _peerController.text.trim();
-    if (peer.isNotEmpty) {
-      setState(() {
-        _peers.add(peer);
-        _peerRemarks.add('');
-        _activePeerIndex ??= 0;
-        _peerController.clear();
-      });
-      unawaited(_persistCurrentProfile());
-    }
-  }
-
-  void _removePeer(int index) {
-    setState(() {
-      final activeIndex = _effectiveActivePeerIndex();
-      _peers.removeAt(index);
-      if (index < _peerRemarks.length) {
-        _peerRemarks.removeAt(index);
-      }
-      if (_peers.isEmpty) {
-        _activePeerIndex = null;
-      } else if (activeIndex == index) {
-        _activePeerIndex = index.clamp(0, _peers.length - 1);
-      } else if (activeIndex != null && activeIndex > index) {
-        _activePeerIndex = activeIndex - 1;
-      }
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  void _selectPeer(int index) {
-    if (index < 0 || index >= _peers.length) return;
-    setState(() {
-      _activePeerIndex = index;
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  void _updatePeerRemark(int index, String remark) {
-    if (index < 0 || index >= _peers.length) return;
-    setState(() {
-      _peerRemarks = _normalizedPeerRemarks();
-      _peerRemarks[index] = remark;
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  void _addPortMapping() {
-    final port = int.tryParse(_portMappingPortController.text.trim());
-    if (port == null || port <= 0 || port >= 65536) {
-      return;
-    }
-    setState(() {
-      if (!_portMappings.any((mapping) => mapping.port == port)) {
-        _portMappings.add(EasyTierPortMapping(port: port));
-      }
-      _portMappingPortController.clear();
-      _portMappingsExpanded = true;
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  void _removePortMapping(int index) {
-    if (index < 0 || index >= _portMappings.length) return;
-    setState(() {
-      _portMappings.removeAt(index);
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  void _updatePortMappingRemark(int index, String remark) {
-    if (index < 0 || index >= _portMappings.length) return;
-    setState(() {
-      _portMappings[index] = _portMappings[index].copyWith(remark: remark);
-    });
-    unawaited(_persistCurrentProfile());
-  }
-
-  int? _effectiveActivePeerIndex() {
-    return _normalizeActivePeerIndex(_activePeerIndex, _peers);
-  }
-
-  List<String> _normalizedPeerRemarks() {
-    return _normalizePeerRemarks(_peerRemarks, _peers);
-  }
-
-  List<String> _normalizePeerRemarks(List<String> remarks, List<String> peers) {
-    return List<String>.generate(
-      peers.length,
-      (index) => index < remarks.length ? remarks[index] : '',
-    );
-  }
-
-  int? _normalizeActivePeerIndex(int? index, List<String> peers) {
-    if (peers.isEmpty) return null;
-    if (index == null || index < 0 || index >= peers.length) return 0;
-    return index;
-  }
-
-  Future<void> _startVpn() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _statusMessage = _noTun
-          ? '正在启动 EasyTier 非 VPN 模式...'
-          : '正在启动 EasyTier VPN，必要时会请求系统权限...';
-    });
-
-    final result = await _runtimeStatusController.startVpn(
-      _buildCurrentConfig(),
-      useNoTunMode: _noTun,
-    );
-    setState(() {
-      _isLoading = false;
-      _isRunning = result.isRunning;
-      final socksPort = _easyTierService.activeNoTunSocksPort;
-      _statusMessage = socksPort == null
-          ? result.statusMessage
-          : '${result.statusMessage}，SOCKS5 端口：$socksPort';
-      _errorMessage = result.errorMessage;
-    });
-    _updateRefreshTimer();
-    if (result.shouldLoadStatus) {
-      unawaited(_loadStatus());
-    }
-  }
-
-  Future<void> _stopVpn() async {
-    setState(() {
-      _isLoading = true;
-      _statusMessage = '正在停止 VPN...';
-    });
-
-    final result = await _runtimeStatusController.stopVpn();
-    setState(() {
-      _isLoading = false;
-      _isRunning = result.isRunning;
-      _statusMessage = result.statusMessage;
-      _errorMessage = result.errorMessage;
-      if (result.clearNetworkInfo) {
-        _networkInfo = null;
-      }
-    });
-    _updateRefreshTimer();
-  }
-
-  Future<void> _refreshStatus() async {
-    await _loadStatus();
-    setState(() {});
   }
 
   @override
