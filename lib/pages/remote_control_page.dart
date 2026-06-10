@@ -19,6 +19,9 @@ import '../browser/proxy_service.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/browser_settings.dart';
 
+part 'remote_control_page_peer_actions.dart';
+part 'remote_control_page_receiver_actions.dart';
+
 class RemoteControlPage extends StatefulWidget {
   const RemoteControlPage({super.key});
 
@@ -130,6 +133,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
   StreamSubscription<ProxyState>? _proxyStateSubscription;
 
+  void _updateState(VoidCallback update) {
+    setState(update);
+  }
+
   void _showToast(String message) {
     unawaited(AppToast.show(message));
   }
@@ -197,51 +204,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     super.dispose();
   }
 
-  Future<void> _loadPeers({bool showLoading = true}) async {
-    if (_easyTierService.isNoTunMode && !_useReceiverNoTunMode && mounted) {
-      setState(_syncReceiverNoTunModeFromP2p);
-    }
-
-    if (!_easyTierService.isRunning) {
-      if (mounted && _peers.isNotEmpty) {
-        setState(() => _peers = const <Map<String, String>>[]);
-      }
-      return;
-    }
-
-    if (showLoading && mounted) {
-      setState(() => _isLoadingPeers = true);
-    }
-
-    try {
-      final networkInfo = await _easyTierService.getNetworkInfo();
-      if (networkInfo != null) {
-        final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
-          networkInfo,
-          _easyTierService.currentInstanceName ?? 'ruoqing_vpn',
-        ).where((peer) => peer['remoteReachable'] == 'true').toList();
-        if (!mounted) return;
-        setState(() {
-          _peers = peers;
-          if (showLoading) {
-            _isLoadingPeers = false;
-          }
-        });
-      } else {
-        if (!mounted) return;
-        if (showLoading) {
-          setState(() => _isLoadingPeers = false);
-        }
-      }
-    } catch (e) {
-      developer.log('Failed to load peers: $e', name: 'RemoteControl');
-      if (!mounted) return;
-      if (showLoading) {
-        setState(() => _isLoadingPeers = false);
-      }
-    }
-  }
-
   void _handleStateChange(RemoteControlState state) {
     if (!mounted) return;
     final shouldShowDisconnectDialog =
@@ -300,85 +262,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       if (mounted && _isReceiverAudioEnabled != enabled) {
         setState(() => _isReceiverAudioEnabled = enabled);
       }
-    }
-  }
-
-  Future<void> _startReceiver() async {
-    final effectiveNoTunMode = resolveReceiverNoTunMode(
-      receiverNoTunMode: _useReceiverNoTunMode,
-      p2pNoTunMode: _easyTierService.isNoTunMode,
-    );
-    setState(() {
-      _isConnecting = true;
-      _useReceiverNoTunMode = effectiveNoTunMode;
-      _errorMessage = null;
-      _hadConnectedSession = false;
-    });
-
-    try {
-      final ports = await _receiverHelper.startReceiverFlow(
-        channel: _channel,
-        service: _service,
-        ensureVpnForRemoteControl:
-            AppLifecycleManager().ensureVpnForRemoteControl,
-        useNoTunMode: effectiveNoTunMode,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _portConfig = ports;
-        _isConnecting = false;
-        _isReceiverRunning = true;
-      });
-      _applyPortConfigToInputs(ports);
-
-      if (mounted) {
-        _showToast('被控端已启动，端口: ${ports.controlPort}/${ports.screenPort}');
-      }
-    } on RemoteControlPageReceiverStartException catch (error) {
-      if (!mounted) return;
-      _showToast(error.message);
-      setState(() => _isConnecting = false);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isConnecting = false;
-        _errorMessage = '启动失败: $e';
-      });
-    }
-  }
-
-  Future<void> _stopReceiver() async {
-    setState(() {
-      _isConnecting = true;
-      _errorMessage = null;
-    });
-    try {
-      await AppLifecycleManager().shutdownAllServices();
-      if (!mounted) return;
-      setState(() {
-        _isConnecting = false;
-        _isReceiverRunning = false;
-        _isReceiverAudioEnabled = false;
-        _hadConnectedSession = false;
-        _portConfig = null;
-      });
-      _applyPortConfigToInputs(null);
-      _showToast('被控端已关闭');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isConnecting = false;
-        _errorMessage = '关闭失败: $e';
-      });
-    }
-  }
-
-  void _toggleReceiver() {
-    if (_isReceiverRunning) {
-      unawaited(_stopReceiver());
-    } else {
-      unawaited(_startReceiver());
     }
   }
 
@@ -514,43 +397,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   String _normalizeHost(String host) {
     return _portConfigHelper.normalizeHost(host);
-  }
-
-  Future<void> _selectPeer(Map<String, String> peer) async {
-    final host = _normalizeHost(peer['ip'] ?? '');
-    if (host.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _hostController.text = host;
-      _portConfig = null;
-      _errorMessage = null;
-    });
-    _applyPortConfigToInputs(null);
-
-    final noTunControllerMode = _easyTierService.isNoTunMode;
-    final noTunProxyPort = _easyTierService.activeNoTunSocksPort;
-    if (noTunControllerMode && noTunProxyPort == null) {
-      return;
-    }
-
-    final discoveredPorts = await _connectionHelper.discoverReceiverPorts(
-      service: _service,
-      host: host,
-      useInternalProxy: noTunControllerMode || _useInternalProxy,
-      proxyPort: noTunControllerMode
-          ? noTunProxyPort
-          : _proxyService.localProxyPort,
-    );
-    if (!mounted || discoveredPorts == null) {
-      return;
-    }
-
-    setState(() {
-      _portConfig = discoveredPorts;
-    });
-    _applyPortConfigToInputs(discoveredPorts);
   }
 
   void _applyPortConfigToInputs(RemoteControlPortConfig? ports) {
