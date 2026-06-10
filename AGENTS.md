@@ -555,6 +555,9 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - `[[peer]]`: `uri = ...`
   - `[flags]`: e.g. `disable_p2p = false`
 - Do **not** place `hostname` or `ipv4` under `[network_identity]`.
+- In TOML, keys after `[[peer]]` belong to that peer table until another table starts.
+  - Keep all top-level EasyTier keys, especially `listeners` and `socks5_proxy`, before any `[[peer]]` or `[[port_forward]]` section.
+  - If `socks5_proxy` is emitted after `[[peer]]`, EasyTier starts normally but the no-tun SOCKS5 portal will not listen, causing controller no-VPN connections to fail with local `127.0.0.1:<port>` connection refused.
 
 ### Mobile runtime pitfall
 
