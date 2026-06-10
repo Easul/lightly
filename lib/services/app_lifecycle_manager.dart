@@ -49,27 +49,29 @@ class AppLifecycleManager extends WidgetsBindingObserver {
     }
   }
 
-  /// 在应用真正退出时调用（从浏览器页面退出按钮）
+  /// 在应用真正退出或完整关闭远控时调用。
   Future<void> shutdownAllServices() async {
     if (_isShuttingDown) return;
     _isShuttingDown = true;
 
-    // 关闭远程控制服务
-    await _remoteControlService.disconnect();
-
-    // 关闭 VPN
-    await _easyTierService.stopVpn();
-
-    // 关闭无障碍服务和屏幕录制
     try {
-      await _channel.invokeMethod('stop');
-    } catch (_) {}
+      // 关闭远程控制服务。
+      await _remoteControlService.disconnect();
 
-    try {
-      await _channel.invokeMethod('stopScreenCapture');
-    } catch (_) {}
+      // 关闭 EasyTier VPN / 非 VPN no-tun 实例。
+      await _easyTierService.stopVpn();
 
-    _isShuttingDown = false;
+      // 关闭无障碍服务和屏幕录制。
+      try {
+        await _channel.invokeMethod('stop');
+      } catch (_) {}
+
+      try {
+        await _channel.invokeMethod('stopScreenCapture');
+      } catch (_) {}
+    } finally {
+      _isShuttingDown = false;
+    }
   }
 
   /// 远程控制被控端启动时检查并启动 VPN

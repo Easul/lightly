@@ -6,6 +6,7 @@ import '../services/remote_control_protocol.dart' as protocol;
 import '../services/remote_control_protocol.dart' show GlobalAction;
 import '../services/remote_control_service.dart';
 import '../services/app_toast.dart';
+import '../services/app_lifecycle_manager.dart';
 import 'remote_control_disconnect_dialog.dart';
 import 'remote_control_session_widgets.dart';
 
@@ -192,9 +193,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     _isClosingSession = true;
     if (widget.service.mode == RemoteControlMode.controller) {
       await widget.service.requestReceiverShutdown();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     }
-    await widget.service.stopAudioCapture();
-    await widget.service.disconnect();
+    await AppLifecycleManager().shutdownAllServices();
     if (mounted) Navigator.pop(context);
   }
 

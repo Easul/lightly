@@ -9,11 +9,22 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const easyTierChannel = MethodChannel('easytier_vpn');
+  const remoteControlChannel = MethodChannel('remote_control');
+  const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(webRtcChannel, (call) async => true);
+  });
 
   tearDown(() async {
     await EasyTierService().stopVpn();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(easyTierChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(remoteControlChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(webRtcChannel, null);
   });
 
   test('receiver no-vpn startup does not add port forwards', () async {
@@ -68,6 +79,44 @@ void main() {
       expect(reused, isTrue);
       expect(startCalls, 1);
       expect(stopCalls, 0);
+    },
+  );
+
+  test(
+    'shutdownAllServices stops no-vpn EasyTier even when native stop throws',
+    () async {
+      var stopCalls = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(easyTierChannel, (call) async {
+            if (call.method == 'startVpn') {
+              return true;
+            }
+            if (call.method == 'stopVpn') {
+              stopCalls += 1;
+              return true;
+            }
+            return null;
+          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(remoteControlChannel, (call) async {
+            if (call.method == 'stop') {
+              throw PlatformException(code: 'stop-failed');
+            }
+            if (call.method == 'stopScreenCapture') {
+              return true;
+            }
+            return null;
+          });
+
+      await EasyTierService().startNoTun(
+        EasyTierConfig(instanceName: 'vpn', networkName: 'network'),
+      );
+
+      await AppLifecycleManager().shutdownAllServices();
+      await AppLifecycleManager().shutdownAllServices();
+
+      expect(stopCalls, 2);
+      expect(EasyTierService().isRunning, isFalse);
     },
   );
 }
