@@ -156,8 +156,12 @@ class RemoteControlLifecycleHelper {
     if (responseHeader.length < 4 ||
         responseHeader[0] != 0x05 ||
         responseHeader[1] != 0x00) {
+      final code = responseHeader.length >= 2 ? responseHeader[1] : null;
       await reader.dispose();
-      throw Exception('代理连接请求失败');
+      proxySocket.destroy();
+      throw Exception(
+        '代理连接请求失败: ${_describeSocksReply(code)} target=$host:$port',
+      );
     }
 
     // 读取绑定地址
@@ -177,6 +181,22 @@ class RemoteControlLifecycleHelper {
       socket: proxySocket,
       stream: _prependBufferedData(incomingStream, buffered),
     );
+  }
+
+  String _describeSocksReply(int? code) {
+    return switch (code) {
+      0x00 => 'success',
+      0x01 => 'general failure',
+      0x02 => 'connection not allowed',
+      0x03 => 'network unreachable',
+      0x04 => 'host unreachable',
+      0x05 => 'connection refused',
+      0x06 => 'TTL expired',
+      0x07 => 'command not supported',
+      0x08 => 'address type not supported',
+      null => 'empty response',
+      _ => 'reply code $code',
+    };
   }
 
   Stream<Uint8List> _prependBufferedData(
