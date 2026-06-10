@@ -42,8 +42,10 @@ void main() {
         instanceName: 'vpn',
         networkName: 'network',
         noTun: true,
+        socks5Port: 11080,
         enableKcpProxy: true,
         enableQuicProxy: true,
+        peers: const <String>['tcp://peer.example.com:11010'],
         portForwards: const <String>['tcp://0.0.0.0:18080/10.126.126.1:18080'],
         portMappings: const <EasyTierPortMapping>[
           EasyTierPortMapping(port: 8080, remark: 'NAS'),
@@ -53,6 +55,13 @@ void main() {
       final toml = config.toToml();
 
       expect(toml, contains('no_tun = true'));
+      expect(toml, contains('enable_socks5 = true'));
+      expect(toml, contains('socks5_port = 11080'));
+      expect(toml, contains('socks5_proxy = "socks5://0.0.0.0:11080"'));
+      expect(
+        toml.indexOf('socks5_proxy ='),
+        lessThan(toml.indexOf('[[peer]]')),
+      );
       expect(toml, contains('enable_kcp_proxy = true'));
       expect(toml, contains('enable_quic_proxy = true'));
       expect(

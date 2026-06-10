@@ -121,13 +121,6 @@ class EasyTierConfig {
       buffer.writeln('ipv4 = "$ipv4"');
     }
 
-    final activePeer = _activePeerUri();
-    if (activePeer != null) {
-      buffer.writeln('');
-      buffer.writeln('[[peer]]');
-      buffer.writeln('uri = "$activePeer"');
-    }
-
     if (listeners.isNotEmpty) {
       buffer.writeln('');
       final encodedListeners = listeners
@@ -138,7 +131,16 @@ class EasyTierConfig {
 
     if (socks5Port != null) {
       buffer.writeln('');
-      buffer.writeln('socks5_proxy = "socks5://127.0.0.1:$socks5Port"');
+      buffer.writeln('enable_socks5 = true');
+      buffer.writeln('socks5_port = $socks5Port');
+      buffer.writeln('socks5_proxy = "socks5://0.0.0.0:$socks5Port"');
+    }
+
+    final activePeer = _activePeerUri();
+    if (activePeer != null) {
+      buffer.writeln('');
+      buffer.writeln('[[peer]]');
+      buffer.writeln('uri = "$activePeer"');
     }
 
     final effectivePortForwards = _effectivePortForwards();
