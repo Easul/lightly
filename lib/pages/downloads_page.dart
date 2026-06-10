@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../browser/browser_settings_service.dart';
@@ -88,6 +89,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
     await _downloadStore.list();
   }
 
+  Future<void> _copyDownloadLink(BrowserDownloadRecord record) async {
+    await Clipboard.setData(ClipboardData(text: record.url));
+    _showToast('链接已复制');
+  }
+
   @override
   void dispose() {
     unawaited(_videoPlayerCoordinator.dispose());
@@ -127,6 +133,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                 onInstall: (record) => unawaited(_installApk(record)),
                 onPlayVideo: (record) => unawaited(_playVideo(record)),
                 onDelete: (record) => unawaited(_deleteRecord(record)),
+                onCopyLink: (record) => unawaited(_copyDownloadLink(record)),
               );
             },
           );

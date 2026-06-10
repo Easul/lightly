@@ -38,6 +38,7 @@ class DownloadsList extends StatelessWidget {
     required this.onInstall,
     required this.onPlayVideo,
     required this.onDelete,
+    required this.onCopyLink,
   });
 
   final List<BrowserDownloadRecord> downloads;
@@ -47,6 +48,7 @@ class DownloadsList extends StatelessWidget {
   final ValueChanged<BrowserDownloadRecord> onInstall;
   final ValueChanged<BrowserDownloadRecord> onPlayVideo;
   final ValueChanged<BrowserDownloadRecord> onDelete;
+  final ValueChanged<BrowserDownloadRecord> onCopyLink;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +67,7 @@ class DownloadsList extends StatelessWidget {
             onInstall: onInstall,
             onPlayVideo: onPlayVideo,
             onDelete: onDelete,
+            onCopyLink: onCopyLink,
           );
         },
       ),
@@ -81,6 +84,7 @@ class DownloadRecordCard extends StatelessWidget {
     required this.onInstall,
     required this.onPlayVideo,
     required this.onDelete,
+    required this.onCopyLink,
   });
 
   final BrowserDownloadRecord record;
@@ -89,6 +93,7 @@ class DownloadRecordCard extends StatelessWidget {
   final ValueChanged<BrowserDownloadRecord> onInstall;
   final ValueChanged<BrowserDownloadRecord> onPlayVideo;
   final ValueChanged<BrowserDownloadRecord> onDelete;
+  final ValueChanged<BrowserDownloadRecord> onCopyLink;
 
   bool get _canInstall =>
       record.status == 'completed' &&
@@ -97,49 +102,165 @@ class DownloadRecordCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(child: Icon(_statusIcon(record.status))),
-        title: Text(
-          record.fileName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onLongPress: () => _showActions(context),
+        child: ListTile(
+          dense: true,
+          visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 4,
+          ),
+          leading: CircleAvatar(
+            radius: 18,
+            child: Icon(_statusIcon(record.status), size: 20),
+          ),
+          title: Text(
+            record.fileName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _DownloadRecordDetails(record: record),
+          ),
+          trailing: _DownloadRecordQuickActions(
+            record: record,
+            canInstall: _canInstall,
+            onPause: onPause,
+            onResume: onResume,
+            onInstall: onInstall,
+            onPlayVideo: onPlayVideo,
+            onDelete: onDelete,
+          ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: _DownloadRecordDetails(record: record),
-        ),
-        trailing: Row(
+      ),
+    );
+  }
+
+  void _showActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('复制链接'),
+              onTap: () {
+                Navigator.of(context).pop();
+                onCopyLink(record);
+              },
+            ),
             if (record.status == 'downloading' && record.id != null)
-              TextButton(
-                onPressed: () => onPause(record),
-                child: const Text('暂停'),
+              ListTile(
+                leading: const Icon(Icons.pause_rounded),
+                title: const Text('暂停'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onPause(record);
+                },
               ),
             if (record.status == 'paused')
-              TextButton(
-                onPressed: () => onResume(record),
-                child: const Text('继续'),
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded),
+                title: const Text('继续'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onResume(record);
+                },
               ),
             if (_canInstall)
-              TextButton(
-                onPressed: () => onInstall(record),
-                child: const Text('安装'),
+              ListTile(
+                leading: const Icon(Icons.android_rounded),
+                title: const Text('安装'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onInstall(record);
+                },
               ),
             if (isPlayableDownloadedVideo(record))
-              IconButton.filledTonal(
-                onPressed: () => onPlayVideo(record),
-                tooltip: '播放视频',
-                icon: const Icon(Icons.play_arrow_rounded),
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline_rounded),
+                title: const Text('播放视频'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onPlayVideo(record);
+                },
               ),
-            TextButton(
-              onPressed: () => onDelete(record),
-              child: const Text('删除'),
+            ListTile(
+              leading: Icon(
+                Icons.delete,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                '删除',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                onDelete(record);
+              },
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DownloadRecordQuickActions extends StatelessWidget {
+  const _DownloadRecordQuickActions({
+    required this.record,
+    required this.canInstall,
+    required this.onPause,
+    required this.onResume,
+    required this.onInstall,
+    required this.onPlayVideo,
+    required this.onDelete,
+  });
+
+  final BrowserDownloadRecord record;
+  final bool canInstall;
+  final ValueChanged<BrowserDownloadRecord> onPause;
+  final ValueChanged<BrowserDownloadRecord> onResume;
+  final ValueChanged<BrowserDownloadRecord> onInstall;
+  final ValueChanged<BrowserDownloadRecord> onPlayVideo;
+  final ValueChanged<BrowserDownloadRecord> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    if (record.status == 'downloading' && record.id != null) {
+      return TextButton(
+        onPressed: () => onPause(record),
+        child: const Text('暂停'),
+      );
+    }
+    if (record.status == 'paused') {
+      return TextButton(
+        onPressed: () => onResume(record),
+        child: const Text('继续'),
+      );
+    }
+    if (canInstall) {
+      return TextButton(
+        onPressed: () => onInstall(record),
+        child: const Text('安装'),
+      );
+    }
+    if (isPlayableDownloadedVideo(record)) {
+      return IconButton.filledTonal(
+        onPressed: () => onPlayVideo(record),
+        tooltip: '播放视频',
+        icon: const Icon(Icons.play_arrow_rounded),
+      );
+    }
+    return IconButton(
+      onPressed: () => onDelete(record),
+      tooltip: '删除',
+      icon: const Icon(Icons.delete_outline_rounded),
     );
   }
 }
@@ -178,48 +299,41 @@ class _DownloadRecordDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizeText =
+        '大小：${_formatBytes(record.bytesReceived)}'
+        '${record.totalBytes > 0 ? ' / ${_formatBytes(record.totalBytes)}' : ''}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('状态：${_statusLabel(record.status)}'),
-        const SizedBox(height: 4),
         Text(
-          record.savedPath?.isNotEmpty == true
-              ? _displayPath(record.savedPath!)
-              : record.url,
-          maxLines: 2,
+          '${_statusLabel(record.status)} · $sizeText',
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 4),
-        Text(
-          '大小：${_formatBytes(record.bytesReceived)}'
-          '${record.totalBytes > 0 ? ' / ${_formatBytes(record.totalBytes)}' : ''}',
-        ),
         if (record.status == 'downloading') ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              minHeight: 8,
+              minHeight: 4,
               value: _progressValue(record),
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Icon(
-                Icons.downloading_rounded,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(_progressLabel(record)),
-            ],
+          const SizedBox(height: 2),
+          Text(
+            _progressLabel(record),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-        const SizedBox(height: 4),
-        Text('时间：${record.createdAt.toLocal()}'),
+        ] else
+          Text(
+            record.savedPath?.isNotEmpty == true
+                ? _displayPath(record.savedPath!)
+                : record.url,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
       ],
     );
   }
