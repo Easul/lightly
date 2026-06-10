@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import 'package:volume_controller/volume_controller.dart';
 
 import 'floating_video_player.dart';
+import 'floating_video_player_controls.dart';
 
 enum _GestureControlSide { brightness, volume }
 
@@ -255,23 +256,6 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     unawaited(VolumeController.instance.setVolume(value));
   }
 
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
-
-  double get _modeIconSize => widget.mode == FloatingPlayerMode.mini ? 18 : 28;
-
-  BoxConstraints get _modeButtonConstraints =>
-      widget.mode == FloatingPlayerMode.mini
-      ? const BoxConstraints(minWidth: 32, minHeight: 32)
-      : const BoxConstraints(minWidth: 48, minHeight: 48);
-
-  double get _titleFontSize => widget.mode == FloatingPlayerMode.mini ? 12 : 14;
-
-  double get _timeFontSize => widget.mode == FloatingPlayerMode.mini ? 10 : 12;
-
   /// 根据当前模式返回模式切换按钮的图标
   /// - 默认窗/小窗: fullscreen (可进入横屏)
   /// - 横屏: fullscreen_exit (可退出横屏)
@@ -406,128 +390,37 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                 child: AnimatedOpacity(
                   opacity: _controlsVisible ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 200),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.6),
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.6),
-                        ],
-                        stops: const [0.0, 0.2, 0.7, 1.0],
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildTopBar(context),
-                        Expanded(
-                          child: Center(
-                            child: GestureDetector(
-                              onTap: _togglePlayPause,
-                              child: Container(
-                                width: widget.mode == FloatingPlayerMode.mini
-                                    ? 52
-                                    : 64,
-                                height: widget.mode == FloatingPlayerMode.mini
-                                    ? 52
-                                    : 64,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  value.isPlaying
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Colors.white,
-                                  size: widget.mode == FloatingPlayerMode.mini
-                                      ? 28
-                                      : 36,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        _buildBottomBar(),
-                      ],
-                    ),
+                  child: FloatingVideoControlsOverlay(
+                    title: widget.title,
+                    mode: widget.mode,
+                    isLocked: widget.isLocked,
+                    isFullscreen: _isFullscreen,
+                    isPlaying: value.isPlaying,
+                    position: value.position,
+                    duration: value.duration,
+                    bufferedPosition: _getBufferedPosition(value),
+                    modeToggleIcon: _getModeToggleIcon(),
+                    onTogglePlayPause: _togglePlayPause,
+                    onSeek: controller.seekTo,
+                    onShowControls: _showControlsTemporarily,
+                    onClose: widget.onClose,
+                    onDownload: widget.onDownload,
+                    onModeToggle: widget.onModeToggle,
+                    onLockToggle: widget.onLockToggle,
                   ),
                 ),
               ),
 
             // Lock indicator - shows briefly on tap when locked, tap to unlock
-            // Invisible tap area to wake up lock indicator
-            if (widget.isLocked && !_lockIndicatorVisible)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: _showLockIndicatorTemporarily,
-                  child: Container(color: Colors.transparent),
-                ),
+            if (widget.isLocked)
+              FloatingVideoLockOverlay(
+                visible: _lockIndicatorVisible,
+                onWake: _showLockIndicatorTemporarily,
+                onUnlock: widget.onLockToggle,
               ),
 
-            // Visible lock icon that can be tapped to unlock
-            if (widget.isLocked && _lockIndicatorVisible)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: _showLockIndicatorTemporarily,
-                  child: Container(
-                    color: Colors.transparent,
-                    child: AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Center(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: widget.onLockToggle,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            child: const Icon(
-                              Icons.lock,
-                              color: Colors.white70,
-                              size: 36,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            Positioned.fill(
-              child: IgnorePointer(
-                child: ValueListenableBuilder<String?>(
-                  valueListenable: _gestureHintNotifier,
-                  builder: (context, gestureHint, child) {
-                    if (gestureHint == null) return const SizedBox.shrink();
-                    return Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          gestureHint,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+            FloatingVideoGestureHint(
+              gestureHintListenable: _gestureHintNotifier,
             ),
           ],
         ),
@@ -536,239 +429,16 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   }
 
   Widget _buildLoadingControls(BuildContext context) {
-    final topPadding = 0.0;
-    final displayTitle = FloatingVideoPlayer.shortDisplayTitle(widget.title);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned(
-          top: topPadding + 4,
-          left: 8,
-          right: 8,
-          child: Row(
-            children: [
-              if (displayTitle != null)
-                Expanded(
-                  child: Text(
-                    displayTitle,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: _titleFontSize,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              if (widget.onLockToggle != null && _isFullscreen)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      widget.isLocked ? Icons.lock : Icons.lock_open,
-                      color: Colors.white,
-                      size: _modeIconSize,
-                    ),
-                    onPressed: widget.onLockToggle,
-                    padding: EdgeInsets.zero,
-                    constraints: _modeButtonConstraints,
-                  ),
-                ),
-              if (widget.onDownload != null)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.download_rounded,
-                      color: Colors.white,
-                      size: _modeIconSize,
-                    ),
-                    onPressed: widget.onDownload,
-                    padding: EdgeInsets.zero,
-                    constraints: _modeButtonConstraints,
-                  ),
-                ),
-              if (widget.onClose != null)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: _modeIconSize,
-                    ),
-                    onPressed: widget.onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: _modeButtonConstraints,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        Positioned(
-          right: 8,
-          bottom: 8,
-          child: widget.onModeToggle != null
-              ? Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      _getModeToggleIcon(),
-                      color: Colors.white,
-                      size: _modeIconSize,
-                    ),
-                    onPressed: widget.onModeToggle,
-                    padding: EdgeInsets.zero,
-                    constraints: _modeButtonConstraints,
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    final topPadding = 0.0;
-    final displayTitle = FloatingVideoPlayer.shortDisplayTitle(widget.title);
-    return Container(
-      padding: EdgeInsets.fromLTRB(8, topPadding + 4, 8, 4),
-      child: Row(
-        children: [
-          if (displayTitle != null)
-            Expanded(
-              child: Text(
-                displayTitle,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: _titleFontSize,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (widget.onLockToggle != null && _isFullscreen)
-            IconButton(
-              icon: Icon(
-                widget.isLocked ? Icons.lock : Icons.lock_open,
-                color: Colors.white,
-                size: _modeIconSize,
-              ),
-              onPressed: widget.onLockToggle,
-              padding: EdgeInsets.zero,
-              constraints: _modeButtonConstraints,
-            ),
-          if (widget.onDownload != null)
-            IconButton(
-              icon: Icon(
-                Icons.download_rounded,
-                color: Colors.white,
-                size: _modeIconSize,
-              ),
-              onPressed: widget.onDownload,
-              padding: EdgeInsets.zero,
-              constraints: _modeButtonConstraints,
-            ),
-          if (widget.onClose != null)
-            IconButton(
-              icon: Icon(Icons.close, color: Colors.white, size: _modeIconSize),
-              onPressed: widget.onClose,
-              padding: EdgeInsets.zero,
-              constraints: _modeButtonConstraints,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomBar() {
-    final controller = widget.controller;
-    if (controller == null) return const SizedBox.shrink();
-    final accentColor = Theme.of(context).colorScheme.primary;
-    final value = controller.value;
-    final position = value.position;
-    final duration = value.duration;
-    final bufferedPosition = _getBufferedPosition(value);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (duration > Duration.zero)
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: accentColor,
-                secondaryActiveTrackColor: Colors.white.withValues(alpha: 0.92),
-                inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
-                thumbColor: accentColor,
-                trackHeight: 2,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: SliderComponentShape.noOverlay,
-              ),
-              child: Slider(
-                value: position.inMilliseconds
-                    .clamp(0, duration.inMilliseconds)
-                    .toDouble(),
-                max: duration.inMilliseconds.toDouble(),
-                secondaryTrackValue: bufferedPosition,
-                onChanged: (value) {
-                  controller.seekTo(Duration(milliseconds: value.toInt()));
-                  _showControlsTemporarily();
-                },
-              ),
-            ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(position),
-                style: TextStyle(color: Colors.white, fontSize: _timeFontSize),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _formatDuration(duration),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: _timeFontSize,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (widget.onModeToggle != null)
-                    IconButton(
-                      icon: Icon(
-                        _getModeToggleIcon(),
-                        color: Colors.white,
-                        size: _modeIconSize,
-                      ),
-                      onPressed: widget.onModeToggle,
-                      padding: EdgeInsets.zero,
-                      constraints: _modeButtonConstraints,
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
+    return FloatingVideoLoadingControls(
+      title: widget.title,
+      mode: widget.mode,
+      isLocked: widget.isLocked,
+      isFullscreen: _isFullscreen,
+      modeToggleIcon: _getModeToggleIcon(),
+      onClose: widget.onClose,
+      onDownload: widget.onDownload,
+      onModeToggle: widget.onModeToggle,
+      onLockToggle: widget.onLockToggle,
     );
   }
 }
