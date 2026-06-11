@@ -246,6 +246,10 @@ class SimpleFileManagerService {
         await _saveFile(request);
         return;
       }
+      if (request.method == 'DELETE' && path == '/api/file') {
+        await _deleteFile(request);
+        return;
+      }
       if (request.method == 'GET' && path == '/api/favorites') {
         await _writeJson(request.response, <String, Object?>{
           'rootPath': _settings.rootPath,
@@ -365,6 +369,28 @@ class SimpleFileManagerService {
       'ok': true,
       'path': targetPath,
       'modified': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> _deleteFile(HttpRequest request) async {
+    final targetPath = await _resolveSafePath(
+      request.uri.queryParameters['path'],
+    );
+    final type = await FileSystemEntity.type(targetPath, followLinks: false);
+    if (type != FileSystemEntityType.file) {
+      throw FileSystemException('Not a file', targetPath);
+    }
+    await File(targetPath).delete();
+    final favorites = _settings.favoritePaths
+        .where((path) => path != targetPath)
+        .toList(growable: false);
+    if (favorites.length != _settings.favoritePaths.length) {
+      await saveSettings(_settings.copyWith(favoritePaths: favorites));
+    }
+    await _writeJson(request.response, <String, Object?>{
+      'ok': true,
+      'path': targetPath,
+      'favorites': favorites,
     });
   }
 
@@ -567,6 +593,8 @@ const String _htmlPage = r'''
   input { width: 100%; border: 1px solid #d0d5dd; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
   button { border: 0; border-radius: 10px; padding: 9px 12px; background: #eef2ff; color: #3730a3; font-weight: 700; cursor: pointer; white-space: nowrap; }
   button.primary { background: #4f46e5; color: white; }
+  button.danger { background: #fee2e2; color: #b42318; }
+  button.icon { padding: 6px 8px; border-radius: 8px; font-size: 12px; }
   button.ghost { background: transparent; color: #667085; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .list { overflow: auto; padding: 8px; }
@@ -582,8 +610,9 @@ const String _htmlPage = r'''
   .file-title span { color: #667085; font-size: 12px; margin-top: 3px; }
   textarea { width: 100%; height: 100%; resize: none; border: 0; outline: none; padding: 16px; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .empty { height: 100%; display: grid; place-items: center; color: #667085; text-align: center; padding: 24px; }
-  .split { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
-  .favorites { border-top: 1px solid #eef2f7; max-height: 32%; overflow: auto; }
+  .split { display: grid; grid-template-rows: minmax(0, 1fr) minmax(150px, 32%); min-height: 0; }
+  .favorites { border-top: 1px solid #eef2f7; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+  .favorites .list { min-height: 0; overflow: auto; }
   .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 14px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 92vw; }
   .toast.show { opacity: 1; }
   @media (max-width: 760px) {
@@ -593,7 +622,8 @@ const String _htmlPage = r'''
     section { min-height: 58vh; }
     .editor { min-height: 58vh; }
     .editor-head { align-items: stretch; flex-direction: column; }
-    .editor-head .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .split { grid-template-rows: minmax(0, 1fr) 170px; }
+    .editor-head .actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   }
 </style>
 </head>
@@ -643,9 +673,11 @@ function renderTree(data) {
 function entry(item) {
   const row = document.createElement('div'); row.className = 'entry' + (item.path === currentFile ? ' active' : '');
   const icon = item.type === 'directory' ? '📁' : (item.editable ? '📝' : '📄');
-  row.innerHTML = '<span>' + icon + '</span><span class="entry-name"></span><span class="entry-meta">' + (item.favorite ? '★' : '') + '</span>';
+  row.innerHTML = '<span>' + icon + '</span><span class="entry-name"></span><span class="entry-meta">' + (item.favorite ? '★' : '') + '</span>' + (item.type === 'file' ? '<button class="danger icon" title="删除文件">删除</button>' : '');
   row.querySelector('.entry-name').textContent = item.name;
   row.title = item.path;
+  const deleteBtn = row.querySelector('button');
+  if (deleteBtn) deleteBtn.onclick = e => { e.stopPropagation(); confirmDeleteFile(item.path, item.name); };
   row.onclick = () => item.type === 'directory' ? loadTree(item.path) : (item.editable ? openFile(item.path) : toast('该文件类型暂不支持编辑'));
   return row;
 }
@@ -664,10 +696,11 @@ function renderFavorites() {
 async function openPath(path) { try { await openFile(path); } catch (_) { loadTree(path); } }
 async function openFile(path) {
   const data = await api('/api/file?path=' + encodeURIComponent(path)); currentFile = data.path;
-  editorPanel.innerHTML = '<div class="editor"><div class="editor-head"><div class="file-title"><strong></strong><span></span></div><div class="actions"><button id="favBtn"></button><button class="primary" id="saveBtn">保存</button></div></div><textarea id="content"></textarea></div>';
+  editorPanel.innerHTML = '<div class="editor"><div class="editor-head"><div class="file-title"><strong></strong><span></span></div><div class="actions"><button id="favBtn"></button><button class="danger" id="deleteBtn">删除</button><button class="primary" id="saveBtn">保存</button></div></div><textarea id="content"></textarea></div>';
   editorPanel.querySelector('strong').textContent = data.name; editorPanel.querySelector('span').textContent = data.path;
   document.getElementById('content').value = data.content;
   document.getElementById('saveBtn').onclick = saveFile;
+  document.getElementById('deleteBtn').onclick = () => confirmDeleteFile(data.path, data.name);
   document.getElementById('favBtn').textContent = data.favorite ? '取消收藏' : '收藏路径';
   document.getElementById('favBtn').onclick = () => data.favorite ? removeFavorite(data.path) : addFavorite(data.path);
 }
@@ -678,6 +711,20 @@ async function saveFile() {
 }
 async function addFavorite(path) { try { const data = await api('/api/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path})}); favorites = data.favorites || []; renderFavorites(); toast('已收藏'); } catch (e) { toast('收藏失败：' + e.message); } }
 async function removeFavorite(path) { try { const data = await api('/api/favorites?path=' + encodeURIComponent(path), {method:'DELETE'}); favorites = data.favorites || []; renderFavorites(); toast('已移除收藏'); } catch (e) { toast('移除失败：' + e.message); } }
+async function confirmDeleteFile(path, name) {
+  if (!confirm('确定删除文件 “' + name + '”？\n\n此操作不可撤销。')) return;
+  try {
+    const data = await api('/api/file?path=' + encodeURIComponent(path), {method:'DELETE'});
+    favorites = data.favorites || favorites.filter(item => item !== path);
+    if (currentFile === path) {
+      currentFile = '';
+      editorPanel.innerHTML = '<div class="empty">文件已删除，请从左侧选择其他文本文件。</div>';
+    }
+    renderFavorites();
+    await loadTree(currentPath);
+    toast('已删除文件');
+  } catch (e) { toast('删除失败：' + e.message); }
+}
 function goRoot() { loadTree(rootPath); }
 loadTree('');
 </script>

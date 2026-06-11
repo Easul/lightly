@@ -119,6 +119,42 @@ void main() {
       await outside.delete();
     }
   });
+
+  test('deletes files and removes deleted file from favorites', () async {
+    final file = File(p.join(tempDir.path, 'delete-me.txt'));
+    await file.writeAsString('delete me');
+    final port = await _reservePort();
+
+    await service.start(
+      settings: SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: tempDir.path,
+        port: port,
+        bindAllInterfaces: false,
+        favoritePaths: <String>[file.path],
+      ),
+    );
+
+    final baseUrl = service.localUrl!;
+    final deleteResponse = await http.delete(
+      Uri.parse(
+        '$baseUrl/api/file',
+      ).replace(queryParameters: <String, String>{'path': file.path}),
+    );
+    expect(deleteResponse.statusCode, HttpStatus.ok);
+    expect(await file.exists(), isFalse);
+    expect(
+      jsonDecode(deleteResponse.body)['favorites'],
+      isNot(contains(file.path)),
+    );
+
+    final readDeletedResponse = await http.get(
+      Uri.parse(
+        '$baseUrl/api/file',
+      ).replace(queryParameters: <String, String>{'path': file.path}),
+    );
+    expect(readDeletedResponse.statusCode, HttpStatus.notFound);
+  });
 }
 
 Future<int> _reservePort() async {
