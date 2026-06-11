@@ -2,13 +2,14 @@
 
 [English](README.en.md)
 
-一款 Flutter Android 浏览器，集成了**远程控制**能力，同时支持 VLESS 代理、EasyTier P2P VPN、视频播放、本地文件服务、剪贴板同步等功能。
+一款 Flutter Android 浏览器，集成了**远程控制**能力，同时支持 VLESS 代理、EasyTier P2P VPN、视频播放、本地文件服务、文件简易管理、剪贴板同步等功能。
 
 ## 功能概览
 
 ### 远程控制
 - **屏幕实时捕获**：通过浏览器查看设备屏幕，支持部分机型的编码分辨率自动降级以避免黑屏
 - **远程触摸控制**：在网页上点击、滑动，实时操控设备
+- **远控增强操作**：支持键盘输入、轨迹滑动、远端标注、点亮屏幕、临时关闭与控制端最小化
 - **WebRTC 语音对讲**：支持控制端与被控端双向语音，EasyTier 连接下会优先复用远控链路的可达地址
 - **剪贴板同步**：双向剪贴板共享
 - **Web 控制界面**：无需安装客户端，同一局域网内浏览器即可控制
@@ -25,6 +26,7 @@
 - 本地混合代理（HTTP + SOCKS5）
 - EasyTier P2P VPN 集成，支持通过虚拟 IP 进行远程控制
 - 局域网文件服务与剪贴板同步
+- 文件简易管理：通过本地网页浏览文件树、编辑/保存/删除文本文件，并收藏常用路径
 
 ### 其他工具
 - 原生视频播放器
@@ -48,6 +50,7 @@
 3. **远程控制**：前往 **设置 → 远程控制** 启动服务，在同一局域网浏览器访问对应地址即可操控设备
 4. 如需代理：前往 **设置 → 代理** 配置 VLESS 节点
 5. 如需 P2P VPN：前往 **设置 → P2P VPN** 配置 EasyTier
+6. 如需网页文件编辑：前往 **设置 → 文件简易管理** 启动服务，默认访问 `http://127.0.0.1:12580`
 
 ## 文档
 
@@ -55,6 +58,7 @@
 - [快速入门](docs/quickstart.md)
 - [开发指南](docs/development.md)
 - [架构文档](docs/architecture.md)
+- [v1.0.7 功能更新摘要](docs/release-summary-v1.0.7.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
 - [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
 
@@ -62,6 +66,7 @@
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
+- [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 

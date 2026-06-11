@@ -2,13 +2,14 @@
 
 [中文](README.md)
 
-Lightly is a Flutter-based Android browser with built-in **remote control** capabilities, alongside VLESS proxy support, EasyTier P2P VPN, media playback, local file serving, and clipboard sync.
+Lightly is a Flutter-based Android browser with built-in **remote control** capabilities, alongside VLESS proxy support, EasyTier P2P VPN, media playback, local file serving, simple file management, and clipboard sync.
 
 ## Features
 
 ### Remote Control
 - **Real-time screen capture**: view your device screen from a browser, with encoder-size fallback for devices that reject full-resolution AVC capture
 - **Remote touch control**: click and swipe on the web page to control the device in real time
+- **Enhanced remote actions**: keyboard input, trajectory swipes, remote annotations, wake-screen, temporary close, and controller minimization
 - **WebRTC voice chat**: two-way voice between controller and receiver, with EasyTier sessions preferring the proven remote-control path
 - **Clipboard sync**: bidirectional clipboard sharing
 - **Web-based control interface**: no client installation needed; any browser on the same LAN can take control
@@ -25,6 +26,7 @@ Lightly is a Flutter-based Android browser with built-in **remote control** capa
 - Local mixed proxy server (HTTP + SOCKS5)
 - EasyTier P2P VPN integration for remote control over virtual IPs
 - LAN file server and clipboard sync
+- Simple file manager: browse a local web file tree, edit/save/delete text files, and favorite common paths
 
 ### Other Tools
 - Native video playback
@@ -48,6 +50,7 @@ Requirements:
 3. **Remote control**: open **Settings → Remote Control**, start the service, and visit the shown LAN address from another browser to take control
 4. To use a proxy, open **Settings → Proxy** and configure a VLESS node
 5. To use P2P VPN, open **Settings → P2P VPN** and configure EasyTier
+6. To edit files in a browser, open **Settings → 文件简易管理** and visit `http://127.0.0.1:12580` by default
 
 ## Documentation
 
@@ -55,6 +58,7 @@ Requirements:
 - [Quick Start (CN)](docs/quickstart.md)
 - [Development Guide (CN)](docs/development.md)
 - [Architecture (CN)](docs/architecture.md)
+- [v1.0.7 Release Summary (CN)](docs/release-summary-v1.0.7.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
 - [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
 
@@ -62,6 +66,7 @@ Requirements:
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
+- [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
