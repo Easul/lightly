@@ -18,7 +18,7 @@ Recommended order for a first tour:
 2. **Proxy**: open **Settings → Proxy** and configure a VLESS link
 3. **Remote Control**: open **Settings → Remote Control**, start the service, and visit the shown LAN address from another browser
 4. **P2P VPN**: open **Settings → P2P VPN** and configure EasyTier
-5. **Local Services**: enable the HTTP file server and clipboard sync if needed
+5. **Local Services**: enable the HTTP file server, simple file manager, and clipboard sync if needed
 
 ## When to Use Lightly
 
@@ -29,6 +29,7 @@ Recommended order for a first tour:
 | **LAN clipboard sync** | Copy on device A → paste on device B, no third-party cloud service needed |
 | **Access proxy sites** | Configure a VLESS node and browse sites that require proxy via WebView |
 | **File transfer between devices** | Enable the HTTP file service and upload/download via browser |
+| **Edit phone files from a web page** | Enable **Settings → 文件简易管理** to browse a file tree, edit text, delete files, and favorite paths |
 | **Background video playback** | When the browser detects a video, tap the floating player and continue listening after switching to background |
 
 ## Core Capabilities
@@ -56,7 +57,14 @@ Recommended order for a first tour:
 
 ### Local Services
 - HTTP file server (default 3001)
+- Simple file manager (default root `/storage/emulated/0`, default port 12580)
 - Clipboard HTTP service (default 12345)
+
+**Simple file manager operations:**
+- After enabling it in Settings, the phone can open `http://127.0.0.1:12580`
+- A computer on the same LAN can use the phone IP shown on the settings page
+- Common text files such as Markdown, TXT, HTML, LOG, TOML, and YAML can be edited and saved
+- Deleting a file shows a confirmation dialog; favorite paths scroll in the lower-left web panel
 
 ## Common Issues
 
@@ -83,3 +91,4 @@ Recommended order for a first tour:
 
 - [Development Guide](development.en.md)
 - [Architecture](architecture.en.md)
+- [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
