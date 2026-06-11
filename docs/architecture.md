@@ -23,7 +23,7 @@ UI 层（Flutter 页面与组件）
 - `BrowserPage`：浏览器主页面
 - `SettingsPage`：设置入口与功能开关
 - `ClipboardPage`：剪贴板页
-- EasyTier / 视频 / 数据管理等专用页面
+- EasyTier / 视频 / 数据管理 / 文件简易管理等专用页面
 
 ## 业务层
 
@@ -41,13 +41,19 @@ UI 层（Flutter 页面与组件）
 
 ### 远程控制
 - 屏幕采集与 H.264 帧管线，Android 端负责 MediaProjection / MediaCodec 编码，Flutter 端负责 socket 传输与解码显示
-- 触摸、键盘、全局动作注入
+- 触摸、键盘、全局动作、点亮屏幕、轨迹滑动与标注注入
 - WebRTC 双向语音，EasyTier 场景下优先使用远控 TCP 已验证的远端地址
 - 剪贴板与状态消息联动
 
 ### 本地服务
 - HTTP 文件服务
+- 文件简易管理服务：本地网页文件树、文本编辑保存、删除确认和收藏路径
 - 剪贴板 HTTP 服务
+
+### EasyTier / P2P
+- VPN 与 no-tun/no-VPN 两种运行模式
+- no-VPN 远控通过 EasyTier no-tun SOCKS5 portal 访问虚拟 IP
+- 签名权限保护的 EasyTier 状态 Provider，供同签名 Monitor 应用读取运行状态
 
 ## 平台层
 
@@ -56,6 +62,8 @@ UI 层（Flutter 页面与组件）
 - `MainActivity.kt`：Flutter 与原生能力桥接
 - `ScreenCapture.kt`：屏幕捕获与 AVC 编码，包含机型兼容的编码尺寸 fallback
 - `H264Decoder.kt`：视频解码
+- `RemoteControlAccessibilityService.kt`：远控输入、全局动作、标注与断连提示
+- `EasyTierInfoProvider.kt` / `EasyTierStateStore.kt`：EasyTier 状态共享
 - EasyTier JNI / Rust `.so`：P2P VPN 核心能力
 
 ## 关键数据流
@@ -92,6 +100,15 @@ LAN browser
 
 远控模块按职责拆分为连接流程、消息路由、屏幕帧管线、健康检测、语音协调等组件，详见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
 
+### 文件简易管理链路
+
+```text
+Settings → SimpleFileManagerService
+  → Dart HttpServer (default 12580)
+  → Web file tree / editor
+  → safe read / save / delete under configured root
+```
+
 ## 性能注意点
 
 - 浏览进度更新使用节流，避免高频重建
@@ -103,3 +120,4 @@ LAN browser
 
 - [快速入门](quickstart.md)
 - [开发指南](development.md)
+- [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)

@@ -8,6 +8,7 @@
 - [ ] 确认当前 commit 是要发布的源码版本。
 - [ ] 相关自动测试通过。
 - [ ] 如触碰 Browser / Remote / Proxy / EasyTier，完成对应回归清单。
+- [ ] 如触碰文件简易管理，验证启动服务、文件树、编辑保存、删除确认、收藏路径和局域网访问。
 - [ ] 确认没有把 `rust/proxy-core/target/**` 或临时构建产物加入提交。
 
 ## 推荐命令
@@ -26,6 +27,8 @@ bash scripts/build_multi_abi.sh
   - `app-armeabi-v7a-release.apk`
 - 使用 `BUILD_VERSION_LABEL` 注入 `v<latest-tag>+<6-digit commit id>` 形式的用户可见版本标签。
 - 使用 `BUILD_VERSION_CODE` 注入 `5000 + main 分支提交数` 形式的 Android `versionCode`。
+
+GitHub Actions 的 `.github/workflows/release.yml` 也调用该脚本；更新发布流程时应优先修改脚本，再让 CI 复用脚本行为，避免本地与 CI 的 ABI 过滤、混淆或版本规则漂移。
 
 ## 产物检查
 
@@ -62,6 +65,7 @@ adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 - [ ] 浏览器基础加载正常。
 - [ ] 设置页可进入。
 - [ ] 如果本次涉及远控，receiver/controller 基础链路可用。
+- [ ] 如果本次涉及文件简易管理，`http://127.0.0.1:12580` 与局域网地址均可访问，文本文件编辑/删除行为符合预期。
 
 ## 常见失败处理
 

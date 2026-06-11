@@ -126,10 +126,12 @@ docs: update xxx
 - 当前发布工作流固定使用 Flutter `3.41.6`
 - 当前仓库要求 Dart SDK 与 Flutter 版本保持兼容；Flutter `3.41.6` 对应 Dart `3.11.4`
 - 发布工作流使用 Java `17`
+- 发布工作流复用 `scripts/build_multi_abi.sh`，本地与 CI 应保持同一套多 ABI 构建、混淆、split-debug-info 与版本号规则
 
 ## 相关文档
 
 - [快速入门](quickstart.md)
 - [架构文档](architecture.md)
+- [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)
 - [EasyTier 编译记录](easytier-build.md)
 - [EasyTier 状态共享给 Monitor](easytier-state-sharing.md)

@@ -23,7 +23,7 @@ Most UI lives under `lib/pages/` and `lib/widgets/`:
 - `BrowserPage`: main browser screen
 - `SettingsPage`: settings entry point and feature toggles
 - `ClipboardPage`: clipboard page
-- Dedicated EasyTier, video, and data-management pages
+- Dedicated EasyTier, video, data-management, and simple-file-manager pages
 
 ## Service Layer
 
@@ -41,13 +41,19 @@ Most service logic lives under `lib/browser/` and `lib/services/`:
 
 ### Remote Control
 - Screen capture and H.264 frame pipeline, with Android handling MediaProjection / MediaCodec encoding and Flutter handling socket transport plus decode display
-- Touch, keyboard, and global action injection
+- Touch, keyboard, global action, wake-screen, trajectory swipe, and annotation injection
 - Two-way WebRTC voice, preferring the proven remote-control TCP target address when running over EasyTier
 - Clipboard and status-message coordination
 
 ### Local Services
 - HTTP file service
+- Simple file manager service: local web file tree, text editing/saving, delete confirmation, and favorite paths
 - Clipboard HTTP service
+
+### EasyTier / P2P
+- VPN and no-tun/no-VPN runtime modes
+- No-VPN remote control reaches virtual IP targets through the EasyTier no-tun SOCKS5 portal
+- Signature-permission protected EasyTier state provider for same-signature Monitor apps
 
 ## Platform Layer
 
@@ -56,6 +62,8 @@ Native code lives under `android/app/src/main/kotlin/` and `jniLibs/`:
 - `MainActivity.kt`: bridge between Flutter and native capabilities
 - `ScreenCapture.kt`: screen capture and AVC encoding, including encoder-size fallback for device compatibility
 - `H264Decoder.kt`: video decoding
+- `RemoteControlAccessibilityService.kt`: remote input, global actions, annotations, and disconnect prompts
+- `EasyTierInfoProvider.kt` / `EasyTierStateStore.kt`: EasyTier state sharing
 - EasyTier JNI / Rust `.so` files: P2P VPN runtime
 
 ## Key Data Flows
@@ -92,6 +100,15 @@ LAN browser
 
 Remote-control responsibilities are split into connection flow, message routing, screen-frame pipeline, health monitoring, and voice coordination. See [Browser / Remote Module Map](browser_remote_module_map.md).
 
+### Simple File Manager Path
+
+```text
+Settings → SimpleFileManagerService
+  → Dart HttpServer (default 12580)
+  → Web file tree / editor
+  → safe read / save / delete under configured root
+```
+
 ## Performance Notes
 
 - Browser progress updates are throttled to avoid rebuild churn
@@ -103,3 +120,4 @@ Remote-control responsibilities are split into connection flow, message routing,
 
 - [Quick Start](quickstart.en.md)
 - [Development Guide](development.en.md)
+- [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)

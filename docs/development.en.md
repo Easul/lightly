@@ -126,10 +126,12 @@ docs: update xxx
 - The current release workflow pins Flutter `3.41.6`
 - Dart SDK constraints must stay compatible with the Flutter version; Flutter `3.41.6` ships with Dart `3.11.4`
 - The release workflow uses Java `17`
+- The release workflow reuses `scripts/build_multi_abi.sh`, so local and CI releases share the same multi-ABI build, obfuscation, split-debug-info, and versioning rules
 
 ## Related Docs
 
 - [Quick Start](quickstart.en.md)
 - [Architecture](architecture.en.md)
+- [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](easytier-state-sharing.en.md)
