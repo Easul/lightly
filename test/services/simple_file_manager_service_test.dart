@@ -1,0 +1,129 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lightly/services/simple_file_manager_service.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory tempDir;
+  late SimpleFileManagerService service;
+
+  setUp(() async {
+    HttpOverrides.global = null;
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tempDir = await Directory.systemTemp.createTemp('simple_file_manager_');
+    service = SimpleFileManagerService();
+    await service.stop();
+  });
+
+  tearDown(() async {
+    await service.stop();
+    if (await tempDir.exists()) {
+      await tempDir.delete(recursive: true);
+    }
+  });
+
+  test('serves file tree, reads text, and saves changes', () async {
+    final notesDir = Directory(p.join(tempDir.path, 'notes'));
+    await notesDir.create();
+    final file = File(p.join(notesDir.path, 'hello.md'));
+    await file.writeAsString('# Hello');
+    final port = await _reservePort();
+
+    await service.start(
+      settings: SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: tempDir.path,
+        port: port,
+        bindAllInterfaces: false,
+        favoritePaths: const <String>[],
+      ),
+    );
+
+    final baseUrl = service.localUrl!;
+    final treeResponse = await http.get(Uri.parse('$baseUrl/api/tree'));
+    expect(treeResponse.statusCode, HttpStatus.ok);
+    final treeJson = jsonDecode(treeResponse.body) as Map<String, dynamic>;
+    final entries = treeJson['entries'] as List<dynamic>;
+    expect(
+      entries.any(
+        (entry) =>
+            (entry as Map<String, dynamic>)['name'] == 'notes' &&
+            entry['type'] == 'directory',
+      ),
+      isTrue,
+    );
+
+    final fileResponse = await http.get(
+      Uri.parse(
+        '$baseUrl/api/file',
+      ).replace(queryParameters: <String, String>{'path': file.path}),
+    );
+    expect(fileResponse.statusCode, HttpStatus.ok);
+    expect(jsonDecode(fileResponse.body)['content'], '# Hello');
+
+    final saveResponse = await http.post(
+      Uri.parse('$baseUrl/api/file'),
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(<String, String>{
+        'path': file.path,
+        'content': '# Updated',
+      }),
+    );
+    expect(saveResponse.statusCode, HttpStatus.ok);
+    expect(await file.readAsString(), '# Updated');
+  });
+
+  test('persists favorites and blocks paths outside root', () async {
+    final file = File(p.join(tempDir.path, 'config.toml'));
+    await file.writeAsString('title = "demo"');
+    final outside = File(p.join(tempDir.parent.path, 'outside.txt'));
+    await outside.writeAsString('outside');
+    final port = await _reservePort();
+
+    await service.start(
+      settings: SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: tempDir.path,
+        port: port,
+        bindAllInterfaces: false,
+        favoritePaths: const <String>[],
+      ),
+    );
+
+    final baseUrl = service.localUrl!;
+    final addFavoriteResponse = await http.post(
+      Uri.parse('$baseUrl/api/favorites'),
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(<String, String>{'path': file.path}),
+    );
+    expect(addFavoriteResponse.statusCode, HttpStatus.ok);
+    expect(
+      jsonDecode(addFavoriteResponse.body)['favorites'],
+      contains(file.path),
+    );
+
+    final blockedResponse = await http.get(
+      Uri.parse(
+        '$baseUrl/api/file',
+      ).replace(queryParameters: <String, String>{'path': outside.path}),
+    );
+    expect(blockedResponse.statusCode, HttpStatus.forbidden);
+
+    if (await outside.exists()) {
+      await outside.delete();
+    }
+  });
+}
+
+Future<int> _reservePort() async {
+  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final port = socket.port;
+  await socket.close();
+  return port;
+}
