@@ -204,6 +204,13 @@ class SettingsPageHomeSections extends StatelessWidget {
         ),
         const Divider(height: 1),
         SettingsTile(
+          icon: Icons.edit_document,
+          title: '文件简易管理',
+          subtitle: '网页文件树、文本编辑、收藏路径',
+          onTap: () => Navigator.pushNamed(context, '/simple-file-manager'),
+        ),
+        const Divider(height: 1),
+        SettingsTile(
           icon: Icons.vpn_lock_rounded,
           title: 'P2P VPN',
           subtitle: 'EasyTier 网络配置与设备联通',

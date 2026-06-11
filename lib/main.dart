@@ -15,7 +15,9 @@ import 'pages/data_management_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/easytier_settings_page.dart';
 import 'pages/remote_control_page.dart';
+import 'pages/simple_file_manager_settings_page.dart';
 import 'services/app_toast.dart';
+import 'services/simple_file_manager_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +26,17 @@ Future<void> main() async {
 
   // 初始化应用生命周期管理器，确保服务默认关闭状态
   await AppLifecycleManager().initialize();
+
+  final simpleFileManagerService = SimpleFileManagerService();
+  final simpleFileManagerSettings = await simpleFileManagerService
+      .loadSettings();
+  if (simpleFileManagerSettings.enabled) {
+    try {
+      await simpleFileManagerService.start(settings: simpleFileManagerSettings);
+    } catch (error, stackTrace) {
+      unawaited(appLogService.logUnhandledError(error, stackTrace));
+    }
+  }
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -67,6 +80,8 @@ class MyApp extends StatelessWidget {
         '/downloads': (context) => const DownloadsPage(),
         '/data-management': (context) => const DataManagementPage(),
         '/settings': (context) => const SettingsPage(),
+        '/simple-file-manager': (context) =>
+            const SimpleFileManagerSettingsPage(),
         '/easytier': (context) => const EasyTierSettingsPage(),
         '/remote-control': (context) => const RemoteControlPage(),
       },
