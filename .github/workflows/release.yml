@@ -12,7 +12,7 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.6'
+        default: 'v1.0.7'
 
 jobs:
   build-android:
@@ -107,52 +107,22 @@ jobs:
         fi
         echo "✅ Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
 
-    - name: Build arm64-v8a (64-bit)
+    - name: Build multi-ABI APKs
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        RELEASE_VERSION_TAG: ${{ steps.version.outputs.version }}
+        GRADLE_WORKERS: '2'
+        ARM64_HEAP: 6G
+        ARM32_HEAP: 8G
       run: |
-        export TARGET_ABI=arm64-v8a
-        export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
-        export BUILD_VERSION_CODE="${{ steps.version.outputs.version_code }}"
-        
-        flutter build apk \
-          --release \
-          --target-platform android-arm64 \
-          --build-name="${{ steps.version.outputs.version }}" \
-          --build-number="${{ steps.version.outputs.version_code }}" \
-          --obfuscate \
-          --split-debug-info=build/app/outputs/symbols
-        
         mkdir -p dist
-        cp build/app/outputs/flutter-apk/app-release.apk \
+        bash scripts/build_multi_abi.sh
+        cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
           dist/app-arm64-v8a-release.apk
-        
-        echo "✅ Built arm64-v8a APK"
-
-    - name: Build armeabi-v7a (32-bit)
-      env:
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx12G -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError'"
-        _JAVA_OPTIONS: '-Xmx12G'
-      run: |
-        export TARGET_ABI=armeabi-v7a
-        export BUILD_VERSION_LABEL="${{ steps.version.outputs.build_version }}"
-        export BUILD_VERSION_CODE="${{ steps.version.outputs.version_code }}"
-        
-        flutter build apk \
-          --release \
-          --target-platform android-arm \
-          --build-name="${{ steps.version.outputs.version }}" \
-          --build-number="${{ steps.version.outputs.version_code }}" \
-          --obfuscate \
-          --split-debug-info=build/app/outputs/symbols
-        
-        cp build/app/outputs/flutter-apk/app-release.apk \
+        cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
           dist/app-armeabi-v7a-release.apk
-        
-        echo "✅ Built armeabi-v7a APK"
+        echo "✅ Built multi-ABI APKs via scripts/build_multi_abi.sh"
     
     - name: Show build artifacts
       run: |
@@ -208,20 +178,21 @@ jobs:
           ### 🚀 功能特性
 
           - 浏览器保留完整标签页、下载、收藏、视频播放、站点数据清理与备份恢复能力
-          - 远程控制支持屏幕观看、触摸/键盘/全局动作注入、剪贴板同步与 WebRTC 双向语音
-          - EasyTier P2P VPN 可用于跨网络远控，并优先复用远控 TCP 已验证的可达地址
+          - 远程控制支持屏幕观看、触摸/键盘/全局动作注入、轨迹滑动、远端标注、剪贴板同步与 WebRTC 双向语音
+          - EasyTier P2P VPN 可用于跨网络远控，并支持 VPN 与 no-VPN/no-tun 两种运行方式
+          - 文件简易管理支持通过本地网页浏览文件树、编辑保存文本文件、删除确认和收藏路径
           - 发布包继续提供 arm64-v8a 与 armeabi-v7a 两个 ABI 分包
 
           ### 🔄 本次修改说明
 
-          - 远程控制改为 WebRTC 语音链路，移除旧原生音频桥接，并保留内置代理模式下不启用语音的设计
-          - 优化 EasyTier 场景下的 WebRTC 候选地址选择、overlay host 改写、远控 IP 优先策略和接收端播放音量
-          - 增加远控控制/屏幕通道自动重连、WebRTC 失败重建，以及 EasyTier monitor 异常自动恢复
-          - 修复部分红米机型全分辨率 AVC 编码失败导致的被控端黑屏，自动降级到兼容捕获尺寸
-          - 修复 EasyTier 下控制端说话一段时间后被控端听不到的问题，增加 receiver 端远端音频停滞检测与恢复
-          - 拆分 Browser / Remote 多个 coordinator、helper 与 widget 模块，补充浏览器、远控、WebRTC 回归测试
-          - 优化浏览器 tab、地址栏、弹窗、X/YouTube 移动布局、登录态备份、Cookie origin 跟踪和站点数据清理
-          - 发布脚本改为使用 `5000 + main 分支提交数` 作为 Android `versionCode`，避免误把功能分支提交数计入版本号
+          - 新增 `设置 → 文件简易管理`，默认 `/storage/emulated/0` 与端口 `12580`，支持文本文件编辑、删除确认和收藏路径滚动面板
+          - 增强远控操作：控制端最小化、临时关闭、点亮屏幕、轨迹滑动、键盘输入、远端标注和全局断连提示
+          - 增加 P2P / EasyTier no-VPN 模式、结构化端口映射、no-tun SOCKS5 连接路径和 EasyTier 状态共享 Provider
+          - 修复 Redmi / Qualcomm 远控黑屏与高分辨率解码问题，优化屏幕帧发送以降低弱网延迟
+          - 优化浏览器 overlay、tab keep-alive、外部文件打开、下载播放、站点数据清理和备份恢复路径
+          - 代理节点支持保存/选择/删除，SOCKS5 / Telegram 兼容性继续强化
+          - 拆分 Browser / Remote / EasyTier / Downloads / Proxy 多个大模块，并补充对应回归测试
+          - Release workflow 改为复用 `scripts/build_multi_abi.sh`，与本地发布保持一致
           
           ### 📝 版本信息
           

@@ -48,8 +48,7 @@ build_release_for_abi() {
   GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${GRADLE_WORKERS} -Dorg.gradle.jvmargs='-Xmx${heap_size} -XX:MaxMetaspaceSize=${METASPACE_SIZE} -XX:ReservedCodeCacheSize=${CODE_CACHE_SIZE} -XX:+HeapDumpOnOutOfMemoryError'"   _JAVA_OPTIONS="-Xmx${heap_size}"   TARGET_ABI="$abi"   BUILD_VERSION_LABEL="$VERSION_NAME"   BUILD_VERSION_CODE="$VERSION_CODE"   flutter build apk     --release     --target-platform "$target_platform"     --obfuscate     --split-debug-info="$SYMBOL_OUTPUT_DIR"
 }
 
-# Get latest tag or fallback to default
-LATEST_TAG=$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || git -C "$PROJECT_ROOT" tag --sort=-v:refname | head -1 2>/dev/null || echo "v1.0.0")
+LATEST_TAG=${RELEASE_VERSION_TAG:-$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || git -C "$PROJECT_ROOT" tag --sort=-v:refname | head -1 2>/dev/null || echo "v1.0.0")}
 echo "🏷️  Latest tag: $LATEST_TAG"
 
 # Get commit hash for build label
@@ -59,7 +58,7 @@ COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD 2>/dev/null || ech
 VERSION_NAME="${LATEST_TAG}+${COMMIT_HASH}"
 echo "📋 Version: $VERSION_NAME"
 
-COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
+COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count origin/main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
 VERSION_CODE=$((5000 + COMMIT_COUNT))
 echo "🔢 Version code: $VERSION_CODE (5000 + main commit count: $COMMIT_COUNT)"
 
