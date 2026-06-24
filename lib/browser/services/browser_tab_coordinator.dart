@@ -142,6 +142,10 @@ class BrowserTabCoordinator {
     return _tabService.trimKeepAlivesForOverlay();
   }
 
+  int resetAllKeepAlives({bool recreateWebTabs = false}) {
+    return _tabService.resetAllKeepAlives(recreateWebTabs: recreateWebTabs);
+  }
+
   BrowserTabUrlSyncResult syncUrlForTabIfNeeded(String tabId, String? url) {
     if (url == null) {
       return const BrowserTabUrlSyncResult(

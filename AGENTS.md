@@ -452,11 +452,14 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - `x.com` / `twitter.com` and `youtube.com` / `youtu.be` should prefer the mobile WebView layout in this app.
 - Keep the browser mobile-mode WebView policy using the mobile user agent, and disable `useWideViewPort` plus `loadWithOverviewMode`. The wide/desktop-style viewport path can make responsive sites keep desktop-style UI even after switching to mobile mode; it also makes X / YouTube internal bottom navigation areas render with excessive blank height in fullscreen.
 - There is also a site-specific compatibility CSS injection path (`BrowserSiteCompatibilityScript`) used to clamp the internal bottom navigation height for X and YouTube after load. Re-test these hosts before removing it.
-- Browser desktop/mobile mode switching must update the live WebView settings and reload the current URL, not only save settings or rebuild Flutter widgets. Many sites choose mobile/desktop UI from the navigation request user-agent and WebView content mode, so changing state without a new request can leave the visible page unchanged.
+- Browser desktop/mobile mode switching must force the current page to reload with the new WebView settings, not only save settings or rebuild Flutter widgets. Many sites choose mobile/desktop UI from the navigation request user-agent and WebView content mode, so changing state without a new request can leave the visible page unchanged.
+- Runtime `InAppWebViewController.setSettings()` is not reliable enough for this mode switch on all Android WebView paths. Prefer recreating retained WebViews / keepAlives so the next native WebView is created with the correct user agent, `preferredContentMode`, `useWideViewPort`, and `loadWithOverviewMode`.
+- The More-sheet toggle should flip from BrowserPage's current in-memory setting, not only the latest persisted setting, otherwise a stale page state can make the button appear to do nothing or switch the wrong way.
 - Related files:
   - `lib/browser/widgets/browser_webview_host.dart`
   - `lib/browser/utils/browser_site_compatibility_script.dart`
   - `lib/pages/browser_page.dart`
+  - `lib/browser/services/browser_tab_service.dart`
 
 ## Selective Browsing Data Clearing
 

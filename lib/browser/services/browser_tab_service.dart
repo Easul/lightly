@@ -200,6 +200,31 @@ class BrowserTabService {
     return true;
   }
 
+  int resetAllKeepAlives({bool recreateWebTabs = false}) {
+    var resetCount = 0;
+    for (var i = 0; i < _tabs.length; i++) {
+      final current = _tabs[i];
+      final shouldRecreate = recreateWebTabs && current.url.startsWith('http');
+      final hasRuntimeState =
+          current.keepAlive != null || current.hasAttachedWebView;
+      if (!shouldRecreate && !hasRuntimeState) {
+        continue;
+      }
+
+      _disposeKeepAlive(current.keepAlive);
+      _tabs[i] = current.copyWith(
+        keepAlive: shouldRecreate ? InAppWebViewKeepAlive() : null,
+        clearKeepAlive: !shouldRecreate,
+        hasAttachedWebView: false,
+      );
+      resetCount += 1;
+    }
+    if (resetCount > 0) {
+      _invalidateTabsCache();
+    }
+    return resetCount;
+  }
+
   bool updateTab(
     String tabId, {
     String? url,

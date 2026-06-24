@@ -207,6 +207,37 @@ void main() {
       expect(service.activeTab?.hasAttachedWebView, isFalse);
     });
 
+    test('resetAllKeepAlives recreates every retained web tab', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      service.openTab(url: 'https://two.example');
+      service.openTab(url: 'content://provider/document/file.txt');
+
+      for (final tab in service.tabs) {
+        service.updateTab(tab.id, hasAttachedWebView: true);
+      }
+
+      final originalKeepAlives = {
+        for (final tab in service.tabs) tab.id: tab.keepAlive,
+      };
+      final resetCount = service.resetAllKeepAlives(recreateWebTabs: true);
+
+      expect(resetCount, 3);
+      final webTabs = service.tabs.where((tab) => tab.url.startsWith('http'));
+      expect(webTabs, hasLength(2));
+      for (final tab in webTabs) {
+        expect(tab.keepAlive, isNotNull);
+        expect(identical(tab.keepAlive, originalKeepAlives[tab.id]), isFalse);
+        expect(tab.hasAttachedWebView, isFalse);
+      }
+
+      final contentTab = service.tabs.singleWhere(
+        (tab) => tab.url.startsWith('content://'),
+      );
+      expect(contentTab.keepAlive, isNull);
+      expect(contentTab.hasAttachedWebView, isFalse);
+    });
+
     test('tabs getter reuses cached unmodifiable view until tabs change', () {
       final service = BrowserTabService.test(maxTabs: 4);
       service.initialize('https://one.example');

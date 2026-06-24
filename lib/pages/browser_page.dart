@@ -179,6 +179,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool _proxySupported = false;
   bool _isProxyActive = false;
   int _progress = 0;
+  int _webViewModeGeneration = 0;
   final BrowserVideoDetectionTracker _videoDetectionTracker =
       BrowserVideoDetectionTracker();
   PullToRefreshController? _pullToRefreshController;
@@ -547,7 +548,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             )
           : const SizedBox.shrink(),
       webViewChild: BrowserWebViewHost(
-        key: ValueKey('webview-${_activeTabId ?? 'none'}'),
+        key: ValueKey(
+          'webview-${_activeTabId ?? 'none'}-'
+          '${_settings.desktopModeEnabled ? 'desktop' : 'mobile'}-'
+          '$_webViewModeGeneration',
+        ),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
         desktopModeEnabled: _settings.desktopModeEnabled,
@@ -923,6 +928,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _reloadSettings() async {
+    final previousDesktopModeEnabled = _settings.desktopModeEnabled;
     final appliedSettings = await _initializer.reloadSettings(
       onClearVideoPromptState: _initializer.clearVideoPromptState,
       onReplaceSuggestionService: _replaceSuggestionService,
@@ -948,7 +954,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _statusMessage = snapshot.statusMessage;
       _isInitialized = snapshot.isInitialized;
       _initializer.clearVideoPromptState();
+      if (previousDesktopModeEnabled != snapshot.settings.desktopModeEnabled) {
+        _recreateWebViewsForViewportMode();
+      }
     });
+    _syncNotifiers();
 
     await _favoriteStatusController.refreshStatus(
       _currentUrl,
@@ -1397,65 +1407,38 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleDesktopMode() async {
+    final enabled = !_settings.desktopModeEnabled;
     final latestSettings = await _settingsService.loadSettings();
-    final enabled = !latestSettings.desktopModeEnabled;
     final newSettings = latestSettings.copyWith(desktopModeEnabled: enabled);
     await _settingsService.saveSettings(newSettings);
     if (!mounted) {
       return;
     }
 
-    setState(() {
+    _updateStateWhenVisible(() {
       _settings = newSettings;
       _statusMessage = enabled ? '已切换为电脑模式' : '已切换为手机模式';
+      _recreateWebViewsForViewportMode();
     });
-
-    if (await _reloadCurrentPageForViewportMode(enabled)) {
-      return;
-    }
-
-    final activeTabId = _activeTabId;
-    if (activeTabId != null && !_isFavoritesPage(_currentUrl)) {
-      _webViewController = null;
-      _tabService.resetKeepAlive(activeTabId, recreate: true);
-      _updateActiveTab(clearPopupWindowId: true, isLoading: true);
-    }
-
-    if (mounted) {
-      _rebuildWhenVisible();
-    }
   }
 
-  Future<bool> _reloadCurrentPageForViewportMode(
-    bool desktopModeEnabled,
-  ) async {
-    final controller = _webViewController;
+  void _recreateWebViewsForViewportMode() {
+    final activeTabId = _activeTabId;
     final currentUri = Uri.tryParse(_currentUrl);
-    if (controller == null ||
-        currentUri == null ||
-        !_isWebScheme(currentUri.scheme) ||
-        _isFavoritesPage(_currentUrl)) {
-      return false;
-    }
+    final shouldReloadActiveTab =
+        activeTabId != null &&
+        currentUri != null &&
+        _isWebScheme(currentUri.scheme) &&
+        !_isFavoritesPage(_currentUrl);
 
+    _webViewController = null;
+    _webViewModeGeneration += 1;
+    _tabCoordinator.resetAllKeepAlives(recreateWebTabs: true);
+    if (!shouldReloadActiveTab) {
+      return;
+    }
     _updateActiveTab(clearPopupWindowId: true, isLoading: true);
     _updateProgressIfNeeded(0);
-    _syncNotifiers();
-
-    try {
-      await controller.setSettings(
-        settings: BrowserWebViewHost.settingsForUrl(
-          _currentUrl,
-          desktopModeEnabled: desktopModeEnabled,
-        ),
-      );
-      await controller.loadUrl(
-        urlRequest: URLRequest(url: WebUri(_currentUrl)),
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   Future<void> _reapplyProxyAfterWebViewCreated() async {
