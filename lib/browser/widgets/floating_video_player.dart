@@ -65,6 +65,8 @@ class FloatingVideoPlayer extends StatefulWidget {
     this.controller,
     required this.onClose,
     this.onDownload,
+    this.isLooping = false,
+    this.onLoopingChanged,
     this.title,
     this.initialPosition,
     this.isLoading = false,
@@ -76,6 +78,8 @@ class FloatingVideoPlayer extends StatefulWidget {
   final VideoPlayerController? controller;
   final VoidCallback onClose;
   final VoidCallback? onDownload;
+  final bool isLooping;
+  final ValueChanged<bool>? onLoopingChanged;
   final String? title;
   final Offset? initialPosition;
   final bool isLoading;
@@ -104,6 +108,8 @@ class FloatingVideoPlayer extends StatefulWidget {
     VideoPlayerController? controller,
     required VoidCallback onClose,
     VoidCallback? onDownload,
+    bool isLooping = false,
+    ValueChanged<bool>? onLoopingChanged,
     String? title,
     Offset? initialPosition,
     bool isLoading = false,
@@ -116,6 +122,8 @@ class FloatingVideoPlayer extends StatefulWidget {
         controller: controller,
         onClose: onClose,
         onDownload: onDownload,
+        isLooping: isLooping,
+        onLoopingChanged: onLoopingChanged,
         title: title,
         initialPosition: initialPosition,
         isLoading: isLoading,
@@ -135,6 +143,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
   bool _isDragging = false;
   FloatingPlayerMode _mode = FloatingPlayerMode.defaultMode;
   bool _isLocked = false;
+  late bool _isLooping;
 
   static const double _miniWidthFactor = 0.45;
 
@@ -147,9 +156,11 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _position = widget.initialPosition ?? Offset(0, 0);
+    _isLooping = widget.isLooping;
     widget.playerController?._attach(this);
     _activeInstanceCount++;
     _enableWakeLock();
+    unawaited(widget.controller?.setLooping(_isLooping));
     unawaited(_applySystemUiForCurrentMode(immediate: true));
   }
 
@@ -242,10 +253,19 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
         DeviceOrientation.landscapeRight,
       ]);
     } else {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      SystemChrome.setPreferredOrientations(const <DeviceOrientation>[]);
     }
 
     unawaited(_applySystemUiForCurrentMode());
+  }
+
+  void _toggleLooping() {
+    final nextValue = !_isLooping;
+    setState(() {
+      _isLooping = nextValue;
+    });
+    unawaited(widget.controller?.setLooping(nextValue));
+    widget.onLoopingChanged?.call(nextValue);
   }
 
   /// 双击切换小窗模式
@@ -366,11 +386,13 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
                 title: widget.title,
                 mode: _mode,
                 isLocked: _isLocked,
+                isLooping: _isLooping,
                 isLoading: widget.isLoading,
                 errorMessage: widget.errorMessage,
                 onClose: widget.onClose,
                 onModeToggle: _toggleMode,
                 onLockToggle: _toggleLock,
+                onLoopToggle: _toggleLooping,
                 onDownload: widget.onDownload,
               ),
             ),
@@ -395,7 +417,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.playerController?._detach(this);
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Disable screen wake lock only when the last floating player instance closes
     _disableWakeLockIfLast();

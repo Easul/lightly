@@ -422,7 +422,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     _chewieController?.dispose();
     _videoPlayerController?.dispose();
     unawaited(_videoProxyServer.stop());
-    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    SystemChrome.setPreferredOrientations(const <DeviceOrientation>[]);
     super.dispose();
   }
 

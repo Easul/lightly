@@ -159,6 +159,7 @@ void main() {
       final settings = BrowserSettings.defaults();
 
       expect(settings.openNewWindowInTab, isTrue);
+      expect(settings.desktopModeEnabled, isFalse);
       expect(settings.appCacheAutoClearEnabled, isFalse);
       expect(settings.appCacheAutoClearIntervalHours, 24);
     });
@@ -170,6 +171,16 @@ void main() {
       });
 
       expect(settings.openNewWindowInTab, isFalse);
+    });
+
+    test('desktopModeEnabled restores from json', () {
+      final settings = BrowserSettings.fromJson({
+        'homepageUrl': 'https://example.com',
+        'desktopModeEnabled': true,
+      });
+
+      expect(settings.desktopModeEnabled, isTrue);
+      expect(settings.toJson()['desktopModeEnabled'], isTrue);
     });
 
     test('app cache auto clear settings restore from json', () {

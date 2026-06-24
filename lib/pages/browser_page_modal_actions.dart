@@ -42,9 +42,11 @@ Future<void> showBrowserTabSwitcherModal({
 Future<void> showBrowserMoreActionsModal({
   required BuildContext context,
   required bool proxyEnabled,
+  required bool desktopModeEnabled,
   required bool isFavorited,
   required VoidCallback? onToggleFavorite,
   required VoidCallback onToggleProxy,
+  required VoidCallback onToggleDesktopMode,
   required VoidCallback onOpenDownloads,
   required VoidCallback onOpenDataManagement,
   required VoidCallback onCloseTab,
@@ -58,9 +60,11 @@ Future<void> showBrowserMoreActionsModal({
     isScrollControlled: true,
     builder: (sheetContext) => BrowserMoreActionsSheet(
       proxyEnabled: proxyEnabled,
+      desktopModeEnabled: desktopModeEnabled,
       isFavorited: isFavorited,
       onToggleFavorite: onToggleFavorite,
       onToggleProxy: onToggleProxy,
+      onToggleDesktopMode: onToggleDesktopMode,
       onOpenDownloads: onOpenDownloads,
       onOpenDataManagement: onOpenDataManagement,
       onCloseTab: onCloseTab,

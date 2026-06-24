@@ -128,6 +128,6 @@ ChewieController buildNativeVideoChewieController({
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ],
-    deviceOrientationsAfterFullScreen: const [DeviceOrientation.portraitUp],
+    deviceOrientationsAfterFullScreen: const <DeviceOrientation>[],
   );
 }

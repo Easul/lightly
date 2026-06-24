@@ -547,9 +547,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             )
           : const SizedBox.shrink(),
       webViewChild: BrowserWebViewHost(
-        key: ValueKey('webview-${_activeTabId ?? 'none'}'),
+        key: ValueKey(
+          'webview-${_activeTabId ?? 'none'}-${_settings.desktopModeEnabled}',
+        ),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
+        desktopModeEnabled: _settings.desktopModeEnabled,
         shouldLoadInitialUrl: _statePredicates.shouldLoadInitialUrlForTab(
           activeTab,
         ),
@@ -1395,6 +1398,32 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _replaceSuggestionService();
   }
 
+  Future<void> _toggleDesktopMode() async {
+    final latestSettings = await _settingsService.loadSettings();
+    final enabled = !latestSettings.desktopModeEnabled;
+    final newSettings = latestSettings.copyWith(desktopModeEnabled: enabled);
+    await _settingsService.saveSettings(newSettings);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _settings = newSettings;
+      _statusMessage = enabled ? '已切换为电脑模式' : '已切换为手机模式';
+    });
+
+    final activeTabId = _activeTabId;
+    if (activeTabId != null && !_isFavoritesPage(_currentUrl)) {
+      _webViewController = null;
+      _tabService.resetKeepAlive(activeTabId, recreate: true);
+      _updateActiveTab(clearPopupWindowId: true, isLoading: true);
+    }
+
+    if (mounted) {
+      _rebuildWhenVisible();
+    }
+  }
+
   Future<void> _reapplyProxyAfterWebViewCreated() async {
     if (!_shouldUseProxy()) {
       return;
@@ -1922,9 +1951,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       overlayStateManager: _overlayStateManager,
       context: context,
       proxyEnabled: _settings.shouldApplyProxy,
+      desktopModeEnabled: _settings.desktopModeEnabled,
       isFavorited: _favoriteStatusController.isCurrentPageFavorited,
       onToggleFavorite: _isFavoritesPage(_currentUrl) ? null : _toggleFavorite,
       onToggleProxy: _toggleProxy,
+      onToggleDesktopMode: _toggleDesktopMode,
       onOpenDownloads: _openDownloads,
       onOpenDataManagement: _openDataManagement,
       onCloseTab: _closeCurrentTab,

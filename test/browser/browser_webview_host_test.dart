@@ -32,5 +32,16 @@ void main() {
       expect(policy.useWideViewPort, isTrue);
       expect(policy.loadWithOverviewMode, isTrue);
     });
+
+    test('desktop mode overrides mobile site viewport policy', () {
+      final policy = BrowserWebViewHost.viewportPolicyForUrl(
+        'https://www.youtube.com/watch?v=abc',
+        desktopModeEnabled: true,
+      );
+
+      expect(policy.usesDesktopUserAgent, isTrue);
+      expect(policy.useWideViewPort, isTrue);
+      expect(policy.loadWithOverviewMode, isTrue);
+    });
   });
 }

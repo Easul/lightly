@@ -21,7 +21,9 @@ class FloatingVideoPlayerWidget extends StatefulWidget {
     required this.mode,
     this.onModeToggle,
     this.isLocked = false,
+    this.isLooping = false,
     this.onLockToggle,
+    this.onLoopToggle,
     this.isLoading = false,
     this.errorMessage,
   });
@@ -33,7 +35,9 @@ class FloatingVideoPlayerWidget extends StatefulWidget {
   final FloatingPlayerMode mode;
   final VoidCallback? onModeToggle;
   final bool isLocked;
+  final bool isLooping;
   final VoidCallback? onLockToggle;
+  final VoidCallback? onLoopToggle;
   final bool isLoading;
   final String? errorMessage;
 
@@ -395,6 +399,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     mode: widget.mode,
                     isLocked: widget.isLocked,
                     isFullscreen: _isFullscreen,
+                    isLooping: widget.isLooping,
                     isPlaying: value.isPlaying,
                     position: value.position,
                     duration: value.duration,
@@ -407,6 +412,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     onDownload: widget.onDownload,
                     onModeToggle: widget.onModeToggle,
                     onLockToggle: widget.onLockToggle,
+                    onLoopToggle: widget.onLoopToggle,
                   ),
                 ),
               ),
@@ -434,11 +440,13 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
       mode: widget.mode,
       isLocked: widget.isLocked,
       isFullscreen: _isFullscreen,
+      isLooping: widget.isLooping,
       modeToggleIcon: _getModeToggleIcon(),
       onClose: widget.onClose,
       onDownload: widget.onDownload,
       onModeToggle: widget.onModeToggle,
       onLockToggle: widget.onLockToggle,
+      onLoopToggle: widget.onLoopToggle,
     );
   }
 }

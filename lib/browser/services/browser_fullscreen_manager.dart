@@ -15,9 +15,7 @@ class BrowserFullscreenManager {
 
   Future<void> exitWebFullscreen() async {
     _isInWebFullscreen = false;
-    await SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.portraitUp,
-    ]);
+    await SystemChrome.setPreferredOrientations(const <DeviceOrientation>[]);
   }
 
   Future<void> restorePortraitIfNeeded() async {

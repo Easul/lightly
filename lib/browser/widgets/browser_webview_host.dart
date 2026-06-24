@@ -7,11 +7,16 @@ const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
+const _browserDesktopUserAgent =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
 class BrowserWebViewHost extends StatelessWidget {
   const BrowserWebViewHost({
     super.key,
     required this.enabled,
     required this.initialUrl,
+    required this.desktopModeEnabled,
     required this.shouldLoadInitialUrl,
     this.windowId,
     this.keepAlive,
@@ -37,6 +42,7 @@ class BrowserWebViewHost extends StatelessWidget {
 
   final bool enabled;
   final String initialUrl;
+  final bool desktopModeEnabled;
   final bool shouldLoadInitialUrl;
   final int? windowId;
   final InAppWebViewKeepAlive? keepAlive;
@@ -94,7 +100,18 @@ class BrowserWebViewHost extends StatelessWidget {
   final void Function(InAppWebViewController controller)? onExitFullscreen;
   final PullToRefreshController? pullToRefreshController;
 
-  static BrowserWebViewViewportPolicy viewportPolicyForUrl(String initialUrl) {
+  static BrowserWebViewViewportPolicy viewportPolicyForUrl(
+    String initialUrl, {
+    bool desktopModeEnabled = false,
+  }) {
+    if (desktopModeEnabled) {
+      return const BrowserWebViewViewportPolicy(
+        userAgent: _browserDesktopUserAgent,
+        useWideViewPort: true,
+        loadWithOverviewMode: true,
+      );
+    }
+
     final uri = Uri.tryParse(initialUrl);
     final host = uri?.host.toLowerCase() ?? '';
     final prefersMobileViewport =
@@ -117,7 +134,10 @@ class BrowserWebViewHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final viewportPolicy = viewportPolicyForUrl(initialUrl);
+    final viewportPolicy = viewportPolicyForUrl(
+      initialUrl,
+      desktopModeEnabled: desktopModeEnabled,
+    );
 
     if (!enabled) {
       return Center(
@@ -273,4 +293,5 @@ class BrowserWebViewViewportPolicy {
   final bool loadWithOverviewMode;
 
   bool get usesMobileUserAgent => userAgent == _browserMobileUserAgent;
+  bool get usesDesktopUserAgent => userAgent == _browserDesktopUserAgent;
 }

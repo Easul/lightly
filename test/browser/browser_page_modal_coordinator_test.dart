@@ -81,9 +81,11 @@ void main() {
             ({
               required context,
               required proxyEnabled,
+              required desktopModeEnabled,
               required isFavorited,
               required onToggleFavorite,
               required onToggleProxy,
+              required onToggleDesktopMode,
               required onOpenDownloads,
               required onOpenDataManagement,
               required onCloseTab,
@@ -93,8 +95,10 @@ void main() {
               required onOpenFavoritesMenu,
             }) async {
               expect(proxyEnabled, isTrue);
+              expect(desktopModeEnabled, isTrue);
               expect(isFavorited, isFalse);
               onToggleFavorite?.call();
+              onToggleDesktopMode();
             },
       );
 
@@ -102,9 +106,11 @@ void main() {
         overlayStateManager: harness.manager,
         context: context,
         proxyEnabled: true,
+        desktopModeEnabled: true,
         isFavorited: false,
         onToggleFavorite: () => calls.add('favorite'),
         onToggleProxy: () {},
+        onToggleDesktopMode: () => calls.add('desktop'),
         onOpenDownloads: () {},
         onOpenDataManagement: () {},
         onCloseTab: () {},
@@ -114,7 +120,7 @@ void main() {
         onOpenFavoritesMenu: null,
       );
 
-      expect(calls, <String>['favorite']);
+      expect(calls, <String>['favorite', 'desktop']);
       expect(harness.pauseCount, 1);
       expect(harness.lastTrimKeepAlives, isTrue);
       expect(harness.rebuildCount, 2);

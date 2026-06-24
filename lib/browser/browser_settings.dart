@@ -181,6 +181,7 @@ class BrowserSettings {
     required this.nativeVideoPlayerEnabled,
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
+    required this.desktopModeEnabled,
     required this.appCacheAutoClearEnabled,
     required this.appCacheAutoClearIntervalHours,
   });
@@ -210,6 +211,7 @@ class BrowserSettings {
   final bool nativeVideoPlayerEnabled;
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
+  final bool desktopModeEnabled;
   final bool appCacheAutoClearEnabled;
   final int appCacheAutoClearIntervalHours;
 
@@ -255,6 +257,7 @@ class BrowserSettings {
       nativeVideoPlayerEnabled: false,
       nativeVideoParserApiBaseUrl: 'https://parser.example.com',
       openNewWindowInTab: true,
+      desktopModeEnabled: false,
       appCacheAutoClearEnabled: false,
       appCacheAutoClearIntervalHours: 24,
     );
@@ -290,6 +293,7 @@ class BrowserSettings {
     bool? nativeVideoPlayerEnabled,
     String? nativeVideoParserApiBaseUrl,
     bool? openNewWindowInTab,
+    bool? desktopModeEnabled,
     bool? appCacheAutoClearEnabled,
     int? appCacheAutoClearIntervalHours,
   }) {
@@ -329,6 +333,7 @@ class BrowserSettings {
       nativeVideoParserApiBaseUrl:
           nativeVideoParserApiBaseUrl ?? this.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab ?? this.openNewWindowInTab,
+      desktopModeEnabled: desktopModeEnabled ?? this.desktopModeEnabled,
       appCacheAutoClearEnabled:
           appCacheAutoClearEnabled ?? this.appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours:
@@ -364,6 +369,7 @@ class BrowserSettings {
       'nativeVideoPlayerEnabled': nativeVideoPlayerEnabled,
       'nativeVideoParserApiBaseUrl': nativeVideoParserApiBaseUrl,
       'openNewWindowInTab': openNewWindowInTab,
+      'desktopModeEnabled': desktopModeEnabled,
       'appCacheAutoClearEnabled': appCacheAutoClearEnabled,
       'appCacheAutoClearIntervalHours': appCacheAutoClearIntervalHours,
     };
@@ -414,6 +420,7 @@ class BrowserSettings {
           json['nativeVideoParserApiBaseUrl'] as String? ??
           'https://parser.example.com',
       openNewWindowInTab: json['openNewWindowInTab'] as bool? ?? true,
+      desktopModeEnabled: json['desktopModeEnabled'] as bool? ?? false,
       appCacheAutoClearEnabled:
           json['appCacheAutoClearEnabled'] as bool? ?? false,
       appCacheAutoClearIntervalHours:

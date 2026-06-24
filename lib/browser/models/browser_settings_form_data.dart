@@ -27,6 +27,7 @@ class BrowserSettingsFormData {
     required this.nativeVideoPlayerEnabled,
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
+    required this.desktopModeEnabled,
     required this.appCacheAutoClearEnabled,
     required this.appCacheAutoClearIntervalHours,
   });
@@ -58,6 +59,7 @@ class BrowserSettingsFormData {
       nativeVideoPlayerEnabled: settings.nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: settings.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: settings.openNewWindowInTab,
+      desktopModeEnabled: settings.desktopModeEnabled,
       appCacheAutoClearEnabled: settings.appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours: settings.appCacheAutoClearIntervalHours,
     );
@@ -88,6 +90,7 @@ class BrowserSettingsFormData {
   final bool nativeVideoPlayerEnabled;
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
+  final bool desktopModeEnabled;
   final bool appCacheAutoClearEnabled;
   final int appCacheAutoClearIntervalHours;
 
@@ -118,6 +121,7 @@ class BrowserSettingsFormData {
       nativeVideoPlayerEnabled: nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab,
+      desktopModeEnabled: desktopModeEnabled,
       appCacheAutoClearEnabled: appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours: appCacheAutoClearIntervalHours,
     );

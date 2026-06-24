@@ -4,9 +4,11 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   const BrowserMoreActionsSheet({
     super.key,
     required this.proxyEnabled,
+    required this.desktopModeEnabled,
     required this.isFavorited,
     required this.onToggleFavorite,
     required this.onToggleProxy,
+    required this.onToggleDesktopMode,
     required this.onOpenDownloads,
     required this.onOpenDataManagement,
     required this.onCloseTab,
@@ -17,9 +19,11 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   });
 
   final bool proxyEnabled;
+  final bool desktopModeEnabled;
   final bool isFavorited;
   final VoidCallback? onToggleFavorite;
   final VoidCallback onToggleProxy;
+  final VoidCallback onToggleDesktopMode;
   final VoidCallback onOpenDownloads;
   final VoidCallback onOpenDataManagement;
   final VoidCallback onCloseTab;
@@ -113,6 +117,17 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onToggleProxy();
+                  },
+                ),
+                _ActionItem(
+                  icon: desktopModeEnabled
+                      ? Icons.smartphone_rounded
+                      : Icons.desktop_windows_rounded,
+                  label: desktopModeEnabled ? '手机模式' : '电脑模式',
+                  iconColor: desktopModeEnabled ? colorScheme.primary : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onToggleDesktopMode();
                   },
                 ),
                 _ActionItem(

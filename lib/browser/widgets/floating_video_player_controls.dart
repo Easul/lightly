@@ -10,22 +10,26 @@ class FloatingVideoLoadingControls extends StatelessWidget {
     required this.mode,
     required this.isLocked,
     required this.isFullscreen,
+    required this.isLooping,
     required this.modeToggleIcon,
     this.onClose,
     this.onDownload,
     this.onModeToggle,
     this.onLockToggle,
+    this.onLoopToggle,
   });
 
   final String? title;
   final FloatingPlayerMode mode;
   final bool isLocked;
   final bool isFullscreen;
+  final bool isLooping;
   final IconData modeToggleIcon;
   final VoidCallback? onClose;
   final VoidCallback? onDownload;
   final VoidCallback? onModeToggle;
   final VoidCallback? onLockToggle;
+  final VoidCallback? onLoopToggle;
 
   double get _modeIconSize => mode == FloatingPlayerMode.mini ? 18 : 28;
 
@@ -67,6 +71,13 @@ class FloatingVideoLoadingControls extends StatelessWidget {
                   size: _modeIconSize,
                   constraints: _modeButtonConstraints,
                   onPressed: onLockToggle,
+                ),
+              if (onLoopToggle != null)
+                _FloatingLoopButton(
+                  margin: const EdgeInsets.only(left: 8),
+                  isLooping: isLooping,
+                  compact: mode == FloatingPlayerMode.mini,
+                  onPressed: onLoopToggle!,
                 ),
               if (onDownload != null)
                 _FloatingRoundIconButton(
@@ -111,6 +122,7 @@ class FloatingVideoControlsOverlay extends StatelessWidget {
     required this.mode,
     required this.isLocked,
     required this.isFullscreen,
+    required this.isLooping,
     required this.isPlaying,
     required this.position,
     required this.duration,
@@ -123,12 +135,14 @@ class FloatingVideoControlsOverlay extends StatelessWidget {
     this.onDownload,
     this.onModeToggle,
     this.onLockToggle,
+    this.onLoopToggle,
   });
 
   final String? title;
   final FloatingPlayerMode mode;
   final bool isLocked;
   final bool isFullscreen;
+  final bool isLooping;
   final bool isPlaying;
   final Duration position;
   final Duration duration;
@@ -141,6 +155,7 @@ class FloatingVideoControlsOverlay extends StatelessWidget {
   final VoidCallback? onDownload;
   final VoidCallback? onModeToggle;
   final VoidCallback? onLockToggle;
+  final VoidCallback? onLoopToggle;
 
   double get _modeIconSize => mode == FloatingPlayerMode.mini ? 18 : 28;
 
@@ -178,9 +193,11 @@ class FloatingVideoControlsOverlay extends StatelessWidget {
             modeIconSize: _modeIconSize,
             modeButtonConstraints: _modeButtonConstraints,
             titleFontSize: _titleFontSize,
+            isLooping: isLooping,
             onClose: onClose,
             onDownload: onDownload,
             onLockToggle: onLockToggle,
+            onLoopToggle: onLoopToggle,
           ),
           Expanded(
             child: Center(
@@ -326,9 +343,11 @@ class _FloatingVideoTopBar extends StatelessWidget {
     required this.modeIconSize,
     required this.modeButtonConstraints,
     required this.titleFontSize,
+    required this.isLooping,
     this.onClose,
     this.onDownload,
     this.onLockToggle,
+    this.onLoopToggle,
   });
 
   final String? title;
@@ -338,9 +357,11 @@ class _FloatingVideoTopBar extends StatelessWidget {
   final double modeIconSize;
   final BoxConstraints modeButtonConstraints;
   final double titleFontSize;
+  final bool isLooping;
   final VoidCallback? onClose;
   final VoidCallback? onDownload;
   final VoidCallback? onLockToggle;
+  final VoidCallback? onLoopToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -372,6 +393,12 @@ class _FloatingVideoTopBar extends StatelessWidget {
               onPressed: onLockToggle,
               padding: EdgeInsets.zero,
               constraints: modeButtonConstraints,
+            ),
+          if (onLoopToggle != null)
+            _FloatingLoopButton(
+              isLooping: isLooping,
+              compact: mode == FloatingPlayerMode.mini,
+              onPressed: onLoopToggle!,
             ),
           if (onDownload != null)
             IconButton(
@@ -495,6 +522,53 @@ class _FloatingVideoBottomBar extends StatelessWidget {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+class _FloatingLoopButton extends StatelessWidget {
+  const _FloatingLoopButton({
+    required this.isLooping,
+    required this.compact,
+    required this.onPressed,
+    this.margin = EdgeInsets.zero,
+  });
+
+  final bool isLooping;
+  final bool compact;
+  final VoidCallback onPressed;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isLooping ? '循环' : '单次';
+    return Container(
+      margin: margin,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: Icon(
+          isLooping ? Icons.repeat_rounded : Icons.repeat_one_rounded,
+          size: compact ? 14 : 17,
+          color: Colors.white,
+        ),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: compact ? 10 : 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          minimumSize: Size(compact ? 42 : 58, compact ? 30 : 36),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 10),
+          backgroundColor: Colors.black.withValues(alpha: 0.42),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
   }
 }
 

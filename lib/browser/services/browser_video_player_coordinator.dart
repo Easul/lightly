@@ -37,11 +37,16 @@ class BrowserVideoPlayerCoordinator {
   VideoPlayerController? _floatingVideoController;
   final FloatingVideoPlayerController _floatingVideoPlayerController =
       FloatingVideoPlayerController();
+  int _showGeneration = 0;
+
+  static BrowserVideoPlayerCoordinator? _activeFloatingCoordinator;
+  static bool _globalLooping = false;
 
   OverlayEntry? get floatingVideoOverlay => _floatingVideoOverlay;
   FloatingVideoPlayerController get floatingVideoPlayerController =>
       _floatingVideoPlayerController;
   bool get hasActiveOverlay => _floatingVideoOverlay != null;
+  bool get isLooping => _globalLooping;
 
   bool shouldOpenNativeVideoFromUrl(String url, BrowserSettings settings) {
     return settings.canResolveYoutubeWithNativePlayer &&
@@ -64,10 +69,13 @@ class BrowserVideoPlayerCoordinator {
     required BrowserSettings settings,
     required String currentPageTitle,
   }) async {
+    await _replaceActiveFloatingCoordinator();
     await closeFloatingVideoPlayer();
     if (!context.mounted) {
       return;
     }
+    final showGeneration = ++_showGeneration;
+    _activeFloatingCoordinator = this;
     _videoDetectionTracker.setActiveUrl(url);
     final pageTitle = _normalizeFloatingTitle(currentPageTitle);
     var floatingTitle = pageTitle ?? '视频播放';
@@ -79,6 +87,8 @@ class BrowserVideoPlayerCoordinator {
       onClose: () {
         unawaited(closeFloatingVideoPlayer());
       },
+      isLooping: _globalLooping,
+      onLoopingChanged: _setLooping,
       playerController: _floatingVideoPlayerController,
     );
 
@@ -93,6 +103,9 @@ class BrowserVideoPlayerCoordinator {
         requestedUrl: url,
         shouldResolveYoutube: shouldResolveYoutube,
       );
+      if (!_isCurrentShow(showGeneration)) {
+        return;
+      }
       playbackUrl = preparedPlayback.playbackUrl;
       downloadUrl = preparedPlayback.downloadUrl;
       displayDownloadUrl = preparedPlayback.displayDownloadUrl;
@@ -111,6 +124,9 @@ class BrowserVideoPlayerCoordinator {
     } catch (error) {
       if (shouldResolveYoutube) {
         _onDebugLog('Failed to resolve YouTube video: $error');
+        if (!_isCurrentShow(showGeneration)) {
+          return;
+        }
         if (!context.mounted) {
           await closeFloatingVideoPlayer();
           return;
@@ -141,7 +157,15 @@ class BrowserVideoPlayerCoordinator {
     _floatingVideoController = controller;
 
     try {
+      await controller.setLooping(_globalLooping);
       await controller.initialize().timeout(const Duration(seconds: 20));
+      if (!_isCurrentShow(showGeneration)) {
+        await controller.dispose();
+        if (_floatingVideoController == controller) {
+          _floatingVideoController = null;
+        }
+        return;
+      }
       if (!context.mounted) {
         await controller.dispose();
         _floatingVideoController = null;
@@ -159,6 +183,8 @@ class BrowserVideoPlayerCoordinator {
         onClose: () {
           unawaited(closeFloatingVideoPlayer());
         },
+        isLooping: _globalLooping,
+        onLoopingChanged: _setLooping,
         onDownload: () {
           unawaited(
             _downloadVideo(
@@ -176,6 +202,9 @@ class BrowserVideoPlayerCoordinator {
       _onDebugLog('Failed to initialize floating video player: $error');
       _floatingVideoController?.dispose();
       _floatingVideoController = null;
+      if (!_isCurrentShow(showGeneration)) {
+        return;
+      }
       if (!context.mounted) {
         await closeFloatingVideoPlayer();
         return;
@@ -215,6 +244,25 @@ class BrowserVideoPlayerCoordinator {
     return VideoPlayerController.networkUrl(uri, videoPlayerOptions: options);
   }
 
+  bool _isCurrentShow(int generation) {
+    return _showGeneration == generation &&
+        _activeFloatingCoordinator == this &&
+        _floatingVideoOverlay != null;
+  }
+
+  Future<void> _replaceActiveFloatingCoordinator() async {
+    final activeCoordinator = _activeFloatingCoordinator;
+    if (activeCoordinator == null || activeCoordinator == this) {
+      return;
+    }
+    await activeCoordinator.closeFloatingVideoPlayer();
+  }
+
+  void _setLooping(bool value) {
+    _globalLooping = value;
+    unawaited(_floatingVideoController?.setLooping(value));
+  }
+
   void _showFloatingErrorOverlay({
     required BuildContext context,
     required String title,
@@ -229,6 +277,8 @@ class BrowserVideoPlayerCoordinator {
       onClose: () {
         unawaited(closeFloatingVideoPlayer());
       },
+      isLooping: _globalLooping,
+      onLoopingChanged: _setLooping,
       onDownload: onDownload,
       playerController: _floatingVideoPlayerController,
     );
@@ -254,6 +304,7 @@ class BrowserVideoPlayerCoordinator {
   }
 
   Future<void> closeFloatingVideoPlayer() async {
+    _showGeneration++;
     _videoDetectionTracker.rememberDismissedUrl(
       _videoDetectionTracker.activeUrl,
     );
@@ -263,6 +314,9 @@ class BrowserVideoPlayerCoordinator {
     _floatingVideoController = null;
     _videoDetectionTracker.activeUrl = null;
     _videoDetectionTracker.isProcessing = false;
+    if (_activeFloatingCoordinator == this) {
+      _activeFloatingCoordinator = null;
+    }
     await _stopProxyServer();
   }
 
