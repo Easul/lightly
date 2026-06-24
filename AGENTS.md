@@ -450,7 +450,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 ## X / YouTube WebView Mobile Layout Compatibility
 
 - `x.com` / `twitter.com` and `youtube.com` / `youtu.be` should prefer the mobile WebView layout in this app.
-- Keep the browser WebView policy using the mobile user agent for these hosts, and disable `useWideViewPort` plus `loadWithOverviewMode` for them. The wide/desktop-style viewport path can make their internal bottom navigation areas render with excessive blank height in fullscreen.
+- Keep the browser mobile-mode WebView policy using the mobile user agent, and disable `useWideViewPort` plus `loadWithOverviewMode`. The wide/desktop-style viewport path can make responsive sites keep desktop-style UI even after switching to mobile mode; it also makes X / YouTube internal bottom navigation areas render with excessive blank height in fullscreen.
 - There is also a site-specific compatibility CSS injection path (`BrowserSiteCompatibilityScript`) used to clamp the internal bottom navigation height for X and YouTube after load. Re-test these hosts before removing it.
 - Browser desktop/mobile mode switching must update the live WebView settings and reload the current URL, not only save settings or rebuild Flutter widgets. Many sites choose mobile/desktop UI from the navigation request user-agent and WebView content mode, so changing state without a new request can leave the visible page unchanged.
 - Related files:

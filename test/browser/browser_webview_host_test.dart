@@ -26,14 +26,14 @@ void main() {
       expect(policy.preferredContentMode, UserPreferredContentMode.MOBILE);
     });
 
-    test('keeps wide viewport for generic sites', () {
+    test('uses mobile viewport for generic sites', () {
       final policy = BrowserWebViewHost.viewportPolicyForUrl(
         'https://example.com',
       );
 
       expect(policy.usesMobileUserAgent, isTrue);
-      expect(policy.useWideViewPort, isTrue);
-      expect(policy.loadWithOverviewMode, isTrue);
+      expect(policy.useWideViewPort, isFalse);
+      expect(policy.loadWithOverviewMode, isFalse);
       expect(policy.preferredContentMode, UserPreferredContentMode.MOBILE);
     });
 

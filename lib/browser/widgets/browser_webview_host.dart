@@ -113,22 +113,10 @@ class BrowserWebViewHost extends StatelessWidget {
       );
     }
 
-    final uri = Uri.tryParse(initialUrl);
-    final host = uri?.host.toLowerCase() ?? '';
-    final prefersMobileViewport =
-        host == 'x.com' ||
-        host.endsWith('.x.com') ||
-        host == 'twitter.com' ||
-        host.endsWith('.twitter.com') ||
-        host == 'youtube.com' ||
-        host.endsWith('.youtube.com') ||
-        host == 'youtu.be' ||
-        host.endsWith('.youtu.be');
-
-    return BrowserWebViewViewportPolicy(
+    return const BrowserWebViewViewportPolicy(
       userAgent: _browserMobileUserAgent,
-      useWideViewPort: !prefersMobileViewport,
-      loadWithOverviewMode: !prefersMobileViewport,
+      useWideViewPort: false,
+      loadWithOverviewMode: false,
       preferredContentMode: UserPreferredContentMode.MOBILE,
     );
   }
