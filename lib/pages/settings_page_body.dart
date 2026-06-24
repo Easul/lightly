@@ -63,6 +63,7 @@ class SettingsPageBody extends StatelessWidget {
     required this.formController,
     required this.proxySupported,
     required this.isSaving,
+    required this.isTestingNodeSpeed,
     required this.proxyStateLabel,
     required this.proxyStateColor,
     required this.localHttpStateLabel,
@@ -76,6 +77,7 @@ class SettingsPageBody extends StatelessWidget {
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
+    required this.onCancelTestSpeed,
     required this.onAddProxyNode,
     required this.onSelectProxyNode,
     required this.onDeleteProxyNode,
@@ -94,6 +96,7 @@ class SettingsPageBody extends StatelessWidget {
   final BrowserSettingsFormController formController;
   final bool proxySupported;
   final bool isSaving;
+  final bool isTestingNodeSpeed;
   final String proxyStateLabel;
   final Color Function(ColorScheme colorScheme) proxyStateColor;
   final String localHttpStateLabel;
@@ -112,6 +115,7 @@ class SettingsPageBody extends StatelessWidget {
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
+  final VoidCallback onCancelTestSpeed;
   final VoidCallback onAddProxyNode;
   final ValueChanged<String> onSelectProxyNode;
   final ValueChanged<String> onDeleteProxyNode;
@@ -141,6 +145,7 @@ class SettingsPageBody extends StatelessWidget {
           formController: formController,
           proxySupported: proxySupported,
           isSaving: isSaving,
+          isTestingNodeSpeed: isTestingNodeSpeed,
           proxyStateLabel: proxyStateLabel,
           proxyStateColor: proxyStateColor,
           localHttpStateLabel: localHttpStateLabel,
@@ -151,6 +156,7 @@ class SettingsPageBody extends StatelessWidget {
           onHandleProxyToggle: onHandleProxyToggle,
           onParseNodeLink: onParseNodeLink,
           onTestNodeSpeed: onTestNodeSpeed,
+          onCancelTestSpeed: onCancelTestSpeed,
           onAddProxyNode: onAddProxyNode,
           onSelectProxyNode: onSelectProxyNode,
           onDeleteProxyNode: onDeleteProxyNode,

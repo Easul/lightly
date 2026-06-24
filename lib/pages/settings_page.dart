@@ -12,6 +12,7 @@ import '../browser/services/browser_node_link_parser.dart';
 import '../browser/services/browser_proxy_status_monitor.dart';
 import '../browser/services/browser_settings_action_handler.dart';
 import '../browser/services/browser_settings_form_controller.dart';
+import '../browser/services/proxy_latency_probe.dart';
 import '../browser/services/browser_settings_runtime_service.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/widgets/settings/clear_browsing_data_dialog.dart';
@@ -46,8 +47,11 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _proxySupported = false;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isClearingAppCache = false;
+  bool _isTestingNodeSpeed = false;
   bool _hasAppliedChanges = false;
   String? _errorMessage;
+  VoidCallback? _cancelNodeSpeedTest;
   ProxyState get _proxyState => _statusMonitor.proxyState.value;
   LocalHttpFileServerState get _localHttpState =>
       _statusMonitor.localHttpState.value;
@@ -78,6 +82,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
+    _cancelNodeSpeedTest?.call();
     _formController.dispose();
     _statusMonitor.proxyState.removeListener(_handleStatusMonitorChanged);
     _statusMonitor.localHttpState.removeListener(_handleStatusMonitorChanged);
@@ -272,9 +277,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _testNodeSpeed() async {
+    if (_isTestingNodeSpeed) {
+      return;
+    }
+
     setState(() {
       _errorMessage = null;
-      _isSaving = true;
+      _isTestingNodeSpeed = true;
     });
     _markSectionDirty();
 
@@ -289,7 +298,9 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      final latency = await _proxyService.testNodeLatency(settings);
+      final operation = _proxyService.startNodeLatencyTest(settings);
+      _cancelNodeSpeedTest = operation.cancel;
+      final latency = await operation.result;
       if (!mounted) {
         return;
       }
@@ -308,6 +319,8 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } on BrowserNodeLinkParserException catch (error) {
       _showSnackBar(error.message == '请输入节点链接' ? error.message : '节点链接格式无效');
+    } on ProxyLatencyTestCanceledException {
+      _showSnackBar('已关闭测速');
     } catch (error) {
       if (!mounted) {
         return;
@@ -322,11 +335,16 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() {
-          _isSaving = false;
+          _isTestingNodeSpeed = false;
         });
         _markSectionDirty();
       }
+      _cancelNodeSpeedTest = null;
     }
+  }
+
+  void _cancelTestNodeSpeed() {
+    _cancelNodeSpeedTest?.call();
   }
 
   BrowserSettings _buildSettingsFromForm() {
@@ -511,6 +529,31 @@ class _SettingsPageState extends State<SettingsPage> {
     _showSnackBar('已清除所选浏览数据');
   }
 
+  Future<void> _clearAppCache() async {
+    if (_isClearingAppCache) {
+      return;
+    }
+
+    setState(() {
+      _isClearingAppCache = true;
+    });
+    _markSectionDirty();
+
+    try {
+      await _settingsActionHandler.clearAppCache();
+      _showSnackBar('已清理应用缓存');
+    } catch (error) {
+      _showSnackBar('清理应用缓存失败：$error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isClearingAppCache = false;
+        });
+        _markSectionDirty();
+      }
+    }
+  }
+
   String get _proxyStateLabel {
     switch (_proxyState) {
       case ProxyState.started:
@@ -584,6 +627,10 @@ class _SettingsPageState extends State<SettingsPage> {
     return GeneralSettingsSection(
       homepageController: _formController.homepageController,
       openNewWindowInTab: _formController.openNewWindowInTab,
+      appCacheAutoClearEnabled: _formController.appCacheAutoClearEnabled,
+      appCacheAutoClearIntervalHours:
+          _formController.appCacheAutoClearIntervalHours,
+      isClearingAppCache: _isClearingAppCache,
       onHomepageChanged: (_) => _markSectionDirty(),
       onOpenNewWindowInTabChanged: (value) {
         setState(() {
@@ -592,6 +639,19 @@ class _SettingsPageState extends State<SettingsPage> {
         _markSectionDirty();
       },
       onClearBrowsingDataTap: _showClearBrowsingDataDialog,
+      onClearAppCacheTap: _clearAppCache,
+      onAppCacheAutoClearChanged: (value) {
+        setState(() {
+          _formController.appCacheAutoClearEnabled = value;
+        });
+        _markSectionDirty();
+      },
+      onAppCacheAutoClearIntervalChanged: (value) {
+        setState(() {
+          _formController.appCacheAutoClearIntervalHours = value;
+        });
+        _markSectionDirty();
+      },
     );
   }
 
@@ -708,6 +768,7 @@ class _SettingsPageState extends State<SettingsPage> {
         formController: _formController,
         proxySupported: _proxySupported,
         isSaving: _isSaving,
+        isTestingNodeSpeed: _isTestingNodeSpeed,
         proxyStateLabel: _proxyStateLabel,
         proxyStateColor: _proxyStateColor,
         localHttpStateLabel: _localHttpStateLabel,
@@ -718,6 +779,7 @@ class _SettingsPageState extends State<SettingsPage> {
         onHandleProxyToggle: _handleProxyToggle,
         onParseNodeLink: _parseNodeLink,
         onTestNodeSpeed: _testNodeSpeed,
+        onCancelTestSpeed: _cancelTestNodeSpeed,
         onAddProxyNode: _addCurrentProxyNode,
         onSelectProxyNode: _selectProxyNode,
         onDeleteProxyNode: _deleteProxyNode,

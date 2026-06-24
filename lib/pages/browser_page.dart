@@ -26,6 +26,7 @@ import '../browser/services/browser_long_press_handler.dart';
 import '../browser/services/browser_page_initializer.dart';
 import '../browser/services/browser_popup_window_handler.dart';
 import '../browser/services/browser_auth_dialog_service.dart';
+import '../browser/services/browser_shared_services.dart';
 import '../browser/services/browser_suggestion_service.dart';
 import '../browser/services/browser_tab_coordinator.dart';
 import '../browser/services/browser_tab_service.dart';
@@ -217,6 +218,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       localHttpFileServerService: _localHttpFileServerService,
       clipboardService: _clipboardService,
       clipboardStorage: _clipboardStorage,
+      appCacheMaintenanceService:
+          BrowserSharedServices.instance.appCacheMaintenanceService,
     );
     _favoriteStatusController = BrowserFavoriteStatusController(
       tracker: _favoriteStatusTracker,

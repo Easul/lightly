@@ -6,6 +6,7 @@ import 'package:lightly/browser/widgets/settings/proxy_settings_section.dart';
 void main() {
   Widget buildProxySettingsSection({
     required List<BrowserProxyNode> nodes,
+    bool isTestingNodeSpeed = false,
     required ValueChanged<String> onSelectProxyNode,
     required ValueChanged<String> onDeleteProxyNode,
   }) {
@@ -16,6 +17,7 @@ void main() {
             enabled: true,
             supported: true,
             isSaving: false,
+            isTestingNodeSpeed: isTestingNodeSpeed,
             stateLabel: '未连接',
             stateColor: Colors.grey,
             detailText: '代理地址：proxy.example.com:443',
@@ -46,6 +48,7 @@ void main() {
             onToggle: (_) {},
             onParse: () async {},
             onTestSpeed: () async {},
+            onCancelTestSpeed: () {},
             onAddProxyNode: () {},
             onSelectProxyNode: onSelectProxyNode,
             onDeleteProxyNode: onDeleteProxyNode,
@@ -131,5 +134,21 @@ void main() {
     await tester.pump();
 
     expect(find.text('主节点'), findsNothing);
+  });
+
+  testWidgets('proxy speed test button switches to cancel label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      buildProxySettingsSection(
+        nodes: const <BrowserProxyNode>[],
+        isTestingNodeSpeed: true,
+        onSelectProxyNode: (_) {},
+        onDeleteProxyNode: (_) {},
+      ),
+    );
+
+    expect(find.text('关闭测速'), findsOneWidget);
+    expect(find.text('节点测速'), findsNothing);
   });
 }

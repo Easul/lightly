@@ -3,6 +3,25 @@ import '../browser_settings.dart';
 import 'proxy_latency_probe.dart';
 import 'proxy_runtime_launcher.dart';
 
+class ProxyLatencyTestOperation {
+  ProxyLatencyTestOperation({
+    required this.result,
+    required void Function() onCancel,
+  }) : _onCancel = onCancel;
+
+  final Future<Duration?> result;
+  final void Function() _onCancel;
+  bool _canceled = false;
+
+  void cancel() {
+    if (_canceled) {
+      return;
+    }
+    _canceled = true;
+    _onCancel();
+  }
+}
+
 class ProxyLatencyTester {
   const ProxyLatencyTester({
     required this.latencyProbe,
@@ -14,12 +33,34 @@ class ProxyLatencyTester {
   final ProxyRuntimeLauncher runtimeLauncher;
   final String localProxyHost;
 
+  ProxyLatencyTestOperation startNodeLatencyTest({
+    required BrowserSettings settings,
+    required proxy_core.ProxyCoreService proxyCoreService,
+    required int? currentLocalProxyPort,
+    Duration timeout = const Duration(seconds: 10),
+    String testUrl = 'https://www.gstatic.com/generate_204',
+  }) {
+    final cancellationToken = ProxyLatencyCancellationToken();
+    return ProxyLatencyTestOperation(
+      result: testNodeLatency(
+        settings: settings,
+        proxyCoreService: proxyCoreService,
+        currentLocalProxyPort: currentLocalProxyPort,
+        timeout: timeout,
+        testUrl: testUrl,
+        cancellationToken: cancellationToken,
+      ),
+      onCancel: cancellationToken.cancel,
+    );
+  }
+
   Future<Duration?> testNodeLatency({
     required BrowserSettings settings,
     required proxy_core.ProxyCoreService proxyCoreService,
     required int? currentLocalProxyPort,
     Duration timeout = const Duration(seconds: 10),
     String testUrl = 'https://www.gstatic.com/generate_204',
+    ProxyLatencyCancellationToken? cancellationToken,
   }) async {
     final testUri = Uri.parse(testUrl);
     final testUrls = [
@@ -27,20 +68,24 @@ class ProxyLatencyTester {
       'https://www.google.com/generate_204',
       'https://example.com/',
     ];
+    cancellationToken?.throwIfCanceled();
 
     if (!settings.shouldApplyProxy) {
       final httpLatency = await latencyProbe.measureHttpRequest(
         proxy: null,
         timeout: timeout,
         testUrls: testUrls,
+        cancellationToken: cancellationToken,
       );
       if (httpLatency != null) {
         return httpLatency;
       }
+      cancellationToken?.throwIfCanceled();
       return latencyProbe.measureTcpConnect(
         host: testUri.host,
         port: testUri.port == 0 ? 443 : testUri.port,
         timeout: timeout,
+        cancellationToken: cancellationToken,
       );
     }
 
@@ -49,14 +94,17 @@ class ProxyLatencyTester {
         proxy: 'PROXY ${settings.proxyHost.trim()}:${settings.proxyPort!}',
         timeout: timeout,
         testUrls: testUrls,
+        cancellationToken: cancellationToken,
       );
       if (httpLatency != null) {
         return httpLatency;
       }
+      cancellationToken?.throwIfCanceled();
       return latencyProbe.measureTcpConnect(
         host: settings.proxyHost.trim(),
         port: settings.proxyPort!,
         timeout: timeout,
+        cancellationToken: cancellationToken,
       );
     }
 
@@ -81,6 +129,7 @@ class ProxyLatencyTester {
 
     try {
       if (tempProxyCoreService != null) {
+        cancellationToken?.throwIfCanceled();
         final listenAddr = '$localProxyHost:$tempListenPort';
         final startResult = await runtimeLauncher.startProxyCore(
           proxyCoreService: tempProxyCoreService,
@@ -96,14 +145,17 @@ class ProxyLatencyTester {
         proxy: 'PROXY $localProxyHost:$tempListenPort',
         timeout: probeTimeout,
         testUrls: testUrls,
+        cancellationToken: cancellationToken,
       );
       if (httpLatency != null) {
         return httpLatency;
       }
+      cancellationToken?.throwIfCanceled();
       return latencyProbe.measureTcpConnect(
         host: settings.proxyHost.trim(),
         port: settings.proxyPort!,
         timeout: probeTimeout,
+        cancellationToken: cancellationToken,
       );
     } finally {
       await tempProxyCoreService?.stop();

@@ -6,6 +6,7 @@ import '../clipboard_http_server_service.dart';
 import '../clipboard_storage_service.dart';
 import '../local_http_file_server_service.dart';
 import '../proxy_service.dart';
+import '../../services/app_cache_maintenance_service.dart';
 import 'browser_download_coordinator.dart';
 import 'browser_cookie_origin_service.dart';
 import 'browser_download_service.dart';
@@ -235,6 +236,7 @@ class BrowserPageInitializer {
     required LocalHttpFileServerService localHttpFileServerService,
     required ClipboardHttpServerService clipboardService,
     required ClipboardStorageService clipboardStorage,
+    required AppCacheMaintenanceService appCacheMaintenanceService,
   }) : _settingsService = settingsService,
        _tabService = tabService,
        _favoritesCoordinator = favoritesCoordinator,
@@ -244,7 +246,8 @@ class BrowserPageInitializer {
        _proxyService = proxyService,
        _localHttpFileServerService = localHttpFileServerService,
        _clipboardService = clipboardService,
-       _clipboardStorage = clipboardStorage;
+       _clipboardStorage = clipboardStorage,
+       _appCacheMaintenanceService = appCacheMaintenanceService;
 
   final BrowserSettingsService _settingsService;
   final BrowserTabService _tabService;
@@ -256,6 +259,7 @@ class BrowserPageInitializer {
   final LocalHttpFileServerService _localHttpFileServerService;
   final ClipboardHttpServerService _clipboardService;
   final ClipboardStorageService _clipboardStorage;
+  final AppCacheMaintenanceService _appCacheMaintenanceService;
 
   Future<BrowserPageAppliedSettings> initialize({
     required Future<void> Function() onRestoreSessions,
@@ -274,6 +278,9 @@ class BrowserPageInitializer {
     _tabService.setFallbackUrl(_favoritesCoordinator.favoritesPageUrl);
 
     final settings = await settingsFuture;
+    try {
+      await _appCacheMaintenanceService.maybeAutoClear(settings);
+    } catch (_) {}
     final appliedSettingsFuture = applySettingsRuntimeChanges(
       settings: settings,
       swallowLocalHttpErrors: true,

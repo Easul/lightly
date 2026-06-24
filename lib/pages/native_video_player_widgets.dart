@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
 class NativeVideoDialogHeader extends StatelessWidget {
-  const NativeVideoDialogHeader({super.key, this.title});
+  const NativeVideoDialogHeader({
+    super.key,
+    this.title,
+    this.loopingEnabled = false,
+    this.onToggleLooping,
+  });
 
   final String? title;
+  final bool loopingEnabled;
+  final VoidCallback? onToggleLooping;
 
   @override
   Widget build(BuildContext context) {
@@ -13,6 +20,14 @@ class NativeVideoDialogHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: _NativeVideoDialogTitle(title: title)),
+          if (onToggleLooping != null)
+            TextButton.icon(
+              onPressed: onToggleLooping,
+              icon: Icon(
+                loopingEnabled ? Icons.repeat : Icons.looks_one_outlined,
+              ),
+              label: Text(loopingEnabled ? '循环' : '单次'),
+            ),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),

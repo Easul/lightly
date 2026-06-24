@@ -9,6 +9,7 @@ import 'browser_cookie_origin_service.dart';
 import 'browser_favorite_service.dart';
 import 'browser_history_service.dart';
 import 'browser_suggestion_service.dart';
+import '../../services/app_cache_maintenance_service.dart';
 
 class BrowserFileAccessPermissionResult {
   const BrowserFileAccessPermissionResult({
@@ -59,6 +60,7 @@ class BrowserSettingsActionHandler {
     BrowserFavoriteService? favoriteService,
     ClipboardStorageService? clipboardStorage,
     calculator.HistoryService? calculatorHistoryService,
+    AppCacheMaintenanceService? appCacheMaintenanceService,
     Future<void> Function()? deleteAllCookies,
     Future<void> Function()? deleteAllWebStorage,
   }) : _historyService = historyService ?? BrowserHistoryService(),
@@ -73,6 +75,8 @@ class BrowserSettingsActionHandler {
        _clipboardStorage = clipboardStorage ?? ClipboardStorageService(),
        _calculatorHistoryService =
            calculatorHistoryService ?? calculator.HistoryService(),
+       _appCacheMaintenanceService =
+           appCacheMaintenanceService ?? AppCacheMaintenanceService(),
        _deleteAllCookies =
            deleteAllCookies ??
            (() => CookieManager.instance().deleteAllCookies()),
@@ -88,6 +92,7 @@ class BrowserSettingsActionHandler {
   final BrowserFavoriteService _favoriteService;
   final ClipboardStorageService _clipboardStorage;
   final calculator.HistoryService _calculatorHistoryService;
+  final AppCacheMaintenanceService _appCacheMaintenanceService;
   final Future<void> Function() _deleteAllCookies;
   final Future<void> Function() _deleteAllWebStorage;
 
@@ -124,6 +129,10 @@ class BrowserSettingsActionHandler {
     if (selection.calculatorHistory) {
       await _calculatorHistoryService.clearHistory();
     }
+  }
+
+  Future<AppCacheCleanupResult> clearAppCache() {
+    return _appCacheMaintenanceService.clearAppCache();
   }
 
   Future<BrowserFileAccessPermissionResult>

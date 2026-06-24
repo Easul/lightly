@@ -159,6 +159,8 @@ void main() {
       final settings = BrowserSettings.defaults();
 
       expect(settings.openNewWindowInTab, isTrue);
+      expect(settings.appCacheAutoClearEnabled, isFalse);
+      expect(settings.appCacheAutoClearIntervalHours, 24);
     });
 
     test('openNewWindowInTab restores from json', () {
@@ -168,6 +170,16 @@ void main() {
       });
 
       expect(settings.openNewWindowInTab, isFalse);
+    });
+
+    test('app cache auto clear settings restore from json', () {
+      final settings = BrowserSettings.fromJson({
+        'appCacheAutoClearEnabled': true,
+        'appCacheAutoClearIntervalHours': 72,
+      });
+
+      expect(settings.appCacheAutoClearEnabled, isTrue);
+      expect(settings.appCacheAutoClearIntervalHours, 72);
     });
 
     test('proxy nodes persist through json', () {

@@ -519,16 +519,20 @@ class _NodeLinkParserCard extends StatelessWidget {
   const _NodeLinkParserCard({
     required this.nodeLinkController,
     required this.isSaving,
+    required this.isTestingNodeSpeed,
     required this.errorMessage,
     required this.onParse,
     required this.onTestSpeed,
+    required this.onCancelTestSpeed,
   });
 
   final TextEditingController nodeLinkController;
   final bool isSaving;
+  final bool isTestingNodeSpeed;
   final String? errorMessage;
   final Future<void> Function() onParse;
   final Future<void> Function() onTestSpeed;
+  final VoidCallback onCancelTestSpeed;
 
   @override
   Widget build(BuildContext context) {
@@ -556,8 +560,10 @@ class _NodeLinkParserCard extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: FilledButton.tonal(
-            onPressed: isSaving ? null : onTestSpeed,
-            child: const Text('节点测速'),
+            onPressed: isSaving
+                ? null
+                : (isTestingNodeSpeed ? onCancelTestSpeed : onTestSpeed),
+            child: Text(isTestingNodeSpeed ? '关闭测速' : '节点测速'),
           ),
         ),
         if (errorMessage != null && errorMessage!.isNotEmpty) ...[

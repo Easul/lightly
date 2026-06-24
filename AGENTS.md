@@ -477,6 +477,22 @@ The browser supports clearing different categories of data independently:
 - Cookie export should use the independent WebView cookie-origin index maintained from real WebView navigation events, plus documented supplemental origins, before calling `CookieManager.getCookies(url)`.
 - Clearing cookies/site data should clear this origin index; clearing history alone should not.
 
+### App cache maintenance
+
+Device app-cache buildup can make the in-app browser visibly lag or fail to open pages. Keep the Settings → General "清理应用缓存" action and scheduled cleanup path working.
+
+- App-cache cleanup should clear WebView cache, Flutter image cache, the app cache directory, and temporary-directory children.
+- It must not be conflated with browsing-data clearing categories such as history, favorites, download records, clipboard, calculator history, or persisted settings.
+- Automatic cleanup should run opportunistically from browser startup and must not block startup if cleanup fails.
+- Proxy node speed testing in Settings → Proxy must remain cancelable; the button should switch to "关闭测速" while a probe is active and cancel the active probe without saving settings.
+- Related files:
+  - `lib/services/app_cache_maintenance_service.dart`
+  - `lib/pages/settings_page.dart`
+  - `lib/browser/services/proxy_latency_probe.dart`
+  - `lib/browser/services/proxy_latency_tester.dart`
+- Verification:
+  - `flutter test test/services/app_cache_maintenance_service_test.dart test/browser/proxy_settings_section_test.dart`
+
 ### Important: Favorite status tracker cache invalidation
 
 When clearing favorites from Settings, `BrowserFavoriteStatusTracker` maintains an in-memory `_statusCache` that can become stale. Always:

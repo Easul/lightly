@@ -27,6 +27,8 @@ class BrowserSettingsFormController {
   bool proxyTlsEnabled = false;
   bool proxyTlsInsecure = false;
   bool openNewWindowInTab = true;
+  bool appCacheAutoClearEnabled = false;
+  int appCacheAutoClearIntervalHours = 24;
 
   String selectedProtocol = BrowserProxyProtocol.http;
   List<BrowserProxyNode> proxyNodes = const <BrowserProxyNode>[];
@@ -100,6 +102,8 @@ class BrowserSettingsFormController {
     localHttpBindAllInterfaces = formData.localHttpBindAllInterfaces;
     nativeVideoPlayerEnabled = formData.nativeVideoPlayerEnabled;
     openNewWindowInTab = formData.openNewWindowInTab;
+    appCacheAutoClearEnabled = formData.appCacheAutoClearEnabled;
+    appCacheAutoClearIntervalHours = formData.appCacheAutoClearIntervalHours;
   }
 
   BrowserSettingsFormData readFormData() {
@@ -131,6 +135,8 @@ class BrowserSettingsFormController {
       nativeVideoPlayerEnabled: nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: nativeVideoParserApiController.text.trim(),
       openNewWindowInTab: openNewWindowInTab,
+      appCacheAutoClearEnabled: appCacheAutoClearEnabled,
+      appCacheAutoClearIntervalHours: appCacheAutoClearIntervalHours,
     );
   }
 

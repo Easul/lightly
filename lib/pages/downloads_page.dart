@@ -96,7 +96,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   @override
   void dispose() {
-    unawaited(_videoPlayerCoordinator.dispose());
+    if (!_videoPlayerCoordinator.hasActiveOverlay) {
+      unawaited(_videoPlayerCoordinator.dispose());
+    }
     super.dispose();
   }
 

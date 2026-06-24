@@ -11,6 +11,7 @@ class ProxySettingsSection extends StatelessWidget {
     required this.enabled,
     required this.supported,
     required this.isSaving,
+    required this.isTestingNodeSpeed,
     required this.stateLabel,
     required this.stateColor,
     required this.detailText,
@@ -39,6 +40,7 @@ class ProxySettingsSection extends StatelessWidget {
     required this.onToggle,
     required this.onParse,
     required this.onTestSpeed,
+    required this.onCancelTestSpeed,
     required this.onAddProxyNode,
     required this.onSelectProxyNode,
     required this.onDeleteProxyNode,
@@ -53,6 +55,7 @@ class ProxySettingsSection extends StatelessWidget {
   final bool enabled;
   final bool supported;
   final bool isSaving;
+  final bool isTestingNodeSpeed;
   final String stateLabel;
   final Color stateColor;
   final String detailText;
@@ -81,6 +84,7 @@ class ProxySettingsSection extends StatelessWidget {
   final ValueChanged<bool> onToggle;
   final Future<void> Function() onParse;
   final Future<void> Function() onTestSpeed;
+  final VoidCallback onCancelTestSpeed;
   final VoidCallback onAddProxyNode;
   final ValueChanged<String> onSelectProxyNode;
   final ValueChanged<String> onDeleteProxyNode;
@@ -108,9 +112,11 @@ class ProxySettingsSection extends StatelessWidget {
         _NodeLinkParserCard(
           nodeLinkController: nodeLinkController,
           isSaving: isSaving,
+          isTestingNodeSpeed: isTestingNodeSpeed,
           errorMessage: errorMessage,
           onParse: onParse,
           onTestSpeed: onTestSpeed,
+          onCancelTestSpeed: onCancelTestSpeed,
         ),
         const SizedBox(height: 16),
         _ProxyNodeListCard(

@@ -181,6 +181,8 @@ class BrowserSettings {
     required this.nativeVideoPlayerEnabled,
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
+    required this.appCacheAutoClearEnabled,
+    required this.appCacheAutoClearIntervalHours,
   });
 
   final String homepageUrl;
@@ -208,6 +210,8 @@ class BrowserSettings {
   final bool nativeVideoPlayerEnabled;
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
+  final bool appCacheAutoClearEnabled;
+  final int appCacheAutoClearIntervalHours;
 
   String get normalizedNativeVideoParserApiBaseUrl {
     final trimmed = nativeVideoParserApiBaseUrl.trim();
@@ -251,6 +255,8 @@ class BrowserSettings {
       nativeVideoPlayerEnabled: false,
       nativeVideoParserApiBaseUrl: 'https://parser.example.com',
       openNewWindowInTab: true,
+      appCacheAutoClearEnabled: false,
+      appCacheAutoClearIntervalHours: 24,
     );
   }
 
@@ -284,6 +290,8 @@ class BrowserSettings {
     bool? nativeVideoPlayerEnabled,
     String? nativeVideoParserApiBaseUrl,
     bool? openNewWindowInTab,
+    bool? appCacheAutoClearEnabled,
+    int? appCacheAutoClearIntervalHours,
   }) {
     return BrowserSettings(
       homepageUrl: homepageUrl ?? this.homepageUrl,
@@ -321,6 +329,10 @@ class BrowserSettings {
       nativeVideoParserApiBaseUrl:
           nativeVideoParserApiBaseUrl ?? this.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab ?? this.openNewWindowInTab,
+      appCacheAutoClearEnabled:
+          appCacheAutoClearEnabled ?? this.appCacheAutoClearEnabled,
+      appCacheAutoClearIntervalHours:
+          appCacheAutoClearIntervalHours ?? this.appCacheAutoClearIntervalHours,
     );
   }
 
@@ -352,6 +364,8 @@ class BrowserSettings {
       'nativeVideoPlayerEnabled': nativeVideoPlayerEnabled,
       'nativeVideoParserApiBaseUrl': nativeVideoParserApiBaseUrl,
       'openNewWindowInTab': openNewWindowInTab,
+      'appCacheAutoClearEnabled': appCacheAutoClearEnabled,
+      'appCacheAutoClearIntervalHours': appCacheAutoClearIntervalHours,
     };
   }
 
@@ -400,6 +414,10 @@ class BrowserSettings {
           json['nativeVideoParserApiBaseUrl'] as String? ??
           'https://parser.example.com',
       openNewWindowInTab: json['openNewWindowInTab'] as bool? ?? true,
+      appCacheAutoClearEnabled:
+          json['appCacheAutoClearEnabled'] as bool? ?? false,
+      appCacheAutoClearIntervalHours:
+          (json['appCacheAutoClearIntervalHours'] as num?)?.toInt() ?? 24,
     );
   }
 

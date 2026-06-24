@@ -281,6 +281,20 @@ class ProxyService {
     );
   }
 
+  ProxyLatencyTestOperation startNodeLatencyTest(
+    BrowserSettings settings, {
+    Duration timeout = const Duration(seconds: 10),
+    String testUrl = 'https://www.gstatic.com/generate_204',
+  }) {
+    return _latencyTester.startNodeLatencyTest(
+      settings: settings,
+      proxyCoreService: _proxyCoreService,
+      currentLocalProxyPort: localProxyPort,
+      timeout: timeout,
+      testUrl: testUrl,
+    );
+  }
+
   Future<String> startFloatingButtonMode() async {
     final result = await _proxyChannel.invokeMethod<String>(
       'startProxyFloatingButtonMode',

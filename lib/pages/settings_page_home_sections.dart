@@ -17,6 +17,7 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.formController,
     required this.proxySupported,
     required this.isSaving,
+    required this.isTestingNodeSpeed,
     required this.proxyStateLabel,
     required this.proxyStateColor,
     required this.localHttpStateLabel,
@@ -27,6 +28,7 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
+    required this.onCancelTestSpeed,
     required this.onAddProxyNode,
     required this.onSelectProxyNode,
     required this.onDeleteProxyNode,
@@ -52,6 +54,7 @@ class SettingsPageHomeSections extends StatelessWidget {
   final BrowserSettingsFormController formController;
   final bool proxySupported;
   final bool isSaving;
+  final bool isTestingNodeSpeed;
   final String proxyStateLabel;
   final Color Function(ColorScheme colorScheme) proxyStateColor;
   final String localHttpStateLabel;
@@ -62,6 +65,7 @@ class SettingsPageHomeSections extends StatelessWidget {
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
+  final VoidCallback onCancelTestSpeed;
   final VoidCallback onAddProxyNode;
   final ValueChanged<String> onSelectProxyNode;
   final ValueChanged<String> onDeleteProxyNode;
@@ -113,6 +117,7 @@ class SettingsPageHomeSections extends StatelessWidget {
                 enabled: formController.proxyEnabled,
                 supported: proxySupported,
                 isSaving: isSaving,
+                isTestingNodeSpeed: isTestingNodeSpeed,
                 stateLabel: proxyStateLabel,
                 stateColor: proxyStateColor(
                   Theme.of(sectionContext).colorScheme,
@@ -156,6 +161,7 @@ class SettingsPageHomeSections extends StatelessWidget {
                 onToggle: onHandleProxyToggle,
                 onParse: onParseNodeLink,
                 onTestSpeed: onTestNodeSpeed,
+                onCancelTestSpeed: onCancelTestSpeed,
                 onAddProxyNode: onAddProxyNode,
                 onSelectProxyNode: onSelectProxyNode,
                 onDeleteProxyNode: onDeleteProxyNode,

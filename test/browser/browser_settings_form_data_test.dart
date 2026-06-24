@@ -29,6 +29,8 @@ void main() {
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
+        appCacheAutoClearEnabled: true,
+        appCacheAutoClearIntervalHours: 72,
       );
 
       final formData = BrowserSettingsFormData.fromSettings(settings);
@@ -47,6 +49,8 @@ void main() {
         'https://parser.example.com',
       );
       expect(formData.openNewWindowInTab, isFalse);
+      expect(formData.appCacheAutoClearEnabled, isTrue);
+      expect(formData.appCacheAutoClearIntervalHours, 72);
     });
 
     test('maps form data back into BrowserSettings', () {
@@ -76,6 +80,8 @@ void main() {
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
+        appCacheAutoClearEnabled: true,
+        appCacheAutoClearIntervalHours: 72,
       );
 
       final settings = formData.toBrowserSettings();
@@ -92,6 +98,8 @@ void main() {
         'https://parser.example.com',
       );
       expect(settings.openNewWindowInTab, isFalse);
+      expect(settings.appCacheAutoClearEnabled, isTrue);
+      expect(settings.appCacheAutoClearIntervalHours, 72);
     });
   });
 }

@@ -59,6 +59,7 @@ class NativeVideoPlayerDialog extends StatefulWidget {
 
 class _NativeVideoPlayerDialogState extends State<NativeVideoPlayerDialog> {
   String? _resolvedTitle;
+  bool _loopingEnabled = false;
 
   void _handleResolvedTitle(String? title) {
     final normalizedTitle = title?.trim();
@@ -73,6 +74,15 @@ class _NativeVideoPlayerDialogState extends State<NativeVideoPlayerDialog> {
     });
   }
 
+  void _toggleLooping() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _loopingEnabled = !_loopingEnabled;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -83,11 +93,16 @@ class _NativeVideoPlayerDialogState extends State<NativeVideoPlayerDialog> {
         height: MediaQuery.of(context).size.height * 0.5,
         child: Column(
           children: [
-            NativeVideoDialogHeader(title: _resolvedTitle),
+            NativeVideoDialogHeader(
+              title: _resolvedTitle,
+              loopingEnabled: _loopingEnabled,
+              onToggleLooping: _toggleLooping,
+            ),
             Expanded(
               child: NativeVideoPlayerView(
                 videoUrl: widget.videoUrl,
                 compact: true,
+                loopingEnabled: _loopingEnabled,
                 resolveYouTube: widget.resolveYouTube,
                 showDownloadAction: widget.showDownloadAction,
                 onResolvedTitle: _handleResolvedTitle,
@@ -105,6 +120,7 @@ class NativeVideoPlayerView extends StatefulWidget {
     super.key,
     required this.videoUrl,
     this.compact = false,
+    this.loopingEnabled = false,
     this.resolveYouTube = true,
     this.showDownloadAction = true,
     this.onResolvedTitle,
@@ -112,6 +128,7 @@ class NativeVideoPlayerView extends StatefulWidget {
 
   final String videoUrl;
   final bool compact;
+  final bool loopingEnabled;
   final bool resolveYouTube;
   final bool showDownloadAction;
   final ValueChanged<String?>? onResolvedTitle;
@@ -226,6 +243,14 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     _initializeSystemValues();
   }
 
+  @override
+  void didUpdateWidget(covariant NativeVideoPlayerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loopingEnabled != widget.loopingEnabled) {
+      unawaited(_applyLoopingPreference());
+    }
+  }
+
   bool get _isYouTubeUrl =>
       widget.resolveYouTube &&
       deriveYouTubeLongPressTargets(widget.videoUrl) != null &&
@@ -267,6 +292,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
         _chewieController = result.chewieController;
         _isInitializing = false;
       });
+      await _applyLoopingPreference();
       widget.onResolvedTitle?.call(result.resolvedTitle);
     } catch (e, stackTrace) {
       if (!mounted) return;
@@ -279,6 +305,16 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
             : '播放失败: ${e.toString()}';
       });
     }
+  }
+
+  Future<void> _applyLoopingPreference() async {
+    final controller = _videoPlayerController;
+    if (controller == null) {
+      return;
+    }
+    try {
+      await controller.setLooping(widget.loopingEnabled);
+    } catch (_) {}
   }
 
   void _startGesture(DragStartDetails details, double maxWidth) {

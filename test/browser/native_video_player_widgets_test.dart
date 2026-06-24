@@ -87,5 +87,25 @@ void main() {
 
       expect(find.text('视频播放'), findsOneWidget);
     });
+
+    testWidgets('shows loop toggle and invokes callback', (tester) async {
+      var toggled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NativeVideoDialogHeader(
+              title: 'Example video title',
+              loopingEnabled: true,
+              onToggleLooping: () => toggled = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('循环'), findsOneWidget);
+      await tester.tap(find.text('循环'));
+      await tester.pump();
+      expect(toggled, isTrue);
+    });
   });
 }
