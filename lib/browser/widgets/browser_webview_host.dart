@@ -10,10 +10,6 @@ const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
-const _browserDesktopUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-
 class BrowserWebViewHost extends StatelessWidget {
   const BrowserWebViewHost({
     super.key,
@@ -111,11 +107,8 @@ class BrowserWebViewHost extends StatelessWidget {
     String desktopUserAgentOverride = '',
   }) {
     if (desktopModeEnabled) {
-      final normalizedDesktopUserAgent = desktopUserAgentOverride.trim();
       return BrowserWebViewViewportPolicy(
-        userAgent: normalizedDesktopUserAgent.isEmpty
-            ? _browserDesktopUserAgent
-            : normalizedDesktopUserAgent,
+        userAgent: effectiveDesktopUserAgent(desktopUserAgentOverride),
         useWideViewPort: true,
         loadWithOverviewMode: true,
         preferredContentMode: UserPreferredContentMode.DESKTOP,
@@ -128,6 +121,13 @@ class BrowserWebViewHost extends StatelessWidget {
       loadWithOverviewMode: false,
       preferredContentMode: UserPreferredContentMode.MOBILE,
     );
+  }
+
+  static String effectiveDesktopUserAgent(String desktopUserAgentOverride) {
+    final normalizedDesktopUserAgent = desktopUserAgentOverride.trim();
+    return normalizedDesktopUserAgent.isEmpty
+        ? BrowserSiteCompatibilityScript.defaultDesktopUserAgent
+        : normalizedDesktopUserAgent;
   }
 
   static InAppWebViewSettings settingsForUrl(
@@ -182,6 +182,7 @@ class BrowserWebViewHost extends StatelessWidget {
     final initialUserScripts = _initialUserScriptsForMode(
       desktopModeEnabled: desktopModeEnabled,
       initialUrl: initialUrl,
+      desktopUserAgent: webViewSettings.userAgent ?? '',
     );
 
     if (!enabled) {
@@ -302,12 +303,14 @@ class BrowserWebViewHost extends StatelessWidget {
   UnmodifiableListView<UserScript>? _initialUserScriptsForMode({
     required bool desktopModeEnabled,
     required String initialUrl,
+    required String desktopUserAgent,
   }) {
     if (!desktopModeEnabled) {
       return null;
     }
     final script = BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
       initialUrl,
+      desktopUserAgent: desktopUserAgent,
     );
     if (script == null) {
       return null;
@@ -336,5 +339,6 @@ class BrowserWebViewViewportPolicy {
   final UserPreferredContentMode preferredContentMode;
 
   bool get usesMobileUserAgent => userAgent == _browserMobileUserAgent;
-  bool get usesDesktopUserAgent => userAgent == _browserDesktopUserAgent;
+  bool get usesDesktopUserAgent =>
+      userAgent == BrowserSiteCompatibilityScript.defaultDesktopUserAgent;
 }

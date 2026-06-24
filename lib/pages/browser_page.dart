@@ -1373,6 +1373,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final script = _settings.desktopModeEnabled
         ? BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
             url?.toString(),
+            desktopUserAgent: BrowserWebViewHost.effectiveDesktopUserAgent(
+              _settings.normalizedDesktopUserAgentOverride,
+            ),
           )
         : BrowserSiteCompatibilityScript.bottomNavigationFixForUrl(
             url?.toString(),

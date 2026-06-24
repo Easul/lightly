@@ -31,15 +31,33 @@ void main() {
       expect(script, isNull);
     });
 
-    test('injects desktop viewport override for web urls', () {
+    test('injects desktop environment override for web urls', () {
       final script =
           BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
             'https://github.com',
           );
 
       expect(script, isNotNull);
-      expect(script, contains('width=1280'));
+      expect(script, contains('desktopWidth = 1366'));
+      expect(script, contains("'width=' + desktopWidth"));
       expect(script, contains('data-lightly-original-content'));
+      expect(script, contains('desktopUserAgentData'));
+      expect(script, contains('mobile: false'));
+      expect(script, contains('maxTouchPoints'));
+      expect(script, contains('window.matchMedia'));
+      expect(script, contains('MutationObserver'));
+      expect(script, contains('__lightlyApplyDesktopEnvironment'));
+    });
+
+    test('desktop environment override uses custom user agent', () {
+      final script =
+          BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            'https://x.com/home',
+            desktopUserAgent: 'Custom "Desktop" UA',
+          );
+
+      expect(script, isNotNull);
+      expect(script, contains(r'Custom \"Desktop\" UA'));
     });
 
     test('does not inject desktop viewport override for local files', () {
