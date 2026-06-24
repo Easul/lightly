@@ -547,9 +547,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             )
           : const SizedBox.shrink(),
       webViewChild: BrowserWebViewHost(
-        key: ValueKey(
-          'webview-${_activeTabId ?? 'none'}-${_settings.desktopModeEnabled}',
-        ),
+        key: ValueKey('webview-${_activeTabId ?? 'none'}'),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
         desktopModeEnabled: _settings.desktopModeEnabled,
@@ -1412,6 +1410,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _statusMessage = enabled ? '已切换为电脑模式' : '已切换为手机模式';
     });
 
+    if (await _reloadCurrentPageForViewportMode(enabled)) {
+      return;
+    }
+
     final activeTabId = _activeTabId;
     if (activeTabId != null && !_isFavoritesPage(_currentUrl)) {
       _webViewController = null;
@@ -1421,6 +1423,38 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     if (mounted) {
       _rebuildWhenVisible();
+    }
+  }
+
+  Future<bool> _reloadCurrentPageForViewportMode(
+    bool desktopModeEnabled,
+  ) async {
+    final controller = _webViewController;
+    final currentUri = Uri.tryParse(_currentUrl);
+    if (controller == null ||
+        currentUri == null ||
+        !_isWebScheme(currentUri.scheme) ||
+        _isFavoritesPage(_currentUrl)) {
+      return false;
+    }
+
+    _updateActiveTab(clearPopupWindowId: true, isLoading: true);
+    _updateProgressIfNeeded(0);
+    _syncNotifiers();
+
+    try {
+      await controller.setSettings(
+        settings: BrowserWebViewHost.settingsForUrl(
+          _currentUrl,
+          desktopModeEnabled: desktopModeEnabled,
+        ),
+      );
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(_currentUrl)),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

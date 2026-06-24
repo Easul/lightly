@@ -109,6 +109,7 @@ class BrowserWebViewHost extends StatelessWidget {
         userAgent: _browserDesktopUserAgent,
         useWideViewPort: true,
         loadWithOverviewMode: true,
+        preferredContentMode: UserPreferredContentMode.DESKTOP,
       );
     }
 
@@ -128,13 +129,53 @@ class BrowserWebViewHost extends StatelessWidget {
       userAgent: _browserMobileUserAgent,
       useWideViewPort: !prefersMobileViewport,
       loadWithOverviewMode: !prefersMobileViewport,
+      preferredContentMode: UserPreferredContentMode.MOBILE,
+    );
+  }
+
+  static InAppWebViewSettings settingsForUrl(
+    String initialUrl, {
+    bool desktopModeEnabled = false,
+  }) {
+    final viewportPolicy = viewportPolicyForUrl(
+      initialUrl,
+      desktopModeEnabled: desktopModeEnabled,
+    );
+    return InAppWebViewSettings(
+      javaScriptEnabled: true,
+      javaScriptCanOpenWindowsAutomatically: true,
+      useShouldOverrideUrlLoading: true,
+      mediaPlaybackRequiresUserGesture: false,
+      supportMultipleWindows: true,
+      cacheEnabled: true,
+      cacheMode: CacheMode.LOAD_DEFAULT,
+      domStorageEnabled: true,
+      databaseEnabled: true,
+      thirdPartyCookiesEnabled: true,
+      allowFileAccess: true,
+      allowContentAccess: true,
+      useWideViewPort: viewportPolicy.useWideViewPort,
+      loadWithOverviewMode: viewportPolicy.loadWithOverviewMode,
+      preferredContentMode: viewportPolicy.preferredContentMode,
+      loadsImagesAutomatically: true,
+      hardwareAcceleration: true,
+      useHybridComposition: true,
+      supportZoom: true,
+      builtInZoomControls: true,
+      displayZoomControls: false,
+      verticalScrollBarEnabled: false,
+      horizontalScrollBarEnabled: false,
+      scrollbarFadingEnabled: false,
+      allowsBackForwardNavigationGestures: true,
+      allowsInlineMediaPlayback: true,
+      userAgent: viewportPolicy.userAgent,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final viewportPolicy = viewportPolicyForUrl(
+    final webViewSettings = settingsForUrl(
       initialUrl,
       desktopModeEnabled: desktopModeEnabled,
     );
@@ -184,34 +225,7 @@ class BrowserWebViewHost extends StatelessWidget {
                 ? URLRequest(url: WebUri(initialUrl))
                 : null,
             keepAlive: keepAlive,
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              javaScriptCanOpenWindowsAutomatically: true,
-              useShouldOverrideUrlLoading: true,
-              mediaPlaybackRequiresUserGesture: false,
-              supportMultipleWindows: true,
-              cacheEnabled: true,
-              cacheMode: CacheMode.LOAD_DEFAULT,
-              domStorageEnabled: true,
-              databaseEnabled: true,
-              thirdPartyCookiesEnabled: true,
-              allowFileAccess: true,
-              allowContentAccess: true,
-              useWideViewPort: viewportPolicy.useWideViewPort,
-              loadWithOverviewMode: viewportPolicy.loadWithOverviewMode,
-              loadsImagesAutomatically: true,
-              hardwareAcceleration: true,
-              useHybridComposition: true,
-              supportZoom: true,
-              builtInZoomControls: true,
-              displayZoomControls: false,
-              verticalScrollBarEnabled: false,
-              horizontalScrollBarEnabled: false,
-              scrollbarFadingEnabled: false,
-              allowsBackForwardNavigationGestures: true,
-              allowsInlineMediaPlayback: true,
-              userAgent: viewportPolicy.userAgent,
-            ),
+            initialSettings: webViewSettings,
             onPermissionRequest: (controller, permissionRequest) async {
               return PermissionResponse(
                 resources: permissionRequest.resources,
@@ -286,11 +300,13 @@ class BrowserWebViewViewportPolicy {
     required this.userAgent,
     required this.useWideViewPort,
     required this.loadWithOverviewMode,
+    required this.preferredContentMode,
   });
 
   final String userAgent;
   final bool useWideViewPort;
   final bool loadWithOverviewMode;
+  final UserPreferredContentMode preferredContentMode;
 
   bool get usesMobileUserAgent => userAgent == _browserMobileUserAgent;
   bool get usesDesktopUserAgent => userAgent == _browserDesktopUserAgent;
