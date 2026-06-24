@@ -17,6 +17,7 @@ class BrowserSettingsFormController {
   final localHttpPortController = TextEditingController();
   final localHttpUploadKeyController = TextEditingController();
   final nativeVideoParserApiController = TextEditingController();
+  final desktopUserAgentController = TextEditingController();
   final nodeLinkController = TextEditingController();
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
@@ -51,6 +52,7 @@ class BrowserSettingsFormController {
     localHttpPortController.dispose();
     localHttpUploadKeyController.dispose();
     nativeVideoParserApiController.dispose();
+    desktopUserAgentController.dispose();
     nodeLinkController.dispose();
     revision.dispose();
   }
@@ -92,6 +94,7 @@ class BrowserSettingsFormController {
     localHttpPortController.text = formData.localHttpPortText;
     localHttpUploadKeyController.text = formData.localHttpUploadKey;
     nativeVideoParserApiController.text = formData.nativeVideoParserApiBaseUrl;
+    desktopUserAgentController.text = formData.desktopUserAgentOverride;
     selectedProtocol = formData.selectedProtocol;
     proxyNodes = List<BrowserProxyNode>.from(formData.proxyNodes);
     selectedProxyNodeId = formData.selectedProxyNodeId;
@@ -138,6 +141,7 @@ class BrowserSettingsFormController {
       nativeVideoParserApiBaseUrl: nativeVideoParserApiController.text.trim(),
       openNewWindowInTab: openNewWindowInTab,
       desktopModeEnabled: desktopModeEnabled,
+      desktopUserAgentOverride: desktopUserAgentController.text.trim(),
       appCacheAutoClearEnabled: appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours: appCacheAutoClearIntervalHours,
     );

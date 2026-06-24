@@ -35,6 +35,7 @@ import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/ui_update_thresholds.dart';
+import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/browser_site_compatibility_script.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_webview_host.dart';
@@ -551,11 +552,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         key: ValueKey(
           'webview-${_activeTabId ?? 'none'}-'
           '${_settings.desktopModeEnabled ? 'desktop' : 'mobile'}-'
+          '${_settings.normalizedDesktopUserAgentOverride.hashCode}-'
           '$_webViewModeGeneration',
         ),
         enabled: widget.enableWebView,
         initialUrl: _currentUrl,
         desktopModeEnabled: _settings.desktopModeEnabled,
+        desktopUserAgentOverride: _settings.normalizedDesktopUserAgentOverride,
         shouldLoadInitialUrl: _statePredicates.shouldLoadInitialUrlForTab(
           activeTab,
         ),
@@ -929,6 +932,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _reloadSettings() async {
     final previousDesktopModeEnabled = _settings.desktopModeEnabled;
+    final previousDesktopUserAgentOverride =
+        _settings.normalizedDesktopUserAgentOverride;
     final appliedSettings = await _initializer.reloadSettings(
       onClearVideoPromptState: _initializer.clearVideoPromptState,
       onReplaceSuggestionService: _replaceSuggestionService,
@@ -954,7 +959,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _statusMessage = snapshot.statusMessage;
       _isInitialized = snapshot.isInitialized;
       _initializer.clearVideoPromptState();
-      if (previousDesktopModeEnabled != snapshot.settings.desktopModeEnabled) {
+      final shouldRecreateWebViews =
+          previousDesktopModeEnabled != snapshot.settings.desktopModeEnabled ||
+          previousDesktopUserAgentOverride !=
+              snapshot.settings.normalizedDesktopUserAgentOverride;
+      if (shouldRecreateWebViews) {
         _recreateWebViewsForViewportMode();
       }
     });
@@ -1361,9 +1370,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     WebUri? url,
   ) async {
-    final script = BrowserSiteCompatibilityScript.bottomNavigationFixForUrl(
-      url?.toString(),
-    );
+    final script = _settings.desktopModeEnabled
+        ? BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            url?.toString(),
+          )
+        : BrowserSiteCompatibilityScript.bottomNavigationFixForUrl(
+            url?.toString(),
+          );
     if (script == null) {
       return;
     }
@@ -1417,9 +1430,21 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
     _updateStateWhenVisible(() {
       _settings = newSettings;
+      if (enabled) {
+        _normalizeActiveTabForDesktopModeIfNeeded();
+      }
       _statusMessage = enabled ? '已切换为电脑模式' : '已切换为手机模式';
       _recreateWebViewsForViewportMode();
     });
+  }
+
+  void _normalizeActiveTabForDesktopModeIfNeeded() {
+    final normalizedUrl = normalizeDesktopModeUrl(_currentUrl);
+    if (normalizedUrl == _currentUrl) {
+      return;
+    }
+    _addressController.text = normalizedUrl;
+    _updateActiveTab(url: normalizedUrl, clearPopupWindowId: true);
   }
 
   void _recreateWebViewsForViewportMode() {

@@ -30,6 +30,7 @@ void main() {
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
         desktopModeEnabled: true,
+        desktopUserAgentOverride: 'Desktop UA',
         appCacheAutoClearEnabled: true,
         appCacheAutoClearIntervalHours: 72,
       );
@@ -51,6 +52,7 @@ void main() {
       );
       expect(formData.openNewWindowInTab, isFalse);
       expect(formData.desktopModeEnabled, isTrue);
+      expect(formData.desktopUserAgentOverride, 'Desktop UA');
       expect(formData.appCacheAutoClearEnabled, isTrue);
       expect(formData.appCacheAutoClearIntervalHours, 72);
     });
@@ -83,6 +85,7 @@ void main() {
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
         desktopModeEnabled: true,
+        desktopUserAgentOverride: 'Desktop UA',
         appCacheAutoClearEnabled: true,
         appCacheAutoClearIntervalHours: 72,
       );
@@ -102,6 +105,7 @@ void main() {
       );
       expect(settings.openNewWindowInTab, isFalse);
       expect(settings.desktopModeEnabled, isTrue);
+      expect(settings.desktopUserAgentOverride, 'Desktop UA');
       expect(settings.appCacheAutoClearEnabled, isTrue);
       expect(settings.appCacheAutoClearIntervalHours, 72);
     });

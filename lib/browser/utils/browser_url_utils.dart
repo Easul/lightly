@@ -78,6 +78,20 @@ String remapImportedDocumentFileUrl(String url) {
   return url;
 }
 
+String normalizeDesktopModeUrl(String rawUrl) {
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null) {
+    return rawUrl;
+  }
+
+  final host = uri.host.toLowerCase();
+  if (host == 'm.youtube.com') {
+    return uri.replace(host: 'www.youtube.com').toString();
+  }
+
+  return rawUrl;
+}
+
 String _normalizeAndroidFileUrl(String rawValue) {
   final lowerCased = rawValue.toLowerCase();
   if (!lowerCased.startsWith('file://') || lowerCased.startsWith('file:///')) {

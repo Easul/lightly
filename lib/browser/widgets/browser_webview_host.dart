@@ -1,14 +1,17 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+import '../utils/browser_site_compatibility_script.dart';
 
 const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
 const _browserDesktopUserAgent =
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 class BrowserWebViewHost extends StatelessWidget {
@@ -17,6 +20,7 @@ class BrowserWebViewHost extends StatelessWidget {
     required this.enabled,
     required this.initialUrl,
     required this.desktopModeEnabled,
+    this.desktopUserAgentOverride = '',
     required this.shouldLoadInitialUrl,
     this.windowId,
     this.keepAlive,
@@ -43,6 +47,7 @@ class BrowserWebViewHost extends StatelessWidget {
   final bool enabled;
   final String initialUrl;
   final bool desktopModeEnabled;
+  final String desktopUserAgentOverride;
   final bool shouldLoadInitialUrl;
   final int? windowId;
   final InAppWebViewKeepAlive? keepAlive;
@@ -103,10 +108,14 @@ class BrowserWebViewHost extends StatelessWidget {
   static BrowserWebViewViewportPolicy viewportPolicyForUrl(
     String initialUrl, {
     bool desktopModeEnabled = false,
+    String desktopUserAgentOverride = '',
   }) {
     if (desktopModeEnabled) {
-      return const BrowserWebViewViewportPolicy(
-        userAgent: _browserDesktopUserAgent,
+      final normalizedDesktopUserAgent = desktopUserAgentOverride.trim();
+      return BrowserWebViewViewportPolicy(
+        userAgent: normalizedDesktopUserAgent.isEmpty
+            ? _browserDesktopUserAgent
+            : normalizedDesktopUserAgent,
         useWideViewPort: true,
         loadWithOverviewMode: true,
         preferredContentMode: UserPreferredContentMode.DESKTOP,
@@ -124,10 +133,12 @@ class BrowserWebViewHost extends StatelessWidget {
   static InAppWebViewSettings settingsForUrl(
     String initialUrl, {
     bool desktopModeEnabled = false,
+    String desktopUserAgentOverride = '',
   }) {
     final viewportPolicy = viewportPolicyForUrl(
       initialUrl,
       desktopModeEnabled: desktopModeEnabled,
+      desktopUserAgentOverride: desktopUserAgentOverride,
     );
     return InAppWebViewSettings(
       javaScriptEnabled: true,
@@ -166,6 +177,11 @@ class BrowserWebViewHost extends StatelessWidget {
     final webViewSettings = settingsForUrl(
       initialUrl,
       desktopModeEnabled: desktopModeEnabled,
+      desktopUserAgentOverride: desktopUserAgentOverride,
+    );
+    final initialUserScripts = _initialUserScriptsForMode(
+      desktopModeEnabled: desktopModeEnabled,
+      initialUrl: initialUrl,
     );
 
     if (!enabled) {
@@ -214,6 +230,7 @@ class BrowserWebViewHost extends StatelessWidget {
                 : null,
             keepAlive: keepAlive,
             initialSettings: webViewSettings,
+            initialUserScripts: initialUserScripts,
             onPermissionRequest: (controller, permissionRequest) async {
               return PermissionResponse(
                 resources: permissionRequest.resources,
@@ -280,6 +297,28 @@ class BrowserWebViewHost extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  UnmodifiableListView<UserScript>? _initialUserScriptsForMode({
+    required bool desktopModeEnabled,
+    required String initialUrl,
+  }) {
+    if (!desktopModeEnabled) {
+      return null;
+    }
+    final script = BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+      initialUrl,
+    );
+    if (script == null) {
+      return null;
+    }
+    return UnmodifiableListView<UserScript>([
+      UserScript(
+        source: script,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        contentWorld: ContentWorld.PAGE,
+      ),
+    ]);
   }
 }
 

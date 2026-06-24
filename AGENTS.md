@@ -455,10 +455,15 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Browser desktop/mobile mode switching must force the current page to reload with the new WebView settings, not only save settings or rebuild Flutter widgets. Many sites choose mobile/desktop UI from the navigation request user-agent and WebView content mode, so changing state without a new request can leave the visible page unchanged.
 - Runtime `InAppWebViewController.setSettings()` is not reliable enough for this mode switch on all Android WebView paths. Prefer recreating retained WebViews / keepAlives so the next native WebView is created with the correct user agent, `preferredContentMode`, `useWideViewPort`, and `loadWithOverviewMode`.
 - The More-sheet toggle should flip from BrowserPage's current in-memory setting, not only the latest persisted setting, otherwise a stale page state can make the button appear to do nothing or switch the wrong way.
+- Custom desktop UA is a desktop-mode-only override from Settings → General. Keep mobile mode on the built-in mobile UA unless X / YouTube are re-tested.
+- Some responsive sites, including GitHub and YouTube, need a desktop-width viewport in addition to desktop UA. Keep the desktop-only `BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl()` injection at WebView creation/load-stop, and do not apply it in mobile mode.
+- When switching to desktop mode, normalize `m.youtube.com` URLs to `www.youtube.com`; do not add the reverse rewrite for mobile mode unless YouTube mobile layout and native parser flows are re-tested.
 - Related files:
   - `lib/browser/widgets/browser_webview_host.dart`
   - `lib/browser/utils/browser_site_compatibility_script.dart`
+  - `lib/browser/utils/browser_url_utils.dart`
   - `lib/pages/browser_page.dart`
+  - `lib/pages/settings_page.dart`
   - `lib/browser/services/browser_tab_service.dart`
 
 ## Selective Browsing Data Clearing

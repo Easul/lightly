@@ -160,6 +160,7 @@ void main() {
 
       expect(settings.openNewWindowInTab, isTrue);
       expect(settings.desktopModeEnabled, isFalse);
+      expect(settings.desktopUserAgentOverride, isEmpty);
       expect(settings.appCacheAutoClearEnabled, isFalse);
       expect(settings.appCacheAutoClearIntervalHours, 24);
     });
@@ -181,6 +182,17 @@ void main() {
 
       expect(settings.desktopModeEnabled, isTrue);
       expect(settings.toJson()['desktopModeEnabled'], isTrue);
+    });
+
+    test('desktopUserAgentOverride restores from json', () {
+      final settings = BrowserSettings.fromJson({
+        'homepageUrl': 'https://example.com',
+        'desktopUserAgentOverride': ' custom ua ',
+      });
+
+      expect(settings.desktopUserAgentOverride, ' custom ua ');
+      expect(settings.normalizedDesktopUserAgentOverride, 'custom ua');
+      expect(settings.toJson()['desktopUserAgentOverride'], ' custom ua ');
     });
 
     test('app cache auto clear settings restore from json', () {

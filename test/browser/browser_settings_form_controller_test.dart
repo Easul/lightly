@@ -34,6 +34,7 @@ void main() {
         localHttpBindAllInterfaces: true,
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
+        desktopUserAgentOverride: ' Desktop UA ',
       );
 
       controller.applySettings(settings);
@@ -54,6 +55,7 @@ void main() {
       expect(rebuilt.proxyTlsInsecure, isTrue);
       expect(rebuilt.localHttpBindAllInterfaces, isTrue);
       expect(rebuilt.nativeVideoPlayerEnabled, isTrue);
+      expect(rebuilt.desktopUserAgentOverride, 'Desktop UA');
     });
 
     test('derived visibility flags follow selected protocol', () {

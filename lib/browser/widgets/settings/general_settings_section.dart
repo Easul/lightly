@@ -13,11 +13,13 @@ class GeneralSettingsSection extends StatelessWidget {
   const GeneralSettingsSection({
     super.key,
     required this.homepageController,
+    required this.desktopUserAgentController,
     required this.openNewWindowInTab,
     required this.appCacheAutoClearEnabled,
     required this.appCacheAutoClearIntervalHours,
     required this.isClearingAppCache,
     required this.onHomepageChanged,
+    required this.onDesktopUserAgentChanged,
     required this.onOpenNewWindowInTabChanged,
     required this.onClearBrowsingDataTap,
     required this.onClearAppCacheTap,
@@ -26,11 +28,13 @@ class GeneralSettingsSection extends StatelessWidget {
   });
 
   final TextEditingController homepageController;
+  final TextEditingController desktopUserAgentController;
   final bool openNewWindowInTab;
   final bool appCacheAutoClearEnabled;
   final int appCacheAutoClearIntervalHours;
   final bool isClearingAppCache;
   final ValueChanged<String> onHomepageChanged;
+  final ValueChanged<String> onDesktopUserAgentChanged;
   final ValueChanged<bool> onOpenNewWindowInTabChanged;
   final VoidCallback onClearBrowsingDataTap;
   final VoidCallback onClearAppCacheTap;
@@ -56,6 +60,18 @@ class GeneralSettingsSection extends StatelessWidget {
             prefixIcon: Icon(Icons.home_outlined),
           ),
           onChanged: onHomepageChanged,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: desktopUserAgentController,
+          minLines: 1,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: '电脑模式 UA',
+            hintText: '留空使用默认桌面 Chrome UA',
+            prefixIcon: Icon(Icons.desktop_windows_outlined),
+          ),
+          onChanged: onDesktopUserAgentChanged,
         ),
         const SizedBox(height: 12),
         SwitchListTile(

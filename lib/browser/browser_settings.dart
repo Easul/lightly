@@ -182,6 +182,7 @@ class BrowserSettings {
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
     required this.desktopModeEnabled,
+    required this.desktopUserAgentOverride,
     required this.appCacheAutoClearEnabled,
     required this.appCacheAutoClearIntervalHours,
   });
@@ -212,8 +213,13 @@ class BrowserSettings {
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
   final bool desktopModeEnabled;
+  final String desktopUserAgentOverride;
   final bool appCacheAutoClearEnabled;
   final int appCacheAutoClearIntervalHours;
+
+  String get normalizedDesktopUserAgentOverride {
+    return desktopUserAgentOverride.trim();
+  }
 
   String get normalizedNativeVideoParserApiBaseUrl {
     final trimmed = nativeVideoParserApiBaseUrl.trim();
@@ -258,6 +264,7 @@ class BrowserSettings {
       nativeVideoParserApiBaseUrl: 'https://parser.example.com',
       openNewWindowInTab: true,
       desktopModeEnabled: false,
+      desktopUserAgentOverride: '',
       appCacheAutoClearEnabled: false,
       appCacheAutoClearIntervalHours: 24,
     );
@@ -294,6 +301,7 @@ class BrowserSettings {
     String? nativeVideoParserApiBaseUrl,
     bool? openNewWindowInTab,
     bool? desktopModeEnabled,
+    String? desktopUserAgentOverride,
     bool? appCacheAutoClearEnabled,
     int? appCacheAutoClearIntervalHours,
   }) {
@@ -334,6 +342,8 @@ class BrowserSettings {
           nativeVideoParserApiBaseUrl ?? this.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab ?? this.openNewWindowInTab,
       desktopModeEnabled: desktopModeEnabled ?? this.desktopModeEnabled,
+      desktopUserAgentOverride:
+          desktopUserAgentOverride ?? this.desktopUserAgentOverride,
       appCacheAutoClearEnabled:
           appCacheAutoClearEnabled ?? this.appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours:
@@ -370,6 +380,7 @@ class BrowserSettings {
       'nativeVideoParserApiBaseUrl': nativeVideoParserApiBaseUrl,
       'openNewWindowInTab': openNewWindowInTab,
       'desktopModeEnabled': desktopModeEnabled,
+      'desktopUserAgentOverride': desktopUserAgentOverride,
       'appCacheAutoClearEnabled': appCacheAutoClearEnabled,
       'appCacheAutoClearIntervalHours': appCacheAutoClearIntervalHours,
     };
@@ -421,6 +432,8 @@ class BrowserSettings {
           'https://parser.example.com',
       openNewWindowInTab: json['openNewWindowInTab'] as bool? ?? true,
       desktopModeEnabled: json['desktopModeEnabled'] as bool? ?? false,
+      desktopUserAgentOverride:
+          json['desktopUserAgentOverride'] as String? ?? '',
       appCacheAutoClearEnabled:
           json['appCacheAutoClearEnabled'] as bool? ?? false,
       appCacheAutoClearIntervalHours:

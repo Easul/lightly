@@ -1,6 +1,15 @@
 class BrowserSiteCompatibilityScript {
   const BrowserSiteCompatibilityScript._();
 
+  static String? desktopViewportOverrideForUrl(String? rawUrl) {
+    final uri = Uri.tryParse(rawUrl ?? '');
+    final scheme = uri?.scheme.toLowerCase() ?? '';
+    if (scheme != 'http' && scheme != 'https') {
+      return null;
+    }
+    return _desktopViewportOverrideSource;
+  }
+
   static String? bottomNavigationFixForUrl(String? rawUrl) {
     final host = Uri.tryParse(rawUrl ?? '')?.host.toLowerCase() ?? '';
     if (_isYouTubeHost(host)) {
@@ -50,6 +59,47 @@ class BrowserSiteCompatibilityScript {
         host == 'twitter.com' ||
         host.endsWith('.twitter.com');
   }
+
+  static const String _desktopViewportOverrideSource = '''
+      (function() {
+        var content = 'width=1280, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes';
+        function applyDesktopViewport() {
+          if (!document.documentElement) {
+            return;
+          }
+          var head = document.head ||
+              document.getElementsByTagName('head')[0] ||
+              document.documentElement;
+          var meta = document.querySelector('meta[name="viewport"]');
+          if (!meta) {
+            meta = document.createElement('meta');
+            meta.name = 'viewport';
+            head.appendChild(meta);
+          }
+          if (!meta.hasAttribute('data-lightly-original-content')) {
+            meta.setAttribute(
+              'data-lightly-original-content',
+              meta.getAttribute('content') || ''
+            );
+          }
+          if (meta.getAttribute('content') !== content) {
+            meta.setAttribute('content', content);
+          }
+          document.documentElement.style.minWidth = '1024px';
+          if (document.body) {
+            document.body.style.minWidth = '1024px';
+          }
+        }
+        applyDesktopViewport();
+        if (document.readyState === 'loading') {
+          document.addEventListener(
+            'DOMContentLoaded',
+            applyDesktopViewport,
+            { once: true }
+          );
+        }
+      })();
+    ''';
 
   static String _wrapStyle(String id, String css) {
     final escapedCss = css

@@ -30,5 +30,25 @@ void main() {
 
       expect(script, isNull);
     });
+
+    test('injects desktop viewport override for web urls', () {
+      final script =
+          BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            'https://github.com',
+          );
+
+      expect(script, isNotNull);
+      expect(script, contains('width=1280'));
+      expect(script, contains('data-lightly-original-content'));
+    });
+
+    test('does not inject desktop viewport override for local files', () {
+      final script =
+          BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            'file:///storage/emulated/0/index.html',
+          );
+
+      expect(script, isNull);
+    });
   });
 }

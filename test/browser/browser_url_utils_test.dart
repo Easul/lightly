@@ -109,4 +109,20 @@ void main() {
       expect(isLocalBrowserUrl('https://m.youtube.com/watch?v=abc'), isFalse);
     });
   });
+
+  group('normalizeDesktopModeUrl', () {
+    test('rewrites YouTube mobile host to desktop host', () {
+      expect(
+        normalizeDesktopModeUrl('https://m.youtube.com/watch?v=abc#comments'),
+        'https://www.youtube.com/watch?v=abc#comments',
+      );
+    });
+
+    test('keeps non YouTube mobile urls unchanged', () {
+      expect(
+        normalizeDesktopModeUrl('https://github.com/flutter/flutter'),
+        'https://github.com/flutter/flutter',
+      );
+    });
+  });
 }

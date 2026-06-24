@@ -626,12 +626,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildGeneralSection() {
     return GeneralSettingsSection(
       homepageController: _formController.homepageController,
+      desktopUserAgentController: _formController.desktopUserAgentController,
       openNewWindowInTab: _formController.openNewWindowInTab,
       appCacheAutoClearEnabled: _formController.appCacheAutoClearEnabled,
       appCacheAutoClearIntervalHours:
           _formController.appCacheAutoClearIntervalHours,
       isClearingAppCache: _isClearingAppCache,
       onHomepageChanged: (_) => _markSectionDirty(),
+      onDesktopUserAgentChanged: (_) => _markSectionDirty(),
       onOpenNewWindowInTabChanged: (value) {
         setState(() {
           _formController.openNewWindowInTab = value;

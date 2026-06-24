@@ -55,15 +55,28 @@ void main() {
         desktopModeEnabled: true,
       );
 
-      expect(settings.userAgent, contains('X11; Linux x86_64'));
+      expect(settings.userAgent, contains('Windows NT 10.0; Win64; x64'));
       expect(settings.useWideViewPort, isTrue);
       expect(settings.loadWithOverviewMode, isTrue);
+      expect(settings.preferredContentMode, UserPreferredContentMode.DESKTOP);
+    });
+
+    test('desktop mode uses custom user agent override when provided', () {
+      final settings = BrowserWebViewHost.settingsForUrl(
+        'https://github.com',
+        desktopModeEnabled: true,
+        desktopUserAgentOverride: ' Custom Desktop UA ',
+      );
+
+      expect(settings.userAgent, 'Custom Desktop UA');
+      expect(settings.useWideViewPort, isTrue);
       expect(settings.preferredContentMode, UserPreferredContentMode.DESKTOP);
     });
 
     test('settings use mobile content mode when desktop mode is disabled', () {
       final settings = BrowserWebViewHost.settingsForUrl(
         'https://www.youtube.com/watch?v=abc',
+        desktopUserAgentOverride: 'Custom Desktop UA',
       );
 
       expect(settings.userAgent, contains('Mobile Safari'));
