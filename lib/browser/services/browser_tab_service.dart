@@ -171,7 +171,8 @@ class BrowserTabService {
       return false;
     }
     final current = _tabs[index];
-    if (current.keepAlive != null || !current.url.startsWith('http')) {
+    if (current.keepAlive != null ||
+        !_shouldRetainKeepAliveForUrl(current.url)) {
       return false;
     }
     _tabs[index] = current.copyWith(
@@ -190,7 +191,7 @@ class BrowserTabService {
     final current = _tabs[index];
     _disposeKeepAlive(current.keepAlive);
     _tabs[index] = current.copyWith(
-      keepAlive: recreate && current.url.startsWith('http')
+      keepAlive: recreate && _shouldRetainKeepAliveForUrl(current.url)
           ? InAppWebViewKeepAlive()
           : null,
       clearKeepAlive: !recreate,
@@ -204,7 +205,8 @@ class BrowserTabService {
     var resetCount = 0;
     for (var i = 0; i < _tabs.length; i++) {
       final current = _tabs[i];
-      final shouldRecreate = recreateWebTabs && current.url.startsWith('http');
+      final shouldRecreate =
+          recreateWebTabs && _shouldRetainKeepAliveForUrl(current.url);
       final hasRuntimeState =
           current.keepAlive != null || current.hasAttachedWebView;
       if (!shouldRecreate && !hasRuntimeState) {
@@ -408,13 +410,23 @@ class BrowserTabService {
       id: 'tab_$_nextId',
       url: url,
       keepAlive:
-          withKeepAlive && (popupWindowId != null || url.startsWith('http'))
+          withKeepAlive &&
+              (popupWindowId != null || _shouldRetainKeepAliveForUrl(url))
           ? InAppWebViewKeepAlive()
           : null,
       popupWindowId: popupWindowId,
       title: title,
       isExternallyOpened: isExternallyOpened,
     );
+  }
+
+  bool _shouldRetainKeepAliveForUrl(String url) {
+    final uri = Uri.tryParse(url);
+    final scheme = uri?.scheme.toLowerCase();
+    return scheme == 'http' ||
+        scheme == 'https' ||
+        scheme == 'file' ||
+        scheme == 'content';
   }
 
   void _evictIfNeeded({required String protectedId}) {

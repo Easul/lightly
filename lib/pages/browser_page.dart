@@ -547,6 +547,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ? RepaintBoundary(
               child: BrowserFavoritesPage(
                 key: _favoritesPageKey,
+                resolveSubmittedInput: _resolveInput,
                 onOpenUrl: (url) async {
                   await _loadAddress(url);
                 },

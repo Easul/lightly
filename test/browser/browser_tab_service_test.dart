@@ -161,6 +161,24 @@ void main() {
       expect(secondTabAfterSwitch.keepAlive, isNotNull);
     });
 
+    test('local file tabs retain keepAlive across tab switches', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.initialize('https://one.example');
+      final localTab = service.openTab(
+        url: 'file:///storage/emulated/0/Download/demo.html',
+      );
+
+      expect(service.activeTab?.keepAlive, isNotNull);
+
+      service.activateTab(service.tabs.first.id);
+      service.activateTab(localTab.id);
+
+      final localTabAfterSwitch = service.tabs.firstWhere(
+        (tab) => tab.id == localTab.id,
+      );
+      expect(localTabAfterSwitch.keepAlive, isNotNull);
+    });
+
     test('overlay trimming retains three recent background tabs', () {
       final service = BrowserTabService.test(maxTabs: 5);
       service.initialize('https://one.example');
@@ -207,6 +225,18 @@ void main() {
       expect(service.activeTab?.hasAttachedWebView, isFalse);
     });
 
+    test('resetKeepAlive can recreate retained state for local file tabs', () {
+      final service = BrowserTabService.test(maxTabs: 4);
+      service.openTab(url: 'file:///storage/emulated/0/Download/demo.html');
+
+      final activeTabId = service.activeTab!.id;
+      final didReset = service.resetKeepAlive(activeTabId, recreate: true);
+
+      expect(didReset, isTrue);
+      expect(service.activeTab?.keepAlive, isNotNull);
+      expect(service.activeTab?.hasAttachedWebView, isFalse);
+    });
+
     test('resetAllKeepAlives recreates every retained web tab', () {
       final service = BrowserTabService.test(maxTabs: 4);
       service.initialize('https://one.example');
@@ -223,19 +253,11 @@ void main() {
       final resetCount = service.resetAllKeepAlives(recreateWebTabs: true);
 
       expect(resetCount, 3);
-      final webTabs = service.tabs.where((tab) => tab.url.startsWith('http'));
-      expect(webTabs, hasLength(2));
-      for (final tab in webTabs) {
+      for (final tab in service.tabs) {
         expect(tab.keepAlive, isNotNull);
         expect(identical(tab.keepAlive, originalKeepAlives[tab.id]), isFalse);
         expect(tab.hasAttachedWebView, isFalse);
       }
-
-      final contentTab = service.tabs.singleWhere(
-        (tab) => tab.url.startsWith('content://'),
-      );
-      expect(contentTab.keepAlive, isNull);
-      expect(contentTab.hasAttachedWebView, isFalse);
     });
 
     test('tabs getter reuses cached unmodifiable view until tabs change', () {

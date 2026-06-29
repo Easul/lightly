@@ -12,15 +12,27 @@ import 'browser_favorite_icon.dart';
 
 part 'browser_favorites_page_dialogs.dart';
 
+typedef BrowserFavoritesInputResolver = String Function(String input);
+
+String defaultBrowserFavoritesInputResolver(String input) {
+  final resolvedUrl = normalizeBrowserUrl(input);
+  if (resolvedUrl != null) {
+    return resolvedUrl;
+  }
+  return 'https://www.google.com/search?q=${Uri.encodeComponent(input)}';
+}
+
 class BrowserFavoritesPage extends StatefulWidget {
   const BrowserFavoritesPage({
     super.key,
     required this.onOpenUrl,
     this.onAddFavorite,
+    this.resolveSubmittedInput = defaultBrowserFavoritesInputResolver,
   });
 
   final ValueChanged<String> onOpenUrl;
   final VoidCallback? onAddFavorite;
+  final BrowserFavoritesInputResolver resolveSubmittedInput;
 
   @override
   State<BrowserFavoritesPage> createState() => BrowserFavoritesPageState();
@@ -190,11 +202,9 @@ class BrowserFavoritesPageState extends State<BrowserFavoritesPage> {
                     onSubmitted: (value) {
                       final normalized = value.trim();
                       if (normalized.isNotEmpty) {
-                        final resolvedUrl = normalizeBrowserUrl(normalized);
-                        final url =
-                            resolvedUrl ??
-                            'https://www.google.com/search?q=$normalized';
-                        widget.onOpenUrl(url);
+                        widget.onOpenUrl(
+                          widget.resolveSubmittedInput(normalized),
+                        );
                       }
                     },
                     decoration: InputDecoration(
