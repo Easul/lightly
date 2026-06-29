@@ -82,9 +82,11 @@ void main() {
               required context,
               required proxyEnabled,
               required desktopModeEnabled,
+              required webDebugConsoleEnabled,
               required isFavorited,
               required onToggleFavorite,
               required onToggleProxy,
+              required onToggleWebDebugConsole,
               required onToggleDesktopMode,
               required onOpenDownloads,
               required onOpenDataManagement,
@@ -96,8 +98,10 @@ void main() {
             }) async {
               expect(proxyEnabled, isTrue);
               expect(desktopModeEnabled, isTrue);
+              expect(webDebugConsoleEnabled, isTrue);
               expect(isFavorited, isFalse);
               onToggleFavorite?.call();
+              onToggleWebDebugConsole();
               onToggleDesktopMode();
             },
       );
@@ -107,9 +111,11 @@ void main() {
         context: context,
         proxyEnabled: true,
         desktopModeEnabled: true,
+        webDebugConsoleEnabled: true,
         isFavorited: false,
         onToggleFavorite: () => calls.add('favorite'),
         onToggleProxy: () {},
+        onToggleWebDebugConsole: () => calls.add('debug'),
         onToggleDesktopMode: () => calls.add('desktop'),
         onOpenDownloads: () {},
         onOpenDataManagement: () {},
@@ -120,7 +126,7 @@ void main() {
         onOpenFavoritesMenu: null,
       );
 
-      expect(calls, <String>['favorite', 'desktop']);
+      expect(calls, <String>['favorite', 'debug', 'desktop']);
       expect(harness.pauseCount, 1);
       expect(harness.lastTrimKeepAlives, isTrue);
       expect(harness.rebuildCount, 2);

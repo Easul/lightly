@@ -29,6 +29,7 @@ void main() {
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
+        webDebugConsoleEnabled: true,
         desktopModeEnabled: true,
         desktopUserAgentOverride: 'Desktop UA',
         appCacheAutoClearEnabled: true,
@@ -51,6 +52,7 @@ void main() {
         'https://parser.example.com',
       );
       expect(formData.openNewWindowInTab, isFalse);
+      expect(formData.webDebugConsoleEnabled, isTrue);
       expect(formData.desktopModeEnabled, isTrue);
       expect(formData.desktopUserAgentOverride, 'Desktop UA');
       expect(formData.appCacheAutoClearEnabled, isTrue);
@@ -84,6 +86,7 @@ void main() {
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
         openNewWindowInTab: false,
+        webDebugConsoleEnabled: true,
         desktopModeEnabled: true,
         desktopUserAgentOverride: 'Desktop UA',
         appCacheAutoClearEnabled: true,
@@ -104,6 +107,7 @@ void main() {
         'https://parser.example.com',
       );
       expect(settings.openNewWindowInTab, isFalse);
+      expect(settings.webDebugConsoleEnabled, isTrue);
       expect(settings.desktopModeEnabled, isTrue);
       expect(settings.desktopUserAgentOverride, 'Desktop UA');
       expect(settings.appCacheAutoClearEnabled, isTrue);

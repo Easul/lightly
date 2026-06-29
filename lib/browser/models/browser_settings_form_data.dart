@@ -27,6 +27,7 @@ class BrowserSettingsFormData {
     required this.nativeVideoPlayerEnabled,
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
+    required this.webDebugConsoleEnabled,
     required this.desktopModeEnabled,
     required this.desktopUserAgentOverride,
     required this.appCacheAutoClearEnabled,
@@ -60,6 +61,7 @@ class BrowserSettingsFormData {
       nativeVideoPlayerEnabled: settings.nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: settings.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: settings.openNewWindowInTab,
+      webDebugConsoleEnabled: settings.webDebugConsoleEnabled,
       desktopModeEnabled: settings.desktopModeEnabled,
       desktopUserAgentOverride: settings.desktopUserAgentOverride,
       appCacheAutoClearEnabled: settings.appCacheAutoClearEnabled,
@@ -92,6 +94,7 @@ class BrowserSettingsFormData {
   final bool nativeVideoPlayerEnabled;
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
+  final bool webDebugConsoleEnabled;
   final bool desktopModeEnabled;
   final String desktopUserAgentOverride;
   final bool appCacheAutoClearEnabled;
@@ -124,6 +127,7 @@ class BrowserSettingsFormData {
       nativeVideoPlayerEnabled: nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab,
+      webDebugConsoleEnabled: webDebugConsoleEnabled,
       desktopModeEnabled: desktopModeEnabled,
       desktopUserAgentOverride: desktopUserAgentOverride,
       appCacheAutoClearEnabled: appCacheAutoClearEnabled,

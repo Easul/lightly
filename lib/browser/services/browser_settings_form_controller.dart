@@ -28,6 +28,7 @@ class BrowserSettingsFormController {
   bool proxyTlsEnabled = false;
   bool proxyTlsInsecure = false;
   bool openNewWindowInTab = true;
+  bool webDebugConsoleEnabled = false;
   bool desktopModeEnabled = false;
   bool appCacheAutoClearEnabled = false;
   int appCacheAutoClearIntervalHours = 24;
@@ -106,6 +107,7 @@ class BrowserSettingsFormController {
     localHttpBindAllInterfaces = formData.localHttpBindAllInterfaces;
     nativeVideoPlayerEnabled = formData.nativeVideoPlayerEnabled;
     openNewWindowInTab = formData.openNewWindowInTab;
+    webDebugConsoleEnabled = formData.webDebugConsoleEnabled;
     desktopModeEnabled = formData.desktopModeEnabled;
     appCacheAutoClearEnabled = formData.appCacheAutoClearEnabled;
     appCacheAutoClearIntervalHours = formData.appCacheAutoClearIntervalHours;
@@ -140,6 +142,7 @@ class BrowserSettingsFormController {
       nativeVideoPlayerEnabled: nativeVideoPlayerEnabled,
       nativeVideoParserApiBaseUrl: nativeVideoParserApiController.text.trim(),
       openNewWindowInTab: openNewWindowInTab,
+      webDebugConsoleEnabled: webDebugConsoleEnabled,
       desktopModeEnabled: desktopModeEnabled,
       desktopUserAgentOverride: desktopUserAgentController.text.trim(),
       appCacheAutoClearEnabled: appCacheAutoClearEnabled,

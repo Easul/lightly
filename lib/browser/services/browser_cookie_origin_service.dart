@@ -7,6 +7,7 @@ class BrowserCookieOriginService {
   static const String _storageKey = 'browser_cookie_origins_v1';
 
   SharedPreferences? _preferences;
+  Set<String>? _cachedOrigins;
 
   Future<SharedPreferences> get _prefs async {
     final cached = _preferences;
@@ -23,27 +24,37 @@ class BrowserCookieOriginService {
     if (origin == null) {
       return;
     }
-    final prefs = await _prefs;
-    final origins = prefs.getStringList(_storageKey) ?? const <String>[];
-    if (origins.contains(origin)) {
+    final origins = await _originSet;
+    if (!origins.add(origin)) {
       return;
     }
-    await prefs.setStringList(_storageKey, <String>[...origins, origin]);
+    final prefs = await _prefs;
+    await prefs.setStringList(_storageKey, origins.toList(growable: false));
   }
 
   Future<List<String>> loadOrigins() async {
-    final prefs = await _prefs;
-    final origins = prefs.getStringList(_storageKey) ?? const <String>[];
-    return origins
-        .map(normalizeOrigin)
-        .whereType<String>()
-        .toSet()
-        .toList(growable: false);
+    final origins = await _originSet;
+    return origins.toList(growable: false);
   }
 
   Future<void> clearOrigins() async {
+    _cachedOrigins = <String>{};
     final prefs = await _prefs;
     await prefs.remove(_storageKey);
+  }
+
+  Future<Set<String>> get _originSet async {
+    final cached = _cachedOrigins;
+    if (cached != null) {
+      return cached;
+    }
+    final prefs = await _prefs;
+    final loaded = (prefs.getStringList(_storageKey) ?? const <String>[])
+        .map(normalizeOrigin)
+        .whereType<String>()
+        .toSet();
+    _cachedOrigins = loaded;
+    return loaded;
   }
 
   static String? normalizeOrigin(String? rawUrl) {

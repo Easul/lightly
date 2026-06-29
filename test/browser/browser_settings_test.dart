@@ -159,6 +159,7 @@ void main() {
       final settings = BrowserSettings.defaults();
 
       expect(settings.openNewWindowInTab, isTrue);
+      expect(settings.webDebugConsoleEnabled, isFalse);
       expect(settings.desktopModeEnabled, isFalse);
       expect(settings.desktopUserAgentOverride, isEmpty);
       expect(settings.appCacheAutoClearEnabled, isFalse);
@@ -182,6 +183,16 @@ void main() {
 
       expect(settings.desktopModeEnabled, isTrue);
       expect(settings.toJson()['desktopModeEnabled'], isTrue);
+    });
+
+    test('webDebugConsoleEnabled restores from json', () {
+      final settings = BrowserSettings.fromJson({
+        'homepageUrl': 'https://example.com',
+        'webDebugConsoleEnabled': true,
+      });
+
+      expect(settings.webDebugConsoleEnabled, isTrue);
+      expect(settings.toJson()['webDebugConsoleEnabled'], isTrue);
     });
 
     test('desktopUserAgentOverride restores from json', () {

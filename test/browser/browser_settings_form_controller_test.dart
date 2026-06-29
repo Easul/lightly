@@ -34,6 +34,7 @@ void main() {
         localHttpBindAllInterfaces: true,
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
+        webDebugConsoleEnabled: true,
         desktopUserAgentOverride: ' Desktop UA ',
       );
 
@@ -55,6 +56,7 @@ void main() {
       expect(rebuilt.proxyTlsInsecure, isTrue);
       expect(rebuilt.localHttpBindAllInterfaces, isTrue);
       expect(rebuilt.nativeVideoPlayerEnabled, isTrue);
+      expect(rebuilt.webDebugConsoleEnabled, isTrue);
       expect(rebuilt.desktopUserAgentOverride, 'Desktop UA');
     });
 

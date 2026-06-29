@@ -181,6 +181,7 @@ class BrowserSettings {
     required this.nativeVideoPlayerEnabled,
     required this.nativeVideoParserApiBaseUrl,
     required this.openNewWindowInTab,
+    required this.webDebugConsoleEnabled,
     required this.desktopModeEnabled,
     required this.desktopUserAgentOverride,
     required this.appCacheAutoClearEnabled,
@@ -212,6 +213,7 @@ class BrowserSettings {
   final bool nativeVideoPlayerEnabled;
   final String nativeVideoParserApiBaseUrl;
   final bool openNewWindowInTab;
+  final bool webDebugConsoleEnabled;
   final bool desktopModeEnabled;
   final String desktopUserAgentOverride;
   final bool appCacheAutoClearEnabled;
@@ -263,6 +265,7 @@ class BrowserSettings {
       nativeVideoPlayerEnabled: false,
       nativeVideoParserApiBaseUrl: 'https://parser.example.com',
       openNewWindowInTab: true,
+      webDebugConsoleEnabled: false,
       desktopModeEnabled: false,
       desktopUserAgentOverride: '',
       appCacheAutoClearEnabled: false,
@@ -300,6 +303,7 @@ class BrowserSettings {
     bool? nativeVideoPlayerEnabled,
     String? nativeVideoParserApiBaseUrl,
     bool? openNewWindowInTab,
+    bool? webDebugConsoleEnabled,
     bool? desktopModeEnabled,
     String? desktopUserAgentOverride,
     bool? appCacheAutoClearEnabled,
@@ -341,6 +345,8 @@ class BrowserSettings {
       nativeVideoParserApiBaseUrl:
           nativeVideoParserApiBaseUrl ?? this.nativeVideoParserApiBaseUrl,
       openNewWindowInTab: openNewWindowInTab ?? this.openNewWindowInTab,
+      webDebugConsoleEnabled:
+          webDebugConsoleEnabled ?? this.webDebugConsoleEnabled,
       desktopModeEnabled: desktopModeEnabled ?? this.desktopModeEnabled,
       desktopUserAgentOverride:
           desktopUserAgentOverride ?? this.desktopUserAgentOverride,
@@ -379,6 +385,7 @@ class BrowserSettings {
       'nativeVideoPlayerEnabled': nativeVideoPlayerEnabled,
       'nativeVideoParserApiBaseUrl': nativeVideoParserApiBaseUrl,
       'openNewWindowInTab': openNewWindowInTab,
+      'webDebugConsoleEnabled': webDebugConsoleEnabled,
       'desktopModeEnabled': desktopModeEnabled,
       'desktopUserAgentOverride': desktopUserAgentOverride,
       'appCacheAutoClearEnabled': appCacheAutoClearEnabled,
@@ -431,6 +438,7 @@ class BrowserSettings {
           json['nativeVideoParserApiBaseUrl'] as String? ??
           'https://parser.example.com',
       openNewWindowInTab: json['openNewWindowInTab'] as bool? ?? true,
+      webDebugConsoleEnabled: json['webDebugConsoleEnabled'] as bool? ?? false,
       desktopModeEnabled: json['desktopModeEnabled'] as bool? ?? false,
       desktopUserAgentOverride:
           json['desktopUserAgentOverride'] as String? ?? '',

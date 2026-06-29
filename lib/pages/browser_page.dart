@@ -37,6 +37,7 @@ import '../services/app_toast.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/browser_site_compatibility_script.dart';
+import '../browser/utils/browser_web_debug_console_script.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_webview_host.dart';
 import '../browser/clipboard_http_server_service.dart';
@@ -48,6 +49,7 @@ import 'browser_page_action_coordinator.dart';
 import 'browser_page_external_intent_helper.dart';
 import 'browser_page_lifecycle_coordinator.dart';
 import 'browser_page_modal_coordinator.dart';
+import 'browser_page_navigation_refresh_coordinator.dart';
 import 'browser_page_notifier_sync.dart';
 import 'browser_page_overlay_load_freeze_coordinator.dart';
 import 'browser_page_overlay_state_manager.dart';
@@ -114,6 +116,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageStatePredicates();
   final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
   final BrowserPageAddressSync _addressSync = const BrowserPageAddressSync();
+  final BrowserPageNavigationRefreshCoordinator _navigationRefreshCoordinator =
+      BrowserPageNavigationRefreshCoordinator();
   final BrowserPageOverlayLoadFreezeCoordinator _overlayLoadFreezeCoordinator =
       BrowserPageOverlayLoadFreezeCoordinator();
   late final BrowserPageOverlayStateManager _overlayStateManager;
@@ -520,6 +524,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _isSecureNotifier.dispose();
     _tabCountNotifier.dispose();
     _statusMessageNotifier.dispose();
+    _navigationRefreshCoordinator.cancel();
     _overlayLoadFreezeCoordinator.cancel();
     _overlayStateManager.dispose();
     _favoriteStatusController.dispose();
@@ -692,6 +697,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _pullToRefreshController?.endRefreshing();
     unawaited(_recordCookieOrigin(url));
     unawaited(_injectSiteCompatibilityFixes(controller, url));
+    unawaited(_applyWebDebugConsoleForController(controller, url?.toString()));
+    _navigationRefreshCoordinator.cancel();
     final didChangeLoading = _updateTabById(hostedTabId, isLoading: false);
     final didChangeProgress = _isActiveTabId(hostedTabId)
         ? _updateProgressIfNeeded(100)
@@ -814,7 +821,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       isActiveTab: _isActiveTabId(hostedTabId),
     )) {
       unawaited(_recordCookieOrigin(url));
-      unawaited(_handleVisitedHistoryUpdate(controller, url));
+      _navigationRefreshCoordinator.schedule(
+        refresh: () async {
+          if (!mounted || !_isActiveTabId(hostedTabId)) {
+            return;
+          }
+          await _handleVisitedHistoryUpdate(controller, url);
+        },
+      );
     } else if (url != null &&
         _webViewCoordinator.shouldSyncVisitedHistoryForBackgroundTab(
           isActiveTab: _isActiveTabId(hostedTabId),
@@ -934,6 +948,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final previousDesktopModeEnabled = _settings.desktopModeEnabled;
     final previousDesktopUserAgentOverride =
         _settings.normalizedDesktopUserAgentOverride;
+    final previousWebDebugConsoleEnabled = _settings.webDebugConsoleEnabled;
     final appliedSettings = await _initializer.reloadSettings(
       onClearVideoPromptState: _initializer.clearVideoPromptState,
       onReplaceSuggestionService: _replaceSuggestionService,
@@ -968,6 +983,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       }
     });
     _syncNotifiers();
+
+    final controller = _webViewController;
+    if (controller != null &&
+        previousWebDebugConsoleEnabled !=
+            snapshot.settings.webDebugConsoleEnabled) {
+      unawaited(
+        _applyWebDebugConsoleForController(
+          controller,
+          _currentUrl,
+          allowDisable: true,
+        ),
+      );
+    }
 
     await _favoriteStatusController.refreshStatus(
       _currentUrl,
@@ -1391,6 +1419,27 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _applyWebDebugConsoleForController(
+    InAppWebViewController controller,
+    String? rawUrl, {
+    bool allowDisable = false,
+  }) async {
+    if (!BrowserWebDebugConsoleScript.supportsUrl(rawUrl)) {
+      return;
+    }
+    if (!_settings.webDebugConsoleEnabled && !allowDisable) {
+      return;
+    }
+    final script = _settings.webDebugConsoleEnabled
+        ? BrowserWebDebugConsoleScript.buildEnableScript()
+        : BrowserWebDebugConsoleScript.buildDisableScript();
+    try {
+      await controller.evaluateJavascript(source: script);
+    } catch (_) {
+      // Keep page loading resilient even if a site rejects late JS execution.
+    }
+  }
+
   Future<void> _openSettings() async {
     final result = await Navigator.of(context).pushNamed('/settings');
     if (_routeHandler.shouldReloadSettingsAfterSettingsRoute(result)) {
@@ -1420,6 +1469,41 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       _statusMessage = appliedSettings.proxyStatusMessage;
     });
     _replaceSuggestionService();
+  }
+
+  Future<void> _toggleWebDebugConsole() async {
+    final enabled = !_settings.webDebugConsoleEnabled;
+    final latestSettings = await _settingsService.loadSettings();
+    final newSettings = latestSettings.copyWith(
+      webDebugConsoleEnabled: enabled,
+    );
+    await _settingsService.saveSettings(newSettings);
+    if (!mounted) {
+      return;
+    }
+
+    _updateStateWhenVisible(() {
+      _settings = newSettings;
+      _statusMessage = enabled ? '已开启页面调试台' : '已关闭页面调试台';
+    });
+
+    final controller = _webViewController;
+    if (controller == null) {
+      return;
+    }
+
+    if (!BrowserWebDebugConsoleScript.supportsUrl(_currentUrl)) {
+      if (enabled) {
+        _showSnackBar('当前页面不支持调试台，仅支持 http/https 页面');
+      }
+      return;
+    }
+
+    await _applyWebDebugConsoleForController(
+      controller,
+      _currentUrl,
+      allowDisable: !enabled,
+    );
   }
 
   Future<void> _toggleDesktopMode() async {
@@ -1997,9 +2081,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       context: context,
       proxyEnabled: _settings.shouldApplyProxy,
       desktopModeEnabled: _settings.desktopModeEnabled,
+      webDebugConsoleEnabled: _settings.webDebugConsoleEnabled,
       isFavorited: _favoriteStatusController.isCurrentPageFavorited,
       onToggleFavorite: _isFavoritesPage(_currentUrl) ? null : _toggleFavorite,
       onToggleProxy: _toggleProxy,
+      onToggleWebDebugConsole: _toggleWebDebugConsole,
       onToggleDesktopMode: _toggleDesktopMode,
       onOpenDownloads: _openDownloads,
       onOpenDataManagement: _openDataManagement,

@@ -5,9 +5,11 @@ class BrowserMoreActionsSheet extends StatelessWidget {
     super.key,
     required this.proxyEnabled,
     required this.desktopModeEnabled,
+    required this.webDebugConsoleEnabled,
     required this.isFavorited,
     required this.onToggleFavorite,
     required this.onToggleProxy,
+    required this.onToggleWebDebugConsole,
     required this.onToggleDesktopMode,
     required this.onOpenDownloads,
     required this.onOpenDataManagement,
@@ -20,9 +22,11 @@ class BrowserMoreActionsSheet extends StatelessWidget {
 
   final bool proxyEnabled;
   final bool desktopModeEnabled;
+  final bool webDebugConsoleEnabled;
   final bool isFavorited;
   final VoidCallback? onToggleFavorite;
   final VoidCallback onToggleProxy;
+  final VoidCallback onToggleWebDebugConsole;
   final VoidCallback onToggleDesktopMode;
   final VoidCallback onOpenDownloads;
   final VoidCallback onOpenDataManagement;
@@ -117,6 +121,19 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onToggleProxy();
+                  },
+                ),
+                _ActionItem(
+                  icon: webDebugConsoleEnabled
+                      ? Icons.bug_report_rounded
+                      : Icons.bug_report_outlined,
+                  label: webDebugConsoleEnabled ? '关闭页面调试台' : '开启页面调试台',
+                  iconColor: webDebugConsoleEnabled
+                      ? colorScheme.primary
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onToggleWebDebugConsole();
                   },
                 ),
                 _ActionItem(

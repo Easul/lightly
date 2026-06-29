@@ -28,6 +28,7 @@ void main() {
         'https://parser.example.com',
       );
       expect(settings.openNewWindowInTab, isTrue);
+      expect(settings.webDebugConsoleEnabled, isFalse);
     });
 
     test('saveSettings persists values', () async {
@@ -42,6 +43,7 @@ void main() {
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.custom.example',
         openNewWindowInTab: false,
+        webDebugConsoleEnabled: true,
       );
 
       await service.saveSettings(settings);
@@ -59,6 +61,7 @@ void main() {
         'https://parser.custom.example',
       );
       expect(restored.openNewWindowInTab, isFalse);
+      expect(restored.webDebugConsoleEnabled, isTrue);
     });
   });
 }

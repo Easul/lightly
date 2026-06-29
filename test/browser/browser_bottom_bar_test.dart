@@ -184,9 +184,11 @@ void main() {
                     builder: (_) => BrowserMoreActionsSheet(
                       proxyEnabled: false,
                       desktopModeEnabled: false,
+                      webDebugConsoleEnabled: false,
                       isFavorited: false,
                       onToggleFavorite: () {},
                       onToggleProxy: () {},
+                      onToggleWebDebugConsole: () {},
                       onToggleDesktopMode: () {},
                       onOpenDownloads: () {},
                       onOpenDataManagement: () {},
@@ -212,6 +214,7 @@ void main() {
     expect(find.text('下载'), findsOneWidget);
     expect(find.text('数据管理'), findsOneWidget);
     expect(find.text('关闭标签页'), findsOneWidget);
+    expect(find.text('开启页面调试台'), findsOneWidget);
     expect(find.text('电脑模式'), findsOneWidget);
     expect(find.text('页面内查找'), findsNothing);
     expect(find.text('设置'), findsOneWidget);
