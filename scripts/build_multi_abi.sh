@@ -15,6 +15,7 @@ ARM32_HEAP="${ARM32_HEAP:-8G}"
 METASPACE_SIZE="${METASPACE_SIZE:-2G}"
 CODE_CACHE_SIZE="${CODE_CACHE_SIZE:-256m}"
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS:-5}"
+APKANALYZER="${APKANALYZER:-$(command -v apkanalyzer 2>/dev/null || true)}"
 
 print_memory_snapshot() {
   echo "🧠 Memory snapshot:"
@@ -30,8 +31,13 @@ stop_gradle_daemons() {
 }
 
 cleanup_between_builds() {
-  echo "🧹 Cleaning intermediate Android build artifacts..."
-  rm -rf     "$PROJECT_ROOT/build/app/intermediates"     "$PROJECT_ROOT/build/app/kotlin"     "$ANDROID_DIR/.gradle"/kotlin     2>/dev/null || true
+  echo "🧹 Cleaning Flutter/Android intermediate build artifacts..."
+  rm -rf \
+    "$PROJECT_ROOT/.dart_tool/flutter_build" \
+    "$PROJECT_ROOT/build/app/intermediates" \
+    "$PROJECT_ROOT/build/app/kotlin" \
+    "$ANDROID_DIR/.gradle"/kotlin \
+    2>/dev/null || true
 }
 
 cooldown_host() {
@@ -46,6 +52,22 @@ build_release_for_abi() {
   local heap_size="$3"
 
   GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${GRADLE_WORKERS} -Dorg.gradle.jvmargs='-Xmx${heap_size} -XX:MaxMetaspaceSize=${METASPACE_SIZE} -XX:ReservedCodeCacheSize=${CODE_CACHE_SIZE} -XX:+HeapDumpOnOutOfMemoryError'"   _JAVA_OPTIONS="-Xmx${heap_size}"   TARGET_ABI="$abi"   BUILD_VERSION_LABEL="$VERSION_NAME"   BUILD_VERSION_CODE="$VERSION_CODE"   flutter build apk     --release     --target-platform "$target_platform"     --obfuscate     --split-debug-info="$SYMBOL_OUTPUT_DIR"
+}
+
+verify_apk_metadata() {
+  local apk_path="$1"
+  local apk_name
+  apk_name="$(basename "$apk_path")"
+
+  if [[ -n "$APKANALYZER" ]]; then
+    echo "🔍 Verifying $apk_name manifest..."
+    "$APKANALYZER" manifest print "$apk_path" | grep -E 'versionCode|versionName' || true
+  else
+    echo "⚠️  apkanalyzer not found; skipping manifest verification for $apk_name"
+  fi
+
+  echo "🔐 SHA256 ($apk_name):"
+  sha256sum "$apk_path"
 }
 
 LATEST_TAG=${RELEASE_VERSION_TAG:-$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || git -C "$PROJECT_ROOT" tag --sort=-v:refname | head -1 2>/dev/null || echo "v1.0.0")}
@@ -84,6 +106,7 @@ build_release_for_abi arm64-v8a android-arm64 "$ARM64_HEAP"
 # Save with ABI-specific name
 mv "$APK_OUTPUT_DIR/app-release.apk" "$APK_OUTPUT_DIR/app-arm64-v8a-release.apk"
 echo "✅ Saved: app-arm64-v8a-release.apk (version: $VERSION_NAME, code: $VERSION_CODE)"
+verify_apk_metadata "$APK_OUTPUT_DIR/app-arm64-v8a-release.apk"
 
 stop_gradle_daemons
 cleanup_between_builds
@@ -96,6 +119,7 @@ build_release_for_abi armeabi-v7a android-arm "$ARM32_HEAP"
 # Save with ABI-specific name
 mv "$APK_OUTPUT_DIR/app-release.apk" "$APK_OUTPUT_DIR/app-armeabi-v7a-release.apk"
 echo "✅ Saved: app-armeabi-v7a-release.apk (version: $VERSION_NAME, code: $VERSION_CODE)"
+verify_apk_metadata "$APK_OUTPUT_DIR/app-armeabi-v7a-release.apk"
 
 stop_gradle_daemons
 

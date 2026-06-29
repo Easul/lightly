@@ -581,13 +581,15 @@ const String _htmlPage = r'''
 <title>文件简易管理</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6fb; color: #1f2937; }
-  header { padding: 18px 22px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body { margin: 0; min-height: 100dvh; height: 100dvh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6fb; color: #1f2937; overflow: hidden; }
+  header { padding: clamp(14px, 1.6vw, 20px) clamp(16px, 1.8vw, 24px); background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; }
   h1 { margin: 0; font-size: 20px; }
   .status { color: #667085; font-size: 13px; word-break: break-all; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 330px 1fr; gap: 14px; padding: 14px; }
-  aside, section { min-height: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 22px rgba(15,23,42,.05); }
+  main { flex: 1 1 auto; min-height: 0; width: 100%; display: grid; grid-template-columns: minmax(280px, 30vw) minmax(0, 1fr); gap: clamp(10px, 1.2vw, 16px); padding: clamp(10px, 1.2vw, 16px); overflow: hidden; }
+  aside, section { min-height: 0; height: 100%; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 22px rgba(15,23,42,.05); }
   aside { display: flex; flex-direction: column; }
+  section { display: flex; min-width: 0; }
   .pane-title { padding: 14px 16px; border-bottom: 1px solid #eef2f7; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
   .toolbar { padding: 12px; display: flex; gap: 8px; border-bottom: 1px solid #eef2f7; }
   input { width: 100%; border: 1px solid #d0d5dd; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
@@ -604,6 +606,7 @@ const String _htmlPage = r'''
   .entry-meta { color: #98a2b3; font-size: 12px; }
   .favorite { color: #f59e0b; }
   .editor { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+  #editorPanel > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
   .editor-head { padding: 12px 16px; border-bottom: 1px solid #eef2f7; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .file-title { min-width: 0; }
   .file-title strong, .file-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

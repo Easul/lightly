@@ -300,6 +300,8 @@ Important:
 - Do not assume `--target-platform android-arm64` alone guarantees a small single-ABI package when manual `jniLibs/` are checked in.
 
 - The checked-in script uses conservative local build settings: Gradle daemon disabled, parallel disabled, limited workers, cleanup between ABIs, and a cooldown/memory snapshot between builds. Keep this behavior unless CI or the local host is known to tolerate faster settings.
+- Clear Flutter incremental build state (`.dart_tool/flutter_build`) before the first ABI build and again between ABI builds. Stale depfiles or kernel snapshots can make a fresh-looking APK behave like older code even when the artifact timestamp and version label are new.
+- When diagnosing release-package mismatches, have the script print APK manifest `versionName` / `versionCode` and a hash for each ABI artifact immediately after build, so the installed file can be matched to the produced output exactly.
 - If script output says `Version Code: N`, verify Gradle actually used the same value when changing version wiring; the build script must pass `BUILD_VERSION_CODE` and `android/app/build.gradle.kts` must consume it.
 - Keep the numeric version base as `5000 + main branch commit count`; the important invariant is counting `main` only, not the current feature branch, so branch-local commits do not inflate release `versionCode`.
 
