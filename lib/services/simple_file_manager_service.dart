@@ -581,11 +581,11 @@ const String _htmlPage = r'''
 <title>文件简易管理</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6fb; color: #1f2937; }
+  body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6fb; color: #1f2937; }
   header { padding: 18px 22px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   h1 { margin: 0; font-size: 20px; }
   .status { color: #667085; font-size: 13px; word-break: break-all; }
-  main { height: calc(100vh - 72px); display: grid; grid-template-columns: 330px 1fr; gap: 14px; padding: 14px; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 330px 1fr; gap: 14px; padding: 14px; }
   aside, section { min-height: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 22px rgba(15,23,42,.05); }
   aside { display: flex; flex-direction: column; }
   .pane-title { padding: 14px 16px; border-bottom: 1px solid #eef2f7; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
@@ -616,13 +616,17 @@ const String _htmlPage = r'''
   .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 14px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 92vw; }
   .toast.show { opacity: 1; }
   @media (max-width: 760px) {
-    header { align-items: flex-start; flex-direction: column; padding: 14px; }
-    main { height: auto; min-height: calc(100vh - 92px); display: flex; flex-direction: column; padding: 10px; }
-    aside { min-height: 42vh; }
-    section { min-height: 58vh; }
-    .editor { min-height: 58vh; }
+    header { align-items: flex-start; flex-direction: column; gap: 8px; padding: 12px; }
+    h1 { font-size: 18px; }
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 40dvh) minmax(0, 1fr); gap: 10px; padding: 10px; }
+    aside, section, .editor { min-height: 0; }
     .editor-head { align-items: stretch; flex-direction: column; }
-    .split { grid-template-rows: minmax(0, 1fr) 170px; }
+    .split { grid-template-rows: minmax(0, 1fr) minmax(112px, 28%); }
+    .pane-title { padding: 12px 14px; }
+    .toolbar { padding: 10px; }
+    .list { padding: 6px; }
+    .entry { padding: 8px 10px; }
+    textarea { padding: 14px; font-size: 13px; }
     .editor-head .actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   }
 </style>
@@ -655,6 +659,12 @@ const pathInput = document.getElementById('pathInput');
 const pathLabel = document.getElementById('pathLabel');
 const editorPanel = document.getElementById('editorPanel');
 pathInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadTree(pathInput.value); });
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    if (currentFile) saveFile();
+  }
+});
 function toast(message) { const el = document.getElementById('toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2200); }
 async function api(url, options) { const res = await fetch(url, options); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status)); return data; }
 async function loadTree(path) {

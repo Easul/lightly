@@ -155,6 +155,31 @@ void main() {
     );
     expect(readDeletedResponse.statusCode, HttpStatus.notFound);
   });
+
+  test('serves editor page with mobile layout and save shortcut', () async {
+    final port = await _reservePort();
+
+    await service.start(
+      settings: SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: tempDir.path,
+        port: port,
+        bindAllInterfaces: false,
+        favoritePaths: const <String>[],
+      ),
+    );
+
+    final baseUrl = service.localUrl!;
+    final pageResponse = await http.get(Uri.parse(baseUrl));
+
+    expect(pageResponse.statusCode, HttpStatus.ok);
+    expect(
+      pageResponse.body,
+      contains('grid-template-rows: minmax(260px, 40dvh) minmax(0, 1fr);'),
+    );
+    expect(pageResponse.body, contains("(e.ctrlKey || e.metaKey)"));
+    expect(pageResponse.body, contains("e.key.toLowerCase() === 's'"));
+  });
 }
 
 Future<int> _reservePort() async {
