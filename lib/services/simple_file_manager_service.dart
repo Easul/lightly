@@ -612,7 +612,7 @@ const String _htmlPage = r'''
   .empty { height: 100%; display: grid; place-items: center; color: #667085; text-align: center; padding: 24px; }
   .split { display: grid; grid-template-rows: minmax(0, 1fr) minmax(150px, 32%); min-height: 0; }
   .favorites { border-top: 1px solid #eef2f7; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
-  .favorites .list { min-height: 0; overflow: auto; }
+  .favorites .list { min-height: 0; overflow: auto; padding-bottom: 22px; }
   .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 14px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 92vw; }
   .toast.show { opacity: 1; }
   @media (max-width: 760px) {

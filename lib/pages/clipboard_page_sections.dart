@@ -89,19 +89,10 @@ class ClipboardServerStatusCard extends StatelessWidget {
             ),
             if (server.isRunning) ...[
               const SizedBox(height: 8),
-              Text(
-                '监听地址：${server.baseUrl ?? ''}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Text(
-                '本机访问：${server.localUrl ?? ''}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              _ClipboardServerInfoLine(text: '监听地址：${server.baseUrl ?? ''}'),
+              _ClipboardServerInfoLine(text: '本机访问：${server.localUrl ?? ''}'),
               for (final lanUrl in server.lanUrls)
-                Text(
-                  '局域网访问：$lanUrl',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                _ClipboardServerInfoLine(text: '局域网访问：$lanUrl'),
             ],
           ],
         ),
@@ -133,23 +124,30 @@ class ClipboardEditorSection extends StatelessWidget {
         const SizedBox(height: 8),
         SizedBox(
           height: 200,
-          child: Scrollbar(
-            controller: scrollController,
-            thumbVisibility: true,
-            child: TextField(
-              focusNode: focusNode,
-              controller: controller,
-              scrollController: scrollController,
-              maxLines: null,
-              minLines: 8,
-              keyboardType: TextInputType.multiline,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: const InputDecoration(
-                hintText: '在此输入或粘贴内容...',
-                alignLabelWithHint: false,
-                contentPadding: EdgeInsets.all(12),
+          child: Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: RawScrollbar(
+              controller: scrollController,
+              thumbVisibility: true,
+              radius: const Radius.circular(8),
+              thickness: 4,
+              crossAxisMargin: 3,
+              mainAxisMargin: 4,
+              child: TextField(
+                focusNode: focusNode,
+                controller: controller,
+                scrollController: scrollController,
+                maxLines: null,
+                minLines: 8,
+                keyboardType: TextInputType.multiline,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  hintText: '在此输入或粘贴内容...',
+                  alignLabelWithHint: false,
+                  contentPadding: EdgeInsets.fromLTRB(12, 12, 18, 12),
+                ),
+                contextMenuBuilder: contextMenuBuilder,
               ),
-              contextMenuBuilder: contextMenuBuilder,
             ),
           ),
         ),
@@ -248,10 +246,27 @@ class ClipboardActionButtons extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh_outlined),
-            label: const Text('刷新（从系统剪贴板读取）'),
+            label: const Text('刷新已保存内容'),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ClipboardServerInfoLine extends StatelessWidget {
+  const _ClipboardServerInfoLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.15),
+      ),
     );
   }
 }

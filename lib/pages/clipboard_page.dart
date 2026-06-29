@@ -147,7 +147,7 @@ class _ClipboardPageState extends State<ClipboardPage>
     try {
       await _storage.saveContent(text);
       if (mounted) {
-        _showToast('已保存到剪贴板');
+        _showToast('已保存到网页剪贴板');
       }
     } catch (e) {
       if (mounted) {
@@ -181,13 +181,12 @@ class _ClipboardPageState extends State<ClipboardPage>
     }
   }
 
-  Future<void> _refreshFromClipboard() async {
+  Future<void> _refreshSavedContent() async {
     try {
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      final text = data?.text ?? '';
+      final text = await _storage.loadContent();
       _controller.text = text;
       if (mounted) {
-        _showToast('已刷新系统剪贴板内容');
+        _showToast('已刷新网页保存内容');
       }
     } catch (e) {
       if (mounted) {
@@ -281,7 +280,7 @@ class _ClipboardPageState extends State<ClipboardPage>
                     isSaving: _isSaving,
                     onSave: () => unawaited(_saveContent()),
                     onPaste: () => unawaited(_pasteFromClipboard()),
-                    onRefresh: () => unawaited(_refreshFromClipboard()),
+                    onRefresh: () => unawaited(_refreshSavedContent()),
                   ),
                   // Bottom safe area padding
                   SizedBox(height: MediaQuery.of(context).padding.bottom + 16),

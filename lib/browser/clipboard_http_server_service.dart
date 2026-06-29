@@ -193,7 +193,7 @@ class ClipboardHttpServerService {
 </head>
 <body>
 <h1>剪贴板</h1>
-<p class="info">内容会自动保存到系统剪贴板。页面每 3 秒自动刷新以同步最新内容。</p>
+<p class="info">内容会保存到网页剪贴板数据，不会覆盖手机系统剪贴板。支持 Ctrl+S / Cmd+S 保存，页面每 8 秒自动刷新一次。</p>
 <textarea id="content" placeholder="在此输入或粘贴内容...">$escapedContent</textarea>
 <div class="actions">
   <button class="btn-primary" onclick="saveContent()">保存到剪贴板</button>
@@ -206,6 +206,14 @@ class ClipboardHttpServerService {
   const textarea = document.getElementById('content');
   textarea.addEventListener('focus', () => { isEditing = true; });
   textarea.addEventListener('blur', () => { isEditing = false; });
+  document.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) &&
+        event.key &&
+        event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      saveContent();
+    }
+  });
 
   function showStatus(msg, isError) {
     const el = document.getElementById('status');
@@ -223,7 +231,7 @@ class ClipboardHttpServerService {
         body: text
       });
       if (res.ok) {
-        showStatus('已保存到剪贴板', false);
+        showStatus('已保存到网页剪贴板', false);
       } else {
         showStatus('保存失败: ' + res.status, true);
       }

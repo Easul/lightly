@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ClipboardStorageService {
@@ -16,13 +13,11 @@ class ClipboardStorageService {
   Future<void> saveContent(String text) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_contentKey, text);
-    await Clipboard.setData(ClipboardData(text: text));
   }
 
   Future<void> clearContent() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_contentKey);
-    await Clipboard.setData(const ClipboardData(text: ''));
   }
 
   Future<bool> loadServerEnabled() async {

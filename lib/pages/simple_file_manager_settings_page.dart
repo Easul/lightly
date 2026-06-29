@@ -229,7 +229,7 @@ class _SimpleFileManagerSettingsPageState
                             Text('服务状态：$_stateLabel'),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         if (_service.localUrl != null)
                           _UrlLine(
                             label: '本机访问',
@@ -356,10 +356,12 @@ class _SimpleFileManagerSettingsPageState
                                   : () => unawaited(_removeFavoritePath(path)),
                             ),
                           ),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
                 ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
               ],
             ),
     );
@@ -379,21 +381,29 @@ class _UrlLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text('$label：', style: Theme.of(context).textTheme.bodySmall),
-        Expanded(
-          child: Text(
-            url,
-            style: Theme.of(context).textTheme.bodySmall,
-            overflow: TextOverflow.ellipsis,
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(height: 1.1);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          Text('$label：', style: textStyle),
+          Expanded(
+            child: Text(url, style: textStyle, overflow: TextOverflow.ellipsis),
           ),
-        ),
-        TextButton(
-          onPressed: () => unawaited(onCopy(url)),
-          child: const Text('复制'),
-        ),
-      ],
+          TextButton(
+            onPressed: () => unawaited(onCopy(url)),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 28),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('复制'),
+          ),
+        ],
+      ),
     );
   }
 }
