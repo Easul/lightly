@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/browser_auth_url_detector.dart';
 import '../utils/browser_popup_filter.dart';
+import '../utils/browser_popup_url_decoder.dart';
 import '../widgets/popup_webview_dialog.dart';
 
 enum BrowserPopupWindowAction { ignore, external, openTab, showPopup }
@@ -29,19 +30,23 @@ class BrowserPopupWindowHandler {
     required bool hasGesture,
     required bool openNewWindowInTab,
   }) {
-    final parsedRequestedUrl = requestedUrl.isEmpty
+    final decodedRequestedUrl = BrowserPopupUrlDecoder.decodeIfNeeded(
+      requestedUrl,
+    );
+    final parsedRequestedUrl = decodedRequestedUrl.isEmpty
         ? null
-        : Uri.tryParse(requestedUrl);
+        : Uri.tryParse(decodedRequestedUrl);
     final requestedScheme = parsedRequestedUrl?.scheme.toLowerCase();
 
     if (parsedRequestedUrl != null &&
         !BrowserPopupFilter.isWebScheme(requestedScheme)) {
-      return const BrowserPopupWindowDecision(
+      return BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.external,
+        initialUrl: decodedRequestedUrl,
       );
     }
 
-    if (requestedUrl.isEmpty &&
+    if (decodedRequestedUrl.isEmpty &&
         hasGesture &&
         BrowserAuthUrlDetector.looksLikeAuthUrl(sourceUrl)) {
       return const BrowserPopupWindowDecision(
@@ -50,31 +55,31 @@ class BrowserPopupWindowHandler {
       );
     }
 
-    if (requestedUrl.isEmpty && hasGesture && openNewWindowInTab) {
+    if (decodedRequestedUrl.isEmpty && hasGesture && openNewWindowInTab) {
       return const BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.openTab,
       );
     }
 
-    if (BrowserPopupFilter.shouldSuppressPopupUrl(requestedUrl)) {
+    if (BrowserPopupFilter.shouldSuppressPopupUrl(decodedRequestedUrl)) {
       return const BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.ignore,
       );
     }
 
     final isTrustedAuthPopup = BrowserAuthUrlDetector.isTrustedAuthPopupUrl(
-      requestedUrl,
+      decodedRequestedUrl,
     );
     if (openNewWindowInTab || isTrustedAuthPopup) {
       return BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.openTab,
-        initialUrl: requestedUrl,
+        initialUrl: decodedRequestedUrl,
       );
     }
 
     return BrowserPopupWindowDecision(
       action: BrowserPopupWindowAction.showPopup,
-      initialUrl: requestedUrl.isEmpty ? null : requestedUrl,
+      initialUrl: decodedRequestedUrl.isEmpty ? null : decodedRequestedUrl,
     );
   }
 

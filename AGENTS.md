@@ -420,6 +420,18 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 
 ## WebView HTTP Auth & Popup Compatibility
 
+### Percent-encoded popup URLs must be decoded before routing
+
+- Some pages pass an entire custom-scheme popup target as a percent-encoded string, for example `baiduboxapp%3A%2F%2F...`.
+- Decode valid percent-encoded popup URLs before scheme detection, suppression checks, confirmation display, external-app launching, or nested popup creation.
+- Keep malformed percent encoding unchanged instead of throwing and breaking the WebView popup callback.
+- Apply the same normalization to both main WebView popups and nested popup WebViews.
+- Related files:
+  - `lib/browser/utils/browser_popup_url_decoder.dart`
+  - `lib/browser/services/browser_popup_window_handler.dart`
+  - `lib/browser/widgets/popup_webview_dialog.dart`
+- Verification: trigger an encoded `baiduboxapp://v1/easy/bydird?upgrade=1&type=hybird` popup and confirm the decoded URL is shown and routed as an external app URL.
+
 ### HTTP auth dialogs must be handled explicitly
 
 - `flutter_inappwebview` 6.1.5 does **not** show a native HTTP auth dialog automatically.

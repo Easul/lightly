@@ -1596,7 +1596,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       case BrowserPopupWindowAction.ignore:
         return false;
       case BrowserPopupWindowAction.external:
-        final parsedRequestedUrl = Uri.tryParse(requestedUrl);
+        final parsedRequestedUrl = Uri.tryParse(decision.initialUrl ?? '');
         if (parsedRequestedUrl != null) {
           await _confirmAndLaunchExternalUrl(parsedRequestedUrl);
         }

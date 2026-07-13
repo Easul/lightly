@@ -7,6 +7,7 @@ import '../services/browser_auth_dialog_service.dart';
 import '../services/browser_external_url_launcher_service.dart';
 import '../utils/browser_auth_url_detector.dart';
 import '../utils/browser_popup_filter.dart';
+import '../utils/browser_popup_url_decoder.dart';
 import '../utils/ui_update_thresholds.dart';
 
 class PopupWebViewDialog extends StatefulWidget {
@@ -267,7 +268,11 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     _handleReceivedError(request, error),
                 onReceivedHttpAuthRequest: _handleHttpAuthRequest,
                 onCreateWindow: (controller, createWindowAction) async {
-                  final popupUrl = createWindowAction.request.url?.toString();
+                  final rawPopupUrl = createWindowAction.request.url
+                      ?.toString();
+                  final popupUrl = rawPopupUrl == null
+                      ? null
+                      : BrowserPopupUrlDecoder.decodeIfNeeded(rawPopupUrl);
                   if ((popupUrl == null || popupUrl.isEmpty) &&
                       _shouldAllowDeferredAuthPopup(createWindowAction)) {
                     return _showNestedPopupWindow(

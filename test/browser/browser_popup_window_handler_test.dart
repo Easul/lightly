@@ -18,6 +18,23 @@ void main() {
       );
 
       expect(decision.action, BrowserPopupWindowAction.external);
+      expect(decision.initialUrl, 'blob:https://example.com/abc');
+    });
+
+    test('decodes encoded app popup url before external handling', () {
+      final decision = handler.decide(
+        requestedUrl:
+            'baiduboxapp%3A%2F%2Fv1%2Feasy%2Fbydird%3Fupgrade%3D1%26type%3Dhybird',
+        sourceUrl: 'https://example.com',
+        hasGesture: true,
+        openNewWindowInTab: false,
+      );
+
+      expect(decision.action, BrowserPopupWindowAction.external);
+      expect(
+        decision.initialUrl,
+        'baiduboxapp://v1/easy/bydird?upgrade=1&type=hybird',
+      );
     });
 
     test('routes trusted auth popups to new tabs', () {
