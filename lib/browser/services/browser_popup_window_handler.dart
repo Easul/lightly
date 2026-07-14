@@ -12,11 +12,13 @@ class BrowserPopupWindowDecision {
     required this.action,
     this.statusMessage,
     this.initialUrl,
+    this.externalUrl,
   });
 
   final BrowserPopupWindowAction action;
   final String? statusMessage;
   final String? initialUrl;
+  final String? externalUrl;
 }
 
 class BrowserPopupWindowHandler {
@@ -33,16 +35,19 @@ class BrowserPopupWindowHandler {
     final decodedRequestedUrl = BrowserPopupUrlDecoder.decodeIfNeeded(
       requestedUrl,
     );
-    final parsedRequestedUrl = decodedRequestedUrl.isEmpty
-        ? null
-        : Uri.tryParse(decodedRequestedUrl);
-    final requestedScheme = parsedRequestedUrl?.scheme.toLowerCase();
+    final requestedScheme = BrowserPopupUrlDecoder.schemeOf(
+      decodedRequestedUrl,
+    );
 
-    if (parsedRequestedUrl != null &&
+    if (requestedScheme != null &&
         !BrowserPopupFilter.isWebScheme(requestedScheme)) {
       return BrowserPopupWindowDecision(
         action: BrowserPopupWindowAction.external,
         initialUrl: decodedRequestedUrl,
+        externalUrl: BrowserPopupUrlDecoder.externalLaunchUrl(
+          rawUrl: requestedUrl,
+          decodedUrl: decodedRequestedUrl,
+        ),
       );
     }
 

@@ -27,5 +27,25 @@ void main() {
         'baiduboxapp%3A%2F%invalid',
       );
     });
+
+    test('extracts scheme without parsing encoded custom payload', () {
+      expect(
+        BrowserPopupUrlDecoder.schemeOf(
+          'bankabc://{"method":"jumpToSharedProduct"}',
+        ),
+        'bankabc',
+      );
+    });
+
+    test('keeps raw encoded url when it already contains a scheme', () {
+      const rawUrl = 'bankabc://%7B%22method%22%3A%22jumpToSharedProduct%22%7D';
+      expect(
+        BrowserPopupUrlDecoder.externalLaunchUrl(
+          rawUrl: rawUrl,
+          decodedUrl: 'bankabc://{"method":"jumpToSharedProduct"}',
+        ),
+        rawUrl,
+      );
+    });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:lightly/browser/services/browser_external_app_handler.dart';
 
 void main() {
@@ -9,7 +10,7 @@ void main() {
     ) async {
       final handler = BrowserExternalAppHandler();
       const encodedUrl =
-          'bankabc://%7B%22method%22%3A%22jumptosharedproduct%22%2C%22type%22%3A%221%22%7D';
+          'bankabc://%7B%22method%22%3A%22jumpToSharedProduct%22%2C%22type%22%3A%221%22%2C%22trafficTag%22%3A%2290fc%22%7D';
 
       await tester.pumpWidget(
         MaterialApp(
@@ -17,7 +18,7 @@ void main() {
             builder: (context) => TextButton(
               onPressed: () => handler.confirmAndLaunchExternalUrl(
                 context,
-                Uri.parse(encodedUrl),
+                WebUri(encodedUrl, forceToStringRawValue: true),
                 launchExternalUrl: (_) async => 'opened',
               ),
               child: const Text('open'),
@@ -31,7 +32,7 @@ void main() {
 
       expect(
         find.textContaining(
-          'bankabc://{"method":"jumptosharedproduct","type":"1"}',
+          'bankabc://{"method":"jumpToSharedProduct","type":"1","trafficTag":"90fc"}',
         ),
         findsOneWidget,
       );

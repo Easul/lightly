@@ -1582,7 +1582,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     CreateWindowAction createWindowAction,
   ) async {
-    final requestedUrl = createWindowAction.request.url?.toString() ?? '';
+    final requestedUrl = createWindowAction.request.url?.rawValue ?? '';
     final decision = _popupWindowHandler.decide(
       requestedUrl: requestedUrl,
       sourceUrl:
@@ -1596,9 +1596,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       case BrowserPopupWindowAction.ignore:
         return false;
       case BrowserPopupWindowAction.external:
-        final parsedRequestedUrl = Uri.tryParse(decision.initialUrl ?? '');
-        if (parsedRequestedUrl != null) {
-          await _confirmAndLaunchExternalUrl(parsedRequestedUrl);
+        final externalUrl = decision.externalUrl;
+        if (externalUrl != null && externalUrl.isNotEmpty) {
+          await _confirmAndLaunchExternalUrl(
+            WebUri(externalUrl, forceToStringRawValue: true),
+          );
         }
         return false;
       case BrowserPopupWindowAction.openTab:

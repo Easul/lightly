@@ -268,8 +268,7 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     _handleReceivedError(request, error),
                 onReceivedHttpAuthRequest: _handleHttpAuthRequest,
                 onCreateWindow: (controller, createWindowAction) async {
-                  final rawPopupUrl = createWindowAction.request.url
-                      ?.toString();
+                  final rawPopupUrl = createWindowAction.request.url?.rawValue;
                   final popupUrl = rawPopupUrl == null
                       ? null
                       : BrowserPopupUrlDecoder.decodeIfNeeded(rawPopupUrl);
@@ -289,15 +288,21 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     if (!shouldOpen) {
                       return false;
                     }
-                    final uri = Uri.tryParse(popupUrl);
-                    final scheme = uri?.scheme.toLowerCase();
+                    final scheme = BrowserPopupUrlDecoder.schemeOf(popupUrl);
                     if (scheme != null &&
                         scheme.isNotEmpty &&
                         scheme != 'http' &&
                         scheme != 'https' &&
                         scheme != 'file' &&
                         scheme != 'content') {
-                      await _externalUrlLauncher.launch(uri!);
+                      final externalUrl =
+                          BrowserPopupUrlDecoder.externalLaunchUrl(
+                            rawUrl: rawPopupUrl!,
+                            decodedUrl: popupUrl,
+                          );
+                      await _externalUrlLauncher.launch(
+                        WebUri(externalUrl, forceToStringRawValue: true),
+                      );
                       return false;
                     }
                     return _showNestedPopupWindow(
