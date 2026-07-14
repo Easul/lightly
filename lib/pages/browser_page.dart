@@ -23,6 +23,7 @@ import '../browser/services/browser_fullscreen_manager.dart';
 import '../browser/services/browser_history_recorder.dart';
 import '../browser/services/browser_imported_document_service.dart';
 import '../browser/services/browser_long_press_handler.dart';
+import '../browser/services/browser_navigation_controller.dart';
 import '../browser/services/browser_page_initializer.dart';
 import '../browser/services/browser_popup_window_handler.dart';
 import '../browser/services/browser_popup_raw_url_resolver.dart';
@@ -102,6 +103,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageTabTransitionCoordinator();
   final BrowserPageWebViewCoordinator _webViewCoordinator =
       const BrowserPageWebViewCoordinator();
+  final BrowserNavigationController _navigationController =
+      const BrowserNavigationController();
   final BrowserPopupRawUrlResolver _popupRawUrlResolver =
       BrowserPopupRawUrlResolver();
   final BrowserPageRouteHandler _routeHandler = const BrowserPageRouteHandler();
@@ -1683,23 +1686,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     Uri? requestedUrl,
   ) async {
-    if (requestedUrl == null) {
-      return;
-    }
-
-    if (!_historyRecorder.shouldHandleVisitedHistoryUpdate(requestedUrl)) {
-      return;
-    }
-
-    final urlString = requestedUrl.toString();
-
-    if (_isWebScheme(requestedUrl.scheme)) {
-      _syncUrlIfNeeded(urlString);
-      await _refreshNavigationState(controller);
-      return;
-    }
-
-    unawaited(_confirmAndLaunchExternalUrl(requestedUrl));
+    await _navigationController.handleVisitedHistoryUpdate(
+      requestedUrl: requestedUrl,
+      shouldHandle:
+          requestedUrl != null &&
+          _historyRecorder.shouldHandleVisitedHistoryUpdate(requestedUrl),
+      syncUrl: _syncUrlIfNeeded,
+      refreshNavigation: () => _refreshNavigationState(controller),
+      confirmExternalUrl: _confirmAndLaunchExternalUrl,
+    );
   }
 
   Future<void> _showSiteSecurityDialog() async {
@@ -2050,28 +2045,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     NavigationAction navigationAction,
   ) async {
-    final requestedUrl = navigationAction.request.url;
-    if (requestedUrl == null) {
-      return NavigationActionPolicy.ALLOW;
-    }
-
-    final scheme = requestedUrl.scheme.toLowerCase();
-    if (_isWebScheme(scheme)) {
-      _syncUrlIfNeeded(requestedUrl.toString());
-      return NavigationActionPolicy.ALLOW;
-    }
-
-    if (scheme == 'file') {
-      return NavigationActionPolicy.ALLOW;
-    }
-
-    if (_externalAppHandler.isShowingExternalAppDialog) {
-      return NavigationActionPolicy.CANCEL;
-    }
-
-    await _confirmAndLaunchExternalUrl(requestedUrl);
-
-    return NavigationActionPolicy.CANCEL;
+    return _navigationController.handleNavigationRequest(
+      requestedUrl: navigationAction.request.url,
+      isExternalDialogShowing: _externalAppHandler.isShowingExternalAppDialog,
+      syncUrl: _syncUrlIfNeeded,
+      confirmExternalUrl: _confirmAndLaunchExternalUrl,
+    );
   }
 
   Future<void> _showTabSwitcher() async {
