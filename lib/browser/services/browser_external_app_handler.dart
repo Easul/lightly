@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/browser_popup_url_decoder.dart';
+
 typedef ExternalAppStatusLauncher = Future<String> Function(Uri requestedUrl);
 typedef ExternalAppConfirmDialog =
     Future<bool> Function(BuildContext context, Uri requestedUrl);
@@ -70,11 +72,14 @@ class BrowserExternalAppHandler {
     BuildContext context,
     Uri requestedUrl,
   ) async {
+    final displayUrl = BrowserPopupUrlDecoder.decodeIfNeeded(
+      requestedUrl.toString(),
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('打开外部应用'),
-        content: Text('该链接需要使用外部应用打开，是否继续？\n\n${requestedUrl.toString()}'),
+        content: Text('该链接需要使用外部应用打开，是否继续？\n\n$displayUrl'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -94,11 +99,14 @@ class BrowserExternalAppHandler {
     BuildContext context,
     Uri requestedUrl,
   ) async {
+    final displayUrl = BrowserPopupUrlDecoder.decodeIfNeeded(
+      requestedUrl.toString(),
+    );
     final shouldOpen = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('跳转被网页拦截'),
-        content: Text('当前网页阻止了该弹窗/跳转，是否改为外部打开？\n\n${requestedUrl.toString()}'),
+        content: Text('当前网页阻止了该弹窗/跳转，是否改为外部打开？\n\n$displayUrl'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

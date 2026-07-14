@@ -424,6 +424,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 
 - Some pages pass an entire custom-scheme popup target as a percent-encoded string, for example `baiduboxapp%3A%2F%2F...`.
 - Decode valid percent-encoded popup URLs before scheme detection, suppression checks, confirmation display, external-app launching, or nested popup creation.
+- Dart `Uri.toString()` can percent-encode a decoded custom-scheme payload again (for example `bankabc://{"method":...}`), so external-app confirmation dialogs must decode their final display string after URI conversion; keep the launch `Uri` unchanged.
 - Keep malformed percent encoding unchanged instead of throwing and breaking the WebView popup callback.
 - Apply the same normalization to both main WebView popups and nested popup WebViews.
 - Related files:

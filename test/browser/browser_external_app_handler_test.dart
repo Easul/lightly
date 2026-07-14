@@ -1,12 +1,49 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/services/browser_external_app_handler.dart';
 
 void main() {
   group('BrowserExternalAppHandler', () {
+    testWidgets('shows decoded custom-scheme payload in confirmation dialog', (
+      tester,
+    ) async {
+      final handler = BrowserExternalAppHandler();
+      const encodedUrl =
+          'bankabc://%7B%22method%22%3A%22jumptosharedproduct%22%2C%22type%22%3A%221%22%7D';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => handler.confirmAndLaunchExternalUrl(
+                context,
+                Uri.parse(encodedUrl),
+                launchExternalUrl: (_) async => 'opened',
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining(
+          'bankabc://{"method":"jumptosharedproduct","type":"1"}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('%7B%22method%22'), findsNothing);
+
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+    });
+
     test('returns null for suppressed blocked popup urls', () async {
       final handler = BrowserExternalAppHandler(
-        confirmBlockedDialog: (_, __) async => true,
+        confirmBlockedDialog: (_, _) async => true,
       );
 
       final status = await handler.handleBlockedByResponse(
@@ -21,7 +58,7 @@ void main() {
 
     test('returns launch status after confirmation', () async {
       final handler = BrowserExternalAppHandler(
-        confirmOpenDialog: (_, __) async => true,
+        confirmOpenDialog: (_, _) async => true,
       );
 
       final status = await handler.confirmAndLaunchExternalUrl(
@@ -36,7 +73,7 @@ void main() {
 
     test('returns null when external open is cancelled', () async {
       final handler = BrowserExternalAppHandler(
-        confirmOpenDialog: (_, __) async => false,
+        confirmOpenDialog: (_, _) async => false,
       );
 
       final status = await handler.confirmAndLaunchExternalUrl(
