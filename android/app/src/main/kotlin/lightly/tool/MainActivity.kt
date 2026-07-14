@@ -251,7 +251,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private val channelName = "browser_proxy"
-    private val floatingChannelName = "floating_video"
     private val easyTierChannelName = "easytier_vpn"
     private val remoteControlChannelName = "remote_control"
     private val logTag = "BrowserProxy"
@@ -308,53 +307,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, floatingChannelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "checkPermission" -> {
-                        result.success(Settings.canDrawOverlays(this))
-                    }
-                    "requestPermission" -> {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                        startActivity(intent)
-                        result.success(true)
-                    }
-                    "show" -> {
-                        val videoUrl = call.argument<String>("videoUrl")
-                        val title = call.argument<String>("title") ?: "视频播放"
-                        if (videoUrl != null) {
-                            val intent = Intent(this, FloatingVideoService::class.java).apply {
-                                putExtra("videoUrl", videoUrl)
-                                putExtra("title", title)
-                            }
-                            startService(intent)
-                            result.success(true)
-                        } else {
-                            result.error("INVALID_ARGUMENTS", "videoUrl is required", null)
-                        }
-                    }
-                    "close" -> {
-                        val intent = Intent(this, FloatingVideoService::class.java)
-                        stopService(intent)
-                        result.success(true)
-                    }
-                    "keepScreenOn" -> {
-                        val keepOn = call.argument<Boolean>("keepOn") ?: false
-                        runOnUiThread {
-                            if (keepOn) {
-                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                            } else {
-                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                            }
-                        }
-                        result.success(true)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
+        FloatingVideoChannelHandler(this)
+            .register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
         browserProxyChannel?.setMethodCallHandler { call, result ->
