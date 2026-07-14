@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <permission
-        android:name="lightly.tool.permission.READ_EASYTIER_STATE"
+        android:name="${applicationId}.permission.READ_EASYTIER_STATE"
         android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission
@@ -210,10 +210,10 @@
         </service>
         <provider
             android:name=".EasyTierInfoProvider"
-            android:authorities="lightly.tool.easytier"
+            android:authorities="${applicationId}.easytier"
             android:exported="true"
             android:grantUriPermissions="false"
-            android:readPermission="lightly.tool.permission.READ_EASYTIER_STATE" />
+            android:readPermission="${applicationId}.permission.READ_EASYTIER_STATE" />
         <service
             android:name=".RemoteControlAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

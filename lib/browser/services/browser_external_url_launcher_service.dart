@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 typedef ExternalUrlLaunchCallback =
@@ -14,6 +15,17 @@ class BrowserExternalUrlLauncherService {
   static const String failedMessage = '打开外部应用失败';
 
   Future<String> launch(Uri requestedUrl) async {
+    if (kDebugMode || kProfileMode) {
+      final url = requestedUrl.toString();
+      debugPrint(
+        '[ExternalUrlLaunch] scheme=${requestedUrl.scheme} '
+        'length=${url.length} '
+        'camelMethod=${url.contains('jumpToSharedProduct')} '
+        'lowerMethod=${url.contains('jumptosharedproduct')} '
+        'camelTrafficTag=${url.contains('trafficTag')} '
+        'lowerTrafficTag=${url.contains('traffictag')}',
+      );
+    }
     try {
       final launched = await _launch(
         requestedUrl,

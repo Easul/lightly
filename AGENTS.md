@@ -189,6 +189,13 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - If binary files were accidentally tracked, remove them from the index/history on the working branch while preserving source changes.
 - Before committing native/runtime changes, review `git diff --name-only` specifically for `target/`, `jniLibs/`, `.so`, `.a`, `.rlib`, and other generated outputs.
 
+## Side-by-Side Profile Package
+
+- The Android `profile` build uses `applicationIdSuffix = ".profile"`, producing `lightly.tool.profile`.
+- Manifest permission names and provider authorities must derive from `${applicationId}` so profile and release packages can be installed together without provider conflicts.
+- `EasyTierInfoProvider` must validate against the runtime package name via `EasyTierStateStore.authorityFor(context.packageName)` rather than a hardcoded release authority.
+- Profile-only popup diagnostics may log URL scheme, length, and case-presence flags, but must not log full external URLs or sensitive payload tokens.
+
 ### Release Build Flags
 Always use obfuscation and split debug info for release builds:
 ```bash

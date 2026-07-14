@@ -1700,6 +1700,18 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required String fallbackUrl,
     required String resolvedUrl,
   }) {
+    if (kDebugMode || kProfileMode) {
+      debugPrint(
+        '[PopupUrlResolution] source=$source '
+        'fallbackLength=${fallbackUrl.length} '
+        'resolvedLength=${resolvedUrl.length} '
+        'fallbackCamel=${fallbackUrl.contains('jumpToSharedProduct')} '
+        'fallbackLower=${fallbackUrl.contains('jumptosharedproduct')} '
+        'resolvedCamel=${resolvedUrl.contains('jumpToSharedProduct')} '
+        'resolvedLower=${resolvedUrl.contains('jumptosharedproduct')} '
+        'resolvedTrafficTag=${resolvedUrl.contains('trafficTag')}',
+      );
+    }
     unawaited(
       AppLogService.instance.log(
         'Browser popup URL resolved',

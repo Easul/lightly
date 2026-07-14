@@ -4,7 +4,6 @@ import com.easytier.jni.EasyTierJNI
 import org.json.JSONObject
 
 object EasyTierStateStore {
-    const val AUTHORITY = "lightly.tool.easytier"
     const val PATH_NETWORK_INFO = "network_info"
     const val COLUMN_INSTANCE_NAME = "instance_name"
     const val COLUMN_RAW_NETWORK_INFO_JSON = "raw_network_info_json"
@@ -14,6 +13,8 @@ object EasyTierStateStore {
     const val COLUMN_ERROR_MESSAGE = "error_message"
 
     private val lock = Any()
+
+    fun authorityFor(packageName: String): String = "$packageName.easytier"
 
     @Volatile private var instanceName: String? = null
     @Volatile private var rawNetworkInfoJson: String? = null
