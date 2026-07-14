@@ -526,59 +526,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "media_scanner")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "scanFile" -> {
-                        val filePath = call.argument<String>("filePath")
-                        if (filePath.isNullOrEmpty()) {
-                            result.error("INVALID_PATH", "File path is required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            val file = java.io.File(filePath)
-                            if (file.exists()) {
-                                android.media.MediaScannerConnection.scanFile(
-                                    this,
-                                    arrayOf(filePath),
-                                    null
-                                ) { _, _ -> }
-                                result.success(true)
-                            } else {
-                                result.success(false)
-                            }
-                        } catch (e: Exception) {
-                            result.error("SCAN_FAILED", e.message, null)
-                        }
-                    }
-                    "scanDirectory" -> {
-                        val dirPath = call.argument<String>("directoryPath")
-                        if (dirPath.isNullOrEmpty()) {
-                            result.error("INVALID_PATH", "Directory path is required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            val dir = java.io.File(dirPath)
-                            if (dir.exists() && dir.isDirectory) {
-                                val files = dir.listFiles()?.map { it.absolutePath }?.toTypedArray()
-                                if (files != null && files.isNotEmpty()) {
-                                    android.media.MediaScannerConnection.scanFile(
-                                        this,
-                                        files,
-                                        null
-                                    ) { _, _ -> }
-                                }
-                                result.success(true)
-                            } else {
-                                result.success(false)
-                            }
-                        } catch (e: Exception) {
-                            result.error("SCAN_FAILED", e.message, null)
-                        }
-                    }
-                    else -> result.notImplemented()
-                }
-            }
+        MediaScannerChannelHandler(this).register(flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, easyTierChannelName)
             .setMethodCallHandler { call, result ->
@@ -682,33 +630,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.proxy.core/proxy")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "nativeInit" -> {
-                        val logLevel = call.argument<String>("logLevel") ?: "info"
-                        Log.i("ProxyCore", "MethodChannel nativeInit called, logLevel=$logLevel")
-                        val res = com.proxy.core.ProxyCore.nativeInit(logLevel)
-                        Log.i("ProxyCore", "nativeInit result=$res")
-                        result.success(res)
-                    }
-                    "nativeStart" -> {
-                        val listenAddr = call.argument<String>("listenAddr") ?: "127.0.0.1:23333"
-                        val config = call.argument<String>("config") ?: "{}"
-                        Log.i("ProxyCore", "MethodChannel nativeStart called, listenAddr=$listenAddr, configLength=${config.length}")
-                        val res = com.proxy.core.ProxyCore.nativeStart(listenAddr, config)
-                        Log.i("ProxyCore", "nativeStart result=$res")
-                        result.success(res)
-                    }
-                    "nativeStop" -> {
-                        Log.i("ProxyCore", "MethodChannel nativeStop called")
-                        val res = com.proxy.core.ProxyCore.nativeStop()
-                        Log.i("ProxyCore", "nativeStop result=$res")
-                        result.success(res)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
+        ProxyCoreChannelHandler().register(flutterEngine.dartExecutor.binaryMessenger)
 
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, remoteControlChannelName)
         channel?.setMethodCallHandler { call, result ->
