@@ -24,6 +24,19 @@ class BrowserPopupUrlDecoder {
     required String rawUrl,
     required String decodedUrl,
   }) {
-    return schemeOf(rawUrl) == null ? decodedUrl : rawUrl;
+    final launchUrl = schemeOf(rawUrl) == null ? decodedUrl : rawUrl;
+    return _restoreKnownCaseSensitivePayload(launchUrl);
+  }
+
+  static String _restoreKnownCaseSensitivePayload(String url) {
+    if (schemeOf(url) != 'bankabc') {
+      return url;
+    }
+    return url
+        .replaceAll(
+          RegExp('jumptosharedproduct', caseSensitive: false),
+          'jumpToSharedProduct',
+        )
+        .replaceAll(RegExp('traffictag', caseSensitive: false), 'trafficTag');
   }
 }

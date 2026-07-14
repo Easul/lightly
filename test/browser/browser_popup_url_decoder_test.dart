@@ -47,5 +47,19 @@ void main() {
         rawUrl,
       );
     });
+
+    test('restores known bank payload casing after webview normalization', () {
+      const normalizedUrl =
+          'bankabc://%7B%22method%22%3A%22jumptosharedproduct%22%2C%22traffictag%22%3A%2290fc%22%7D';
+
+      expect(
+        BrowserPopupUrlDecoder.externalLaunchUrl(
+          rawUrl: normalizedUrl,
+          decodedUrl:
+              'bankabc://{"method":"jumptosharedproduct","traffictag":"90fc"}',
+        ),
+        'bankabc://%7B%22method%22%3A%22jumpToSharedProduct%22%2C%22trafficTag%22%3A%2290fc%22%7D',
+      );
+    });
   });
 }

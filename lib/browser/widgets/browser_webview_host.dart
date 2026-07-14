@@ -24,6 +24,7 @@ class BrowserWebViewHost extends StatelessWidget {
     required this.isLoading,
     required this.progressListenable,
     required this.onWebViewCreated,
+    required this.onRawPopupUrlCaptured,
     required this.shouldOverrideUrlLoading,
     required this.onCreateWindow,
     required this.onDownloadStartRequest,
@@ -51,6 +52,7 @@ class BrowserWebViewHost extends StatelessWidget {
   final bool isLoading;
   final ValueListenable<int> progressListenable;
   final void Function(InAppWebViewController controller) onWebViewCreated;
+  final void Function(String rawUrl) onRawPopupUrlCaptured;
   final Future<NavigationActionPolicy?> Function(
     InAppWebViewController controller,
     NavigationAction navigationAction,
@@ -252,11 +254,39 @@ class BrowserWebViewHost extends StatelessWidget {
               // Show native prompt dialog instead of blocking
               return null;
             },
-            onWebViewCreated: onWebViewCreated,
+            onWebViewCreated: (controller) {
+              controller.removeJavaScriptHandler(
+                handlerName: BrowserPopupRawUrlCapture.handlerName,
+              );
+              controller.addJavaScriptHandler(
+                handlerName: BrowserPopupRawUrlCapture.handlerName,
+                callback: (arguments) {
+                  final rawUrl =
+                      BrowserPopupRawUrlCapture.capturedUrlFromHandlerArguments(
+                        arguments,
+                      );
+                  if (rawUrl != null) {
+                    onRawPopupUrlCaptured(rawUrl);
+                  }
+                  return null;
+                },
+              );
+              onWebViewCreated(controller);
+            },
             shouldOverrideUrlLoading: shouldOverrideUrlLoading,
             onCreateWindow: onCreateWindow,
             onDownloadStartRequest: onDownloadStartRequest,
-            onLoadStart: onLoadStart,
+            onLoadStart: (controller, url) {
+              unawaited(
+                controller
+                    .evaluateJavascript(
+                      source: BrowserPopupRawUrlCapture.initialScript,
+                      contentWorld: ContentWorld.PAGE,
+                    )
+                    .catchError((_) => null),
+              );
+              onLoadStart(controller, url);
+            },
             onLoadStop: onLoadStop,
             onProgressChanged: onProgressChanged,
             onReceivedError: onReceivedError,

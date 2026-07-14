@@ -34,6 +34,7 @@ import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../services/app_toast.dart';
+import '../services/app_log_service.dart';
 import '../browser/utils/browser_popup_raw_url_capture.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
@@ -82,6 +83,7 @@ class BrowserPage extends StatefulWidget {
 class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   late final BrowserPageServices _services;
   late final BrowserPageInitializer _initializer;
+  final List<String> _bridgedRawPopupUrls = <String>[];
   final GlobalKey<BrowserFavoritesPageState> _favoritesPageKey =
       GlobalKey<BrowserFavoritesPageState>();
   final BrowserPageActionCoordinator _actionCoordinator =
@@ -573,6 +575,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         keepAlive: activeTab?.keepAlive,
         isLoading: _isLoading,
         progressListenable: _progressNotifier,
+        onRawPopupUrlCaptured: _recordBridgedRawPopupUrl,
         onWebViewCreated: (controller) {
           if (!_isActiveTabId(hostedTabId)) {
             return;
@@ -1641,16 +1644,78 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     String fallbackUrl,
   ) async {
+    final bridgedBefore = BrowserPopupRawUrlCapture.takeBestCapturedUrl(
+      _bridgedRawPopupUrls,
+      fallbackUrl,
+    );
+    if (bridgedBefore != null) {
+      _logPopupUrlResolution(
+        source: 'javascript-bridge-before-callback',
+        fallbackUrl: fallbackUrl,
+        resolvedUrl: bridgedBefore,
+      );
+      return bridgedBefore;
+    }
+
+    String? scriptCapturedUrl;
     try {
       final result = await controller.evaluateJavascript(
         source: BrowserPopupRawUrlCapture.takeLatestScript(fallbackUrl),
         contentWorld: ContentWorld.PAGE,
       );
-      return BrowserPopupRawUrlCapture.capturedUrlFromResult(result) ??
-          fallbackUrl;
-    } catch (_) {
-      return fallbackUrl;
+      scriptCapturedUrl = BrowserPopupRawUrlCapture.capturedUrlFromResult(
+        result,
+      );
+    } catch (error) {
+      _logDebug('Failed to read captured popup URL: $error');
     }
+
+    await Future<void>.delayed(Duration.zero);
+    final bridgedAfter = BrowserPopupRawUrlCapture.takeBestCapturedUrl(
+      _bridgedRawPopupUrls,
+      fallbackUrl,
+    );
+    final resolvedUrl = bridgedAfter ?? scriptCapturedUrl ?? fallbackUrl;
+    _logPopupUrlResolution(
+      source: bridgedAfter != null
+          ? 'javascript-bridge-after-callback'
+          : scriptCapturedUrl != null
+          ? 'main-frame-script-queue'
+          : 'webview-callback-fallback',
+      fallbackUrl: fallbackUrl,
+      resolvedUrl: resolvedUrl,
+    );
+    return resolvedUrl;
+  }
+
+  void _recordBridgedRawPopupUrl(String rawUrl) {
+    _bridgedRawPopupUrls.add(rawUrl);
+    if (_bridgedRawPopupUrls.length > 12) {
+      _bridgedRawPopupUrls.removeAt(0);
+    }
+  }
+
+  void _logPopupUrlResolution({
+    required String source,
+    required String fallbackUrl,
+    required String resolvedUrl,
+  }) {
+    unawaited(
+      AppLogService.instance.log(
+        'Browser popup URL resolved',
+        metadata: <String, Object?>{
+          'source': source,
+          'fallbackLength': fallbackUrl.length,
+          'resolvedLength': resolvedUrl.length,
+          'fallbackHasCamelMethod': fallbackUrl.contains('jumpToSharedProduct'),
+          'fallbackHasLowerMethod': fallbackUrl.contains('jumptosharedproduct'),
+          'resolvedHasCamelMethod': resolvedUrl.contains('jumpToSharedProduct'),
+          'resolvedHasLowerMethod': resolvedUrl.contains('jumptosharedproduct'),
+          'fallbackHasCamelTrafficTag': fallbackUrl.contains('trafficTag'),
+          'resolvedHasCamelTrafficTag': resolvedUrl.contains('trafficTag'),
+        },
+      ),
+    );
   }
 
   Future<void> _handleBlockedByResponse(Uri? requestedUrl) async {

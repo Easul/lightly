@@ -29,6 +29,7 @@ class PopupWebViewDialog extends StatefulWidget {
 class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
   final BrowserExternalUrlLauncherService _externalUrlLauncher =
       BrowserExternalUrlLauncherService();
+  final List<String> _bridgedRawPopupUrls = <String>[];
   String _title = '登录窗口';
   String? _currentUrl;
   int _progress = 0;
@@ -116,16 +117,56 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
     InAppWebViewController controller,
     String fallbackUrl,
   ) async {
+    final bridgedBefore = BrowserPopupRawUrlCapture.takeBestCapturedUrl(
+      _bridgedRawPopupUrls,
+      fallbackUrl,
+    );
+    if (bridgedBefore != null) {
+      return bridgedBefore;
+    }
+
+    String? scriptCapturedUrl;
     try {
       final result = await controller.evaluateJavascript(
         source: BrowserPopupRawUrlCapture.takeLatestScript(fallbackUrl),
         contentWorld: ContentWorld.PAGE,
       );
-      return BrowserPopupRawUrlCapture.capturedUrlFromResult(result) ??
-          fallbackUrl;
+      scriptCapturedUrl = BrowserPopupRawUrlCapture.capturedUrlFromResult(
+        result,
+      );
     } catch (_) {
-      return fallbackUrl;
+      scriptCapturedUrl = null;
     }
+
+    await Future<void>.delayed(Duration.zero);
+    return BrowserPopupRawUrlCapture.takeBestCapturedUrl(
+          _bridgedRawPopupUrls,
+          fallbackUrl,
+        ) ??
+        scriptCapturedUrl ??
+        fallbackUrl;
+  }
+
+  void _registerRawPopupUrlBridge(InAppWebViewController controller) {
+    controller.removeJavaScriptHandler(
+      handlerName: BrowserPopupRawUrlCapture.handlerName,
+    );
+    controller.addJavaScriptHandler(
+      handlerName: BrowserPopupRawUrlCapture.handlerName,
+      callback: (arguments) {
+        final rawUrl =
+            BrowserPopupRawUrlCapture.capturedUrlFromHandlerArguments(
+              arguments,
+            );
+        if (rawUrl != null) {
+          _bridgedRawPopupUrls.add(rawUrl);
+          if (_bridgedRawPopupUrls.length > 12) {
+            _bridgedRawPopupUrls.removeAt(0);
+          }
+        }
+        return null;
+      },
+    );
   }
 
   bool _shouldSuppressPopupUrl(String? popupUrl) {
@@ -277,12 +318,22 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     : null,
                 initialSettings: _popupSettings,
                 initialUserScripts: _popupInitialUserScripts,
+                onWebViewCreated: _registerRawPopupUrlBridge,
                 shouldOverrideUrlLoading: (_, navigationAction) =>
                     _handleShouldOverrideUrlLoading(navigationAction),
                 onCloseWindow: (_) => _closeDialog(),
                 onTitleChanged: (_, title) => _updateTitleIfNeeded(title),
-                onLoadStart: (_, url) =>
-                    _updatePopupState(currentUrl: url?.toString(), progress: 0),
+                onLoadStart: (controller, url) {
+                  unawaited(
+                    controller
+                        .evaluateJavascript(
+                          source: BrowserPopupRawUrlCapture.initialScript,
+                          contentWorld: ContentWorld.PAGE,
+                        )
+                        .catchError((_) => null),
+                  );
+                  _updatePopupState(currentUrl: url?.toString(), progress: 0);
+                },
                 onLoadStop: (_, url) => _updatePopupState(
                   currentUrl: url?.toString(),
                   progress: 100,

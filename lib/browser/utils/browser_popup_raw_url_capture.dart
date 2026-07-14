@@ -3,6 +3,8 @@ import 'dart:convert';
 class BrowserPopupRawUrlCapture {
   const BrowserPopupRawUrlCapture._();
 
+  static const handlerName = 'lightlyRawPopupUrlCaptured';
+
   static const initialScript = r'''
     (function() {
       if (window.__lightlyPopupRawCaptureInstalled) {
@@ -56,6 +58,18 @@ class BrowserPopupRawUrlCapture {
         if (entries.length > 12) {
           entries.splice(0, entries.length - 12);
         }
+        try {
+          var bridge = window.flutter_inappwebview;
+          if (bridge && typeof bridge.callHandler === 'function') {
+            var delivery = bridge.callHandler(
+              'lightlyRawPopupUrlCaptured',
+              rawUrl
+            );
+            if (delivery && typeof delivery.catch === 'function') {
+              delivery.catch(function() {});
+            }
+          }
+        } catch (_) {}
       }
 
       function comparable(value) {
@@ -146,5 +160,49 @@ class BrowserPopupRawUrlCapture {
       return null;
     }
     return result;
+  }
+
+  static String? capturedUrlFromHandlerArguments(List<dynamic> arguments) {
+    if (arguments.isEmpty) {
+      return null;
+    }
+    return capturedUrlFromResult(arguments.first);
+  }
+
+  static String? takeBestCapturedUrl(
+    List<String> capturedUrls,
+    String fallbackUrl,
+  ) {
+    if (capturedUrls.isEmpty) {
+      return null;
+    }
+    final comparableFallback = _comparable(fallbackUrl);
+    for (var index = capturedUrls.length - 1; index >= 0; index -= 1) {
+      if (_comparable(capturedUrls[index]) == comparableFallback) {
+        return capturedUrls.removeAt(index);
+      }
+    }
+
+    final fallbackScheme = _schemeOf(fallbackUrl);
+    for (var index = capturedUrls.length - 1; index >= 0; index -= 1) {
+      if (fallbackScheme.isEmpty ||
+          _schemeOf(capturedUrls[index]) == fallbackScheme) {
+        return capturedUrls.removeAt(index);
+      }
+    }
+    return null;
+  }
+
+  static String _comparable(String url) {
+    try {
+      return Uri.decodeComponent(url).toLowerCase();
+    } on ArgumentError {
+      return url.toLowerCase();
+    }
+  }
+
+  static String _schemeOf(String url) {
+    final match = RegExp(r'^([a-zA-Z][a-zA-Z0-9+.-]*):').firstMatch(url);
+    return match?.group(1)?.toLowerCase() ?? '';
   }
 }
