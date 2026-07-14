@@ -1,22 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
-
 import '../models/remote_control_config.dart';
+import 'remote_control_platform_gateway.dart';
 import 'remote_control_protocol.dart';
 
 class RemoteControlStatusBridge {
   const RemoteControlStatusBridge();
 
   Future<void> sendScreenInfoStatus({
-    required MethodChannel channel,
+    required RemoteControlPlatformGateway platformGateway,
     required Socket? receiverControlSocket,
   }) async {
     if (receiverControlSocket == null) return;
-    final info = await channel.invokeMapMethod<Object?, Object?>(
-      'getScreenInfo',
-    );
+    final info = await platformGateway.getScreenInfo();
     final width = (info?['width'] as num?)?.toInt();
     final height = (info?['height'] as num?)?.toInt();
     final density = (info?['density'] as num?)?.toDouble();

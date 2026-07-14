@@ -2,19 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
+import '../services/remote_control_platform_gateway.dart';
 import '../theme/app_theme.dart';
 
 Future<void> showRemoteDisconnectDialog({
   required BuildContext context,
   required String message,
 }) async {
-  const channel = MethodChannel('remote_control');
   final dialogContext = AppToast.navigatorKey.currentContext ?? context;
   try {
-    final didShowGlobalOverlay = await channel.invokeMethod<bool>(
-      'showDisconnectOverlay',
-      {'message': message},
-    );
+    final didShowGlobalOverlay = await RemoteControlPlatformGateway.instance
+        .showDisconnectOverlay(message);
     if (didShowGlobalOverlay == true) {
       return;
     }

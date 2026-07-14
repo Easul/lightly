@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/services/remote_control_message_router.dart';
 import 'package:lightly/services/remote_control_protocol.dart';
@@ -107,7 +108,7 @@ void main() {
         Uint8List.fromList(
           utf8.encode('${RemoteControlCodec.encode(heartbeat)}\n'),
         ),
-        channel: const MethodChannel('remote_control_test'),
+        executeCommand: (_) async {},
         minBitrate: 1,
         maxBitrate: 10,
         recordStatusMessage: (_) {},
@@ -141,7 +142,7 @@ void main() {
             '${RemoteControlCodec.encode(StatusMessage.updateBitrate(bitrate: 999999))}\n',
           ),
         ),
-        channel: const MethodChannel('remote_control_test'),
+        executeCommand: (_) async {},
         minBitrate: 100,
         maxBitrate: 1000,
         recordStatusMessage: (_) {},
@@ -172,7 +173,7 @@ void main() {
         Uint8List.fromList(
           utf8.encode('${RemoteControlCodec.encode(status)}\n'),
         ),
-        channel: const MethodChannel('remote_control_test'),
+        executeCommand: (_) async {},
         minBitrate: 1,
         maxBitrate: 10,
         recordStatusMessage: recorded.add,

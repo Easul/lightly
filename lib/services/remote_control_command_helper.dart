@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
 
 import 'remote_control_protocol.dart';
 
@@ -38,7 +37,7 @@ class RemoteControlCommandHelper {
 
   void dispatchReceiverCommand(
     String command, {
-    required MethodChannel channel,
+    required Future<void> Function(String command) executeCommand,
     required int minBitrate,
     required int maxBitrate,
     required void Function(ControlMessage message) recordStatusMessage,
@@ -69,30 +68,24 @@ class RemoteControlCommandHelper {
           return;
         }
         if (message.action == 'overlay_text') {
-          channel
-              .invokeMethod('executeCommand', {'command': command})
-              .catchError((Object error) {
-                log('Failed to show receiver overlay text: $error');
-              });
+          executeCommand(command).catchError((Object error) {
+            log('Failed to show receiver overlay text: $error');
+          });
           return;
         }
         if (message.action == 'annotation_circle') {
           log(
             'Forwarding receiver annotation circle to native: data=${message.data}',
           );
-          channel
-              .invokeMethod('executeCommand', {'command': command})
-              .catchError((Object error) {
-                log('Failed to show receiver annotation circle: $error');
-              });
+          executeCommand(command).catchError((Object error) {
+            log('Failed to show receiver annotation circle: $error');
+          });
           return;
         }
         if (message.action == 'wake_screen') {
-          channel
-              .invokeMethod('executeCommand', {'command': command})
-              .catchError((Object error) {
-                log('Failed to wake receiver screen: $error');
-              });
+          executeCommand(command).catchError((Object error) {
+            log('Failed to wake receiver screen: $error');
+          });
           return;
         }
         if (message.action == 'shutdown_receiver') {
@@ -114,11 +107,9 @@ class RemoteControlCommandHelper {
       }
 
       if (type == 'gesture' || type == 'keyboard' || type == 'global') {
-        channel.invokeMethod('executeCommand', {'command': command}).catchError(
-          (Object error) {
-            log('Failed to execute receiver command: $error');
-          },
-        );
+        executeCommand(command).catchError((Object error) {
+          log('Failed to execute receiver command: $error');
+        });
       }
     } catch (e) {
       log('Failed to dispatch receiver command: $e', error: e);

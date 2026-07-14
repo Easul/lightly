@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_history_service.dart';

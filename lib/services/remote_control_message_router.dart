@@ -1,4 +1,4 @@
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
 
 import 'remote_control_command_helper.dart';
 import 'remote_control_protocol.dart';
@@ -22,7 +22,7 @@ class RemoteControlMessageRouter {
 
   void dispatchReceiverData(
     Uint8List data, {
-    required MethodChannel channel,
+    required Future<void> Function(String command) executeCommand,
     required int minBitrate,
     required int maxBitrate,
     required void Function(ControlMessage message) recordStatusMessage,
@@ -42,7 +42,7 @@ class RemoteControlMessageRouter {
     for (final command in commands) {
       _commandHelper.dispatchReceiverCommand(
         command,
-        channel: channel,
+        executeCommand: executeCommand,
         minBitrate: minBitrate,
         maxBitrate: maxBitrate,
         recordStatusMessage: recordStatusMessage,

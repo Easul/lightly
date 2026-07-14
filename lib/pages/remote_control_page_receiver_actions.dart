@@ -15,7 +15,7 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
 
     try {
       final ports = await _receiverHelper.startReceiverFlow(
-        channel: _RemoteControlPageState._channel,
+        platformGateway: _platformGateway,
         service: _service,
         ensureVpnForRemoteControl:
             AppLifecycleManager().ensureVpnForRemoteControl,

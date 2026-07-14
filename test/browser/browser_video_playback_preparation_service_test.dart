@@ -8,7 +8,7 @@ void main() {
     test('returns passthrough values for non-youtube playback', () async {
       final service = BrowserVideoPlaybackPreparationService(
         loadSettings: () async => BrowserSettings.defaults(),
-        resolveVideoSource: (_, __) async {
+        resolveVideoSource: (_, _) async {
           throw StateError('should not resolve');
         },
         ensureProxyServer: (_) async {},
@@ -37,7 +37,7 @@ void main() {
         final service = BrowserVideoPlaybackPreparationService(
           loadSettings: () async =>
               BrowserSettings.defaults().copyWith(proxyEnabled: false),
-          resolveVideoSource: (_, __) async => const ResolvedVideoSource(
+          resolveVideoSource: (_, _) async => const ResolvedVideoSource(
             videoId: 'abc123',
             title: 'Resolved title',
             streamUrl: 'https://cdn.example.com/stream.m3u8',
@@ -77,7 +77,7 @@ void main() {
           proxyHost: '127.0.0.1',
           proxyPort: 1080,
         ),
-        resolveVideoSource: (_, __) async => const ResolvedVideoSource(
+        resolveVideoSource: (_, _) async => const ResolvedVideoSource(
           videoId: 'abc123',
           title: 'Resolved title',
           streamUrl: 'https://cdn.example.com/stream.m3u8',
@@ -111,7 +111,7 @@ void main() {
           nativeVideoPlayerEnabled: true,
           nativeVideoParserApiBaseUrl: '',
         ),
-        resolveVideoSource: (_, __) async {
+        resolveVideoSource: (_, _) async {
           resolveCalls++;
           throw StateError('should not resolve');
         },

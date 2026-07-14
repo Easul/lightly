@@ -12,7 +12,7 @@ void main() {
     test('initializes controller from prepared playback result', () async {
       final preparationService = BrowserVideoPlaybackPreparationService(
         loadSettings: () async => BrowserSettings.defaults(),
-        resolveVideoSource: (_, __) async => const ResolvedVideoSource(
+        resolveVideoSource: (_, _) async => const ResolvedVideoSource(
           videoId: 'abc',
           streamUrl: 'https://cdn.example.com/video.mp4',
           title: 'Title',
@@ -71,5 +71,6 @@ class _FakeVideoPlayerController extends Fake implements VideoPlayerController {
 class FakeChewieController extends Fake implements ChewieController {
   FakeChewieController({required this.videoPlayerController});
 
+  @override
   final VideoPlayerController videoPlayerController;
 }

@@ -5,6 +5,13 @@ void main() {
   group('BrowserPageStatusCoordinator', () {
     const coordinator = BrowserPageStatusCoordinator();
 
+    test('returns stable page status strings', () {
+      expect(coordinator.cleared(), '');
+      expect(coordinator.youtubeResolving(), '正在解析 YouTube 视频');
+      expect(coordinator.blockedPopup(), '网页拦截了当前弹窗/跳转，请确认是否外部打开');
+      expect(coordinator.externalAppContinuing(), '检测到外部应用跳转，正在尝试继续');
+    });
+
     test('clears status when favorites, url change, or message exists', () {
       expect(
         coordinator.shouldClearAfterAddressLoad(

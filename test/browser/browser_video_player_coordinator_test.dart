@@ -21,7 +21,7 @@ void main() {
       coordinator = BrowserVideoPlayerCoordinator(
         playbackPreparationService: BrowserVideoPlaybackPreparationService(
           loadSettings: () async => BrowserSettings.defaults(),
-          resolveVideoSource: (_, __) async => const ResolvedVideoSource(
+          resolveVideoSource: (_, _) async => const ResolvedVideoSource(
             videoId: 'abc123',
             streamUrl: 'https://example.com/video.mp4',
             title: 'Video',

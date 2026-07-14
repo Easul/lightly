@@ -1,6 +1,5 @@
-import 'package:flutter/services.dart';
-
 import '../models/remote_control_config.dart';
+import '../services/remote_control_platform_gateway.dart';
 import '../services/remote_control_service.dart';
 
 class RemoteControlPageReceiverStartException implements Exception {
@@ -16,7 +15,7 @@ class RemoteControlPageReceiverHelper {
   const RemoteControlPageReceiverHelper();
 
   Future<RemoteControlPortConfig> startReceiverFlow({
-    required MethodChannel channel,
+    required RemoteControlPlatformGateway platformGateway,
     required RemoteControlService service,
     required Future<bool> Function({bool noTunMode}) ensureVpnForRemoteControl,
     required bool useNoTunMode,
@@ -37,11 +36,9 @@ class RemoteControlPageReceiverHelper {
       );
     }
 
-    final hasPermission =
-        await channel.invokeMethod<bool>('checkAccessibilityPermission') ??
-        false;
+    final hasPermission = await platformGateway.checkAccessibilityPermission();
     if (!hasPermission) {
-      await channel.invokeMethod('openAccessibilitySettings');
+      await platformGateway.openAccessibilitySettings();
       throw const RemoteControlPageReceiverStartException(
         '请在无障碍设置中开启本应用的权限，然后返回重试',
       );

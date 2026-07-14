@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Size;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_command_helper.dart';
 import 'remote_control_cleanup_helper.dart';
@@ -11,6 +11,7 @@ import 'remote_control_connection_flow_coordinator.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import 'remote_control_message_router.dart';
+import 'remote_control_platform_gateway.dart';
 import 'remote_control_protocol.dart';
 import 'remote_control_receiver_startup_coordinator.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
@@ -29,7 +30,6 @@ enum RemoteControlMode { controller, receiver }
 enum RemoteControlState { idle, connecting, connected, disconnected, error }
 
 class RemoteControlService {
-  static const MethodChannel _channel = MethodChannel('remote_control');
   static const String _easyTierOverlayPrefix = '10.126.';
   static final RemoteControlService _instance =
       RemoteControlService._internal();
@@ -71,6 +71,8 @@ class RemoteControlService {
       StreamController<ScreenFrame>.broadcast();
 
   final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager();
+  final RemoteControlPlatformGateway _platformGateway =
+      RemoteControlPlatformGateway.instance;
   final PerformanceMonitorService _performanceMonitor =
       PerformanceMonitorService();
   final RemoteControlCommandHelper _commandHelper =
@@ -196,7 +198,7 @@ class RemoteControlService {
   }
 
   void _setupMethodCallHandler() {
-    _channel.setMethodCallHandler((call) async {
+    _platformGateway.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'onScreenFrame':
           final data = call.arguments['data'] as Uint8List;
@@ -237,7 +239,7 @@ class RemoteControlService {
   Future<void> _sendScreenInfoStatus() async {
     try {
       await _statusBridge.sendScreenInfoStatus(
-        channel: _channel,
+        platformGateway: _platformGateway,
         receiverControlSocket: _receiverControlSocket,
       );
     } catch (e) {
@@ -299,12 +301,12 @@ class RemoteControlService {
     try {
       await _receiverStartup.start(
         enableScreen: _config!.enableScreen,
-        startNativeReceiver: () => _channel.invokeMethod('startReceiver', {
-          'controlPort': ports.controlPort,
-          'screenPort': ports.screenPort,
-          'screenFps': _config!.screenFps,
-          'screenBitrate': _config!.screenBitrate,
-        }),
+        startNativeReceiver: () => _platformGateway.startReceiver(
+          controlPort: ports.controlPort,
+          screenPort: ports.screenPort,
+          screenFps: _config!.screenFps,
+          screenBitrate: _config!.screenBitrate,
+        ),
         bindControlServer: () async {
           _controlServer = await ServerSocket.bind(
             InternetAddress.anyIPv4,
@@ -394,7 +396,7 @@ class RemoteControlService {
           _controllerControlSocket = connection.controlSocket;
           _controllerScreenSocket = connection.screenSocket;
 
-          await _channel.invokeMethod('startController', {'host': host});
+          await _platformGateway.startController(host);
           markNativeStarted();
           if (isVoiceEnabled) {
             await _prepareVoiceSession(isController: true);
@@ -491,7 +493,7 @@ class RemoteControlService {
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopHeartbeat: _stopHeartbeat,
       closeVoiceSession: _voiceCoordinator.close,
-      stopNativeService: () => _channel.invokeMethod('stop'),
+      stopNativeService: _platformGateway.stop,
     );
     _controllerControlSocket = null;
     _controllerScreenSocket = null;
@@ -506,7 +508,7 @@ class RemoteControlService {
       stopScreenFrameWatchdog: _stopScreenFrameWatchdog,
       stopAudioCapture: stopAudioCapture,
       closeVoiceSession: _voiceCoordinator.close,
-      stopNativeService: () => _channel.invokeMethod('stop'),
+      stopNativeService: _platformGateway.stop,
     );
     _receiverControlSocket = null;
     _receiverScreenSocket = null;
@@ -617,10 +619,10 @@ class RemoteControlService {
 
   Future<bool> startScreenCapture({int fps = 12, int bitrate = 2500000}) async {
     try {
-      final result = await _channel.invokeMethod<bool>('startScreenCapture', {
-        'fps': fps,
-        'bitrate': bitrate,
-      });
+      final result = await _platformGateway.startScreenCapture(
+        fps: fps,
+        bitrate: bitrate,
+      );
       return result ?? false;
     } catch (e) {
       developer.log(
@@ -634,7 +636,7 @@ class RemoteControlService {
 
   Future<void> stopScreenCapture() async {
     try {
-      await _channel.invokeMethod('stopScreenCapture');
+      await _platformGateway.stopScreenCapture();
     } catch (e) {
       developer.log(
         'Failed to stop screen capture: $e',
@@ -665,7 +667,7 @@ class RemoteControlService {
         'Issuing native key frame request: mode=$_mode state=$_state buffer=${_screenFramePipeline.bufferLength}',
         name: 'RemoteControl',
       );
-      await _channel.invokeMethod('requestKeyFrame');
+      await _platformGateway.requestKeyFrame();
       _screenHealth.recordKeyFrameRequest(requestedAt);
     } catch (e) {
       developer.log(
@@ -755,9 +757,7 @@ class RemoteControlService {
     }
 
     try {
-      await _channel.invokeMethod('updateBitrate', {
-        'bitrate': normalizedBitrate,
-      });
+      await _platformGateway.updateBitrate(normalizedBitrate);
     } catch (e) {
       developer.log(
         'Failed to update bitrate: $e',
@@ -851,10 +851,7 @@ class RemoteControlService {
 
   Future<bool> _showRemoteDisconnectOverlay(String message) async {
     try {
-      return await _channel.invokeMethod<bool>('showDisconnectOverlay', {
-            'message': message,
-          }) ??
-          false;
+      return await _platformGateway.showDisconnectOverlay(message) ?? false;
     } catch (e) {
       developer.log(
         'Failed to show disconnect overlay: $e',
@@ -1110,7 +1107,7 @@ class RemoteControlService {
     _markReceiverSessionActive();
     _messageRouter.dispatchReceiverData(
       data,
-      channel: _channel,
+      executeCommand: _platformGateway.executeCommand,
       minBitrate: _minBitrate,
       maxBitrate: _maxBitrate,
       recordStatusMessage: _recordStatusMessage,
@@ -1335,7 +1332,7 @@ class RemoteControlService {
     _receiverSessionActive = false;
 
     try {
-      await _channel.invokeMethod('stop');
+      await _platformGateway.stop();
     } catch (e) {
       developer.log(
         'Error stopping native service: $e',

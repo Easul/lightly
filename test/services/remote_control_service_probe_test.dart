@@ -6,12 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/models/remote_control_config.dart';
 import 'package:lightly/services/remote_control_protocol.dart';
+import 'package:lightly/services/remote_control_platform_gateway.dart';
 import 'package:lightly/services/remote_control_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const channel = MethodChannel('remote_control');
+  const channel = MethodChannel(RemoteControlPlatformGateway.channelName);
   const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
 
   setUp(() {

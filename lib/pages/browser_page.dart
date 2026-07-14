@@ -36,6 +36,7 @@ import '../browser/services/browser_video_player_coordinator.dart';
 import '../services/app_toast.dart';
 import '../services/app_log_service.dart';
 import '../browser/utils/browser_popup_raw_url_capture.dart';
+import '../browser/utils/browser_popup_filter.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/browser_site_compatibility_script.dart';
@@ -64,7 +65,6 @@ import 'browser_page_status_coordinator.dart';
 import 'browser_page_tab_transition_helper.dart';
 import 'browser_page_tab_transition_coordinator.dart';
 import 'browser_page_tab_flow_coordinator.dart';
-import 'browser_page_url_filter_helper.dart';
 import 'browser_page_webview_lifecycle_helper.dart';
 import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
@@ -113,8 +113,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageLifecycleCoordinator();
   final BrowserPageWebViewLifecycleHelper _webViewLifecycleHelper =
       const BrowserPageWebViewLifecycleHelper();
-  final BrowserPageUrlFilterHelper _urlFilterHelper =
-      const BrowserPageUrlFilterHelper();
   final BrowserPageStatePredicates _statePredicates =
       const BrowserPageStatePredicates();
   final BrowserPageNotifierSync _notifierSync = const BrowserPageNotifierSync();
@@ -2069,11 +2067,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   bool _isWebScheme(String? scheme) {
-    return _urlFilterHelper.isWebScheme(scheme);
+    return BrowserPopupFilter.isWebScheme(scheme);
   }
 
   bool _shouldSuppressPopupUrl(String? url) {
-    return _urlFilterHelper.shouldSuppressPopupUrl(url);
+    return BrowserPopupFilter.shouldSuppressPopupUrl(url);
   }
 
   Future<void> _handleLongPressHitTestResult(

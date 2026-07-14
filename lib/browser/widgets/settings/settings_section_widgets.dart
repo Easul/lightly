@@ -113,7 +113,7 @@ class SettingsSectionPage extends StatelessWidget {
       ),
       body: ValueListenableBuilder<int>(
         valueListenable: revisionListenable,
-        builder: (context, _, __) {
+        builder: (context, _, _) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: buildChildren(context),
@@ -122,7 +122,7 @@ class SettingsSectionPage extends StatelessWidget {
       ),
       bottomNavigationBar: ValueListenableBuilder<int>(
         valueListenable: revisionListenable,
-        builder: (context, _, __) {
+        builder: (context, _, _) {
           final isSaving = isSavingBuilder();
           return SafeArea(
             child: Padding(

@@ -12,17 +12,9 @@ void main() {
   });
 
   setUpAll(() {
-    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    TestWidgetsFlutterBinding.ensureInitialized();
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
-    binding.window.physicalSizeTestValue = const Size(1080, 2400);
-    binding.window.devicePixelRatioTestValue = 1.0;
-  });
-
-  tearDownAll(() {
-    final binding = TestWidgetsFlutterBinding.ensureInitialized();
-    binding.window.clearPhysicalSizeTestValue();
-    binding.window.clearDevicePixelRatioTestValue();
   });
 
   testWidgets('browser page is the default route', (WidgetTester tester) async {
@@ -111,12 +103,11 @@ void main() {
   testWidgets(
     'calculator layout stays stable on short screens after showing result',
     (WidgetTester tester) async {
-      final binding = TestWidgetsFlutterBinding.ensureInitialized();
-      binding.window.physicalSizeTestValue = const Size(360, 520);
-      binding.window.devicePixelRatioTestValue = 1.0;
+      tester.view.physicalSize = const Size(360, 520);
+      tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
-        binding.window.physicalSizeTestValue = const Size(1080, 2400);
-        binding.window.devicePixelRatioTestValue = 1.0;
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
       });
 
       await tester.pumpWidget(const MaterialApp(home: CalculatorPage()));

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/easytier_network_profile.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_profile_service.dart';
+import '../services/remote_control_platform_gateway.dart';
 import '../services/remote_control_service.dart';
 
 class AppLifecycleManager extends WidgetsBindingObserver {
@@ -15,7 +15,8 @@ class AppLifecycleManager extends WidgetsBindingObserver {
   final EasyTierService _easyTierService = EasyTierService();
   final EasyTierProfileService _profileService = EasyTierProfileService();
   final RemoteControlService _remoteControlService = RemoteControlService();
-  static const MethodChannel _channel = MethodChannel('remote_control');
+  final RemoteControlPlatformGateway _remoteControlPlatform =
+      RemoteControlPlatformGateway.instance;
 
   bool _isShuttingDown = false;
   bool _isInitialized = false;
@@ -36,14 +37,14 @@ class AppLifecycleManager extends WidgetsBindingObserver {
   Future<void> _ensureDefaultServiceStates() async {
     try {
       // 默认关闭无障碍服务
-      await _channel.invokeMethod('stop');
+      await _remoteControlPlatform.stop();
     } catch (_) {
       // 可能已经关闭或未启动
     }
 
     try {
       // 默认关闭屏幕录制
-      await _channel.invokeMethod('stopScreenCapture');
+      await _remoteControlPlatform.stopScreenCapture();
     } catch (_) {
       // 可能已经关闭或未启动
     }
@@ -63,11 +64,11 @@ class AppLifecycleManager extends WidgetsBindingObserver {
 
       // 关闭无障碍服务和屏幕录制。
       try {
-        await _channel.invokeMethod('stop');
+        await _remoteControlPlatform.stop();
       } catch (_) {}
 
       try {
-        await _channel.invokeMethod('stopScreenCapture');
+        await _remoteControlPlatform.stopScreenCapture();
       } catch (_) {}
     } finally {
       _isShuttingDown = false;

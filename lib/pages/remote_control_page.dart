@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_session_page.dart';
 import 'remote_control_page_connection_helper.dart';
@@ -10,6 +9,7 @@ import 'remote_control_page_receiver_helper.dart';
 import 'remote_control_disconnect_dialog.dart';
 import 'remote_control_setup_sections.dart';
 import '../services/remote_control_service.dart';
+import '../services/remote_control_platform_gateway.dart';
 import '../services/remote_control_protocol.dart' as protocol;
 import '../services/app_lifecycle_manager.dart';
 import '../services/easytier_service.dart';
@@ -98,8 +98,9 @@ bool resolveReceiverNoTunMode({
 }
 
 class _RemoteControlPageState extends State<RemoteControlPage> {
-  static const MethodChannel _channel = MethodChannel('remote_control');
   final RemoteControlService _service = RemoteControlService();
+  final RemoteControlPlatformGateway _platformGateway =
+      RemoteControlPlatformGateway.instance;
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();

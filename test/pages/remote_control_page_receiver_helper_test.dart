@@ -1,12 +1,13 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/pages/remote_control_page_receiver_helper.dart';
+import 'package:lightly/services/remote_control_platform_gateway.dart';
 import 'package:lightly/services/remote_control_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const channel = MethodChannel('remote_control');
+  const channel = MethodChannel(RemoteControlPlatformGateway.channelName);
   const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
 
   setUp(() {
@@ -44,7 +45,7 @@ void main() {
     bool? capturedNoTunMode;
     final ports = await const RemoteControlPageReceiverHelper()
         .startReceiverFlow(
-          channel: channel,
+          platformGateway: RemoteControlPlatformGateway(channel: channel),
           service: RemoteControlService(),
           useNoTunMode: true,
           ensureVpnForRemoteControl: ({bool noTunMode = false}) async {

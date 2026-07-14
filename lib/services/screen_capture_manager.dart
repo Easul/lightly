@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
-import 'package:flutter/services.dart';
+
+import 'remote_control_platform_gateway.dart';
 
 /// 屏幕帧类型
 enum ScreenFrameType {
@@ -27,7 +28,11 @@ class ScreenFrame {
 ///
 /// 管理屏幕捕获的生命周期，处理 H.264 帧的接收和解码
 class ScreenCaptureManager {
-  static const MethodChannel _channel = MethodChannel('remote_control');
+  ScreenCaptureManager({RemoteControlPlatformGateway? platformGateway})
+    : _platformGateway =
+          platformGateway ?? RemoteControlPlatformGateway.instance;
+
+  final RemoteControlPlatformGateway _platformGateway;
 
   final StreamController<ScreenFrame> _frameController =
       StreamController<ScreenFrame>.broadcast();
@@ -51,10 +56,10 @@ class ScreenCaptureManager {
     if (_isCapturing) return true;
 
     try {
-      final result = await _channel.invokeMethod<bool>('startScreenCapture', {
-        'fps': fps,
-        'bitrate': bitrate,
-      });
+      final result = await _platformGateway.startScreenCapture(
+        fps: fps,
+        bitrate: bitrate,
+      );
 
       _isCapturing = result ?? false;
       if (_isCapturing) {
@@ -76,7 +81,7 @@ class ScreenCaptureManager {
     if (!_isCapturing) return;
 
     try {
-      await _channel.invokeMethod('stopScreenCapture');
+      await _platformGateway.stopScreenCapture();
       _isCapturing = false;
       _spsData = null;
       _ppsData = null;
@@ -203,7 +208,7 @@ class ScreenCaptureManager {
   /// 请求关键帧
   Future<void> requestKeyFrame() async {
     try {
-      await _channel.invokeMethod('requestKeyFrame');
+      await _platformGateway.requestKeyFrame();
     } catch (e) {
       developer.log(
         'Failed to request key frame: $e',
@@ -216,7 +221,7 @@ class ScreenCaptureManager {
   /// 更新码率
   Future<void> updateBitrate(int bitrate) async {
     try {
-      await _channel.invokeMethod('updateBitrate', {'bitrate': bitrate});
+      await _platformGateway.updateBitrate(bitrate);
     } catch (e) {
       developer.log(
         'Failed to update bitrate: $e',

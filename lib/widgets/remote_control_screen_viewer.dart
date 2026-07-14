@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../services/remote_control_platform_gateway.dart';
 import '../services/screen_capture_manager.dart';
 
 class RemoteControlScreenViewer extends StatefulWidget {
@@ -12,6 +13,7 @@ class RemoteControlScreenViewer extends StatefulWidget {
   final Uint8List? Function()? latestSpsProvider;
   final Uint8List? Function()? latestPpsProvider;
   final Future<void> Function()? onViewerReady;
+  final RemoteControlPlatformGateway? platformGateway;
 
   const RemoteControlScreenViewer({
     super.key,
@@ -22,6 +24,7 @@ class RemoteControlScreenViewer extends StatefulWidget {
     this.latestSpsProvider,
     this.latestPpsProvider,
     this.onViewerReady,
+    this.platformGateway,
   });
 
   @override
@@ -30,7 +33,7 @@ class RemoteControlScreenViewer extends StatefulWidget {
 }
 
 class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
-  static const MethodChannel _channel = MethodChannel('remote_control');
+  late final RemoteControlPlatformGateway _platformGateway;
 
   late StreamSubscription<ScreenFrame> _frameSubscription;
   int? _textureId;
@@ -50,6 +53,8 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
   @override
   void initState() {
     super.initState();
+    _platformGateway =
+        widget.platformGateway ?? RemoteControlPlatformGateway.instance;
     _frameSubscription = widget.frameStream.listen(_handleFrame);
     _initTexture();
   }
@@ -64,11 +69,10 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
 
   Future<void> _initTexture() async {
     try {
-      final textureId = await _channel
-          .invokeMethod<int>('createScreenTexture', {
-            'width': widget.remoteScreenSize.width.round(),
-            'height': widget.remoteScreenSize.height.round(),
-          });
+      final textureId = await _platformGateway.createScreenTexture(
+        width: widget.remoteScreenSize.width.round(),
+        height: widget.remoteScreenSize.height.round(),
+      );
       if (textureId != null) {
         setState(() {
           _textureId = textureId;
@@ -141,9 +145,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
     if (_textureId == null) return;
 
     try {
-      await _channel.invokeMethod('disposeScreenTexture', {
-        'textureId': _textureId,
-      });
+      await _platformGateway.disposeScreenTexture(_textureId!);
     } catch (e) {
       developer.log(
         'Failed to dispose screen texture: $e',
@@ -277,12 +279,12 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
     if (_textureId == null) return;
 
     try {
-      await _channel.invokeMethod('pushScreenFrame', {
-        'textureId': _textureId,
-        'data': frame.data,
-        'type': frame.type.index,
-        'timestamp': frame.timestamp,
-      });
+      await _platformGateway.pushScreenFrame(
+        textureId: _textureId!,
+        data: frame.data,
+        type: frame.type.index,
+        timestamp: frame.timestamp,
+      );
     } catch (e) {
       developer.log(
         'Failed to push screen frame: $e',
