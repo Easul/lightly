@@ -24,6 +24,50 @@ void main() {
       expect(launchedUrl.toString(), encodedUrl);
     });
 
+    test('restores bank payload casing for direct webview navigation', () async {
+      const normalizedUrl =
+          'bankabc://%7B%22method%22%3A%22jumptosharedproduct%22%2C%22traffictag%22%3A%2290fc%22%7D';
+      Uri? launchedUrl;
+      final service = BrowserExternalUrlLauncherService(
+        launch: (url, {mode = LaunchMode.platformDefault}) async {
+          launchedUrl = url;
+          return true;
+        },
+      );
+
+      final result = await service.launch(
+        WebUri(normalizedUrl, forceToStringRawValue: true),
+      );
+
+      expect(result, BrowserExternalUrlLauncherService.launchedMessage);
+      expect(
+        launchedUrl.toString(),
+        'bankabc://%7B%22method%22%3A%22jumpToSharedProduct%22%2C%22trafficTag%22%3A%2290fc%22%7D',
+      );
+    });
+
+    test('decodes a fully encoded external url before launching', () async {
+      const encodedUrl =
+          'baiduboxapp%3A%2F%2Fv1%2Feasy%2Fbydird%3Fupgrade%3D1%26type%3Dhybird';
+      Uri? launchedUrl;
+      final service = BrowserExternalUrlLauncherService(
+        launch: (url, {mode = LaunchMode.platformDefault}) async {
+          launchedUrl = url;
+          return true;
+        },
+      );
+
+      final result = await service.launch(
+        WebUri(encodedUrl, forceToStringRawValue: true),
+      );
+
+      expect(result, BrowserExternalUrlLauncherService.launchedMessage);
+      expect(
+        launchedUrl.toString(),
+        'baiduboxapp://v1/easy/bydird?upgrade=1&type=hybird',
+      );
+    });
+
     test('returns launched message when external app starts', () async {
       final service = BrowserExternalUrlLauncherService(
         launch: (url, {mode = LaunchMode.platformDefault}) async => true,

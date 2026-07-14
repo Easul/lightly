@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../utils/browser_popup_url_decoder.dart';
 
 typedef ExternalUrlLaunchCallback =
     Future<bool> Function(Uri url, {LaunchMode mode});
@@ -15,10 +18,11 @@ class BrowserExternalUrlLauncherService {
   static const String failedMessage = '打开外部应用失败';
 
   Future<String> launch(Uri requestedUrl) async {
+    final launchUrl = _prepareLaunchUrl(requestedUrl);
     if (kDebugMode || kProfileMode) {
-      final url = requestedUrl.toString();
+      final url = launchUrl.toString();
       debugPrint(
-        '[ExternalUrlLaunch] scheme=${requestedUrl.scheme} '
+        '[ExternalUrlLaunch] scheme=${launchUrl.scheme} '
         'length=${url.length} '
         'camelMethod=${url.contains('jumpToSharedProduct')} '
         'lowerMethod=${url.contains('jumptosharedproduct')} '
@@ -28,12 +32,24 @@ class BrowserExternalUrlLauncherService {
     }
     try {
       final launched = await _launch(
-        requestedUrl,
+        launchUrl,
         mode: LaunchMode.externalApplication,
       );
       return launched ? launchedMessage : unavailableMessage;
     } catch (_) {
       return failedMessage;
     }
+  }
+
+  Uri _prepareLaunchUrl(Uri requestedUrl) {
+    final rawUrl = requestedUrl is WebUri
+        ? requestedUrl.rawValue
+        : requestedUrl.toString();
+    final decodedUrl = BrowserPopupUrlDecoder.decodeIfNeeded(rawUrl);
+    final externalUrl = BrowserPopupUrlDecoder.externalLaunchUrl(
+      rawUrl: rawUrl,
+      decodedUrl: decodedUrl,
+    );
+    return WebUri(externalUrl, forceToStringRawValue: true);
   }
 }
