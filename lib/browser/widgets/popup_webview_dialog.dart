@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -7,6 +8,7 @@ import '../services/browser_auth_dialog_service.dart';
 import '../services/browser_external_url_launcher_service.dart';
 import '../utils/browser_auth_url_detector.dart';
 import '../utils/browser_popup_filter.dart';
+import '../utils/browser_popup_raw_url_capture.dart';
 import '../utils/browser_popup_url_decoder.dart';
 import '../utils/ui_update_thresholds.dart';
 
@@ -42,6 +44,14 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
     allowFileAccess: true,
     allowContentAccess: true,
   );
+  static final UnmodifiableListView<UserScript> _popupInitialUserScripts =
+      UnmodifiableListView<UserScript>([
+        UserScript(
+          source: BrowserPopupRawUrlCapture.initialScript,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          contentWorld: ContentWorld.PAGE,
+        ),
+      ]);
 
   @override
   void initState() {
@@ -100,6 +110,22 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
       return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
     }
     return BrowserAuthDialogService.showAuthDialog(context, challenge);
+  }
+
+  Future<String> _resolveRawPopupUrl(
+    InAppWebViewController controller,
+    String fallbackUrl,
+  ) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: BrowserPopupRawUrlCapture.takeLatestScript(fallbackUrl),
+        contentWorld: ContentWorld.PAGE,
+      );
+      return BrowserPopupRawUrlCapture.capturedUrlFromResult(result) ??
+          fallbackUrl;
+    } catch (_) {
+      return fallbackUrl;
+    }
   }
 
   bool _shouldSuppressPopupUrl(String? popupUrl) {
@@ -250,6 +276,7 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     ? URLRequest(url: WebUri(widget.initialUrl!))
                     : null,
                 initialSettings: _popupSettings,
+                initialUserScripts: _popupInitialUserScripts,
                 shouldOverrideUrlLoading: (_, navigationAction) =>
                     _handleShouldOverrideUrlLoading(navigationAction),
                 onCloseWindow: (_) => _closeDialog(),
@@ -268,11 +295,16 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                     _handleReceivedError(request, error),
                 onReceivedHttpAuthRequest: _handleHttpAuthRequest,
                 onCreateWindow: (controller, createWindowAction) async {
-                  final rawPopupUrl = createWindowAction.request.url?.rawValue;
-                  final popupUrl = rawPopupUrl == null
-                      ? null
-                      : BrowserPopupUrlDecoder.decodeIfNeeded(rawPopupUrl);
-                  if ((popupUrl == null || popupUrl.isEmpty) &&
+                  final fallbackUrl =
+                      createWindowAction.request.url?.rawValue ?? '';
+                  final rawPopupUrl = await _resolveRawPopupUrl(
+                    controller,
+                    fallbackUrl,
+                  );
+                  final popupUrl = BrowserPopupUrlDecoder.decodeIfNeeded(
+                    rawPopupUrl,
+                  );
+                  if (popupUrl.isEmpty &&
                       _shouldAllowDeferredAuthPopup(createWindowAction)) {
                     return _showNestedPopupWindow(
                       windowId: createWindowAction.windowId,
@@ -281,7 +313,7 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                   if (_shouldSuppressPopupUrl(popupUrl)) {
                     return false;
                   }
-                  if (popupUrl != null && popupUrl.isNotEmpty) {
+                  if (popupUrl.isNotEmpty) {
                     final shouldOpen = _isTrustedAuthPopup(popupUrl)
                         ? true
                         : await _confirmPopupNavigation(popupUrl);
@@ -297,7 +329,7 @@ class _PopupWebViewDialogState extends State<PopupWebViewDialog> {
                         scheme != 'content') {
                       final externalUrl =
                           BrowserPopupUrlDecoder.externalLaunchUrl(
-                            rawUrl: rawPopupUrl!,
+                            rawUrl: rawPopupUrl,
                             decodedUrl: popupUrl,
                           );
                       await _externalUrlLauncher.launch(

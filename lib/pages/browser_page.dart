@@ -34,6 +34,7 @@ import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../services/app_toast.dart';
+import '../browser/utils/browser_popup_raw_url_capture.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
 import '../browser/utils/browser_site_compatibility_script.dart';
@@ -1582,7 +1583,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     CreateWindowAction createWindowAction,
   ) async {
-    final requestedUrl = createWindowAction.request.url?.rawValue ?? '';
+    final fallbackUrl = createWindowAction.request.url?.rawValue ?? '';
+    final requestedUrl = await _resolveRawPopupUrl(controller, fallbackUrl);
     final decision = _popupWindowHandler.decide(
       requestedUrl: requestedUrl,
       sourceUrl:
@@ -1632,6 +1634,22 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
           ),
         );
         return true;
+    }
+  }
+
+  Future<String> _resolveRawPopupUrl(
+    InAppWebViewController controller,
+    String fallbackUrl,
+  ) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: BrowserPopupRawUrlCapture.takeLatestScript(fallbackUrl),
+        contentWorld: ContentWorld.PAGE,
+      );
+      return BrowserPopupRawUrlCapture.capturedUrlFromResult(result) ??
+          fallbackUrl;
+    } catch (_) {
+      return fallbackUrl;
     }
   }
 

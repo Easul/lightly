@@ -427,6 +427,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Dart `Uri.toString()` can percent-encode a decoded custom-scheme payload again (for example `bankabc://{"method":...}`), so external-app confirmation dialogs must decode their final display string after URI conversion; keep the launch `Uri` unchanged.
 - Custom schemes with an encoded JSON authority, such as `bankabc://%7B%22method%22...%7D`, are not valid after full decoding (`Uri.tryParse` can reject the JSON colon as an invalid port). Detect the scheme from decoded text, but preserve the WebView `WebUri.rawValue` for Android external-app launch.
 - Do not pass these raw custom-scheme strings through `Uri.parse`: Dart treats the encoded payload after `//` as a host and lowercases case-sensitive JSON values/keys such as `jumpToSharedProduct` and `trafficTag`. Launch with `WebUri(rawUrl, forceToStringRawValue: true)` so Android receives the exact original string.
+- Android WebView may normalize/lowercase an encoded custom-scheme authority before `onCreateWindow`. Keep the document-start raw-popup capture script enabled so original `window.open()` arguments and anchor `href` attributes can be recovered before Chromium normalization; use the captured value ahead of the callback URL.
 - Keep malformed percent encoding unchanged instead of throwing and breaking the WebView popup callback.
 - Apply the same normalization to both main WebView popups and nested popup WebViews.
 - Related files:

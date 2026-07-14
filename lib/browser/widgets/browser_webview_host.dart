@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../utils/browser_popup_raw_url_capture.dart';
 import '../utils/browser_site_compatibility_script.dart';
 
 const _browserMobileUserAgent =
@@ -305,23 +306,30 @@ class BrowserWebViewHost extends StatelessWidget {
     required String initialUrl,
     required String desktopUserAgent,
   }) {
-    if (!desktopModeEnabled) {
-      return null;
-    }
-    final script = BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
-      initialUrl,
-      desktopUserAgent: desktopUserAgent,
-    );
-    if (script == null) {
-      return null;
-    }
-    return UnmodifiableListView<UserScript>([
+    final scripts = <UserScript>[
       UserScript(
-        source: script,
+        source: BrowserPopupRawUrlCapture.initialScript,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         contentWorld: ContentWorld.PAGE,
       ),
-    ]);
+    ];
+    if (desktopModeEnabled) {
+      final desktopScript =
+          BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            initialUrl,
+            desktopUserAgent: desktopUserAgent,
+          );
+      if (desktopScript != null) {
+        scripts.add(
+          UserScript(
+            source: desktopScript,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+            contentWorld: ContentWorld.PAGE,
+          ),
+        );
+      }
+    }
+    return UnmodifiableListView<UserScript>(scripts);
   }
 }
 
