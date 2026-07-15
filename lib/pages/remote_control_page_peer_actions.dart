@@ -37,8 +37,13 @@ extension _RemoteControlPagePeerActions on _RemoteControlPageState {
           _updateState(() => _isLoadingPeers = false);
         }
       }
-    } catch (e) {
-      developer.log('Failed to load peers: $e', name: 'RemoteControl');
+    } catch (e, stackTrace) {
+      recordRuntimeLog(
+        'RemoteControl',
+        'Failed to load EasyTier peers',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       if (showLoading) {
         _updateState(() => _isLoadingPeers = false);

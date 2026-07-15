@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
-
 import 'package:flutter/services.dart';
+
+import 'app_log_service.dart';
 
 class ProxyCoreService {
   static const MethodChannel _channel = MethodChannel('com.proxy.core/proxy');
@@ -18,8 +18,14 @@ class ProxyCoreService {
         'logLevel': logLevel,
       });
       return result ?? -1;
-    } on PlatformException catch (e) {
-      developer.log('ProxyCore init error: ${e.message}', name: 'ProxyCore');
+    } on PlatformException catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ProxyCore',
+        'Native proxy initialization failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code, 'logLevel': logLevel},
+      );
       return -1;
     }
   }
@@ -47,8 +53,18 @@ class ProxyCoreService {
       }
 
       return result ?? -1;
-    } on PlatformException catch (e) {
-      developer.log('ProxyCore start error: ${e.message}', name: 'ProxyCore');
+    } on PlatformException catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ProxyCore',
+        'Native proxy start failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'code': e.code,
+          'listenAddr': listenAddr,
+          'protocol': hysteria2Config != null ? 'hysteria2' : 'vless',
+        },
+      );
       return -1;
     }
   }
@@ -64,8 +80,14 @@ class ProxyCoreService {
         _isRunning = false;
       }
       return result ?? -1;
-    } on PlatformException catch (e) {
-      developer.log('ProxyCore stop error: ${e.message}', name: 'ProxyCore');
+    } on PlatformException catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ProxyCore',
+        'Native proxy stop failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code},
+      );
       return -1;
     }
   }

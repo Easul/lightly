@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../services/app_log_service.dart';
 import '../utils/browser_popup_url_decoder.dart';
 
 typedef ExternalUrlLaunchCallback =
@@ -36,7 +37,14 @@ class BrowserExternalUrlLauncherService {
         mode: LaunchMode.externalApplication,
       );
       return launched ? launchedMessage : unavailableMessage;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      recordRuntimeLog(
+        'ExternalUrlLaunch',
+        'External application launch failed',
+        error: error,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'scheme': launchUrl.scheme},
+      );
       return failedMessage;
     }
   }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../calculator/history_service.dart';
 import '../../services/easytier_profile_service.dart';
+import '../../services/app_log_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../browser_settings_service.dart';
 import '../clipboard_storage_service.dart';
@@ -60,10 +61,17 @@ class BrowserBackupService {
     sharedDownloadsDirectoryService: _sharedDownloadsDirectoryService,
   );
 
-  void _logDebug(String message) {
-    if (kDebugMode) {
-      debugPrint(message);
-    }
+  void _logDebug(
+    String message, {
+    Object? error,
+    Map<String, Object?>? metadata,
+  }) {
+    recordRuntimeLog(
+      'BrowserBackup',
+      message,
+      error: error,
+      metadata: metadata,
+    );
   }
 
   Future<BrowserBackupData> exportData() async {

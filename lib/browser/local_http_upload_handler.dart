@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 
 typedef LocalHttpPathResolver = String? Function(String requestPath);
 typedef LocalHttpCorsHeaderApplier = void Function(HttpResponse response);
-typedef LocalHttpLogger = void Function(String message);
+typedef LocalHttpLogger = void Function(String message, {Object? error});
 
 class LocalHttpUploadHandler {
   const LocalHttpUploadHandler();
@@ -122,7 +122,7 @@ class LocalHttpUploadHandler {
 
       logDebug('Upload successful: ${targetFile.path} ($bytesReceived bytes)');
     } catch (e) {
-      logDebug('Upload error: $e');
+      logDebug('Upload failed', error: e);
       if (targetFile != null && await targetFile.exists()) {
         await targetFile.delete();
       }

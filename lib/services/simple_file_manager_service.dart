@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../browser/utils/local_network_address_helper.dart';
+import 'app_log_service.dart';
 
 class SimpleFileManagerSettings {
   const SimpleFileManagerSettings({
@@ -274,10 +274,16 @@ class SimpleFileManagerService {
         error.message,
       );
     } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('Simple file manager error: $error');
-        debugPrint('$stackTrace');
-      }
+      recordRuntimeLog(
+        'SimpleFileManager',
+        'Request handling failed',
+        error: error,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'method': request.method,
+          'path': request.uri.path,
+        },
+      );
       await _writeError(
         request.response,
         HttpStatus.internalServerError,

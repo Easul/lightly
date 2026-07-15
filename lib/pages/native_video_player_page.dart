@@ -18,6 +18,7 @@ import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../browser/services/external_api_video_source_resolver.dart';
 import '../browser/services/video_proxy_server.dart';
 import '../browser/services/video_source_resolver.dart';
+import '../services/app_log_service.dart';
 import '../browser/utils/youtube_long_press_utils.dart';
 import '../services/app_toast.dart';
 import '../widgets/native_video/native_video_overlay.dart';
@@ -298,6 +299,16 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
       if (!mounted) return;
       _logDebug('NativeVideoPlayer: initialization failed: $e');
       _logDebug('NativeVideoPlayer: stack trace: $stackTrace');
+      recordRuntimeLog(
+        'NativeVideoPlayer',
+        'Player initialization failed',
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'errorType': e.runtimeType.toString(),
+          'isYouTube': _isYouTubeUrl,
+          'resolveYouTube': widget.resolveYouTube,
+        },
+      );
       setState(() {
         _isInitializing = false;
         _errorMessage = _isYouTubeUrl

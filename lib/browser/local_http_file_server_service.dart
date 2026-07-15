@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../services/app_log_service.dart';
 import 'browser_settings.dart';
 import 'local_http_directory_handler.dart';
 import 'local_http_file_handler.dart';
@@ -60,7 +61,11 @@ class LocalHttpFileServerService {
     return key == _uploadKey;
   }
 
-  void _logDebug(String message) {
+  void _logUploadEvent(String message, {Object? error}) {
+    if (error != null) {
+      recordRuntimeLog('LocalHttpFileServer', message, error: error);
+      return;
+    }
     if (kDebugMode) {
       debugPrint(message);
     }
@@ -171,7 +176,7 @@ class LocalHttpFileServerService {
           rootCanonicalPath: _rootCanonicalPath,
           resolvePath: _resolvePath,
           addCorsHeaders: _addCorsHeaders,
-          logDebug: _logDebug,
+          logDebug: _logUploadEvent,
         );
         return;
       }
@@ -222,15 +227,31 @@ class LocalHttpFileServerService {
           return;
       }
     } on FileSystemException catch (e) {
-      _logDebug('File system error: $e');
+      recordRuntimeLog(
+        'LocalHttpFileServer',
+        'File system request failed',
+        error: e,
+        metadata: <String, Object?>{
+          'method': request.method,
+          'path': request.uri.path,
+        },
+      );
       await _writeErrorResponse(
         request.response,
         _statusCodeForFileSystemError(e),
         'File system error: ${e.message}',
       );
     } catch (e, stackTrace) {
-      _logDebug('Local HTTP server error: $e');
-      _logDebug('Stack trace: $stackTrace');
+      recordRuntimeLog(
+        'LocalHttpFileServer',
+        'Request handling failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'method': request.method,
+          'path': request.uri.path,
+        },
+      );
       await _writeErrorResponse(
         request.response,
         HttpStatus.internalServerError,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../services/app_log_service.dart';
 import '../services/remote_control_platform_gateway.dart';
 import '../services/screen_capture_manager.dart';
 
@@ -49,6 +50,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
   ScreenFrame? _pendingDeltaFrame;
   bool _isPushingFrame = false;
   bool _hasDecodedReferenceFrame = false;
+  bool _hasLoggedFramePushFailure = false;
 
   @override
   void initState() {
@@ -87,11 +89,16 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
           name: 'ScreenViewer',
         );
       }
-    } catch (e) {
-      developer.log(
-        'Failed to create screen texture: $e',
-        name: 'ScreenViewer',
+    } catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ScreenViewer',
+        'Failed to create screen texture',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'width': widget.remoteScreenSize.width.round(),
+          'height': widget.remoteScreenSize.height.round(),
+        },
       );
     }
   }
@@ -146,11 +153,12 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
 
     try {
       await _platformGateway.disposeScreenTexture(_textureId!);
-    } catch (e) {
-      developer.log(
-        'Failed to dispose screen texture: $e',
-        name: 'ScreenViewer',
+    } catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ScreenViewer',
+        'Failed to dispose screen texture',
         error: e,
+        stackTrace: stackTrace,
       );
     }
   }
@@ -285,12 +293,27 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
         type: frame.type.index,
         timestamp: frame.timestamp,
       );
-    } catch (e) {
-      developer.log(
-        'Failed to push screen frame: $e',
-        name: 'ScreenViewer',
-        error: e,
-      );
+      _hasLoggedFramePushFailure = false;
+    } catch (e, stackTrace) {
+      if (_hasLoggedFramePushFailure) {
+        developer.log(
+          'Failed to push screen frame: $e',
+          name: 'ScreenViewer',
+          error: e,
+        );
+      } else {
+        _hasLoggedFramePushFailure = true;
+        recordRuntimeLog(
+          'ScreenViewer',
+          'Failed to push screen frame',
+          error: e,
+          stackTrace: stackTrace,
+          metadata: <String, Object?>{
+            'frameType': frame.type.name,
+            'frameBytes': frame.data.length,
+          },
+        );
+      }
     }
   }
 

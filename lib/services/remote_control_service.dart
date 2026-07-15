@@ -92,7 +92,9 @@ class RemoteControlService {
   final RemoteControlScreenFramePipelineCoordinator _screenFramePipeline =
       RemoteControlScreenFramePipelineCoordinator();
   late final RemoteControlScreenFrameSender _screenFrameSender =
-      RemoteControlScreenFrameSender(log: _logMessage);
+      RemoteControlScreenFrameSender(
+        log: (message) => developer.log(message, name: 'RemoteControl'),
+      );
   final RemoteControlStatusBridge _statusBridge =
       const RemoteControlStatusBridge();
   final RemoteControlScreenHealthCoordinator _screenHealth =
@@ -169,10 +171,7 @@ class RemoteControlService {
   int _nextMessageId() => ++_messageIdCounter;
 
   void _logMessage(String message, {Object? error}) {
-    developer.log(message, name: 'RemoteControl', error: error);
-    unawaited(
-      AppLogService.instance.log('[RemoteControl] $message', error: error),
-    );
+    recordRuntimeLog('RemoteControl', message, error: error);
   }
 
   Future<void> _ensureAudioDiagnosticsLogging() async {
@@ -243,11 +242,7 @@ class RemoteControlService {
         receiverControlSocket: _receiverControlSocket,
       );
     } catch (e) {
-      developer.log(
-        'Failed to send screen info status: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to send screen info status', error: e);
     }
   }
 
@@ -258,11 +253,7 @@ class RemoteControlService {
         config: _config,
       );
     } catch (e) {
-      developer.log(
-        'Failed to send port config status: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to send port config status', error: e);
     }
   }
 
@@ -273,11 +264,7 @@ class RemoteControlService {
         enabled: isVoiceEnabled,
       );
     } catch (e) {
-      developer.log(
-        'Failed to send voice capability status: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to send voice capability status', error: e);
     }
   }
 
@@ -322,14 +309,12 @@ class RemoteControlService {
           _screenServer!.listen(_handleScreenConnection);
         },
         rollbackStartup: _rollbackReceiverStartup,
-        log: (message, {error}) =>
-            developer.log(message, name: 'RemoteControl', error: error),
+        log: _logMessage,
       );
 
       _updateState(RemoteControlState.idle);
-      developer.log(
+      _logMessage(
         'Receiver started on ports ${ports.controlPort}/${ports.screenPort}',
-        name: 'RemoteControl',
       );
       return ports;
     } catch (e) {
@@ -408,11 +393,10 @@ class RemoteControlService {
           _startHeartbeat();
         },
         resetConnection: _resetControllerConnection,
-        log: (message, {error}) =>
-            developer.log(message, name: 'RemoteControl', error: error),
+        log: _logMessage,
       );
       _updateState(RemoteControlState.connected);
-      developer.log('Connected to $host', name: 'RemoteControl');
+      _logMessage('Connected to $host');
     } catch (e) {
       _updateState(RemoteControlState.error);
       rethrow;
@@ -480,9 +464,8 @@ class RemoteControlService {
   }
 
   Future<void> _resetControllerConnection({required bool stopNative}) async {
-    developer.log(
+    _logMessage(
       'Resetting controller connection: stopNative=$stopNative state=$_state screenSocket=${_controllerScreenSocket != null} controlSocket=${_controllerControlSocket != null} buffer=${_screenFramePipeline.bufferLength}',
-      name: 'RemoteControl',
     );
     await _cleanupHelper.resetControllerConnection(
       stopNative: stopNative,
@@ -572,11 +555,7 @@ class RemoteControlService {
       socket.add(utf8.encode(payload));
       await socket.flush();
     } catch (e) {
-      developer.log(
-        'Failed to send annotation circle: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to send annotation circle', error: e);
     }
   }
 
@@ -625,11 +604,7 @@ class RemoteControlService {
       );
       return result ?? false;
     } catch (e) {
-      developer.log(
-        'Failed to start screen capture: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to start screen capture', error: e);
       return false;
     }
   }
@@ -638,11 +613,7 @@ class RemoteControlService {
     try {
       await _platformGateway.stopScreenCapture();
     } catch (e) {
-      developer.log(
-        'Failed to stop screen capture: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to stop screen capture', error: e);
     }
   }
 
@@ -734,11 +705,7 @@ class RemoteControlService {
       _controllerScreenSocket = screenSocket;
       _startScreenFrameWatchdog();
     } catch (e) {
-      developer.log(
-        'Failed to reconnect controller screen channel: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to reconnect controller screen channel', error: e);
       _startScreenFrameWatchdog();
     }
 
@@ -759,11 +726,7 @@ class RemoteControlService {
     try {
       await _platformGateway.updateBitrate(normalizedBitrate);
     } catch (e) {
-      developer.log(
-        'Failed to update bitrate: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to update bitrate', error: e);
     }
   }
 
@@ -802,10 +765,7 @@ class RemoteControlService {
   }
 
   void _handleControlConnection(Socket client) {
-    developer.log(
-      'Control client connected: ${client.remoteAddress}',
-      name: 'RemoteControl',
-    );
+    _logMessage('Control client connected: ${client.remoteAddress}');
     _receiverControlSocket = client;
     _targetHost = client.remoteAddress.address;
     _receiverSessionActive = false;
@@ -817,10 +777,9 @@ class RemoteControlService {
     _lifecycleHelper.attachReceiverControlClient(
       client: client,
       onData: _handleReceiverControlData,
-      onError: (error) =>
-          developer.log('Control client error: $error', name: 'RemoteControl'),
+      onError: (error) => _logMessage('Control client error', error: error),
       onDone: () {
-        developer.log('Control client disconnected', name: 'RemoteControl');
+        _logMessage('Control client disconnected');
         unawaited(stopAudioCapture());
         unawaited(_voiceCoordinator.close());
         final wasActiveSession = _receiverSessionActive;
@@ -853,26 +812,18 @@ class RemoteControlService {
     try {
       return await _platformGateway.showDisconnectOverlay(message) ?? false;
     } catch (e) {
-      developer.log(
-        'Failed to show disconnect overlay: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to show disconnect overlay', error: e);
       return false;
     }
   }
 
   void _handleScreenConnection(Socket client) {
-    developer.log(
-      'Screen client connected: ${client.remoteAddress}',
-      name: 'RemoteControl',
-    );
+    _logMessage('Screen client connected: ${client.remoteAddress}');
     _receiverScreenSocket = client;
     _screenFrameSender.attach(client);
     _markReceiverSessionActive();
-    developer.log(
+    _logMessage(
       'Receiver screen socket ready: remote=${client.remoteAddress.address}:${client.remotePort} local=${client.address.address}:${client.port}',
-      name: 'RemoteControl',
     );
     final sps = _screenCaptureManager.spsData;
     final pps = _screenCaptureManager.ppsData;
@@ -1117,8 +1068,7 @@ class RemoteControlService {
       sendAck: _sendAck,
       onHeartbeat: _handleHeartbeatReceived,
       shutdownReceiver: shutdownReceiverHostResources,
-      log: (message, {error}) =>
-          developer.log(message, name: 'RemoteControl', error: error),
+      log: _logMessage,
     );
   }
 
@@ -1131,13 +1081,13 @@ class RemoteControlService {
   }
 
   void _handleControlError(dynamic error) {
-    developer.log('Control channel error: $error', name: 'RemoteControl');
+    _logMessage('Control channel error', error: error);
     _markUnexpectedControllerDisconnect('control-error');
     unawaited(_resetControllerConnection(stopNative: true));
   }
 
   void _handleControlDone() {
-    developer.log('Control channel closed', name: 'RemoteControl');
+    _logMessage('Control channel closed');
     _markUnexpectedControllerDisconnect('control-done');
     unawaited(_resetControllerConnection(stopNative: true));
   }
@@ -1149,9 +1099,9 @@ class RemoteControlService {
   }) {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
-    developer.log(
+    _logMessage(
       'Screen channel error: $error state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
-      name: 'RemoteControl',
+      error: error,
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
@@ -1171,9 +1121,8 @@ class RemoteControlService {
   }) {
     final activeControllerSocket = identical(_controllerScreenSocket, socket);
     final activeReceiverSocket = identical(_receiverScreenSocket, socket);
-    developer.log(
+    _logMessage(
       'Screen channel closed: state=$_state mode=$_mode sourceMode=$mode activeControllerSocket=$activeControllerSocket activeReceiverSocket=$activeReceiverSocket buffer=${_screenFramePipeline.bufferLength} lastFrameAgo=${_screenHealth.lastFrameAgeDescription}',
-      name: 'RemoteControl',
     );
     if (activeControllerSocket) {
       _controllerScreenSocket = null;
@@ -1277,11 +1226,7 @@ class RemoteControlService {
     try {
       await EasyTierService().stopVpn();
     } catch (e) {
-      developer.log(
-        'Failed to stop EasyTier during receiver shutdown: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Failed to stop EasyTier during receiver shutdown', error: e);
     }
     if (_mode == RemoteControlMode.receiver) {
       _updateState(RemoteControlState.idle);
@@ -1301,7 +1246,7 @@ class RemoteControlService {
     if (_state == newState) return;
     _state = newState;
     _stateController.add(newState);
-    developer.log('State changed to $newState', name: 'RemoteControl');
+    _logMessage('State changed to $newState');
   }
 
   Future<void> disconnect() async {
@@ -1334,11 +1279,7 @@ class RemoteControlService {
     try {
       await _platformGateway.stop();
     } catch (e) {
-      developer.log(
-        'Error stopping native service: $e',
-        name: 'RemoteControl',
-        error: e,
-      );
+      _logMessage('Error stopping native service', error: e);
     }
 
     _updateState(RemoteControlState.disconnected);

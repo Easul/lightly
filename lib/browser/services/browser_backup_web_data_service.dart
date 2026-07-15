@@ -6,10 +6,17 @@ import '../models/browser_favorite.dart';
 import '../models/browser_history_entry.dart';
 import 'browser_cookie_origin_service.dart';
 
+typedef BrowserBackupLogSink =
+    void Function(
+      String message, {
+      Object? error,
+      Map<String, Object?>? metadata,
+    });
+
 class BrowserBackupWebDataService {
   BrowserBackupWebDataService({
     required BrowserCookieOriginService cookieOriginService,
-    required void Function(String message) logDebug,
+    required BrowserBackupLogSink logDebug,
   }) : _cookieOriginService = cookieOriginService,
        _logDebug = logDebug;
 
@@ -33,7 +40,7 @@ class BrowserBackupWebDataService {
   static const Duration _webStorageExportTimeout = Duration(seconds: 4);
 
   final BrowserCookieOriginService _cookieOriginService;
-  final void Function(String message) _logDebug;
+  final BrowserBackupLogSink _logDebug;
 
   Future<Set<String>> collectCookieUrls() async {
     final urls = <String>{};
@@ -128,7 +135,11 @@ class BrowserBackupWebDataService {
           };
         }
       } catch (e) {
-        _logDebug('Skip cookie export for $lookupUrl: $e');
+        _logDebug(
+          'Cookie export skipped',
+          error: e,
+          metadata: <String, Object?>{'origin': uri.origin},
+        );
       }
     }
     return exported.values.toList();
@@ -197,7 +208,11 @@ class BrowserBackupWebDataService {
         );
         count++;
       } catch (e) {
-        _logDebug('Skip cookie import for $url/$name: $e');
+        _logDebug(
+          'Cookie import skipped',
+          error: e,
+          metadata: <String, Object?>{'origin': uri.origin},
+        );
       }
     }
     return count;
@@ -278,7 +293,11 @@ class BrowserBackupWebDataService {
         final result = await task(controller);
         await complete(result);
       } catch (e) {
-        _logDebug('Skip web storage access for $origin: $e');
+        _logDebug(
+          'Web storage access skipped',
+          error: e,
+          metadata: <String, Object?>{'origin': uri.origin},
+        );
         await complete(null);
       }
     }

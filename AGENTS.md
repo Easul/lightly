@@ -451,6 +451,15 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Disabling runtime logging must stop accepting new entries, wait for queued writes, and delete `runtime.log` from the app external `logs` directory. Re-enabling starts a new diagnostic session and recreates the file with the new enable marker. Normal app startup with logging already enabled must not clear the existing session.
 - Related files: `lib/browser/services/browser_webview_diagnostics.dart`, `lib/services/app_log_service.dart`, `lib/browser/widgets/browser_webview_host.dart`.
 
+### Application runtime logging boundaries
+
+- Important Release-mode failures must use `recordRuntimeLog()` so they remain visible in both developer output and the exportable runtime log. This includes proxy-core lifecycle failures, EasyTier start/stop errors, remote-control connection lifecycle failures, screen capture/decoder setup failures, local HTTP service request failures, backup errors, and external-app launch exceptions.
+- Keep per-frame screen data, gesture coordinates, WebView progress/scroll events, EasyTier network-info polling, and other hot-path diagnostics console-only. Persisting them can create I/O jank and oversized logs.
+- Persist only bounded metadata. Do not write proxy credentials/config bodies, cookie values, URL query strings/fragments, custom-scheme payloads, video stream URLs, clipboard contents, or file contents.
+- Sanitize runtime-log messages, errors, stack traces, and nested metadata centrally before file writes. Platform exceptions must omit native `details`, sensitive metadata keys must be redacted, and URL logging must remove query/fragment data or redact custom-scheme payloads.
+- For errors that can repeat on every frame, persist the first consecutive failure and keep subsequent repeats console-only until a successful operation resets the failure state.
+- Related files: `lib/services/app_log_service.dart`, `lib/services/proxy_core_service.dart`, `lib/services/easytier_service.dart`, `lib/services/remote_control_service.dart`, `lib/widgets/remote_control_screen_viewer.dart`.
+
 ### Percent-encoded popup URLs must be decoded before routing
 
 - Some pages pass an entire custom-scheme popup target as a percent-encoded string, for example `baiduboxapp%3A%2F%2F...`.

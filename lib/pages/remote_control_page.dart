@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../models/remote_control_config.dart';
 import 'remote_control_session_page.dart';
@@ -12,6 +11,7 @@ import '../services/remote_control_service.dart';
 import '../services/remote_control_platform_gateway.dart';
 import '../services/remote_control_protocol.dart' as protocol;
 import '../services/app_lifecycle_manager.dart';
+import '../services/app_log_service.dart';
 import '../services/easytier_service.dart';
 import '../services/easytier_network_info_analyzer.dart';
 import '../services/app_toast.dart';

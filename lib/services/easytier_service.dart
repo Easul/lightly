@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
+import 'app_log_service.dart';
 
 class EasyTierService {
   static const MethodChannel _channel = MethodChannel('easytier_vpn');
@@ -38,12 +39,14 @@ class EasyTierService {
       });
       developer.log('Config parse result: $result', name: 'EasyTier');
       return result ?? false;
-    } on PlatformException catch (e) {
+    } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
-      developer.log(
-        'Config parse error: ${e.message}',
-        name: 'EasyTier',
+      recordRuntimeLog(
+        'EasyTier',
+        'Configuration parsing failed',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code},
       );
       return false;
     }
@@ -60,11 +63,13 @@ class EasyTierService {
         name: 'EasyTier',
       );
       return hasPermission ?? false;
-    } on PlatformException catch (e) {
-      developer.log(
-        'VPN permission check error: ${e.message}',
-        name: 'EasyTier',
+    } on PlatformException catch (e, stackTrace) {
+      recordRuntimeLog(
+        'EasyTier',
+        'VPN permission check failed',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code},
       );
       return false;
     }
@@ -128,9 +133,14 @@ class EasyTierService {
       final configString = config.toToml();
       _configString = configString;
 
-      developer.log(
-        'Starting VPN with config length: ${configString.length}',
-        name: 'EasyTier',
+      recordRuntimeLog(
+        'EasyTier',
+        'Starting network instance',
+        metadata: <String, Object?>{
+          'instanceName': config.instanceName,
+          'useAndroidVpn': useAndroidVpn,
+          'configLength': configString.length,
+        },
       );
       final result = await _channel.invokeMethod<bool>('startVpn', {
         'config': configString,
@@ -144,24 +154,46 @@ class EasyTierService {
         _usesAndroidVpn = useAndroidVpn;
         _activeNoTunSocksPort = useAndroidVpn ? null : config.socks5Port;
         _lastError = null;
-        developer.log('VPN started successfully', name: 'EasyTier');
+        recordRuntimeLog(
+          'EasyTier',
+          'Network instance started',
+          metadata: <String, Object?>{
+            'instanceName': config.instanceName,
+            'useAndroidVpn': useAndroidVpn,
+            'socks5Port': _activeNoTunSocksPort,
+          },
+        );
         return true;
       } else {
         _lastError = await getLastError();
         if (!useAndroidVpn) {
           _activeNoTunSocksPort = null;
         }
-        developer.log('VPN start failed: $_lastError', name: 'EasyTier');
+        recordRuntimeLog(
+          'EasyTier',
+          'Network instance start returned failure',
+          error: _lastError,
+          metadata: <String, Object?>{
+            'instanceName': config.instanceName,
+            'useAndroidVpn': useAndroidVpn,
+          },
+        );
         return false;
       }
-    } on PlatformException catch (e) {
+    } on PlatformException catch (e, stackTrace) {
       _isRunning = false;
       _activeNoTunSocksPort = null;
       _lastError = e.message;
-      developer.log(
-        'VPN start exception: ${e.message}',
-        name: 'EasyTier',
+      recordRuntimeLog(
+        'EasyTier',
+        'Network instance start threw an exception',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'code': e.code,
+          'instanceName': config.instanceName,
+          'useAndroidVpn': useAndroidVpn,
+        },
       );
       return false;
     }
@@ -169,16 +201,22 @@ class EasyTierService {
 
   Future<void> stopVpn() async {
     try {
-      developer.log('Stopping VPN', name: 'EasyTier');
+      recordRuntimeLog('EasyTier', 'Stopping network instance');
       await _channel.invokeMethod('stopVpn');
       _isRunning = false;
       _currentInstanceName = null;
       _usesAndroidVpn = true;
       _activeNoTunSocksPort = null;
-      developer.log('VPN stopped', name: 'EasyTier');
-    } on PlatformException catch (e) {
+      recordRuntimeLog('EasyTier', 'Network instance stopped');
+    } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
-      developer.log('VPN stop error: ${e.message}', name: 'EasyTier', error: e);
+      recordRuntimeLog(
+        'EasyTier',
+        'Network instance stop failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code},
+      );
     }
   }
 
@@ -192,13 +230,13 @@ class EasyTierService {
           final decoded = jsonDecode(info);
           if (decoded is Map<String, dynamic>) {
             developer.log(
-              'Network info received as JSON map: $decoded',
+              'Network info received: keys=${decoded.length}',
               name: 'EasyTier',
             );
             return decoded;
           }
           developer.log(
-            'Network info JSON was not a map: $decoded',
+            'Network info JSON was not a map: ${decoded.runtimeType}',
             name: 'EasyTier',
           );
           return <String, dynamic>{'raw': info};
@@ -214,19 +252,21 @@ class EasyTierService {
       }
       _lastRawNetworkInfo = null;
       return null;
-    } on PlatformException catch (e) {
+    } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
       _lastRawNetworkInfo = null;
-      developer.log(
-        'Get network info error: ${e.message}',
-        name: 'EasyTier',
+      recordRuntimeLog(
+        'EasyTier',
+        'Network information request failed',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'code': e.code},
       );
       return null;
     } catch (e, stackTrace) {
-      developer.log(
-        'Unexpected getNetworkInfo error: $e',
-        name: 'EasyTier',
+      recordRuntimeLog(
+        'EasyTier',
+        'Unexpected network information error',
         error: e,
         stackTrace: stackTrace,
       );

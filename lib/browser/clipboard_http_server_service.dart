@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-
+import '../services/app_log_service.dart';
 import 'clipboard_storage_service.dart';
 import 'utils/local_network_address_helper.dart';
 
@@ -110,8 +109,16 @@ class ClipboardHttpServerService {
       request.response.write('Not Found');
       await request.response.close();
     } catch (e, stackTrace) {
-      debugPrint('Clipboard HTTP server error: $e');
-      debugPrint('Stack trace: $stackTrace');
+      recordRuntimeLog(
+        'ClipboardHttpServer',
+        'Request handling failed',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{
+          'method': request.method,
+          'path': request.uri.path,
+        },
+      );
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         request.response.write('Internal Server Error');

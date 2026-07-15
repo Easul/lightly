@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'app_log_service.dart';
 import 'remote_control_platform_gateway.dart';
 
 /// 屏幕帧类型
@@ -63,14 +64,20 @@ class ScreenCaptureManager {
 
       _isCapturing = result ?? false;
       if (_isCapturing) {
-        developer.log('Screen capture started', name: 'ScreenCapture');
+        recordRuntimeLog(
+          'ScreenCapture',
+          'Screen capture started',
+          metadata: <String, Object?>{'fps': fps, 'bitrate': bitrate},
+        );
       }
       return _isCapturing;
-    } catch (e) {
-      developer.log(
-        'Failed to start screen capture: $e',
-        name: 'ScreenCapture',
+    } catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ScreenCapture',
+        'Failed to start screen capture',
         error: e,
+        stackTrace: stackTrace,
+        metadata: <String, Object?>{'fps': fps, 'bitrate': bitrate},
       );
       return false;
     }
@@ -85,12 +92,13 @@ class ScreenCaptureManager {
       _isCapturing = false;
       _spsData = null;
       _ppsData = null;
-      developer.log('Screen capture stopped', name: 'ScreenCapture');
-    } catch (e) {
-      developer.log(
-        'Failed to stop screen capture: $e',
-        name: 'ScreenCapture',
+      recordRuntimeLog('ScreenCapture', 'Screen capture stopped');
+    } catch (e, stackTrace) {
+      recordRuntimeLog(
+        'ScreenCapture',
+        'Failed to stop screen capture',
         error: e,
+        stackTrace: stackTrace,
       );
     }
   }
