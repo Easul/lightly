@@ -210,11 +210,16 @@ void main() {
     await tester.tap(find.text('Show'));
     await tester.pumpAndSettle();
 
+    expect(find.text('浏览器工具'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('browserMoreFooterDecoration')),
+      findsOneWidget,
+    );
     expect(find.text('添加收藏'), findsOneWidget);
     expect(find.text('下载'), findsOneWidget);
     expect(find.text('数据管理'), findsOneWidget);
-    expect(find.text('关闭标签页'), findsOneWidget);
-    expect(find.text('开启页面调试台'), findsOneWidget);
+    expect(find.text('关闭标签'), findsOneWidget);
+    expect(find.text('页面调试'), findsOneWidget);
     expect(find.text('电脑模式'), findsOneWidget);
     expect(find.text('页面内查找'), findsNothing);
     expect(find.text('设置'), findsOneWidget);

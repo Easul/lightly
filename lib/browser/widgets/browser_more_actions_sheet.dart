@@ -36,7 +36,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   final VoidCallback onExitApp;
   final VoidCallback? onOpenFavoritesMenu;
 
-  static const double _sheetMaxHeightFactor = 0.46;
+  static const double _sheetMaxHeightFactor = 0.52;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +117,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
             final itemWidth = (constraints.maxWidth - 24) / columnCount;
             return SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -129,7 +129,36 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.explore_outlined,
+                          size: 18,
+                          color: colorScheme.primary.withValues(alpha: 0.82),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          '浏览器工具',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
+                    Divider(
+                      height: 1,
+                      indent: 8,
+                      endIndent: 8,
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.72),
+                    ),
+                    const SizedBox(height: 5),
                     Wrap(
                       children: actions
                           .map(
@@ -145,6 +174,22 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                             ),
                           )
                           .toList(growable: false),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      key: const ValueKey('browserMoreFooterDecoration'),
+                      width: 48,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        gradient: LinearGradient(
+                          colors: [
+                            colorScheme.primary.withValues(alpha: 0),
+                            colorScheme.primary.withValues(alpha: 0.28),
+                            colorScheme.primary.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
