@@ -11,7 +11,6 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.provider.OpenableColumns
 import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
@@ -28,7 +27,6 @@ import io.flutter.embedding.engine.renderer.FlutterRenderer
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
 import org.json.JSONObject
-import java.io.File
 import java.util.concurrent.Executor
 
 class MainActivity : FlutterActivity() {
@@ -53,6 +51,9 @@ class MainActivity : FlutterActivity() {
 
     private var initialIntentUrl: String? = null
     private var browserProxyChannel: MethodChannel? = null
+    private val browserImportedFileService by lazy {
+        BrowserImportedFileService(this, logTag)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,121 +134,6 @@ class MainActivity : FlutterActivity() {
         runCatching {
             stopService(Intent(this, ProxyFloatingButtonService::class.java))
         }
-    }
-
-    private fun importContentUriToPrivateFile(uriString: String): String? {
-        val uri = Uri.parse(uriString)
-        if (uri.scheme?.lowercase() != "content") {
-            return uriString
-        }
-
-        val importsDir = resolveImportedDocumentsDir()
-        if (!importsDir.exists()) {
-            importsDir.mkdirs()
-        }
-
-        val displayName = queryContentDisplayName(uri)?.trim().orEmpty()
-        val safeName = sanitizeImportedFileName(displayName.ifEmpty {
-            "imported_${System.currentTimeMillis()}.txt"
-        })
-        val targetFile = buildUniqueImportedFile(importsDir, safeName)
-
-        contentResolver.openInputStream(uri)?.use { input ->
-            targetFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        } ?: return null
-
-        return Uri.fromFile(targetFile).toString()
-    }
-
-    private fun resolveImportedDocumentsDir(): File {
-        val externalDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        if (externalDir != null) {
-            return File(externalDir, "imported_documents")
-        }
-        return File(filesDir, "imported_documents")
-    }
-
-    private fun queryContentDisplayName(uri: Uri): String? {
-        return try {
-            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                ?.use { cursor ->
-                    if (!cursor.moveToFirst()) {
-                        return@use null
-                    }
-                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (index == -1) {
-                        null
-                    } else {
-                        cursor.getString(index)
-                    }
-                }
-        } catch (e: Exception) {
-            Log.w(logTag, "Failed to query display name for $uri", e)
-            null
-        }
-    }
-
-    private fun sanitizeImportedFileName(rawName: String): String {
-        val trimmed = rawName.trim()
-        val fallback = if (trimmed.isEmpty()) {
-            "imported_${System.currentTimeMillis()}.txt"
-        } else {
-            trimmed
-        }
-        return fallback.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-    }
-
-    private fun buildUniqueImportedFile(parent: File, fileName: String): File {
-        val dotIndex = fileName.lastIndexOf('.')
-        val baseName = if (dotIndex > 0) fileName.substring(0, dotIndex) else fileName
-        val extension = if (dotIndex > 0) fileName.substring(dotIndex) else ""
-        var candidate = File(parent, fileName)
-        var counter = 1
-        while (candidate.exists()) {
-            candidate = File(parent, "${baseName}_${counter}${extension}")
-            counter += 1
-        }
-        return candidate
-    }
-
-    private fun cleanupImportedPrivateFiles(retainedUrls: List<String>): Boolean {
-        val importRoots = listOf(
-            File(filesDir, "imported_documents"),
-            resolveImportedDocumentsDir(),
-        ).map { it.canonicalFile }.distinctBy { it.path }
-
-        val retainedFiles = retainedUrls.mapNotNull { retainedUrl ->
-            try {
-                val uri = Uri.parse(retainedUrl)
-                if (uri.scheme?.lowercase() != "file") {
-                    return@mapNotNull null
-                }
-                val path = uri.path ?: return@mapNotNull null
-                val file = File(path).canonicalFile
-                val matchingRoot = importRoots.firstOrNull { root ->
-                    file.path.startsWith(root.path + File.separator)
-                }
-                if (matchingRoot != null) file.path else null
-            } catch (_: Exception) {
-                null
-            }
-        }.toSet()
-
-        importRoots.forEach { importsRoot ->
-            if (!importsRoot.exists()) {
-                return@forEach
-            }
-            importsRoot.listFiles()?.forEach { child ->
-                val canonicalChild = child.canonicalFile
-                if (!retainedFiles.contains(canonicalChild.path)) {
-                    canonicalChild.delete()
-                }
-            }
-        }
-
-        return true
     }
 
     private val channelName = "browser_proxy"
@@ -423,7 +309,9 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         try {
-                            result.success(importContentUriToPrivateFile(uriString))
+                            result.success(
+                                browserImportedFileService.importContentUriToPrivateFile(uriString),
+                            )
                         } catch (e: Exception) {
                             Log.e(logTag, "Failed to import content URI: $uriString", e)
                             result.error("IMPORT_FAILED", e.message, null)
@@ -437,7 +325,7 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
                         try {
-                            result.success(contentResolver.getType(Uri.parse(uriString)))
+                            result.success(browserImportedFileService.getContentMimeType(uriString))
                         } catch (e: Exception) {
                             result.success(null)
                         }
@@ -447,7 +335,9 @@ class MainActivity : FlutterActivity() {
                         val retainedUrls =
                             call.argument<List<String>>("retainedUrls") ?: emptyList()
                         try {
-                            result.success(cleanupImportedPrivateFiles(retainedUrls))
+                            result.success(
+                                browserImportedFileService.cleanupImportedPrivateFiles(retainedUrls),
+                            )
                         } catch (e: Exception) {
                             Log.e(logTag, "Failed to cleanup imported private files", e)
                             result.error("CLEANUP_FAILED", e.message, null)
