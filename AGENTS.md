@@ -180,6 +180,16 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - In `VlessClient._connectWithRetry()`, the retry loop has delay, but initial connection does not.
 - **Do not** add global pacing that delays all concurrent WebSocket connections.
 
+### Hysteria2 First-Downstream Timing
+
+- Hysteria2 reuses an authenticated QUIC connection, so new TCP streams can return data much faster than new VLESS WebSocket tunnels.
+- Telegram 11.13.3 on affected Redmi devices can crash in `Connection::onReceivedData()` when the first Hysteria2 downstream bytes arrive during native connection initialization.
+- Keep the protocol-specific first-downstream grace exposed by `ProxyStream::first_downstream_grace()`:
+  - VLESS/default: `100ms`
+  - Hysteria2: `350ms`
+- Do not replace this with global connection pacing; only delay downstream reads after that SOCKS tunnel has forwarded its first real client payload.
+- Hysteria2 streams must expose the concrete QUIC route IP and endpoint port through `local_bind_addr()` so SOCKS5 CONNECT replies do not fall back to the listener port.
+
 ### Address Fallback
 
 - Telegram may connect to multiple addresses in parallel (IPv4/IPv6).

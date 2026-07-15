@@ -36,7 +36,10 @@ pub struct Hysteria2Config {
 pub struct Hysteria2Stream {
     send: Mutex<quinn::SendStream>,
     recv: Mutex<quinn::RecvStream>,
+    local_bind_addr: Option<SocketAddr>,
 }
+
+const HYSTERIA2_FIRST_DOWNSTREAM_GRACE: Duration = Duration::from_millis(350);
 
 #[derive(Debug)]
 struct NoCertificateVerification;
@@ -100,6 +103,14 @@ impl Hysteria2Client {
 
     pub async fn connect(&self, target_addr: &str, target_port: u16) -> Result<Hysteria2Stream> {
         let connection = self.get_or_create_connection().await?;
+        let endpoint_addr = self
+            .endpoint
+            .lock()
+            .await
+            .as_ref()
+            .and_then(|endpoint| endpoint.local_addr().ok());
+        let local_bind_addr =
+            resolve_hysteria_local_bind_addr(connection.local_ip(), endpoint_addr);
 
         let (mut send, mut recv) = connection
             .open_bi()
@@ -117,6 +128,7 @@ impl Hysteria2Client {
         Ok(Hysteria2Stream {
             send: Mutex::new(send),
             recv: Mutex::new(recv),
+            local_bind_addr,
         })
     }
 
@@ -317,6 +329,29 @@ impl ProxyStream for Hysteria2Stream {
     async fn close(&self) -> Result<()> {
         Hysteria2Stream::close(self).await
     }
+
+    fn local_bind_addr(&self) -> Option<SocketAddr> {
+        self.local_bind_addr
+    }
+
+    fn first_downstream_grace(&self) -> Duration {
+        HYSTERIA2_FIRST_DOWNSTREAM_GRACE
+    }
+}
+
+fn resolve_hysteria_local_bind_addr(
+    connection_ip: Option<IpAddr>,
+    endpoint_addr: Option<SocketAddr>,
+) -> Option<SocketAddr> {
+    endpoint_addr.map(|endpoint_addr| {
+        let ip = connection_ip
+            .filter(|ip| !ip.is_unspecified())
+            .unwrap_or_else(|| match endpoint_addr.ip() {
+                IpAddr::V4(_) => IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+                IpAddr::V6(_) => IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
+            });
+        SocketAddr::new(ip, endpoint_addr.port().max(1))
+    })
 }
 
 fn build_quinn_client_config(_sni: &Option<String>, tls_insecure: bool) -> Result<ClientConfig> {
@@ -453,7 +488,11 @@ async fn decode_quic_varint(recv: &mut quinn::RecvStream) -> Result<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::format_tcp_target;
+    use super::{
+        format_tcp_target, resolve_hysteria_local_bind_addr, HYSTERIA2_FIRST_DOWNSTREAM_GRACE,
+    };
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+    use std::time::Duration;
 
     #[test]
     fn formats_ipv6_tcp_target_with_brackets() {
@@ -470,5 +509,32 @@ mod tests {
             "149.154.167.50:443"
         );
         assert_eq!(format_tcp_target("example.com", 443), "example.com:443");
+    }
+
+    #[test]
+    fn uses_quic_route_ip_and_endpoint_port_for_socks_reply() {
+        let endpoint = SocketAddr::from(([0, 0, 0, 0], 43210));
+        let route_ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 8));
+
+        assert_eq!(
+            resolve_hysteria_local_bind_addr(Some(route_ip), Some(endpoint)),
+            Some(SocketAddr::new(route_ip, 43210))
+        );
+    }
+
+    #[test]
+    fn uses_concrete_loopback_when_quic_route_ip_is_unavailable() {
+        assert_eq!(
+            resolve_hysteria_local_bind_addr(
+                None,
+                Some(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 45678)),
+            ),
+            Some(SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 45678))
+        );
+    }
+
+    #[test]
+    fn keeps_hysteria_first_downstream_grace_longer_than_default() {
+        assert_eq!(HYSTERIA2_FIRST_DOWNSTREAM_GRACE, Duration::from_millis(350));
     }
 }

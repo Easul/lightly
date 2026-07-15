@@ -176,6 +176,7 @@ pub async fn handle_socks5(
                 .await?;
 
                 let initial_payload_len = initial_payload.as_ref().map_or(0, Vec::len);
+                let first_downstream_grace = outbound_stream.first_downstream_grace();
                 outbound_stream
                     .write(initial_payload.as_deref().unwrap_or(&[]))
                     .await?;
@@ -183,9 +184,9 @@ pub async fn handle_socks5(
                     log::info!(
                         "[SOCKS5] Primed outbound with {} client bytes; delaying downstream {}ms",
                         initial_payload_len,
-                        100,
+                        first_downstream_grace.as_millis(),
                     );
-                    sleep(Duration::from_millis(100)).await;
+                    sleep(first_downstream_grace).await;
                 }
 
                 let outbound_upload = outbound_stream.clone();

@@ -10,6 +10,7 @@ use crate::common::Result;
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[async_trait]
 pub trait OutboundClient: Send + Sync {
@@ -24,5 +25,9 @@ pub trait ProxyStream: Send + Sync {
 
     fn local_bind_addr(&self) -> Option<SocketAddr> {
         None
+    }
+
+    fn first_downstream_grace(&self) -> Duration {
+        Duration::from_millis(100)
     }
 }
