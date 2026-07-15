@@ -303,6 +303,8 @@ class _BrowserHistoryPageState extends State<BrowserHistoryPage> {
                   )
                 : ListView.builder(
                     controller: _scrollController,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                     itemCount: rows.length + (_isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {

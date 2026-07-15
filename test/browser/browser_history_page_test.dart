@@ -58,6 +58,36 @@ void main() {
     expect(service.deletedVisits, <BrowserHistoryVisit>[visit]);
     expect(find.text('Delete me'), findsNothing);
   });
+
+  testWidgets('dragging history list removes search focus', (tester) async {
+    final now = DateTime.now();
+    final service = _FakeHistoryService(
+      List<BrowserHistoryVisit>.generate(
+        20,
+        (index) => BrowserHistoryVisit(
+          id: index,
+          url: 'https://example.com/$index',
+          title: 'Example $index',
+          visitedAt: now.subtract(Duration(minutes: index)),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: BrowserHistoryPage(historyService: service)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -120));
+    await tester.pump();
+
+    expect(editableText.focusNode.hasFocus, isFalse);
+  });
 }
 
 class _FakeHistoryService extends BrowserHistoryService {
