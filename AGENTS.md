@@ -73,7 +73,7 @@ This project has two important real-world VLESS WS compatibility cases that must
 - Treat `lib/theme/app_theme.dart` as the source of truth for shared colors, typography, controls, dialogs, bottom sheets, and list styling.
 - Keep the app visually lightweight: muted theme green, soft gray page backgrounds, white grouped surfaces, dark-gray text instead of large pure-black areas, and low-saturation danger colors instead of bright red.
 - Use compact icon grids for short action sets such as Browser More; use plain vertical text lists for longer action labels or URL-related actions.
-- Browser More currently uses responsive 5/4-column layout, approximately `23`-pixel icons, `11.5`-pixel labels, and comfortable vertical spacing. Do not enlarge it back into a tall list or heavy icon-card layout without explicit design review.
+- Browser More uses a 5-column grid on wider screens. Narrow screens use horizontally swipeable `4 x 2` pages with a page indicator, approximately `23`-pixel icons, `11.5`-pixel labels, and comfortable vertical spacing. Do not enlarge it back into a tall list or heavy icon-card layout without explicit design review.
 - Settings entry pages should separate different feature domains into independent white blocks. Rows should remain simple title/subtitle/chevron items rather than separate large outlined cards with colored icon containers.
 - Reserve dark surfaces for functionally immersive contexts such as video, remote-screen viewing, and remote keyboard controls.
 - Reserve danger colors for actual error, delete, stop, disconnect, and exit actions. Prefer `ColorScheme.error` / `errorContainer` over direct `Colors.red` usage.

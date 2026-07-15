@@ -113,8 +113,14 @@ class BrowserMoreActionsSheet extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final columnCount = constraints.maxWidth >= 380 ? 5 : 4;
+            final usePagedGrid = constraints.maxWidth < 380;
+            final columnCount = usePagedGrid ? 4 : 5;
             final itemWidth = (constraints.maxWidth - 24) / columnCount;
+            void handleAction(_ActionData action) {
+              Navigator.pop(context);
+              action.onTap();
+            }
+
             return SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
@@ -159,22 +165,26 @@ class BrowserMoreActionsSheet extends StatelessWidget {
                       color: colorScheme.outlineVariant.withValues(alpha: 0.72),
                     ),
                     const SizedBox(height: 5),
-                    Wrap(
-                      children: actions
-                          .map(
-                            (action) => SizedBox(
-                              width: itemWidth,
-                              child: _ActionItem(
-                                action: action,
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  action.onTap();
-                                },
+                    if (usePagedGrid)
+                      _PagedActionsGrid(
+                        actions: actions,
+                        itemWidth: itemWidth,
+                        onActionTap: handleAction,
+                      )
+                    else
+                      Wrap(
+                        children: actions
+                            .map(
+                              (action) => SizedBox(
+                                width: itemWidth,
+                                child: _ActionItem(
+                                  action: action,
+                                  onTap: () => handleAction(action),
+                                ),
                               ),
-                            ),
-                          )
-                          .toList(growable: false),
-                    ),
+                            )
+                            .toList(growable: false),
+                      ),
                     const SizedBox(height: 12),
                     Container(
                       key: const ValueKey('browserMoreFooterDecoration'),
@@ -198,6 +208,104 @@ class BrowserMoreActionsSheet extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+class _PagedActionsGrid extends StatefulWidget {
+  const _PagedActionsGrid({
+    required this.actions,
+    required this.itemWidth,
+    required this.onActionTap,
+  });
+
+  final List<_ActionData> actions;
+  final double itemWidth;
+  final ValueChanged<_ActionData> onActionTap;
+
+  @override
+  State<_PagedActionsGrid> createState() => _PagedActionsGridState();
+}
+
+class _PagedActionsGridState extends State<_PagedActionsGrid> {
+  static const int _itemsPerPage = 8;
+  static const double _pageHeight = 142;
+
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  int get _pageCount => (widget.actions.length / _itemsPerPage).ceil();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          key: const ValueKey('browserMorePagedGrid'),
+          height: _pageHeight,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _pageCount,
+            onPageChanged: (page) => setState(() => _currentPage = page),
+            itemBuilder: (context, pageIndex) {
+              final start = pageIndex * _itemsPerPage;
+              final candidateEnd = start + _itemsPerPage;
+              final end = candidateEnd > widget.actions.length
+                  ? widget.actions.length
+                  : candidateEnd;
+              final pageActions = widget.actions.sublist(start, end);
+              return Align(
+                alignment: Alignment.topCenter,
+                child: Wrap(
+                  children: pageActions
+                      .map(
+                        (action) => SizedBox(
+                          width: widget.itemWidth,
+                          child: _ActionItem(
+                            action: action,
+                            onTap: () => widget.onActionTap(action),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_pageCount > 1) ...[
+          const SizedBox(height: 7),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List<Widget>.generate(_pageCount, (index) {
+              final active = index == _currentPage;
+              return AnimatedContainer(
+                key: ValueKey(
+                  'browserMorePageDot-${active ? 'active' : 'idle'}-$index',
+                ),
+                duration: const Duration(milliseconds: 180),
+                width: active ? 7 : 5,
+                height: active ? 7 : 5,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: active
+                      ? colorScheme.primary.withValues(alpha: 0.72)
+                      : colorScheme.outlineVariant,
+                  shape: BoxShape.circle,
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
     );
   }
 }

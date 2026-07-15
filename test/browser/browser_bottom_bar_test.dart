@@ -224,4 +224,66 @@ void main() {
     expect(find.text('页面内查找'), findsNothing);
     expect(find.text('设置'), findsOneWidget);
   });
+
+  testWidgets('BrowserMoreActionsSheet pages actions on narrow screens', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () {
+                showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => BrowserMoreActionsSheet(
+                    proxyEnabled: false,
+                    desktopModeEnabled: false,
+                    webDebugConsoleEnabled: false,
+                    isFavorited: false,
+                    onToggleFavorite: () {},
+                    onToggleProxy: () {},
+                    onToggleWebDebugConsole: () {},
+                    onToggleDesktopMode: () {},
+                    onOpenDownloads: () {},
+                    onOpenDataManagement: () {},
+                    onCloseTab: () {},
+                    onOpenSettings: () {},
+                    onEnterFloatingWindowMode: () {},
+                    onExitApp: () {},
+                  ),
+                );
+              },
+              child: const Text('Show narrow'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show narrow'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('browserMorePagedGrid')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('browserMorePageDot-active-0')),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('browserMorePagedGrid')),
+      const Offset(-260, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('browserMorePageDot-active-1')),
+      findsOneWidget,
+    );
+  });
 }
