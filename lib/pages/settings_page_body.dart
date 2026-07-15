@@ -136,7 +136,7 @@ class SettingsPageBody extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
         SettingsPageHomeSections(
           buildGeneralSection: buildGeneralSection,
@@ -171,7 +171,7 @@ class SettingsPageBody extends StatelessWidget {
               onLocalHttpBindAllInterfacesChanged,
           onUseSharedDownloadsDirectory: onUseSharedDownloadsDirectory,
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
       ],
     );
   }

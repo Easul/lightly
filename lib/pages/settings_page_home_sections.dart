@@ -81,152 +81,169 @@ class SettingsPageHomeSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsHomeSectionsCard(
+    return Column(
       children: [
-        SettingsTile(
-          icon: Icons.settings_outlined,
-          title: '通用',
-          subtitle: '主页、历史记录',
-          onTap: () => _pushSingleSection(
-            title: '通用',
-            icon: Icons.settings_outlined,
-            buildSection: buildGeneralSection,
-          ),
+        SettingsHomeSectionsCard(
+          children: [
+            SettingsTile(
+              icon: Icons.settings_outlined,
+              title: '通用',
+              subtitle: '主页、历史记录',
+              onTap: () => _pushSingleSection(
+                title: '通用',
+                icon: Icons.settings_outlined,
+                buildSection: buildGeneralSection,
+              ),
+            ),
+          ],
         ),
-        const Divider(height: 1),
-        SettingsTile(
-          icon: Icons.videocam_outlined,
-          title: '视频',
-          subtitle: '原生视频播放器',
-          onTap: () => _pushSingleSection(
-            title: '视频',
-            icon: Icons.videocam_outlined,
-            buildSection: buildVideoSection,
-          ),
-        ),
-        const Divider(height: 1),
-        SettingsTile(
-          icon: Icons.shield_outlined,
-          title: '代理',
-          subtitle: '代理协议、服务器、端口',
-          onTap: () => pushSection(
-            title: '代理',
-            icon: Icons.shield_outlined,
-            buildChildren: (sectionContext) => [
-              ProxySettingsSection(
-                enabled: formController.proxyEnabled,
-                supported: proxySupported,
-                isSaving: isSaving,
-                isTestingNodeSpeed: isTestingNodeSpeed,
-                stateLabel: proxyStateLabel,
-                stateColor: proxyStateColor(
-                  Theme.of(sectionContext).colorScheme,
-                ),
-                detailText:
-                    formController.selectedProtocol ==
-                            BrowserProxyProtocol.vless ||
+        const SizedBox(height: 12),
+        SettingsHomeSectionsCard(
+          children: [
+            SettingsTile(
+              icon: Icons.videocam_outlined,
+              title: '视频',
+              subtitle: '原生视频播放器',
+              onTap: () => _pushSingleSection(
+                title: '视频',
+                icon: Icons.videocam_outlined,
+                buildSection: buildVideoSection,
+              ),
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.shield_outlined,
+              title: '代理',
+              subtitle: '代理协议、服务器、端口',
+              onTap: () => pushSection(
+                title: '代理',
+                icon: Icons.shield_outlined,
+                buildChildren: (sectionContext) => [
+                  ProxySettingsSection(
+                    enabled: formController.proxyEnabled,
+                    supported: proxySupported,
+                    isSaving: isSaving,
+                    isTestingNodeSpeed: isTestingNodeSpeed,
+                    stateLabel: proxyStateLabel,
+                    stateColor: proxyStateColor(
+                      Theme.of(sectionContext).colorScheme,
+                    ),
+                    detailText:
                         formController.selectedProtocol ==
-                            BrowserProxyProtocol.hysteria2
-                    ? '本地 mixed 端口（HTTP + SOCKS5）：${proxyService.localProxyPort?.toString() ?? '未启动'}'
-                    : '代理地址：${formController.proxyHostController.text.trim().isEmpty ? '未设置' : '${formController.proxyHostController.text.trim()}:${formController.proxyPortController.text.trim()}'}',
-                nodeLinkController: formController.nodeLinkController,
-                proxyNodes: formController.proxyNodes,
-                selectedProxyNodeId: formController.selectedProxyNodeId,
-                errorMessage: errorMessage,
-                selectedProtocol: formController.selectedProtocol,
-                showsUuidField: formController.showsUuidField,
-                showsTransportFields: formController.showsTransportFields,
-                showsHysteria2ObfsFields:
-                    formController.showsHysteria2ObfsFields,
-                showsPacketEncodingField:
-                    formController.showsPacketEncodingField,
-                showsTlsFields: formController.showsTlsFields,
-                proxyTlsEnabled: formController.proxyTlsEnabled,
-                selectedTransportType: formController.selectedTransportType,
-                proxyPacketEncoding: formController.proxyPacketEncoding,
-                proxyTlsInsecure: formController.proxyTlsInsecure,
-                proxyHostController: formController.proxyHostController,
-                proxyPortController: formController.proxyPortController,
-                localProxyPortController:
-                    formController.localProxyPortController,
-                proxyUuidController: formController.proxyUuidController,
-                proxyServerNameController:
-                    formController.proxyServerNameController,
-                proxyTransportPathController:
-                    formController.proxyTransportPathController,
-                proxyTransportHostController:
-                    formController.proxyTransportHostController,
-                proxyBypassDomainsController:
-                    formController.proxyBypassDomainsController,
-                onToggle: onHandleProxyToggle,
-                onParse: onParseNodeLink,
-                onTestSpeed: onTestNodeSpeed,
-                onCancelTestSpeed: onCancelTestSpeed,
-                onAddProxyNode: onAddProxyNode,
-                onSelectProxyNode: onSelectProxyNode,
-                onDeleteProxyNode: onDeleteProxyNode,
-                onConfigurationChanged: onProxyConfigurationChanged,
-                onProtocolChanged: onProxyProtocolChanged,
-                onTlsEnabledChanged: onProxyTlsEnabledChanged,
-                onTransportTypeChanged: onProxyTransportTypeChanged,
-                onPacketEncodingChanged: onProxyPacketEncodingChanged,
-                onTlsInsecureChanged: onProxyTlsInsecureChanged,
+                                BrowserProxyProtocol.vless ||
+                            formController.selectedProtocol ==
+                                BrowserProxyProtocol.hysteria2
+                        ? '本地 mixed 端口（HTTP + SOCKS5）：${proxyService.localProxyPort?.toString() ?? '未启动'}'
+                        : '代理地址：${formController.proxyHostController.text.trim().isEmpty ? '未设置' : '${formController.proxyHostController.text.trim()}:${formController.proxyPortController.text.trim()}'}',
+                    nodeLinkController: formController.nodeLinkController,
+                    proxyNodes: formController.proxyNodes,
+                    selectedProxyNodeId: formController.selectedProxyNodeId,
+                    errorMessage: errorMessage,
+                    selectedProtocol: formController.selectedProtocol,
+                    showsUuidField: formController.showsUuidField,
+                    showsTransportFields: formController.showsTransportFields,
+                    showsHysteria2ObfsFields:
+                        formController.showsHysteria2ObfsFields,
+                    showsPacketEncodingField:
+                        formController.showsPacketEncodingField,
+                    showsTlsFields: formController.showsTlsFields,
+                    proxyTlsEnabled: formController.proxyTlsEnabled,
+                    selectedTransportType: formController.selectedTransportType,
+                    proxyPacketEncoding: formController.proxyPacketEncoding,
+                    proxyTlsInsecure: formController.proxyTlsInsecure,
+                    proxyHostController: formController.proxyHostController,
+                    proxyPortController: formController.proxyPortController,
+                    localProxyPortController:
+                        formController.localProxyPortController,
+                    proxyUuidController: formController.proxyUuidController,
+                    proxyServerNameController:
+                        formController.proxyServerNameController,
+                    proxyTransportPathController:
+                        formController.proxyTransportPathController,
+                    proxyTransportHostController:
+                        formController.proxyTransportHostController,
+                    proxyBypassDomainsController:
+                        formController.proxyBypassDomainsController,
+                    onToggle: onHandleProxyToggle,
+                    onParse: onParseNodeLink,
+                    onTestSpeed: onTestNodeSpeed,
+                    onCancelTestSpeed: onCancelTestSpeed,
+                    onAddProxyNode: onAddProxyNode,
+                    onSelectProxyNode: onSelectProxyNode,
+                    onDeleteProxyNode: onDeleteProxyNode,
+                    onConfigurationChanged: onProxyConfigurationChanged,
+                    onProtocolChanged: onProxyProtocolChanged,
+                    onTlsEnabledChanged: onProxyTlsEnabledChanged,
+                    onTransportTypeChanged: onProxyTransportTypeChanged,
+                    onPacketEncodingChanged: onProxyPacketEncodingChanged,
+                    onTlsInsecureChanged: onProxyTlsInsecureChanged,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        SettingsTile(
-          icon: Icons.folder_shared_outlined,
-          title: '本地 HTTP 文件服务',
-          subtitle: '本地目录 HTTP 托管',
-          onTap: () => pushSection(
-            title: '本地 HTTP 文件服务',
-            icon: Icons.folder_shared_outlined,
-            buildChildren: (sectionContext) => [
-              LocalHttpSettingsSection(
-                enabled: formController.localHttpServerEnabled,
-                stateLabel: localHttpStateLabel,
-                stateColor: localHttpStateColor(
-                  Theme.of(sectionContext).colorScheme,
-                ),
-                portText:
-                    '监听端口：${localHttpFileServerService.boundPort?.toString() ?? '未启动'}',
-                baseUrlText: localHttpFileServerService.baseUrl == null
-                    ? null
-                    : '访问地址：${localHttpFileServerService.baseUrl}',
-                lanUrls: localHttpFileServerService.lanUrls,
-                bindAllInterfaces: formController.localHttpBindAllInterfaces,
-                rootPathController: formController.localHttpRootPathController,
-                portController: formController.localHttpPortController,
-                uploadKeyController:
-                    formController.localHttpUploadKeyController,
-                onToggle: onLocalHttpToggle,
-                onUseSharedDownloadsDirectory: onUseSharedDownloadsDirectory,
-                onBindAllInterfacesChanged: onLocalHttpBindAllInterfacesChanged,
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.folder_shared_outlined,
+              title: '本地 HTTP 文件服务',
+              subtitle: '本地目录 HTTP 托管',
+              onTap: () => pushSection(
+                title: '本地 HTTP 文件服务',
+                icon: Icons.folder_shared_outlined,
+                buildChildren: (sectionContext) => [
+                  LocalHttpSettingsSection(
+                    enabled: formController.localHttpServerEnabled,
+                    stateLabel: localHttpStateLabel,
+                    stateColor: localHttpStateColor(
+                      Theme.of(sectionContext).colorScheme,
+                    ),
+                    portText:
+                        '监听端口：${localHttpFileServerService.boundPort?.toString() ?? '未启动'}',
+                    baseUrlText: localHttpFileServerService.baseUrl == null
+                        ? null
+                        : '访问地址：${localHttpFileServerService.baseUrl}',
+                    lanUrls: localHttpFileServerService.lanUrls,
+                    bindAllInterfaces:
+                        formController.localHttpBindAllInterfaces,
+                    rootPathController:
+                        formController.localHttpRootPathController,
+                    portController: formController.localHttpPortController,
+                    uploadKeyController:
+                        formController.localHttpUploadKeyController,
+                    onToggle: onLocalHttpToggle,
+                    onUseSharedDownloadsDirectory:
+                        onUseSharedDownloadsDirectory,
+                    onBindAllInterfacesChanged:
+                        onLocalHttpBindAllInterfacesChanged,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.edit_document,
+              title: '文件简易管理',
+              subtitle: '网页文件树、文本编辑、收藏路径',
+              onTap: () => Navigator.pushNamed(context, '/simple-file-manager'),
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.vpn_lock_rounded,
+              title: 'P2P VPN',
+              subtitle: 'EasyTier 网络配置与设备联通',
+              onTap: () => Navigator.pushNamed(context, '/easytier'),
+            ),
+          ],
         ),
-        const Divider(height: 1),
-        SettingsTile(
-          icon: Icons.edit_document,
-          title: '文件简易管理',
-          subtitle: '网页文件树、文本编辑、收藏路径',
-          onTap: () => Navigator.pushNamed(context, '/simple-file-manager'),
-        ),
-        const Divider(height: 1),
-        SettingsTile(
-          icon: Icons.vpn_lock_rounded,
-          title: 'P2P VPN',
-          subtitle: 'EasyTier 网络配置与设备联通',
-          onTap: () => Navigator.pushNamed(context, '/easytier'),
-        ),
-        SettingsTile(
-          icon: Icons.control_camera,
-          title: '远程控制',
-          subtitle: '局域网设备间远程控制',
-          onTap: () => Navigator.pushNamed(context, '/remote-control'),
+        const SizedBox(height: 12),
+        SettingsHomeSectionsCard(
+          children: [
+            SettingsTile(
+              icon: Icons.control_camera,
+              title: '远程控制',
+              subtitle: '局域网设备间远程控制',
+              onTap: () => Navigator.pushNamed(context, '/remote-control'),
+            ),
+          ],
         ),
       ],
     );

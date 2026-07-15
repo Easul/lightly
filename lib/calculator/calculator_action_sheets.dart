@@ -54,24 +54,24 @@ Future<void> showCalculationCopyMenu({
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.copy),
             title: const Text('复制表达式'),
+            trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () {
               onCopy(entry.expression);
               Navigator.of(context).pop();
             },
           ),
           ListTile(
-            leading: const Icon(Icons.copy_all),
             title: const Text('复制结果'),
+            trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () {
               onCopy(entry.result);
               Navigator.of(context).pop();
             },
           ),
           ListTile(
-            leading: const Icon(Icons.copy_outlined),
             title: const Text('复制完整表达式'),
+            trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () {
               onCopy('${entry.expression} = ${entry.result}');
               Navigator.of(context).pop();

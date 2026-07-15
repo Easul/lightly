@@ -47,7 +47,7 @@ class EasyTierStatusCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 '错误: $errorMessage',
-                style: const TextStyle(color: Colors.red),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
           ],
@@ -330,7 +330,10 @@ class EasyTierControlButtons extends StatelessWidget {
         Expanded(
           child: ElevatedButton.icon(
             onPressed: isLoading || !isRunning ? null : onStop,
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+              foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+            ),
             icon: const Icon(Icons.stop),
             label: const Text('停止 EasyTier'),
           ),

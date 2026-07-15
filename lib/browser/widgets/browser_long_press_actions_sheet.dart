@@ -54,7 +54,6 @@ class BrowserLongPressActionsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _ActionItem(
-                icon: Icons.open_in_new_rounded,
                 label: type == LongPressActionType.image
                     ? '新标签页打开图片'
                     : '新标签页打开',
@@ -64,7 +63,6 @@ class BrowserLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.copy_rounded,
                 label: type == LongPressActionType.image ? '复制图片链接' : '复制链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -72,7 +70,6 @@ class BrowserLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.download_rounded,
                 label: type == LongPressActionType.image ? '下载图片' : '下载链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -143,7 +140,6 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _ActionItem(
-                icon: Icons.open_in_new_rounded,
                 label: '新页面打开视频链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -151,7 +147,6 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.copy_rounded,
                 label: '复制视频链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -159,7 +154,6 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.image_search_rounded,
                 label: '新页面打开封面图',
                 onTap: () {
                   Navigator.pop(context);
@@ -167,7 +161,6 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.link_rounded,
                 label: '复制封面图链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -175,7 +168,6 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
                 },
               ),
               _ActionItem(
-                icon: Icons.ondemand_video_rounded,
                 label: '新页面打开原始视频链接',
                 onTap: () {
                   Navigator.pop(context);
@@ -191,13 +183,8 @@ class BrowserYouTubeLongPressActionsSheet extends StatelessWidget {
 }
 
 class _ActionItem extends StatelessWidget {
-  const _ActionItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  const _ActionItem({required this.label, required this.onTap});
 
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
 
@@ -206,8 +193,8 @@ class _ActionItem extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ListTile(
-      leading: Icon(icon, color: colorScheme.onSurfaceVariant),
       title: Text(label),
+      trailing: Icon(Icons.chevron_right_rounded, color: colorScheme.outline),
       onTap: onTap,
     );
   }

@@ -24,7 +24,6 @@ Future<void> showBrowserFavoritesMenuSheet({
               ),
               const SizedBox(height: 16),
               _BrowserFavoritesMenuAction(
-                icon: Icons.add,
                 label: '添加收藏',
                 onTap: () {
                   Navigator.pop(context);
@@ -32,7 +31,6 @@ Future<void> showBrowserFavoritesMenuSheet({
                 },
               ),
               _BrowserFavoritesMenuAction(
-                icon: Icons.drag_indicator_rounded,
                 label: '整理收藏',
                 onTap: () {
                   Navigator.pop(context);
@@ -48,18 +46,20 @@ Future<void> showBrowserFavoritesMenuSheet({
 }
 
 class _BrowserFavoritesMenuAction extends StatelessWidget {
-  const _BrowserFavoritesMenuAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  const _BrowserFavoritesMenuAction({required this.label, required this.onTap});
 
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(leading: Icon(icon), title: Text(label), onTap: onTap);
+    return ListTile(
+      title: Text(label),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: Theme.of(context).colorScheme.outline,
+      ),
+      onTap: onTap,
+    );
   }
 }

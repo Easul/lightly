@@ -10,10 +10,13 @@ class RemoteControlErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(message, style: const TextStyle(color: Colors.red)),
+      child: Text(
+        message,
+        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      ),
     );
   }
 }
