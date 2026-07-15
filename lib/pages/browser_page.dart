@@ -36,12 +36,11 @@ import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/services/browser_webview_event_controller.dart';
+import '../browser/services/browser_webview_script_service.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/browser_popup_filter.dart';
 import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
-import '../browser/utils/browser_site_compatibility_script.dart';
-import '../browser/utils/browser_web_debug_console_script.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_webview_host.dart';
 import '../browser/clipboard_http_server_service.dart';
@@ -103,6 +102,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageTabTransitionCoordinator();
   final BrowserWebViewEventController _webViewEventController =
       const BrowserWebViewEventController();
+  final BrowserWebViewScriptService _webViewScriptService =
+      const BrowserWebViewScriptService();
   final BrowserNavigationController _navigationController =
       const BrowserNavigationController();
   final BrowserPopupRawUrlResolver _popupRawUrlResolver =
@@ -702,8 +703,26 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
     _pullToRefreshController?.endRefreshing();
     unawaited(_recordCookieOrigin(url));
-    unawaited(_injectSiteCompatibilityFixes(controller, url));
-    unawaited(_applyWebDebugConsoleForController(controller, url?.toString()));
+    unawaited(
+      _webViewScriptService.applySiteCompatibility(
+        rawUrl: url?.toString(),
+        desktopModeEnabled: _settings.desktopModeEnabled,
+        desktopUserAgent: BrowserWebViewHost.effectiveDesktopUserAgent(
+          _settings.normalizedDesktopUserAgentOverride,
+        ),
+        evaluateJavascript: (source) =>
+            controller.evaluateJavascript(source: source),
+      ),
+    );
+    unawaited(
+      _webViewScriptService.applyWebDebugConsole(
+        rawUrl: url?.toString(),
+        enabled: _settings.webDebugConsoleEnabled,
+        allowDisable: false,
+        evaluateJavascript: (source) =>
+            controller.evaluateJavascript(source: source),
+      ),
+    );
     _navigationRefreshCoordinator.cancel();
     final didChangeLoading = _updateTabById(hostedTabId, isLoading: false);
     final didChangeProgress = _isActiveTabId(hostedTabId)
@@ -976,10 +995,12 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         previousWebDebugConsoleEnabled !=
             snapshot.settings.webDebugConsoleEnabled) {
       unawaited(
-        _applyWebDebugConsoleForController(
-          controller,
-          _currentUrl,
+        _webViewScriptService.applyWebDebugConsole(
+          rawUrl: _currentUrl,
+          enabled: snapshot.settings.webDebugConsoleEnabled,
           allowDisable: true,
+          evaluateJavascript: (source) =>
+              controller.evaluateJavascript(source: source),
         ),
       );
     }
@@ -1381,52 +1402,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _injectSiteCompatibilityFixes(
-    InAppWebViewController controller,
-    WebUri? url,
-  ) async {
-    final script = _settings.desktopModeEnabled
-        ? BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
-            url?.toString(),
-            desktopUserAgent: BrowserWebViewHost.effectiveDesktopUserAgent(
-              _settings.normalizedDesktopUserAgentOverride,
-            ),
-          )
-        : BrowserSiteCompatibilityScript.bottomNavigationFixForUrl(
-            url?.toString(),
-          );
-    if (script == null) {
-      return;
-    }
-    try {
-      await controller.evaluateJavascript(source: script);
-    } catch (_) {
-      // Best-effort compatibility CSS only. Navigation must not fail because a
-      // site rejects script execution during early load transitions.
-    }
-  }
-
-  Future<void> _applyWebDebugConsoleForController(
-    InAppWebViewController controller,
-    String? rawUrl, {
-    bool allowDisable = false,
-  }) async {
-    if (!BrowserWebDebugConsoleScript.supportsUrl(rawUrl)) {
-      return;
-    }
-    if (!_settings.webDebugConsoleEnabled && !allowDisable) {
-      return;
-    }
-    final script = _settings.webDebugConsoleEnabled
-        ? BrowserWebDebugConsoleScript.buildEnableScript()
-        : BrowserWebDebugConsoleScript.buildDisableScript();
-    try {
-      await controller.evaluateJavascript(source: script);
-    } catch (_) {
-      // Keep page loading resilient even if a site rejects late JS execution.
-    }
-  }
-
   Future<void> _openSettings() async {
     final result = await Navigator.of(context).pushNamed('/settings');
     if (_routeHandler.shouldReloadSettingsAfterSettingsRoute(result)) {
@@ -1479,17 +1454,19 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       return;
     }
 
-    if (!BrowserWebDebugConsoleScript.supportsUrl(_currentUrl)) {
+    if (!_webViewScriptService.supportsWebDebugConsoleUrl(_currentUrl)) {
       if (enabled) {
         _showSnackBar('当前页面不支持调试台，仅支持 http/https 页面');
       }
       return;
     }
 
-    await _applyWebDebugConsoleForController(
-      controller,
-      _currentUrl,
+    await _webViewScriptService.applyWebDebugConsole(
+      rawUrl: _currentUrl,
+      enabled: enabled,
       allowDisable: !enabled,
+      evaluateJavascript: (source) =>
+          controller.evaluateJavascript(source: source),
     );
   }
 
