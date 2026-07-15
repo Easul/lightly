@@ -198,12 +198,12 @@ class _ActionItem extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(action.icon, color: iconColor, size: 23),
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Text(
               action.label,
               maxLines: 1,

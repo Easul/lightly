@@ -25,6 +25,10 @@ UI 层（Flutter 页面与组件）
 - `ClipboardPage`：剪贴板页
 - EasyTier / 视频 / 数据管理 / 文件简易管理等专用页面
 
+界面统一由 `lib/theme/app_theme.dart` 提供颜色、文字、按钮、输入框、列表、对话框与 BottomSheet 主题。设置首页使用按功能域拆分的白色分组块；短操作菜单使用紧凑宫格，长操作菜单使用纯文字列表。共享设置行位于 `lib/widgets/shared/setting_tile.dart`。
+
+完整约束见 [界面设计规范](ui-design.md)。UI 重构不得改变 WebView keepAlive、代理连接、远控 socket 或后台服务生命周期。
+
 ## 业务层
 
 主要位于 `lib/browser/`、`lib/services/`：
@@ -120,4 +124,8 @@ Settings → SimpleFileManagerService
 
 - [快速入门](quickstart.md)
 - [开发指南](development.md)
+- [界面设计规范](ui-design.md)
+- [浏览器 / 远控模块地图](browser_remote_module_map.md)
+- [浏览器回归清单](browser_regression_checklist.md)
+- [远程控制回归清单](remote_control_regression_checklist.md)
 - [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)

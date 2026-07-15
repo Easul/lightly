@@ -2,7 +2,9 @@
 
 [English](README.en.md)
 
-一款 Flutter Android 浏览器，集成了**远程控制**能力，同时支持 VLESS 代理、EasyTier P2P VPN、视频播放、本地文件服务、文件简易管理、剪贴板同步等功能。
+一款以 Flutter 构建的 Android 浏览器与设备工具箱，集成了**远程控制**能力，同时支持 VLESS 代理、EasyTier P2P VPN、视频播放、本地文件服务、文件简易管理、剪贴板同步等功能。
+
+Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和设备控制整理在一套轻量、清晰的界面中。
 
 ## 功能概览
 
@@ -18,6 +20,7 @@
 - 基于 WebView 的完整浏览体验
 - 标签页管理与会话恢复
 - 地址栏建议与常用页面入口
+- 收藏管理、页面长按操作与紧凑型“更多”工具面板
 - 视频检测、悬浮播放、后台音频
 - 下载管理与站点数据清理
 
@@ -31,6 +34,16 @@
 ### 其他工具
 - 原生视频播放器
 - 计算器与 2048 小工具
+
+## 界面与交互
+
+- 使用低饱和主题绿、浅灰背景和白色内容块，减少大面积纯黑与高饱和红色
+- 设置页按浏览、网络服务和远程控制等功能分组，避免连续堆叠大卡片
+- 短操作弹窗使用紧凑宫格；长操作弹窗使用纯文字列表；确认弹窗保持小尺寸和明确主次操作
+- 普通状态使用主题色，危险色只用于退出、删除、断开和错误提示
+- 视频画面、远程屏幕和键盘等沉浸式场景保留必要的深色背景
+
+设计令牌、弹窗分类和组件约束见 [界面设计规范](docs/ui-design.md)。
 
 ## 安装
 
@@ -58,6 +71,11 @@
 - [快速入门](docs/quickstart.md)
 - [开发指南](docs/development.md)
 - [架构文档](docs/architecture.md)
+- [界面设计规范](docs/ui-design.md)
+- [发布构建说明](docs/release_build.md)
+- [浏览器回归清单](docs/browser_regression_checklist.md)
+- [远程控制回归清单](docs/remote_control_regression_checklist.md)
+- [浏览器 / 远控模块地图](docs/browser_remote_module_map.md)
 - [v1.0.7 功能更新摘要](docs/release-summary-v1.0.7.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
 - [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
@@ -66,6 +84,7 @@
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
+- [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
@@ -95,6 +114,8 @@ bash scripts/build_multi_abi.sh
 ```
 
 发布脚本会生成 64 位与 32 位两个 APK，并使用 `5000 + main 分支提交数` 作为 Android `versionCode`，用户可见版本使用 `vX.Y.Z+<commit>`。
+
+发布前请同时检查 [发布构建说明](docs/release_build.md) 中的 ABI、版本号、哈希和安装验证步骤。不要提交 `target/`、`jniLibs/` 下的生成产物或本地构建 APK。
 
 ## 致谢
 

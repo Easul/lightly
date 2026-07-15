@@ -111,6 +111,13 @@ bash scripts/build_multi_abi.sh
 
 ## 贡献约定
 
+- 保持改动聚焦，避免在同一提交中混入无关重构。
+- 新功能应补充测试或至少提供明确的人工验证步骤。
+- 不提交本地配置、密钥、代理节点、构建产物或临时文件。
+- 修改代理、EasyTier、远控或 WebView 热路径时，优先保证兼容性和性能。
+- 修改页面、弹窗、设置列表或主题时，遵循 [界面设计规范](ui-design.md)，优先复用 `AppTheme`、`ColorScheme` 和现有共享组件。
+- UI 调整不得顺带改变 WebView keepAlive、服务启动、socket 连接或代理协议行为。
+
 建议提交信息：
 
 ```text
@@ -132,6 +139,10 @@ docs: update xxx
 
 - [快速入门](quickstart.md)
 - [架构文档](architecture.md)
+- [界面设计规范](ui-design.md)
+- [发布构建说明](release_build.md)
+- [浏览器回归清单](browser_regression_checklist.md)
+- [远程控制回归清单](remote_control_regression_checklist.md)
 - [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)
 - [EasyTier 编译记录](easytier-build.md)
 - [EasyTier 状态共享给 Monitor](easytier-state-sharing.md)

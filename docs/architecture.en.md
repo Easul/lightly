@@ -25,6 +25,10 @@ Most UI lives under `lib/pages/` and `lib/widgets/`:
 - `ClipboardPage`: clipboard page
 - Dedicated EasyTier, video, data-management, and simple-file-manager pages
 
+`lib/theme/app_theme.dart` is the shared source for colors, typography, buttons, inputs, lists, dialogs, and bottom sheets. The settings home uses white blocks split by feature domain; short action menus use a compact grid, while longer action menus use plain text lists. The shared settings row lives in `lib/widgets/shared/setting_tile.dart`.
+
+See [UI Design Guidelines](ui-design.en.md) for the complete constraints. UI refactors must not change WebView keep-alive behavior, proxy connections, remote-control sockets, or background service lifecycles.
+
 ## Service Layer
 
 Most service logic lives under `lib/browser/` and `lib/services/`:
@@ -120,4 +124,8 @@ Settings → SimpleFileManagerService
 
 - [Quick Start](quickstart.en.md)
 - [Development Guide](development.en.md)
+- [UI Design Guidelines](ui-design.en.md)
+- [Browser / Remote Module Map](browser_remote_module_map.md)
+- [Browser Regression Checklist](browser_regression_checklist.md)
+- [Remote Control Regression Checklist](remote_control_regression_checklist.md)
 - [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)

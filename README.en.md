@@ -2,7 +2,9 @@
 
 [中文](README.md)
 
-Lightly is a Flutter-based Android browser with built-in **remote control** capabilities, alongside VLESS proxy support, EasyTier P2P VPN, media playback, local file serving, simple file management, and clipboard sync.
+Lightly is a Flutter-based Android browser and device toolbox with built-in **remote control** capabilities, alongside VLESS proxy support, EasyTier P2P VPN, media playback, local file serving, simple file management, and clipboard sync.
+
+The project aims to keep browsing, connectivity, transfer, and device-control tools inside one lightweight and clearly organized interface instead of exposing a collection of unrelated screens.
 
 ## Features
 
@@ -18,6 +20,7 @@ Lightly is a Flutter-based Android browser with built-in **remote control** capa
 - Full WebView-based browsing experience
 - Tab management and session restore
 - Address bar suggestions and favorites entry points
+- Favorites management, long-press page actions, and a compact More tools panel
 - Video detection, floating playback, and background audio
 - Download management and site-data clearing
 
@@ -31,6 +34,16 @@ Lightly is a Flutter-based Android browser with built-in **remote control** capa
 ### Other Tools
 - Native video playback
 - Calculator and 2048 utility pages
+
+## Interface and Interaction
+
+- A muted green accent, soft gray background, and white content groups reduce heavy black surfaces and highly saturated warning colors
+- Settings are split into browsing, network/service, and remote-control groups instead of one continuous stack of large cards
+- Short action sheets use a compact grid, long action sheets use plain text rows, and confirmation dialogs stay small with clear action hierarchy
+- The theme color represents normal and active states; danger colors are reserved for exit, delete, disconnect, and error actions
+- Video, remote-screen, and keyboard surfaces keep dark backgrounds where they are functionally necessary
+
+See [UI Design Guidelines](docs/ui-design.en.md) for design tokens, modal patterns, and component constraints.
 
 ## Installation
 
@@ -58,6 +71,11 @@ Requirements:
 - [Quick Start (CN)](docs/quickstart.md)
 - [Development Guide (CN)](docs/development.md)
 - [Architecture (CN)](docs/architecture.md)
+- [UI Design Guidelines (CN)](docs/ui-design.md)
+- [Release Build Guide (CN)](docs/release_build.md)
+- [Browser Regression Checklist (CN)](docs/browser_regression_checklist.md)
+- [Remote Control Regression Checklist (CN)](docs/remote_control_regression_checklist.md)
+- [Browser / Remote Module Map (CN)](docs/browser_remote_module_map.md)
 - [v1.0.7 Release Summary (CN)](docs/release-summary-v1.0.7.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
 - [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
@@ -66,6 +84,7 @@ Requirements:
 - [Quick Start](docs/quickstart.en.md)
 - [Development Guide](docs/development.en.md)
 - [Architecture](docs/architecture.en.md)
+- [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
@@ -95,6 +114,8 @@ bash scripts/build_multi_abi.sh
 ```
 
 The release script produces separate 64-bit and 32-bit APKs. Android `versionCode` is `5000 + main branch commit count`, while the user-facing version uses `vX.Y.Z+<commit>`.
+
+Before distributing a build, also follow the ABI, version, hash, and installation checks in [Release Build Guide](docs/release_build.md). Generated `target/`, `jniLibs/`, and APK outputs should not be committed.
 
 ## License
 

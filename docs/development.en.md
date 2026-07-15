@@ -111,6 +111,13 @@ bash scripts/build_multi_abi.sh
 
 ## Contribution Style
 
+- Keep changes focused and avoid unrelated refactors in the same commit.
+- Add tests for new behavior or provide explicit manual verification steps.
+- Do not commit local configuration, secrets, proxy nodes, build outputs, or temporary files.
+- When changing proxy, EasyTier, remote-control, or WebView hot paths, preserve compatibility and performance first.
+- For pages, dialogs, settings lists, or theme changes, follow [UI Design Guidelines](ui-design.en.md) and prefer the existing `AppTheme`, `ColorScheme`, and shared components.
+- UI work must not implicitly change WebView keep-alive behavior, service startup, socket connections, or proxy protocol behavior.
+
 Recommended commit formats:
 
 ```text
@@ -132,6 +139,10 @@ docs: update xxx
 
 - [Quick Start](quickstart.en.md)
 - [Architecture](architecture.en.md)
+- [UI Design Guidelines](ui-design.en.md)
+- [Release Build Guide](release_build.md)
+- [Browser Regression Checklist](browser_regression_checklist.md)
+- [Remote Control Regression Checklist](remote_control_regression_checklist.md)
 - [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
 - [EasyTier Build Notes](easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](easytier-state-sharing.en.md)

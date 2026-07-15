@@ -11,6 +11,7 @@
   - `## Telegram SOCKS5 Compatibility Requirements`
   - `## Cloudflare-Challenged Site Compatibility`
 - Browser / WebView runtime:
+  - `## Minimal UI Design System`
   - `## WebView HTTP Auth & Popup Compatibility`
   - `## Selective Browsing Data Clearing`
   - `## Settings → BrowserPage State Refresh Pattern`
@@ -66,6 +67,18 @@ This project has two important real-world VLESS WS compatibility cases that must
 - Be careful with `setState()` inside high-frequency WebView callbacks in `lib/pages/browser_page.dart`.
   - `onProgressChanged`, `onTitleChanged`, and similar callbacks can easily cause visible jank.
   - Prefer change detection before calling `setState()`.
+
+## Minimal UI Design System
+
+- Treat `lib/theme/app_theme.dart` as the source of truth for shared colors, typography, controls, dialogs, bottom sheets, and list styling.
+- Keep the app visually lightweight: muted theme green, soft gray page backgrounds, white grouped surfaces, dark-gray text instead of large pure-black areas, and low-saturation danger colors instead of bright red.
+- Use compact icon grids for short action sets such as Browser More; use plain vertical text lists for longer action labels or URL-related actions.
+- Browser More currently uses responsive 5/4-column layout, approximately `23`-pixel icons, `11.5`-pixel labels, and comfortable vertical spacing. Do not enlarge it back into a tall list or heavy icon-card layout without explicit design review.
+- Settings entry pages should separate different feature domains into independent white blocks. Rows should remain simple title/subtitle/chevron items rather than separate large outlined cards with colored icon containers.
+- Reserve dark surfaces for functionally immersive contexts such as video, remote-screen viewing, and remote keyboard controls.
+- Reserve danger colors for actual error, delete, stop, disconnect, and exit actions. Prefer `ColorScheme.error` / `errorContainer` over direct `Colors.red` usage.
+- UI-only refactors must not change WebView keepAlive behavior, overlay timing, proxy connections, remote-control sockets, or service lifecycles.
+- Detailed tokens and component patterns are documented in `docs/ui-design.md` and `docs/ui-design.en.md`.
 
 ### Browser performance constraints
 
