@@ -13,6 +13,12 @@ import 'shared_downloads_directory_service.dart';
 class AppLogService {
   AppLogService._();
 
+  @visibleForTesting
+  AppLogService.forTesting({required File logFile, bool enabled = false})
+    : _logFile = logFile,
+      _initialized = true,
+      _enabled = enabled;
+
   static final AppLogService instance = AppLogService._();
   static const String _enabledPreferenceKey = 'app_log_enabled';
 
@@ -56,26 +62,46 @@ class AppLogService {
   Future<void> setEnabled(bool enabled) async {
     await initialize();
     if (_enabled == enabled) {
+      if (!enabled) {
+        await _deleteLogFile();
+      }
       return;
     }
 
-    if (_enabled && !enabled) {
-      await _writeLogEntry('Runtime logging disabled');
-    }
-
-    _enabled = enabled;
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(_enabledPreferenceKey, enabled);
-
     if (!enabled) {
+      _enabled = false;
+      await preferences.setBool(_enabledPreferenceKey, false);
+      await _deleteLogFile();
       return;
     }
 
+    await _resetLogFileForNewSession();
+    _enabled = true;
+    await preferences.setBool(_enabledPreferenceKey, true);
     await _ensureLogFile();
     await _writeLogEntry(
       'Runtime logging enabled',
       metadata: <String, Object?>{'logPath': _logFile?.path},
     );
+  }
+
+  Future<void> _resetLogFileForNewSession() async {
+    await _pendingWrites;
+    await _ensureLogFile();
+    final file = _logFile;
+    if (file == null) {
+      return;
+    }
+    await file.writeAsString('', flush: true);
+  }
+
+  Future<void> _deleteLogFile() async {
+    await _pendingWrites;
+    final file = _logFile;
+    if (file != null && await file.exists()) {
+      await file.delete();
+    }
   }
 
   Future<void> _ensureLogFile() async {

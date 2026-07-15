@@ -448,6 +448,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - When runtime logging is enabled, record low-frequency WebView lifecycle markers: main-page load start/stop with elapsed time, main-frame resource/HTTP errors, renderer process exit, and explicit force-refresh attempts.
 - Do not log progress ticks, scroll callbacks, subresource failures, full query strings, fragments, or custom-scheme payloads. These can create performance regressions or expose sensitive tokens.
 - Serialize runtime log file appends and wait for pending writes before reading/exporting, otherwise multiple unawaited events can race or the exported file can miss the latest entries.
+- Disabling runtime logging must stop accepting new entries, wait for queued writes, and delete `runtime.log` from the app external `logs` directory. Re-enabling starts a new diagnostic session and recreates the file with the new enable marker. Normal app startup with logging already enabled must not clear the existing session.
 - Related files: `lib/browser/services/browser_webview_diagnostics.dart`, `lib/services/app_log_service.dart`, `lib/browser/widgets/browser_webview_host.dart`.
 
 ### Percent-encoded popup URLs must be decoded before routing
