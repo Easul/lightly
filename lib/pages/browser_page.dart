@@ -37,6 +37,7 @@ import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/services/browser_webview_event_controller.dart';
 import '../browser/services/browser_webview_script_service.dart';
+import '../browser/services/browser_webview_state_reader.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/browser_popup_filter.dart';
 import '../browser/utils/ui_update_thresholds.dart';
@@ -104,6 +105,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserWebViewEventController();
   final BrowserWebViewScriptService _webViewScriptService =
       const BrowserWebViewScriptService();
+  final BrowserWebViewStateReader _webViewStateReader =
+      const BrowserWebViewStateReader();
   final BrowserNavigationController _navigationController =
       const BrowserNavigationController();
   final BrowserPopupRawUrlResolver _popupRawUrlResolver =
@@ -1341,21 +1344,27 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController? providedController,
   ]) async {
     final controller = providedController ?? _webViewController;
-    if (controller == null || !mounted) {
+    if (controller == null) {
+      return;
+    }
+    final snapshot = await _webViewStateReader.readNavigationSnapshot(
+      isAvailable: () => mounted,
+      readCanGoBack: controller.canGoBack,
+      readCanGoForward: controller.canGoForward,
+    );
+    if (snapshot == null) {
       return;
     }
 
-    final canGoBack = await controller.canGoBack();
-    final canGoForward = await controller.canGoForward();
-    if (!mounted) {
+    if (_canGoBack == snapshot.canGoBack &&
+        _canGoForward == snapshot.canGoForward) {
       return;
     }
 
-    if (_canGoBack == canGoBack && _canGoForward == canGoForward) {
-      return;
-    }
-
-    _updateActiveTab(canGoBack: canGoBack, canGoForward: canGoForward);
+    _updateActiveTab(
+      canGoBack: snapshot.canGoBack,
+      canGoForward: snapshot.canGoForward,
+    );
     _rebuildWhenVisible();
   }
 
@@ -1364,33 +1373,25 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required InAppWebViewController controller,
     required WebUri? url,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (!mounted) {
+    final snapshot = await _webViewStateReader.readLoadSnapshot(
+      isAvailable: () => mounted,
+      readTitle: controller.getTitle,
+      readCanGoBack: controller.canGoBack,
+      readCanGoForward: controller.canGoForward,
+    );
+    if (snapshot == null) {
       return;
     }
 
-    final results = await Future.wait<dynamic>([
-      controller.getTitle(),
-      controller.canGoBack(),
-      controller.canGoForward(),
-    ]);
-
-    if (!mounted) {
-      return;
-    }
-
-    final resolvedTitle = (results[0] as String?) ?? '';
-    final canGoBack = results[1] as bool;
-    final canGoForward = results[2] as bool;
     final didChangeNavigation = _updateTabById(
       hostedTabId,
-      title: resolvedTitle,
-      canGoBack: canGoBack,
-      canGoForward: canGoForward,
+      title: snapshot.title,
+      canGoBack: snapshot.canGoBack,
+      canGoForward: snapshot.canGoForward,
     );
 
-    if (resolvedTitle.isNotEmpty) {
-      unawaited(_recordHistory(url, resolvedTitle));
+    if (snapshot.title.isNotEmpty) {
+      unawaited(_recordHistory(url, snapshot.title));
     }
 
     if (!mounted) {
