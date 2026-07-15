@@ -120,6 +120,10 @@ pub async fn relay_client_to_vless<
     let mut total = 0usize;
     let mut buf = vec![0u8; buffer_size];
 
+    let has_initial_payload = initial_payload
+        .as_ref()
+        .is_some_and(|payload| !payload.is_empty());
+
     if let Some(initial_payload) = initial_payload.filter(|payload| !payload.is_empty()) {
         if let Err(error) = outbound_upload.write(&initial_payload).await {
             on_buffered_write_error(&error);
@@ -128,7 +132,8 @@ pub async fn relay_client_to_vless<
         }
     }
 
-    let mut waiting_for_first_payload = first_payload_fallback_after.is_some();
+    let mut waiting_for_first_payload =
+        first_payload_fallback_after.is_some() && !has_initial_payload;
 
     loop {
         let read_result = if let Some(delay) =

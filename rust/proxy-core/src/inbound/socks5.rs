@@ -8,7 +8,7 @@ use std::sync::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::time::Duration;
+use tokio::time::{timeout, Duration};
 
 const AUTH_NONE: u8 = 0x00;
 const AUTH_USERNAME_PASSWORD: u8 = 0x02;
@@ -169,6 +169,12 @@ pub async fn handle_socks5(
                 stream.flush().await?;
                 log::info!("[SOCKS5] Reply bind {}:{}", bind_ip, bind_port);
 
+                let initial_payload = read_initial_payload_after_connect_reply(
+                    &mut stream,
+                    Duration::from_millis(250),
+                )
+                .await?;
+
                 let outbound_upload = outbound_stream.clone();
                 let outbound_download = outbound_stream.clone();
                 let cleanup_outbound = outbound_stream.clone();
@@ -184,7 +190,7 @@ pub async fn handle_socks5(
                     client_r,
                     outbound_upload,
                     8192,
-                    None,
+                    initial_payload,
                     Some(Duration::from_millis(250)),
                     false,
                     |n| {
@@ -275,7 +281,7 @@ pub async fn handle_socks5(
             }
         },
         None => match TcpStream::connect(format!("{}:{}", addr, port)).await {
-            Ok(target) => {
+            Ok(mut target) => {
                 let bind_addr =
                     resolve_reply_bind_addr(target.local_addr().ok(), stream.local_addr().ok());
                 let (reply_atyp, reply_addr_bytes) = match bind_addr.ip() {
@@ -291,6 +297,16 @@ pub async fn handle_socks5(
                         (bind_addr.port() & 0xFF) as u8,
                     ])
                     .await?;
+                stream.flush().await?;
+
+                if let Some(initial_payload) = read_initial_payload_after_connect_reply(
+                    &mut stream,
+                    Duration::from_millis(250),
+                )
+                .await?
+                {
+                    target.write_all(&initial_payload).await?;
+                }
 
                 relay::pipe_bidirectional(stream, target, "SOCKS5").await;
             }
@@ -304,6 +320,24 @@ pub async fn handle_socks5(
     }
 
     Ok(())
+}
+
+async fn read_initial_payload_after_connect_reply<R>(
+    reader: &mut R,
+    wait: Duration,
+) -> std::io::Result<Option<Vec<u8>>>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut buffer = vec![0u8; 8192];
+    match timeout(wait, reader.read(&mut buffer)).await {
+        Ok(Ok(0)) | Err(_) => Ok(None),
+        Ok(Ok(read)) => {
+            buffer.truncate(read);
+            Ok(Some(buffer))
+        }
+        Ok(Err(error)) => Err(error),
+    }
 }
 
 fn select_auth_method(methods: &[u8]) -> Option<u8> {
@@ -373,6 +407,8 @@ mod tests {
         select_auth_method, AUTH_NONE, AUTH_USERNAME_PASSWORD,
     };
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use tokio::io::AsyncWriteExt;
+    use tokio::time::Duration;
 
     #[test]
     fn prefers_no_auth_when_both_methods_are_offered() {
@@ -380,6 +416,35 @@ mod tests {
             select_auth_method(&[AUTH_NONE, AUTH_USERNAME_PASSWORD]),
             Some(AUTH_NONE),
         );
+    }
+
+    #[tokio::test]
+    async fn buffers_client_payload_before_starting_downstream_relay() {
+        let (mut server, mut client) = tokio::io::duplex(64);
+        let read = tokio::spawn(async move {
+            super::read_initial_payload_after_connect_reply(&mut server, Duration::from_millis(100))
+                .await
+                .unwrap()
+        });
+
+        client.write_all(b"telegram-first-payload").await.unwrap();
+
+        assert_eq!(
+            read.await.unwrap(),
+            Some(b"telegram-first-payload".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn allows_server_first_protocol_after_boundary_timeout() {
+        let (mut server, _client) = tokio::io::duplex(64);
+
+        let payload =
+            super::read_initial_payload_after_connect_reply(&mut server, Duration::from_millis(1))
+                .await
+                .unwrap();
+
+        assert!(payload.is_none());
     }
 
     #[test]

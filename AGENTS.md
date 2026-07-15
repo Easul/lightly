@@ -193,6 +193,14 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Telegram probes IPv4 and IPv6 data-center addresses in parallel. Repeated IPv6 request rejection can amplify Telegram's native receive/reconnect race and trigger `Connection::onReceivedData()` crashes on affected builds.
 - Related file: `rust/proxy-core/src/outbound/hysteria2.rs`.
 
+### SOCKS5 CONNECT Reply/Data Boundary
+
+- Telegram's native SOCKS5 client treats the entire `recv()` while waiting for the CONNECT reply as handshake data and does not preserve bytes following the reply.
+- After sending and flushing the SOCKS5 CONNECT success reply, wait for the first client payload before starting downstream relay. Use a short timeout fallback so server-speaks-first protocols still work.
+- Buffer that first client payload and forward it exactly once. For VLESS, pass it through the existing combined-handshake path so the VLESS request and first payload remain in one WebSocket frame.
+- Do not replace this boundary with immediate concurrent downstream relay; kernel TCP coalescing can merge the CONNECT reply and Telegram's first encrypted downstream bytes, desynchronize MTProto, and trigger native `Connection::onReceivedData()` crashes.
+- Related files: `rust/proxy-core/src/inbound/socks5.rs`, `rust/proxy-core/src/inbound/relay.rs`.
+
 ### Log Interpretation Pitfall
 
 - Telegram opens many short-lived parallel SOCKS5 connections. Some of them are only probe/bootstrap channels and may close quickly after sending their initial payload.
