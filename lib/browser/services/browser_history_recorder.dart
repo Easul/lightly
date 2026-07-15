@@ -32,10 +32,21 @@ class BrowserHistoryRecorder {
     if (normalizedUrl.isEmpty) {
       return;
     }
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return;
+    }
 
     final now = DateTime.now();
     if (_lastRecordedHistoryUrl == normalizedUrl &&
         now.difference(_lastHistoryRecordTime) < const Duration(seconds: 2)) {
+      final normalizedTitle = title.trim();
+      if (normalizedTitle.isNotEmpty && normalizedTitle != normalizedUrl) {
+        await _historyService.updateLatestTitle(
+          url: normalizedUrl,
+          title: normalizedTitle,
+        );
+      }
       return;
     }
 

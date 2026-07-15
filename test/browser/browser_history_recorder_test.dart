@@ -34,8 +34,25 @@ void main() {
       expect(historyService.recordedTitles, ['Example']);
     });
 
+    test('updates title received during the dedupe window', () async {
+      final url = WebUri('https://example.com');
+
+      await recorder.recordHistory(url, 'https://example.com');
+      await recorder.recordHistory(url, 'Example title');
+
+      expect(historyService.recordedUrls, ['https://example.com']);
+      expect(historyService.updatedTitles, ['Example title']);
+    });
+
     test('skips empty history urls', () async {
       await recorder.recordHistory(null, 'Ignored');
+
+      expect(historyService.recordedUrls, isEmpty);
+    });
+
+    test('skips internal and local urls', () async {
+      await recorder.recordHistory(WebUri('about:blank'), 'Blank');
+      await recorder.recordHistory(WebUri('file:///tmp/demo.html'), 'Local');
 
       expect(historyService.recordedUrls, isEmpty);
     });
@@ -45,6 +62,7 @@ void main() {
 class _FakeBrowserHistoryService extends BrowserHistoryService {
   final List<String> recordedUrls = <String>[];
   final List<String> recordedTitles = <String>[];
+  final List<String> updatedTitles = <String>[];
 
   @override
   Future<BrowserHistoryEntry> insert({
@@ -60,5 +78,13 @@ class _FakeBrowserHistoryService extends BrowserHistoryService {
       visitedAt: visitedAt ?? DateTime.now(),
       visitCount: 1,
     );
+  }
+
+  @override
+  Future<void> updateLatestTitle({
+    required String url,
+    required String title,
+  }) async {
+    updatedTitles.add(title);
   }
 }

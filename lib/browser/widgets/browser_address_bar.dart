@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../models/browser_suggestion.dart';
 import '../services/browser_suggestion_service.dart';
 
 class BrowserAddressBar extends StatefulWidget {
@@ -42,7 +43,7 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
   final GlobalKey _fieldKey = GlobalKey();
 
   OverlayEntry? _overlayEntry;
-  List<String> _suggestions = const <String>[];
+  List<BrowserSuggestion> _suggestions = const <BrowserSuggestion>[];
   int _suggestionRequestId = 0;
   late bool _showClearButton;
 
@@ -88,7 +89,7 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
   void _handleFocusChanged() {
     if (!widget.focusNode.hasFocus) {
       _suggestionRequestId++;
-      _suggestions = const <String>[];
+      _suggestions = const <BrowserSuggestion>[];
       _removeOverlay();
       return;
     }
@@ -105,10 +106,10 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
       return;
     }
 
+    final seenUrls = <String>{};
     final normalizedResults = results
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
+        .where((value) => value.url.trim().isNotEmpty)
+        .where((value) => seenUrls.add(value.url.trim()))
         .toList(growable: false);
 
     _suggestions = normalizedResults;
@@ -187,9 +188,6 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
                         Divider(height: 1, color: colorScheme.outlineVariant),
                     itemBuilder: (context, index) {
                       final suggestion = _suggestions[index];
-                      final isUrl =
-                          suggestion.startsWith('http') ||
-                          suggestion.startsWith('file:');
 
                       return ListTile(
                         dense: true,
@@ -197,37 +195,41 @@ class _BrowserAddressBarState extends State<BrowserAddressBar> {
                           width: 28,
                           height: 28,
                           decoration: BoxDecoration(
-                            color: isUrl
-                                ? colorScheme.primaryContainer
-                                : colorScheme.surfaceContainerLow,
+                            color: colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            isUrl
-                                ? Icons.history_rounded
-                                : Icons.search_rounded,
+                            Icons.history_rounded,
                             size: 14,
-                            color: isUrl
-                                ? colorScheme.onPrimaryContainer
-                                : colorScheme.onSurfaceVariant,
+                            color: colorScheme.onPrimaryContainer,
                           ),
                         ),
                         title: Text(
-                          suggestion,
+                          suggestion.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
                             color: colorScheme.onSurface,
                           ),
                         ),
+                        subtitle: Text(
+                          suggestion.url,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                         onTap: () {
-                          widget.controller.text = suggestion;
+                          widget.controller.text = suggestion.url;
                           widget.controller.selection = TextSelection.collapsed(
-                            offset: suggestion.length,
+                            offset: suggestion.url.length,
                           );
-                          widget.onChanged(suggestion);
-                          widget.onSubmitted(suggestion);
+                          widget.onChanged(suggestion.url);
+                          widget.onSubmitted(suggestion.url);
                           widget.focusNode.unfocus();
                           _removeOverlay();
                         },

@@ -14,6 +14,7 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.buildGeneralSection,
     required this.buildVideoSection,
     required this.pushSection,
+    required this.onOpenBrowserHistory,
     required this.formController,
     required this.proxySupported,
     required this.isSaving,
@@ -51,6 +52,7 @@ class SettingsPageHomeSections extends StatelessWidget {
     required List<Widget> Function(BuildContext context) buildChildren,
   })
   pushSection;
+  final Future<void> Function() onOpenBrowserHistory;
   final BrowserSettingsFormController formController;
   final bool proxySupported;
   final bool isSaving;
@@ -88,12 +90,19 @@ class SettingsPageHomeSections extends StatelessWidget {
             SettingsTile(
               icon: Icons.settings_outlined,
               title: '通用',
-              subtitle: '主页、历史记录',
+              subtitle: '主页、浏览器选项',
               onTap: () => _pushSingleSection(
                 title: '通用',
                 icon: Icons.settings_outlined,
                 buildSection: buildGeneralSection,
               ),
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.history_rounded,
+              title: '历史浏览',
+              subtitle: '查看、搜索和清理浏览历史',
+              onTap: () => onOpenBrowserHistory(),
             ),
           ],
         ),

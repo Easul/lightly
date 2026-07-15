@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/pages/browser_page_route_handler.dart';
 import 'package:lightly/pages/data_management_page.dart';
+import 'package:lightly/pages/settings_page_result.dart';
 
 void main() {
   group('BrowserPageRouteHandler', () {
@@ -10,6 +11,18 @@ void main() {
       expect(handler.shouldReloadSettingsAfterSettingsRoute(true), isTrue);
       expect(handler.shouldReloadSettingsAfterSettingsRoute(false), isFalse);
       expect(handler.shouldReloadSettingsAfterSettingsRoute(null), isFalse);
+    });
+
+    test('returns history url and settings reload from settings result', () {
+      final plan = handler.planSettingsActions(
+        const SettingsPageResult(
+          settingsChanged: true,
+          openHistoryUrl: 'https://example.com',
+        ),
+      );
+
+      expect(plan.reloadSettings, isTrue);
+      expect(plan.openHistoryUrl, 'https://example.com');
     });
 
     test(

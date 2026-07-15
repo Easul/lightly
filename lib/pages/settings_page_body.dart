@@ -74,6 +74,7 @@ class SettingsPageBody extends StatelessWidget {
     required this.buildGeneralSection,
     required this.buildVideoSection,
     required this.pushSection,
+    required this.onOpenBrowserHistory,
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
@@ -112,6 +113,7 @@ class SettingsPageBody extends StatelessWidget {
     required List<Widget> Function(BuildContext context) buildChildren,
   })
   pushSection;
+  final Future<void> Function() onOpenBrowserHistory;
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
@@ -142,6 +144,7 @@ class SettingsPageBody extends StatelessWidget {
           buildGeneralSection: buildGeneralSection,
           buildVideoSection: buildVideoSection,
           pushSection: pushSection,
+          onOpenBrowserHistory: onOpenBrowserHistory,
           formController: formController,
           proxySupported: proxySupported,
           isSaving: isSaving,

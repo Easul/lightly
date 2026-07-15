@@ -167,7 +167,9 @@ class BrowserPageServices {
       videoDetectionCoordinator: videoDetectionCoordinator,
       videoPlaybackPreparationService: videoPlaybackPreparationService,
       videoPlayerCoordinator: videoPlayerCoordinator,
-      suggestionService: BrowserSuggestionService(),
+      suggestionService: BrowserSuggestionService(
+        historyService: historyService,
+      ),
     );
   }
 
@@ -201,7 +203,9 @@ class BrowserPageServices {
 
   void replaceSuggestionService() {
     suggestionService.dispose();
-    suggestionService = BrowserSuggestionService();
+    suggestionService = BrowserSuggestionService(
+      historyService: historyService,
+    );
   }
 
   void dispose() {

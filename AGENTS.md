@@ -856,7 +856,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
 void dispose() {
   _debounceTimer?.cancel();
   if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
-    _pendingCompleter!.complete(<String>[]);
+    _pendingCompleter!.complete(<BrowserSuggestion>[]);
   }
   _pendingCompleter = null;
   _lastIssuedQuery = null;
@@ -864,6 +864,16 @@ void dispose() {
 ```
 
 **File**: `lib/browser/services/browser_suggestion_service.dart`
+
+## Browser History UI and Storage
+
+- The Settings home page must show `历史浏览` as an independent row directly below `通用`; do not move it inside the General detail page.
+- Address-bar history suggestions are structured title + URL rows. Matching covers both fields, while tapping always submits the stored URL rather than the visible title.
+- Keep URL summary data in `browser_history` for suggestion ranking and per-visit data in `browser_history_visits` for the date-grouped history page.
+- History-page navigation must return the selected URL through Settings to `BrowserPage`, which opens it with the existing new-tab path. The history page must not manipulate WebView keepAlive or tab services directly.
+- Only normal `http` and `https` main-page visits should be recorded; skip internal, blank, custom-scheme, file, and content URLs.
+- Related files: `lib/browser/services/browser_history_service.dart`, `lib/browser/services/browser_suggestion_service.dart`, `lib/pages/browser_history_page.dart`, `lib/pages/settings_page_home_sections.dart`.
+- Verification: run `flutter test test/browser/browser_address_bar_test.dart test/browser/browser_history_page_test.dart test/browser/browser_suggestion_service_test.dart test/browser/browser_history_recorder_test.dart`.
 
 ### 2. Android Shared Downloads Write Permission
 

@@ -13,6 +13,7 @@ import 'pages/calculator_page.dart';
 import 'pages/downloads_page.dart';
 import 'pages/data_management_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/browser_history_page.dart';
 import 'pages/easytier_settings_page.dart';
 import 'pages/remote_control_page.dart';
 import 'pages/simple_file_manager_settings_page.dart';
@@ -80,6 +81,7 @@ class MyApp extends StatelessWidget {
         '/downloads': (context) => const DownloadsPage(),
         '/data-management': (context) => const DataManagementPage(),
         '/settings': (context) => const SettingsPage(),
+        '/browser-history': (context) => const BrowserHistoryPage(),
         '/simple-file-manager': (context) =>
             const SimpleFileManagerSettingsPage(),
         '/easytier': (context) => const EasyTierSettingsPage(),

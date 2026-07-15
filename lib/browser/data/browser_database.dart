@@ -5,9 +5,10 @@ class BrowserDatabase {
   BrowserDatabase._();
 
   static const String historyTable = 'browser_history';
+  static const String historyVisitsTable = 'browser_history_visits';
   static const String downloadTable = 'browser_downloads';
   static const String favoriteTable = 'browser_favorites';
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
 
   static final BrowserDatabase instance = BrowserDatabase._();
 
@@ -50,6 +51,7 @@ class BrowserDatabase {
     await db.execute(
       'CREATE INDEX idx_browser_history_visit_count ON $historyTable(visitCount DESC)',
     );
+    await _createHistoryVisitsTable(db);
 
     await db.execute('''
       CREATE TABLE $downloadTable (
@@ -108,6 +110,32 @@ class BrowserDatabase {
         'CREATE INDEX idx_browser_favorites_sort ON $favoriteTable(sortOrder ASC)',
       );
     }
+    if (oldVersion < 3) {
+      await _createHistoryVisitsTable(db);
+      await db.execute('''
+        INSERT INTO $historyVisitsTable (url, title, visitedAt)
+        SELECT url, title, visitedAt FROM $historyTable
+      ''');
+    }
+  }
+
+  static Future<void> _createHistoryVisitsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $historyVisitsTable (
+        id INTEGER PRIMARY KEY,
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        visitedAt INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_browser_history_visits_time '
+      'ON $historyVisitsTable(visitedAt DESC, id DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_browser_history_visits_url '
+      'ON $historyVisitsTable(url)',
+    );
   }
 
   Future<void> close() async {

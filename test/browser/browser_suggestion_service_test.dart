@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
+import 'package:lightly/browser/models/browser_suggestion.dart';
 import 'package:lightly/browser/services/browser_history_service.dart';
 import 'package:lightly/browser/services/browser_suggestion_service.dart';
 
@@ -13,12 +14,10 @@ void main() {
     final suggestions = await service.suggest('flutter');
 
     expect(
-      suggestions,
+      _labels(suggestions),
       equals(<String>[
-        'https://flutter.dev',
-        'Flutter Documentation',
-        'https://docs.flutter.dev',
-        'Flutter API Docs',
+        'Flutter Documentation|https://flutter.dev',
+        'Flutter API Docs|https://docs.flutter.dev',
       ]),
     );
 
@@ -34,14 +33,11 @@ void main() {
     final suggestions = await service.suggest('');
 
     expect(
-      suggestions,
+      _labels(suggestions),
       equals(<String>[
-        'https://example.com',
-        'Example',
-        'https://flutter.dev',
-        'Flutter Documentation',
-        'https://docs.flutter.dev',
-        'Flutter API Docs',
+        'Example|https://example.com',
+        'Flutter Documentation|https://flutter.dev',
+        'Flutter API Docs|https://docs.flutter.dev',
       ]),
     );
 
@@ -57,8 +53,8 @@ void main() {
     final suggestions = await service.suggest('docs');
 
     expect(
-      suggestions,
-      equals(<String>['https://docs.flutter.dev', 'Flutter API Docs']),
+      _labels(suggestions),
+      equals(<String>['Flutter API Docs|https://docs.flutter.dev']),
     );
 
     service.dispose();
@@ -73,8 +69,8 @@ void main() {
     final suggestions = await service.suggest('Document');
 
     expect(
-      suggestions,
-      equals(<String>['https://flutter.dev', 'Flutter Documentation']),
+      _labels(suggestions),
+      equals(<String>['Flutter Documentation|https://flutter.dev']),
     );
 
     service.dispose();
@@ -91,17 +87,21 @@ void main() {
 
     expect(identical(firstFuture, secondFuture), isTrue);
     expect(
-      await secondFuture,
+      _labels(await secondFuture),
       equals(<String>[
-        'https://flutter.dev',
-        'Flutter Documentation',
-        'https://docs.flutter.dev',
-        'Flutter API Docs',
+        'Flutter Documentation|https://flutter.dev',
+        'Flutter API Docs|https://docs.flutter.dev',
       ]),
     );
 
     service.dispose();
   });
+}
+
+List<String> _labels(List<BrowserSuggestion> suggestions) {
+  return suggestions
+      .map((suggestion) => '${suggestion.title}|${suggestion.url}')
+      .toList(growable: false);
 }
 
 class _FakeBrowserHistoryService extends BrowserHistoryService {

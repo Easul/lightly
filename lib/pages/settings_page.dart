@@ -23,6 +23,8 @@ import '../browser/widgets/settings/settings_section_widgets.dart';
 import '../browser/widgets/settings/video_settings_section.dart';
 import '../services/app_toast.dart';
 import 'settings_page_body.dart';
+import 'browser_history_page.dart';
+import 'settings_page_result.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -122,6 +124,19 @@ class _SettingsPageState extends State<SettingsPage> {
       _statusMonitor.syncSnapshot();
       _isLoading = false;
     });
+  }
+
+  Future<void> _openBrowserHistory() async {
+    final result = await Navigator.of(context).pushNamed('/browser-history');
+    if (!mounted || result is! BrowserHistoryPageResult) {
+      return;
+    }
+    Navigator.of(context).pop(
+      SettingsPageResult(
+        settingsChanged: _hasAppliedChanges,
+        openHistoryUrl: result.url,
+      ),
+    );
   }
 
   void _handleProxyFormChanged() {
@@ -650,6 +665,7 @@ class _SettingsPageState extends State<SettingsPage> {
         buildGeneralSection: _buildGeneralSection,
         buildVideoSection: _buildVideoSection,
         pushSection: _pushSection,
+        onOpenBrowserHistory: _openBrowserHistory,
         formController: _formController,
         proxySupported: _proxySupported,
         isSaving: _isSaving,

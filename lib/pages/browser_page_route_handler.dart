@@ -1,4 +1,15 @@
 import 'data_management_page.dart';
+import 'settings_page_result.dart';
+
+class BrowserPageSettingsActionPlan {
+  const BrowserPageSettingsActionPlan({
+    required this.reloadSettings,
+    this.openHistoryUrl,
+  });
+
+  final bool reloadSettings;
+  final String? openHistoryUrl;
+}
 
 class BrowserPageDataManagementActionPlan {
   const BrowserPageDataManagementActionPlan({
@@ -27,7 +38,17 @@ class BrowserPageRouteHandler {
   const BrowserPageRouteHandler();
 
   bool shouldReloadSettingsAfterSettingsRoute(Object? result) {
-    return result == true;
+    return planSettingsActions(result).reloadSettings;
+  }
+
+  BrowserPageSettingsActionPlan planSettingsActions(Object? result) {
+    if (result is SettingsPageResult) {
+      return BrowserPageSettingsActionPlan(
+        reloadSettings: result.settingsChanged,
+        openHistoryUrl: result.openHistoryUrl,
+      );
+    }
+    return BrowserPageSettingsActionPlan(reloadSettings: result == true);
   }
 
   BrowserPageDataManagementActionPlan planDataManagementActions({

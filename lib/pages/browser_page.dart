@@ -1450,8 +1450,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _openSettings() async {
     final result = await Navigator.of(context).pushNamed('/settings');
-    if (_routeHandler.shouldReloadSettingsAfterSettingsRoute(result)) {
+    _suggestionService.clearCache();
+    final plan = _routeHandler.planSettingsActions(result);
+    if (plan.reloadSettings) {
       await _reloadSettings();
+    }
+    final historyUrl = plan.openHistoryUrl;
+    if (historyUrl != null && historyUrl.isNotEmpty && mounted) {
+      await _openNewTabWithUrl(historyUrl);
     }
   }
 

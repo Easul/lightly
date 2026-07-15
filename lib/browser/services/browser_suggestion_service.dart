@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../models/browser_history_entry.dart';
+import '../models/browser_suggestion.dart';
 import 'browser_history_service.dart';
 
 class _LruCacheEntry<V> {
@@ -33,11 +34,12 @@ class BrowserSuggestionService {
   final int _maxCacheSize;
 
   Timer? _debounceTimer;
-  Completer<List<String>>? _pendingCompleter;
-  final Map<String, _LruCacheEntry<List<String>>> _suggestionCache = {};
+  Completer<List<BrowserSuggestion>>? _pendingCompleter;
+  final Map<String, _LruCacheEntry<List<BrowserSuggestion>>> _suggestionCache =
+      {};
   String? _lastIssuedQuery;
 
-  Future<List<String>> suggest(String query) {
+  Future<List<BrowserSuggestion>> suggest(String query) {
     final normalizedQuery = query.trim();
     final cachedEntry = _suggestionCache[normalizedQuery];
     if (cachedEntry != null) {
@@ -51,10 +53,10 @@ class BrowserSuggestionService {
 
     _debounceTimer?.cancel();
     if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
-      _pendingCompleter!.complete(<String>[]);
+      _pendingCompleter!.complete(<BrowserSuggestion>[]);
     }
 
-    final completer = Completer<List<String>>();
+    final completer = Completer<List<BrowserSuggestion>>();
     _pendingCompleter = completer;
     _lastIssuedQuery = normalizedQuery;
 
@@ -72,7 +74,7 @@ class BrowserSuggestionService {
 
         final historyEntries = await _historyService.query(
           searchTerm: normalizedQuery,
-          limit: 6,
+          limit: 50,
         );
         final results = _mapHistoryEntries(historyEntries, normalizedQuery);
 
@@ -82,7 +84,7 @@ class BrowserSuggestionService {
         }
       } catch (_) {
         if (!completer.isCompleted) {
-          completer.complete(<String>[]);
+          completer.complete(<BrowserSuggestion>[]);
         }
       } finally {
         if (identical(_pendingCompleter, completer)) {
@@ -97,34 +99,50 @@ class BrowserSuggestionService {
     return completer.future;
   }
 
-  List<String> _mapHistoryEntries(
+  List<BrowserSuggestion> _mapHistoryEntries(
     List<BrowserHistoryEntry> entries,
     String query,
   ) {
-    final results = <String>[];
+    final results = <BrowserSuggestion>[];
     final loweredQuery = query.toLowerCase();
     final isEmptyQuery = loweredQuery.isEmpty;
 
-    for (final entry in entries) {
-      final url = entry.url;
-      final title = entry.title;
+    if (!isEmptyQuery) {
+      entries.sort((left, right) {
+        final scoreComparison = _matchScore(
+          right,
+          loweredQuery,
+        ).compareTo(_matchScore(left, loweredQuery));
+        if (scoreComparison != 0) {
+          return scoreComparison;
+        }
+        final countComparison = right.visitCount.compareTo(left.visitCount);
+        if (countComparison != 0) {
+          return countComparison;
+        }
+        return right.visitedAt.compareTo(left.visitedAt);
+      });
+    }
 
-      final normalizedTitle = title.trim();
+    for (final entry in entries) {
+      final url = entry.url.trim();
+      final normalizedTitle = entry.title.trim().isEmpty
+          ? url
+          : entry.title.trim();
       final loweredTitle = normalizedTitle.toLowerCase();
       final loweredUrl = url.toLowerCase();
 
       final titleMatches = isEmptyQuery || loweredTitle.contains(loweredQuery);
       final urlMatches = isEmptyQuery || loweredUrl.contains(loweredQuery);
-      final shouldIncludeUrl = urlMatches || titleMatches;
-
-      if (url.isNotEmpty && shouldIncludeUrl && !results.contains(url)) {
-        results.add(url);
-      }
-
-      if (normalizedTitle.isNotEmpty &&
-          titleMatches &&
-          !results.contains(normalizedTitle)) {
-        results.add(normalizedTitle);
+      if (url.isNotEmpty && (urlMatches || titleMatches)) {
+        results.add(
+          BrowserSuggestion(
+            title: normalizedTitle,
+            url: url,
+            visitCount: entry.visitCount,
+            visitedAt: entry.visitedAt,
+          ),
+        );
       }
 
       if (results.length >= 6) {
@@ -135,12 +153,28 @@ class BrowserSuggestionService {
     return results;
   }
 
-  void _putCache(String key, List<String> value) {
+  int _matchScore(BrowserHistoryEntry entry, String query) {
+    final title = entry.title.trim().toLowerCase();
+    final url = entry.url.trim().toLowerCase();
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    if (title.startsWith(query) || host.startsWith(query)) {
+      return 3;
+    }
+    if (url.startsWith(query)) {
+      return 2;
+    }
+    if (title.contains(query) || url.contains(query)) {
+      return 1;
+    }
+    return 0;
+  }
+
+  void _putCache(String key, List<BrowserSuggestion> value) {
     if (_suggestionCache.length >= _maxCacheSize &&
         !_suggestionCache.containsKey(key)) {
       _evictIfNeeded();
     }
-    _suggestionCache[key] = _LruCacheEntry<List<String>>(
+    _suggestionCache[key] = _LruCacheEntry<List<BrowserSuggestion>>(
       value,
       lastAccessed: DateTime.now(),
     );
@@ -179,7 +213,7 @@ class BrowserSuggestionService {
   void dispose() {
     _debounceTimer?.cancel();
     if (_pendingCompleter != null && !_pendingCompleter!.isCompleted) {
-      _pendingCompleter!.complete(<String>[]);
+      _pendingCompleter!.complete(<BrowserSuggestion>[]);
     }
     _pendingCompleter = null;
     _lastIssuedQuery = null;
