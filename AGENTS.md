@@ -480,6 +480,13 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Disabling runtime logging must stop accepting new entries, wait for queued writes, and delete `runtime.log` from the app external `logs` directory. Re-enabling starts a new diagnostic session and recreates the file with the new enable marker. Normal app startup with logging already enabled must not clear the existing session.
 - Related files: `lib/browser/services/browser_webview_diagnostics.dart`, `lib/services/app_log_service.dart`, `lib/browser/widgets/browser_webview_host.dart`.
 
+### Proxy-core diagnostic release logging
+
+- Release builds default proxy-core logging to `warn` to avoid normal connection-lifecycle noise.
+- For a targeted diagnostic APK, pass `--dart-define=PROXY_CORE_LOG_LEVEL=info`; do not change the permanent release default to `info`.
+- Info-level proxy logs may include destination IP/domain, ports, byte counts, and connection lifecycle, but must not include proxy credentials, configuration bodies, or packet contents.
+- Related file: `lib/browser/services/proxy_runtime_launcher.dart`.
+
 ### Application runtime logging boundaries
 
 - Important Release-mode failures must use `recordRuntimeLog()` so they remain visible in both developer output and the exportable runtime log. This includes proxy-core lifecycle failures, EasyTier start/stop errors, remote-control connection lifecycle failures, screen capture/decoder setup failures, local HTTP service request failures, backup errors, and external-app launch exceptions.

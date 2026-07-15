@@ -4,6 +4,11 @@ import '../../services/proxy_core_service.dart' as proxy_core;
 import '../browser_settings.dart';
 import 'proxy_config_mapper.dart';
 
+const String _releaseProxyLogLevel = String.fromEnvironment(
+  'PROXY_CORE_LOG_LEVEL',
+  defaultValue: 'warn',
+);
+
 class ProxyRuntimeLauncher {
   const ProxyRuntimeLauncher(this._configMapper);
 
@@ -18,7 +23,7 @@ class ProxyRuntimeLauncher {
     required proxy_core.ProxyCoreService proxyCoreService,
     required BrowserSettings settings,
     required String listenAddr,
-    String logLevel = kReleaseMode ? 'warn' : 'debug',
+    String logLevel = kReleaseMode ? _releaseProxyLogLevel : 'debug',
   }) {
     if (settings.proxyProtocol == BrowserProxyProtocol.hysteria2) {
       return proxyCoreService.startWithHysteria2(
