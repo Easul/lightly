@@ -19,6 +19,7 @@ class AppLogService {
   File? _logFile;
   bool _initialized = false;
   bool _enabled = false;
+  Future<void> _pendingWrites = Future<void>.value();
   final SharedDownloadsDirectoryService _downloadsDirectoryService =
       SharedDownloadsDirectoryService();
 
@@ -127,14 +128,7 @@ class AppLogService {
     Object? error,
     StackTrace? stackTrace,
     Map<String, Object?>? metadata,
-  }) async {
-    await _ensureLogFile();
-
-    final file = _logFile;
-    if (file == null) {
-      return;
-    }
-
+  }) {
     final buffer = StringBuffer()
       ..writeln('=== ${DateTime.now().toIso8601String()} ===')
       ..writeln(message);
@@ -149,11 +143,20 @@ class AppLogService {
     }
     buffer.writeln();
 
-    await file.writeAsString(
-      buffer.toString(),
-      mode: FileMode.append,
-      flush: true,
-    );
+    final write = _pendingWrites.then((_) async {
+      await _ensureLogFile();
+      final file = _logFile;
+      if (file == null) {
+        return;
+      }
+      await file.writeAsString(
+        buffer.toString(),
+        mode: FileMode.append,
+        flush: true,
+      );
+    });
+    _pendingWrites = write.catchError((_) {});
+    return write;
   }
 
   Future<void> logFlutterError(FlutterErrorDetails details) async {
@@ -176,6 +179,7 @@ class AppLogService {
     if (!_initialized) {
       await initialize();
     }
+    await _pendingWrites;
     final file = _logFile;
     if (file == null || !await file.exists()) {
       return '';
@@ -190,6 +194,7 @@ class AppLogService {
       await initialize();
     }
 
+    await _pendingWrites;
     final source = _logFile;
     if (source == null || !await source.exists()) {
       throw StateError('runtime.log not found');

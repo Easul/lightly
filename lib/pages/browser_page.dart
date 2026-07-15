@@ -20,6 +20,7 @@ import '../browser/services/browser_favorite_service.dart';
 import '../browser/services/browser_favorite_status_tracker.dart';
 import '../browser/services/browser_favorites_coordinator.dart';
 import '../browser/services/browser_fullscreen_manager.dart';
+import '../browser/services/browser_force_refresh_coordinator.dart';
 import '../browser/services/browser_history_recorder.dart';
 import '../browser/services/browser_imported_document_service.dart';
 import '../browser/services/browser_long_press_handler.dart';
@@ -36,6 +37,7 @@ import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/services/browser_webview_event_controller.dart';
+import '../browser/services/browser_webview_diagnostics.dart';
 import '../browser/services/browser_webview_script_service.dart';
 import '../browser/services/browser_webview_state_reader.dart';
 import '../services/app_toast.dart';
@@ -103,6 +105,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageTabTransitionCoordinator();
   final BrowserWebViewEventController _webViewEventController =
       const BrowserWebViewEventController();
+  final BrowserForceRefreshCoordinator _forceRefreshCoordinator =
+      const BrowserForceRefreshCoordinator();
+  final BrowserWebViewDiagnostics _webViewDiagnostics =
+      BrowserWebViewDiagnostics();
   final BrowserWebViewScriptService _webViewScriptService =
       const BrowserWebViewScriptService();
   final BrowserWebViewStateReader _webViewStateReader =
@@ -638,6 +644,28 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             error: error,
           );
         },
+        onReceivedHttpError: (controller, request, errorResponse) {
+          if (hostedTabId == null) {
+            return;
+          }
+          _webViewDiagnostics.recordHttpError(
+            tabId: hostedTabId,
+            url: request.url.toString(),
+            statusCode: errorResponse.statusCode,
+            reasonPhrase: errorResponse.reasonPhrase,
+            isForMainFrame: request.isForMainFrame,
+          );
+        },
+        onRenderProcessGone: (controller, detail) {
+          if (hostedTabId == null) {
+            return;
+          }
+          _webViewDiagnostics.recordRenderProcessGone(
+            tabId: hostedTabId,
+            didCrash: detail.didCrash,
+            rendererPriorityAtExit: detail.rendererPriorityAtExit?.toString(),
+          );
+        },
         onReceivedHttpAuthRequest: _handleHttpAuthRequest,
         onScrollChanged: (controller, x, y) {
           _handleWebViewScrollChanged(hostedTabId: hostedTabId, y: y);
@@ -673,6 +701,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (hostedTabId == null) {
       return;
     }
+    _webViewDiagnostics.recordLoadStart(
+      tabId: hostedTabId,
+      url: url?.toString(),
+    );
     unawaited(_recordCookieOrigin(url));
     final didChangeLoading = _updateTabById(hostedTabId, isLoading: true);
     final didChangeProgress = _isActiveTabId(hostedTabId)
@@ -704,6 +736,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
+    _webViewDiagnostics.recordLoadStop(
+      tabId: hostedTabId,
+      url: url?.toString(),
+    );
     _pullToRefreshController?.endRefreshing();
     unawaited(_recordCookieOrigin(url));
     unawaited(
@@ -771,6 +807,15 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required WebResourceRequest request,
     required WebResourceError error,
   }) {
+    if (hostedTabId != null) {
+      _webViewDiagnostics.recordResourceError(
+        tabId: hostedTabId,
+        url: request.url.toString(),
+        description: error.description,
+        errorCode: error.type.toNativeValue(),
+        isForMainFrame: request.isForMainFrame,
+      );
+    }
     _webViewEventController.handleError(
       hostedTabId: hostedTabId,
       isMounted: mounted,
@@ -2096,6 +2141,74 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _forceRefreshCurrentPage() async {
+    final activeTabId = _activeTabId;
+    if (activeTabId == null || _isFavoritesPage(_currentUrl)) {
+      await _favoritesPageKey.currentState?.refreshFavorites();
+      return;
+    }
+
+    final controller = _webViewController;
+    if (controller == null) {
+      _tabService.resetKeepAlive(activeTabId, recreate: true);
+      _updateTabById(activeTabId, isLoading: true);
+      _webViewDiagnostics.recordForceRefresh(
+        tabId: activeTabId,
+        url: _currentUrl,
+        wasLoading: _isLoading,
+        progress: _progress,
+      );
+      if (mounted) {
+        _rebuildWhenVisible();
+      }
+      return;
+    }
+
+    final wasLoading = _isLoading;
+    final progress = _progress;
+    try {
+      final targetUrl = await _forceRefreshCoordinator.refresh(
+        fallbackUrl: _currentUrl,
+        stopLoading: controller.stopLoading,
+        readCurrentUrl: () async => (await controller.getUrl())?.toString(),
+        loadUrl: (url) => controller.loadUrl(
+          urlRequest: URLRequest(
+            url: WebUri(url),
+            headers: const <String, String>{
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+            },
+          ),
+        ),
+      );
+      _webViewDiagnostics.recordForceRefresh(
+        tabId: activeTabId,
+        url: targetUrl ?? _currentUrl,
+        wasLoading: wasLoading,
+        progress: progress,
+      );
+      if (targetUrl == null) {
+        _tabService.resetKeepAlive(activeTabId, recreate: true);
+        if (mounted) {
+          _rebuildWhenVisible();
+        }
+      }
+    } catch (error, stackTrace) {
+      _webViewDiagnostics.recordForceRefresh(
+        tabId: activeTabId,
+        url: _currentUrl,
+        wasLoading: wasLoading,
+        progress: progress,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _tabService.resetKeepAlive(activeTabId, recreate: true);
+      if (mounted) {
+        _rebuildWhenVisible();
+      }
+    }
+  }
+
   Future<void> _showFavoritesMenu() async {
     final favoritesState = _favoritesPageKey.currentState;
     if (favoritesState == null) {
@@ -2167,17 +2280,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             _addressFocusNode.unfocus();
           },
           isLoading: _isLoadingNotifier,
-          onRefresh: () async {
-            if (_isLoading) {
-              await _webViewController?.stopLoading();
-              _updateActiveTab(isLoading: false);
-              if (mounted) {
-                _rebuildWhenVisible();
-              }
-              return;
-            }
-            await _webViewController?.reload();
-          },
+          onRefresh: _forceRefreshCurrentPage,
         ),
         body: RepaintBoundary(
           child: !_isInitialized

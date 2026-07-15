@@ -435,6 +435,21 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 
 ## WebView HTTP Auth & Popup Compatibility
 
+### Manual refresh must recover stalled white pages
+
+- The address-bar refresh action must not only call `stopLoading()` while a page is loading. It must stop the stalled request and immediately navigate to the current real page URL again.
+- Prefer the controller URL when it is a real document URL, but fall back to the active tab URL for `about:blank`, `chrome-error://`, missing URLs, or controller read failures.
+- Send no-cache request headers for this explicit recovery action. If the native controller is unavailable or navigation throws, recreate the active tab keepAlive as a recovery path.
+- Keep this behavior limited to explicit user refresh; do not add automatic reload loops for normal page errors.
+- Related files: `lib/browser/services/browser_force_refresh_coordinator.dart`, `lib/pages/browser_page.dart`.
+
+### Runtime browser diagnostics must remain useful and lightweight
+
+- When runtime logging is enabled, record low-frequency WebView lifecycle markers: main-page load start/stop with elapsed time, main-frame resource/HTTP errors, renderer process exit, and explicit force-refresh attempts.
+- Do not log progress ticks, scroll callbacks, subresource failures, full query strings, fragments, or custom-scheme payloads. These can create performance regressions or expose sensitive tokens.
+- Serialize runtime log file appends and wait for pending writes before reading/exporting, otherwise multiple unawaited events can race or the exported file can miss the latest entries.
+- Related files: `lib/browser/services/browser_webview_diagnostics.dart`, `lib/services/app_log_service.dart`, `lib/browser/widgets/browser_webview_host.dart`.
+
 ### Percent-encoded popup URLs must be decoded before routing
 
 - Some pages pass an entire custom-scheme popup target as a percent-encoded string, for example `baiduboxapp%3A%2F%2F...`.

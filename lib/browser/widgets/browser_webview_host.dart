@@ -32,6 +32,8 @@ class BrowserWebViewHost extends StatelessWidget {
     required this.onLoadStop,
     required this.onProgressChanged,
     required this.onReceivedError,
+    this.onReceivedHttpError,
+    this.onRenderProcessGone,
     required this.onReceivedHttpAuthRequest,
     required this.onScrollChanged,
     required this.onTitleChanged,
@@ -80,6 +82,17 @@ class BrowserWebViewHost extends StatelessWidget {
     WebResourceError error,
   )
   onReceivedError;
+  final void Function(
+    InAppWebViewController controller,
+    WebResourceRequest request,
+    WebResourceResponse errorResponse,
+  )?
+  onReceivedHttpError;
+  final void Function(
+    InAppWebViewController controller,
+    RenderProcessGoneDetail detail,
+  )?
+  onRenderProcessGone;
   final Future<HttpAuthResponse?> Function(
     InAppWebViewController controller,
     URLAuthenticationChallenge challenge,
@@ -290,6 +303,7 @@ class BrowserWebViewHost extends StatelessWidget {
             onLoadStop: onLoadStop,
             onProgressChanged: onProgressChanged,
             onReceivedError: onReceivedError,
+            onReceivedHttpError: onReceivedHttpError,
             onScrollChanged: onScrollChanged,
             onTitleChanged: onTitleChanged,
             onUpdateVisitedHistory: onUpdateVisitedHistory,
@@ -297,6 +311,7 @@ class BrowserWebViewHost extends StatelessWidget {
             onEnterFullscreen: onEnterFullscreen,
             onExitFullscreen: onExitFullscreen,
             onRenderProcessGone: (controller, detail) {
+              onRenderProcessGone?.call(controller, detail);
               // WebView renderer crashed — reload the page to recover.
               // Without this handler, a crash on heavy pages (YouTube) can
               // leave the WebView in a dead state that causes ANR.
