@@ -35,6 +35,7 @@ import '../browser/services/browser_tab_service.dart';
 import '../browser/services/browser_video_detection_coordinator.dart';
 import '../browser/services/browser_video_detection_tracker.dart';
 import '../browser/services/browser_video_player_coordinator.dart';
+import '../browser/services/browser_webview_event_controller.dart';
 import '../services/app_toast.dart';
 import '../browser/utils/browser_popup_filter.dart';
 import '../browser/utils/ui_update_thresholds.dart';
@@ -66,7 +67,6 @@ import 'browser_page_tab_transition_helper.dart';
 import 'browser_page_tab_transition_coordinator.dart';
 import 'browser_page_tab_flow_coordinator.dart';
 import 'browser_page_webview_lifecycle_helper.dart';
-import 'browser_page_webview_coordinator.dart';
 import 'browser_page_route_handler.dart';
 import 'browser_site_data_manager.dart';
 import '../services/app_lifecycle_manager.dart';
@@ -101,8 +101,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserPageTabFlowCoordinator();
   final BrowserPageTabTransitionCoordinator _tabTransitionCoordinator =
       const BrowserPageTabTransitionCoordinator();
-  final BrowserPageWebViewCoordinator _webViewCoordinator =
-      const BrowserPageWebViewCoordinator();
+  final BrowserWebViewEventController _webViewEventController =
+      const BrowserWebViewEventController();
   final BrowserNavigationController _navigationController =
       const BrowserNavigationController();
   final BrowserPopupRawUrlResolver _popupRawUrlResolver =
@@ -675,7 +675,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         ? _updateProgressIfNeeded(0)
         : false;
     if (mounted &&
-        _webViewCoordinator.shouldClearStatusOnLoadStart(
+        _webViewEventController.shouldClearStatusOnLoadStart(
           isActiveTab: _isActiveTabId(hostedTabId),
           currentStatusMessage: _statusMessage,
           didChangeProgress: didChangeProgress,
@@ -716,10 +716,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    if (_webViewCoordinator.shouldRebuildOnLoadStop(
+    if (_webViewEventController.shouldRebuildOnLoadStop(
       isActiveTab: _isActiveTabId(hostedTabId),
       didChangeProgress: didChangeProgress,
-      didChangeTitle: false,
       didChangeLoading: didChangeLoading,
     )) {
       _setStateIfVisible(() {});
@@ -750,42 +749,27 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required WebResourceRequest request,
     required WebResourceError error,
   }) {
-    if (hostedTabId == null) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-    _pullToRefreshController?.endRefreshing();
-    _updateTabById(hostedTabId, isLoading: false);
-    if (!_isActiveTabId(hostedTabId)) {
-      return;
-    }
-    final decision = _webViewCoordinator.decideErrorStatus(
+    _webViewEventController.handleError(
+      hostedTabId: hostedTabId,
+      isMounted: mounted,
+      isActiveTab: _isActiveTabId(hostedTabId),
+      requestedUrl: request.url,
       description: error.description,
       blockedPopupStatus: _statusCoordinator.blockedPopup(),
       externalSchemeStatus: _statusCoordinator.externalAppContinuing(),
+      requestedUrlIsWebScheme: _isWebScheme(request.url.scheme),
+      endRefreshing: () => _pullToRefreshController?.endRefreshing(),
+      markTabNotLoading: (tabId) {
+        _updateTabById(tabId, isLoading: false);
+      },
+      handleBlockedByResponse: _handleBlockedByResponse,
+      confirmExternalUrl: _confirmAndLaunchExternalUrl,
+      setStatus: (status) {
+        _setStateIfVisible(() {
+          _statusMessage = status;
+        });
+      },
     );
-    if (decision.action == BrowserPageWebViewErrorAction.blockedByResponse) {
-      unawaited(_handleBlockedByResponse(request.url));
-      _setStateIfVisible(() {
-        _statusMessage = decision.statusMessage;
-      });
-      return;
-    }
-    if (decision.action == BrowserPageWebViewErrorAction.externalScheme) {
-      final requestedUrl = request.url;
-      if (!_isWebScheme(requestedUrl.scheme)) {
-        unawaited(_confirmAndLaunchExternalUrl(requestedUrl));
-      }
-      _setStateIfVisible(() {
-        _statusMessage = decision.statusMessage;
-      });
-      return;
-    }
-    _setStateIfVisible(() {
-      _statusMessage = decision.statusMessage;
-    });
   }
 
   void _handleWebViewScrollChanged({
@@ -816,33 +800,30 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     required InAppWebViewController controller,
     required WebUri? url,
   }) {
-    if (hostedTabId == null) {
-      return;
-    }
-    final currentTabUrl = _tabCoordinator.tabById(hostedTabId)?.url;
-    if (_isFavoritesPage(currentTabUrl)) {
-      return;
-    }
-    if (_webViewCoordinator.shouldHandleVisitedHistoryForActiveTab(
+    final currentTabUrl = hostedTabId == null
+        ? null
+        : _tabCoordinator.tabById(hostedTabId)?.url;
+    _webViewEventController.handleVisitedHistory(
+      hostedTabId: hostedTabId,
+      isFavoritesPage: _isFavoritesPage(currentTabUrl),
       isActiveTab: _isActiveTabId(hostedTabId),
-    )) {
-      unawaited(_recordCookieOrigin(url));
-      _navigationRefreshCoordinator.schedule(
-        refresh: () async {
-          if (!mounted || !_isActiveTabId(hostedTabId)) {
-            return;
-          }
-          await _handleVisitedHistoryUpdate(controller, url);
-        },
-      );
-    } else if (url != null &&
-        _webViewCoordinator.shouldSyncVisitedHistoryForBackgroundTab(
-          isActiveTab: _isActiveTabId(hostedTabId),
-          isFavoritesPage: _isFavoritesPage(currentTabUrl),
-          isWebScheme: _isWebScheme(url.scheme),
-        )) {
-      _updateTabById(hostedTabId, url: url.toString());
-    }
+      url: url,
+      isWebScheme: _isWebScheme(url?.scheme),
+      recordCookieOrigin: () => _recordCookieOrigin(url),
+      scheduleActiveRefresh: () {
+        _navigationRefreshCoordinator.schedule(
+          refresh: () async {
+            if (!mounted || !_isActiveTabId(hostedTabId)) {
+              return;
+            }
+            await _handleVisitedHistoryUpdate(controller, url);
+          },
+        );
+      },
+      updateBackgroundTabUrl: (tabId, nextUrl) {
+        _updateTabById(tabId, url: nextUrl);
+      },
+    );
   }
 
   Future<String?> _prepareExternalIntentUrl(String? url) async {
