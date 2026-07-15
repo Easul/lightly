@@ -169,6 +169,7 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 
 - Telegram expects proper half-close semantics: client input EOF should not immediately tear down the entire tunnel.
 - In `rust/proxy-core/src/inbound/socks5.rs`, treat `Client → VLESS: EOF` / reset as a normal peer-close signal for the upload side, while still allowing the downstream VLESS → client path to drain until the client socket is actually gone.
+- Keep `close_outbound_on_input_end` disabled for the SOCKS5 VLESS relay. `VlessStream.close()` sends a WebSocket Close for the entire tunnel, so calling it on Telegram upload EOF can race downstream delivery and trigger repeated native Telegram crashes in `Connection::onReceivedData()`.
 - If a later VLESS → client write hits `Broken pipe`, `Connection reset`, `Connection aborted`, or `Not connected` after client EOF, treat it as an expected Telegram close path rather than a protocol failure.
 - **Do not** close the entire tunnel early just because the client has stopped sending.
 

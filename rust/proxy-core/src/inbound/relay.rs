@@ -198,3 +198,93 @@ pub async fn run_vless_relay_session<C2V, V2C, PostJoin>(
     post_join.await;
     let _ = cleanup_outbound.close().await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::relay_client_to_vless;
+    use crate::common::Result;
+    use crate::outbound::ProxyStream;
+    use async_trait::async_trait;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+
+    struct FakeProxyStream {
+        closed: AtomicBool,
+    }
+
+    impl FakeProxyStream {
+        fn new() -> Self {
+            Self {
+                closed: AtomicBool::new(false),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ProxyStream for FakeProxyStream {
+        async fn read(&self, _buf: &mut [u8]) -> Result<usize> {
+            Ok(0)
+        }
+
+        async fn write(&self, _buf: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&self) -> Result<()> {
+            self.closed.store(true, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn keeps_outbound_open_after_client_eof_when_half_close_is_required() {
+        let outbound = Arc::new(FakeProxyStream::new());
+        let outbound_stream: Arc<dyn ProxyStream> = outbound.clone();
+
+        relay_client_to_vless(
+            tokio::io::empty(),
+            outbound_stream,
+            64,
+            None,
+            None,
+            false,
+            |_| {},
+            |_| {},
+            |_| {},
+            |_, _| {},
+            |_| {},
+            |_, _| {},
+            |_| {},
+        )
+        .await;
+
+        assert!(!outbound.closed.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn closes_outbound_after_client_eof_when_requested() {
+        let outbound = Arc::new(FakeProxyStream::new());
+        let outbound_stream: Arc<dyn ProxyStream> = outbound.clone();
+
+        relay_client_to_vless(
+            tokio::io::empty(),
+            outbound_stream,
+            64,
+            None,
+            None,
+            true,
+            |_| {},
+            |_| {},
+            |_| {},
+            |_, _| {},
+            |_| {},
+            |_, _| {},
+            |_| {},
+        )
+        .await;
+
+        assert!(outbound.closed.load(Ordering::Relaxed));
+    }
+}

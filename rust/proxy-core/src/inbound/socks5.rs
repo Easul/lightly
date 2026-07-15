@@ -186,7 +186,7 @@ pub async fn handle_socks5(
                     8192,
                     None,
                     Some(Duration::from_millis(250)),
-                    true,
+                    false,
                     |n| {
                         log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
                     },
