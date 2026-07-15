@@ -7,7 +7,7 @@ use quinn::{ClientConfig, Endpoint, TokioRuntime, TransportConfig};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
@@ -363,7 +363,7 @@ fn random_padding_string(min_len: usize, max_len: usize) -> String {
 
 fn build_tcp_request(target_addr: &str, target_port: u16) -> Vec<u8> {
     let mut buf = BytesMut::new();
-    let addr = format!("{}:{}", target_addr, target_port);
+    let addr = format_tcp_target(target_addr, target_port);
     let padding = random_padding_string(64, 512).into_bytes();
 
     encode_quic_varint(0x401, &mut buf);
@@ -373,6 +373,13 @@ fn build_tcp_request(target_addr: &str, target_port: u16) -> Vec<u8> {
     buf.extend_from_slice(&padding);
 
     buf.to_vec()
+}
+
+fn format_tcp_target(target_addr: &str, target_port: u16) -> String {
+    match target_addr.parse::<IpAddr>() {
+        Ok(IpAddr::V6(addr)) => format!("[{}]:{}", addr, target_port),
+        _ => format!("{}:{}", target_addr, target_port),
+    }
 }
 
 async fn read_tcp_response(recv: &mut quinn::RecvStream) -> Result<()> {
@@ -442,4 +449,26 @@ async fn decode_quic_varint(recv: &mut quinn::RecvStream) -> Result<u64> {
         value = (value << 8) | byte as u64;
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_tcp_target;
+
+    #[test]
+    fn formats_ipv6_tcp_target_with_brackets() {
+        assert_eq!(
+            format_tcp_target("2001:67c:4e8:f002:0:0:0:a", 443),
+            "[2001:67c:4e8:f002::a]:443"
+        );
+    }
+
+    #[test]
+    fn preserves_ipv4_and_domain_tcp_target_format() {
+        assert_eq!(
+            format_tcp_target("149.154.167.50", 443),
+            "149.154.167.50:443"
+        );
+        assert_eq!(format_tcp_target("example.com", 443), "example.com:443");
+    }
 }

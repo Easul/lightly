@@ -186,6 +186,13 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - WebSocket connection now falls back to the first resolved address if the preferred fails.
 - **Do not** remove the fallback logic in `_connectToWebSocket()`.
 
+### Hysteria2 IPv6 Target Formatting
+
+- Hysteria2 TCP requests carry the destination as a host-and-port string. IPv6 literals MUST use bracketed authority form such as `[2001:67c:4e8:f002::a]:443`.
+- Do not serialize an IPv6 destination as `2001:67c:4e8:f002::a:443`; Hysteria2 servers can interpret the final port as part of the IPv6 address and fall back to port `0`, returning `unsupported address`.
+- Telegram probes IPv4 and IPv6 data-center addresses in parallel. Repeated IPv6 request rejection can amplify Telegram's native receive/reconnect race and trigger `Connection::onReceivedData()` crashes on affected builds.
+- Related file: `rust/proxy-core/src/outbound/hysteria2.rs`.
+
 ### Log Interpretation Pitfall
 
 - Telegram opens many short-lived parallel SOCKS5 connections. Some of them are only probe/bootstrap channels and may close quickly after sending their initial payload.
