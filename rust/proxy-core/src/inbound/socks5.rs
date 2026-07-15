@@ -8,7 +8,7 @@ use std::sync::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::time::{timeout, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 const AUTH_NONE: u8 = 0x00;
 const AUTH_USERNAME_PASSWORD: u8 = 0x02;
@@ -175,6 +175,19 @@ pub async fn handle_socks5(
                 )
                 .await?;
 
+                let initial_payload_len = initial_payload.as_ref().map_or(0, Vec::len);
+                outbound_stream
+                    .write(initial_payload.as_deref().unwrap_or(&[]))
+                    .await?;
+                if initial_payload_len > 0 {
+                    log::info!(
+                        "[SOCKS5] Primed outbound with {} client bytes; delaying downstream {}ms",
+                        initial_payload_len,
+                        100,
+                    );
+                    sleep(Duration::from_millis(100)).await;
+                }
+
                 let outbound_upload = outbound_stream.clone();
                 let outbound_download = outbound_stream.clone();
                 let cleanup_outbound = outbound_stream.clone();
@@ -190,8 +203,8 @@ pub async fn handle_socks5(
                     client_r,
                     outbound_upload,
                     8192,
-                    initial_payload,
-                    Some(Duration::from_millis(250)),
+                    None,
+                    None,
                     false,
                     |n| {
                         log::trace!("[SOCKS5] Client → VLESS: {} bytes", n);
@@ -306,6 +319,7 @@ pub async fn handle_socks5(
                 .await?
                 {
                     target.write_all(&initial_payload).await?;
+                    sleep(Duration::from_millis(100)).await;
                 }
 
                 relay::pipe_bidirectional(stream, target, "SOCKS5").await;

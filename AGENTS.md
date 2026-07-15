@@ -198,6 +198,8 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Telegram's native SOCKS5 client treats the entire `recv()` while waiting for the CONNECT reply as handshake data and does not preserve bytes following the reply.
 - After sending and flushing the SOCKS5 CONNECT success reply, wait for the first client payload before starting downstream relay. Use a short timeout fallback so server-speaks-first protocols still work.
 - Buffer that first client payload and forward it exactly once. For VLESS, pass it through the existing combined-handshake path so the VLESS request and first payload remain in one WebSocket frame.
+- After forwarding a real first client payload, keep a short downstream-start grace period before reading upstream responses. Telegram 11.13.3 on affected Android devices can crash in `Connection::onReceivedData()` when the first encrypted response returns within roughly 20–50ms of SOCKS setup.
+- Keep this grace limited to new SOCKS5 tunnel establishment; do not pace later relay chunks or globally serialize parallel Telegram connections.
 - Do not replace this boundary with immediate concurrent downstream relay; kernel TCP coalescing can merge the CONNECT reply and Telegram's first encrypted downstream bytes, desynchronize MTProto, and trigger native `Connection::onReceivedData()` crashes.
 - Related files: `rust/proxy-core/src/inbound/socks5.rs`, `rust/proxy-core/src/inbound/relay.rs`.
 
@@ -485,6 +487,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Release builds default proxy-core logging to `warn` to avoid normal connection-lifecycle noise.
 - For a targeted diagnostic APK, pass `--dart-define=PROXY_CORE_LOG_LEVEL=info`; do not change the permanent release default to `info`.
 - Info-level proxy logs may include destination IP/domain, ports, byte counts, and connection lifecycle, but must not include proxy credentials, configuration bodies, or packet contents.
+- Native startup logging must report only the listen address, protocol name, and configuration length. Never log the raw proxy JSON because it contains UUIDs/passwords.
 - Related file: `lib/browser/services/proxy_runtime_launcher.dart`.
 
 ### Application runtime logging boundaries

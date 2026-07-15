@@ -88,10 +88,18 @@ pub extern "system" fn Java_com_proxy_core_ProxyCore_nativeStart(
         Err(_) => "{}".to_string(),
     };
 
+    let protocol = if config_json.contains("\"hysteria2\"") {
+        "hysteria2"
+    } else if config_json.contains("\"vless\"") {
+        "vless"
+    } else {
+        "none"
+    };
     log::info!(
-        "RustProxy: nativeStart called with addr={}, config={}",
+        "RustProxy: nativeStart called with addr={}, protocol={}, config_length={}",
         addr,
-        config_json
+        protocol,
+        config_json.len()
     );
 
     let rt = match RUNTIME.get_or_try_init(|| {
