@@ -11,6 +11,7 @@ import '../browser/services/browser_subscription_service.dart';
 import '../browser/services/browser_node_link_parser.dart';
 import '../browser/services/browser_proxy_status_monitor.dart';
 import '../browser/services/browser_proxy_node_controller.dart';
+import '../browser/services/browser_proxy_form_mutator.dart';
 import '../browser/services/browser_settings_action_handler.dart';
 import '../browser/services/browser_settings_form_controller.dart';
 import '../browser/services/proxy_latency_probe.dart';
@@ -44,6 +45,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late final BrowserSettingsActionHandler _settingsActionHandler;
   late final BrowserSettingsRuntimeService _runtimeService;
   final _formController = BrowserSettingsFormController();
+  final BrowserProxyFormMutator _proxyFormMutator =
+      const BrowserProxyFormMutator();
   late final BrowserProxyNodeController _proxyNodeController;
 
   bool _proxySupported = false;
@@ -586,70 +589,37 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _handleProxyProtocolChanged(String value) {
-    setState(() {
-      _formController.selectedProtocol = value;
-      if (!_formController.showsTransportFields) {
-        _formController.proxyPacketEncoding = '';
-        _formController.proxyTransportPathController.clear();
-      }
-      if (!_formController.showsTransportFields &&
-          !_formController.showsHysteria2ObfsFields) {
-        _formController.selectedTransportType = '';
-        _formController.proxyTransportHostController.clear();
-      }
-      if (_formController.showsTransportFields) {
-        _formController.proxyTransportHostController.clear();
-      }
-      if (_formController.showsHysteria2ObfsFields) {
-        _formController.proxyTransportPathController.clear();
-        _formController.proxyPacketEncoding = '';
-      }
-      if (_formController.selectedProtocol == BrowserProxyProtocol.vless) {
-        _formController.proxyTlsEnabled = true;
-      } else if (_formController.selectedProtocol ==
-          BrowserProxyProtocol.hysteria2) {
-        _formController.proxyTlsEnabled = true;
-      } else {
-        _formController.proxyTlsEnabled = false;
-        _formController.proxyTlsInsecure = false;
-        _formController.proxyServerNameController.clear();
-      }
-    });
-    _proxyNodeController.syncSelectedFromForm();
-    _markSectionDirty();
+    _applyProxyFormMutation(
+      () => _proxyFormMutator.changeProtocol(_formController, value),
+    );
   }
 
   void _handleProxyTlsEnabledChanged(bool value) {
-    setState(() {
-      _formController.proxyTlsEnabled = value;
-      if (!value) {
-        _formController.proxyTlsInsecure = false;
-      }
-    });
-    _proxyNodeController.syncSelectedFromForm();
-    _markSectionDirty();
+    _applyProxyFormMutation(
+      () => _proxyFormMutator.setTlsEnabled(_formController, value),
+    );
   }
 
   void _handleProxyTransportTypeChanged(String value) {
-    setState(() {
-      _formController.selectedTransportType = value;
-    });
-    _proxyNodeController.syncSelectedFromForm();
-    _markSectionDirty();
+    _applyProxyFormMutation(
+      () => _proxyFormMutator.setTransportType(_formController, value),
+    );
   }
 
   void _handleProxyPacketEncodingChanged(String value) {
-    setState(() {
-      _formController.proxyPacketEncoding = value;
-    });
-    _proxyNodeController.syncSelectedFromForm();
-    _markSectionDirty();
+    _applyProxyFormMutation(
+      () => _proxyFormMutator.setPacketEncoding(_formController, value),
+    );
   }
 
   void _handleProxyTlsInsecureChanged(bool value) {
-    setState(() {
-      _formController.proxyTlsInsecure = value;
-    });
+    _applyProxyFormMutation(
+      () => _proxyFormMutator.setTlsInsecure(_formController, value),
+    );
+  }
+
+  void _applyProxyFormMutation(VoidCallback mutation) {
+    setState(mutation);
     _proxyNodeController.syncSelectedFromForm();
     _markSectionDirty();
   }

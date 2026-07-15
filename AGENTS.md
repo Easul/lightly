@@ -460,6 +460,13 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - For errors that can repeat on every frame, persist the first consecutive failure and keep subsequent repeats console-only until a successful operation resets the failure state.
 - Related files: `lib/services/app_log_service.dart`, `lib/services/proxy_core_service.dart`, `lib/services/easytier_service.dart`, `lib/services/remote_control_service.dart`, `lib/widgets/remote_control_screen_viewer.dart`.
 
+### Low-risk service and settings boundaries
+
+- Keep runtime-log file/session management in `AppLogService` and all recursive redaction rules in `RuntimeLogSanitizer`; do not grow the file service with URL or metadata sanitization branches again.
+- Keep `SimpleFileManagerService` limited to settings, server lifecycle, root binding, and state notifications. HTTP routing/file operations belong in `SimpleFileManagerRequestHandler`, while the embedded browser UI belongs in `simple_file_manager_web_ui.dart`.
+- Keep proxy protocol field-reset rules in `BrowserProxyFormMutator`. `SettingsPage` should coordinate `setState`, dirty state, snackbars, and async actions rather than duplicating protocol-specific form mutation rules.
+- Related files: `lib/services/runtime_log_sanitizer.dart`, `lib/services/simple_file_manager_service.dart`, `lib/services/simple_file_manager_request_handler.dart`, `lib/browser/services/browser_proxy_form_mutator.dart`, `lib/pages/settings_page.dart`.
+
 ### Percent-encoded popup URLs must be decoded before routing
 
 - Some pages pass an entire custom-scheme popup target as a percent-encoded string, for example `baiduboxapp%3A%2F%2F...`.
