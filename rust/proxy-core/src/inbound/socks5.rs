@@ -155,19 +155,10 @@ pub async fn handle_socks5(
                     outbound_stream.local_bind_addr(),
                     stream.local_addr().ok(),
                 );
-                let bind_ip = bind_addr.ip();
-                let bind_port = bind_addr.port();
-                let (reply_atyp, reply_addr_bytes) = match bind_ip {
-                    std::net::IpAddr::V4(ipv4) => (0x01u8, ipv4.octets().to_vec()),
-                    std::net::IpAddr::V6(ipv6) => (0x04u8, ipv6.octets().to_vec()),
-                };
-                stream.write_all(&[0x05, 0x00, 0x00, reply_atyp]).await?;
-                stream.write_all(&reply_addr_bytes).await?;
-                stream
-                    .write_all(&[(bind_port >> 8) as u8, (bind_port & 0xFF) as u8])
-                    .await?;
+                let reply = build_connect_success_reply(bind_addr);
+                stream.write_all(&reply).await?;
                 stream.flush().await?;
-                log::info!("[SOCKS5] Reply bind {}:{}", bind_ip, bind_port);
+                log::info!("[SOCKS5] Reply bind {}", bind_addr);
 
                 let initial_payload = read_initial_payload_after_connect_reply(
                     &mut stream,
@@ -298,19 +289,8 @@ pub async fn handle_socks5(
             Ok(mut target) => {
                 let bind_addr =
                     resolve_reply_bind_addr(target.local_addr().ok(), stream.local_addr().ok());
-                let (reply_atyp, reply_addr_bytes) = match bind_addr.ip() {
-                    std::net::IpAddr::V4(ipv4) => (0x01u8, ipv4.octets().to_vec()),
-                    std::net::IpAddr::V6(ipv6) => (0x04u8, ipv6.octets().to_vec()),
-                };
-
-                stream.write_all(&[0x05, 0x00, 0x00, reply_atyp]).await?;
-                stream.write_all(&reply_addr_bytes).await?;
-                stream
-                    .write_all(&[
-                        (bind_addr.port() >> 8) as u8,
-                        (bind_addr.port() & 0xFF) as u8,
-                    ])
-                    .await?;
+                let reply = build_connect_success_reply(bind_addr);
+                stream.write_all(&reply).await?;
                 stream.flush().await?;
 
                 if let Some(initial_payload) = read_initial_payload_after_connect_reply(
@@ -388,6 +368,26 @@ fn resolve_reply_bind_addr(
     SocketAddr::from(([127, 0, 0, 1], 1))
 }
 
+fn build_connect_success_reply(bind_addr: SocketAddr) -> Vec<u8> {
+    let mut reply = Vec::with_capacity(match bind_addr.ip() {
+        IpAddr::V4(_) => 10,
+        IpAddr::V6(_) => 22,
+    });
+    reply.extend_from_slice(&[0x05, 0x00, 0x00]);
+    match bind_addr.ip() {
+        IpAddr::V4(ipv4) => {
+            reply.push(0x01);
+            reply.extend_from_slice(&ipv4.octets());
+        }
+        IpAddr::V6(ipv6) => {
+            reply.push(0x04);
+            reply.extend_from_slice(&ipv6.octets());
+        }
+    }
+    reply.extend_from_slice(&bind_addr.port().to_be_bytes());
+    reply
+}
+
 fn loopback_for_ip(ip: IpAddr) -> IpAddr {
     match ip {
         IpAddr::V4(_) => IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
@@ -418,10 +418,10 @@ fn is_expected_client_write_close(error: &std::io::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_expected_client_read_close, is_expected_client_write_close, resolve_reply_bind_addr,
-        select_auth_method, AUTH_NONE, AUTH_USERNAME_PASSWORD,
+        build_connect_success_reply, is_expected_client_read_close, is_expected_client_write_close,
+        resolve_reply_bind_addr, select_auth_method, AUTH_NONE, AUTH_USERNAME_PASSWORD,
     };
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
     use tokio::io::AsyncWriteExt;
     use tokio::time::Duration;
 
@@ -482,6 +482,27 @@ mod tests {
 
         assert_eq!(resolved.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
         assert_eq!(resolved.port(), 1080);
+    }
+
+    #[test]
+    fn builds_complete_ipv4_connect_reply_as_one_buffer() {
+        let reply = build_connect_success_reply(SocketAddr::from(([192, 168, 0, 145], 39027)));
+
+        assert_eq!(
+            reply,
+            vec![0x05, 0x00, 0x00, 0x01, 192, 168, 0, 145, 0x98, 0x73]
+        );
+    }
+
+    #[test]
+    fn builds_complete_ipv6_connect_reply_as_one_buffer() {
+        let addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 23333);
+        let reply = build_connect_success_reply(addr);
+
+        assert_eq!(reply.len(), 22);
+        assert_eq!(&reply[..4], &[0x05, 0x00, 0x00, 0x04]);
+        assert_eq!(&reply[4..20], &Ipv6Addr::LOCALHOST.octets());
+        assert_eq!(&reply[20..], &23333u16.to_be_bytes());
     }
 
     #[test]

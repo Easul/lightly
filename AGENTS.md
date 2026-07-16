@@ -164,6 +164,8 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Must be the **actual relay bind address and port**, not zeros or placeholders.
 - In the Rust proxy core, first use `VlessStream::local_bind_addr()`. If that is unavailable or unspecified, fall back to the local listener address with a concrete loopback IP instead of any zero placeholder.
 - **Do not send** `0.0.0.0:0` or `[::]:0` as placeholder; Telegram rejects it.
+- Build the entire SOCKS5 CONNECT success reply (`VER`, `REP`, `RSV`, `ATYP`, `BND.ADDR`, and `BND.PORT`) into one contiguous buffer and issue one `write_all()` call.
+- Telegram 11.13.3 treats any later TCP segment after the first successful CONNECT-reply `recv()` as tunneled MTProto data. Splitting the reply into header/address/port writes can feed leftover BND bytes into `Connection::onReceivedData()` and trigger a native AES-side crash.
 
 ### Half-Close Semantics
 
