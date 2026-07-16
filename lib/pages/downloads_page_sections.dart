@@ -196,7 +196,7 @@ class DownloadRecordCard extends StatelessWidget {
                 color: Theme.of(context).colorScheme.error,
               ),
               title: Text(
-                '删除',
+                '删除记录',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () {
@@ -259,7 +259,7 @@ class _DownloadRecordQuickActions extends StatelessWidget {
     }
     return IconButton(
       onPressed: () => onDelete(record),
-      tooltip: '删除',
+      tooltip: '删除记录',
       icon: const Icon(Icons.delete_outline_rounded),
     );
   }

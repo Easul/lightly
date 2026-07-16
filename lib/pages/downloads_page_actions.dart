@@ -50,8 +50,8 @@ extension _DownloadsPageActions on _DownloadsPageState {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定删除“${record.fileName}”吗？'),
+        title: const Text('删除下载记录'),
+        content: Text('确定删除“${record.fileName}”的下载记录吗？\n已下载文件不会被删除。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -59,7 +59,7 @@ extension _DownloadsPageActions on _DownloadsPageState {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除'),
+            child: const Text('删除记录'),
           ),
         ],
       ),
@@ -79,17 +79,77 @@ extension _DownloadsPageActions on _DownloadsPageState {
       await _downloadService.cancelDownload(
         id,
         savedPath: savedPath,
-        deletePartialFile: true,
+        deletePartialFile: false,
       );
 
       await _downloadStore.delete(id);
 
       await _reloadDownloads();
+      if (mounted) {
+        _showToast('已删除下载记录');
+      }
     } catch (_) {
       if (!mounted) {
         return;
       }
-      _showToast('删除失败，请稍后重试');
+      _showToast('删除下载记录失败，请稍后重试');
+    }
+  }
+
+  Future<void> _clearDownloadRecords() async {
+    final records = await _downloadStore.list(limit: 1000000);
+    if (!mounted) {
+      return;
+    }
+    if (records.isEmpty) {
+      _showToast('暂无下载记录');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('清空下载记录'),
+        content: const Text('确定清空全部下载记录吗？\n已下载文件不会被删除，正在下载的任务将停止。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('清空记录'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      for (final record in records) {
+        final id = record.id;
+        if (id == null || record.status != 'downloading') {
+          continue;
+        }
+        await _downloadService.cancelDownload(
+          id,
+          savedPath: record.savedPath?.trim(),
+          deletePartialFile: false,
+        );
+      }
+      await _downloadStore.clearAll();
+      await _reloadDownloads();
+      if (mounted) {
+        _showToast('已清空下载记录');
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showToast('清空下载记录失败，请稍后重试');
     }
   }
 

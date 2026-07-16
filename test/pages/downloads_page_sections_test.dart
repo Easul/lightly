@@ -83,6 +83,7 @@ void main() {
       await tester.longPress(find.text('file.zip'));
       await tester.pumpAndSettle();
       expect(find.text('复制链接'), findsOneWidget);
+      expect(find.text('删除记录'), findsOneWidget);
 
       await tester.tap(find.text('复制链接'));
       await tester.pumpAndSettle();

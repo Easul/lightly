@@ -105,7 +105,16 @@ class _DownloadsPageState extends State<DownloadsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('下载记录')),
+      appBar: AppBar(
+        title: const Text('下载记录'),
+        actions: [
+          IconButton(
+            onPressed: _clearDownloadRecords,
+            tooltip: '清空下载记录',
+            icon: const Icon(Icons.delete_sweep_outlined),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showUrlDownloadDialog,
         child: const Icon(Icons.add_link),
