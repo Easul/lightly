@@ -47,25 +47,12 @@ extension _DownloadsPageActions on _DownloadsPageState {
   }
 
   Future<void> _deleteRecord(BrowserDownloadRecord record) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('删除下载记录'),
-        content: Text('确定删除“${record.fileName}”的下载记录吗？\n已下载文件不会被删除。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除记录'),
-          ),
-        ],
-      ),
+    final choice = await showDownloadDeleteDialog(
+      context,
+      fileName: record.fileName,
     );
 
-    if (confirmed != true) {
+    if (choice == null) {
       return;
     }
 
@@ -79,14 +66,18 @@ extension _DownloadsPageActions on _DownloadsPageState {
       await _downloadService.cancelDownload(
         id,
         savedPath: savedPath,
-        deletePartialFile: false,
+        deletePartialFile: choice == DownloadDeleteChoice.recordAndFile,
       );
 
       await _downloadStore.delete(id);
 
       await _reloadDownloads();
       if (mounted) {
-        _showToast('已删除下载记录');
+        _showToast(
+          choice == DownloadDeleteChoice.recordAndFile
+              ? '已删除下载记录和文件'
+              : '已删除下载记录',
+        );
       }
     } catch (_) {
       if (!mounted) {
