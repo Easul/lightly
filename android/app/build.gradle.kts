@@ -11,6 +11,11 @@ plugins {
 val targetAbi = providers.environmentVariable("TARGET_ABI").orNull
 val buildVersionLabel = providers.environmentVariable("BUILD_VERSION_LABEL").orNull
 val buildVersionCodeOverride = providers.environmentVariable("BUILD_VERSION_CODE").orNull?.toIntOrNull()
+val isProfileBuild = gradle.startParameter.taskNames.any {
+    it.contains("profile", ignoreCase = true)
+}
+val profileApplicationId = providers.environmentVariable("PROFILE_APPLICATION_ID").orNull
+    ?.takeIf { isProfileBuild && it.isNotBlank() }
 val excludedAbis = when (targetAbi) {
     "arm64-v8a" -> listOf("armeabi-v7a", "x86", "x86_64")
     "armeabi-v7a" -> listOf("arm64-v8a", "x86", "x86_64")
@@ -44,7 +49,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "lightly.tool"
+        applicationId = profileApplicationId ?: "lightly.tool"
         // Opus 编码库需要 API 21+ (Android 5.0)
         // Android 7 = API 24, 完全兼容
         minSdk = flutter.minSdkVersion
@@ -78,7 +83,7 @@ android {
             applicationIdSuffix = ".test"
         }
         getByName("profile") {
-            applicationIdSuffix = ".profile"
+            applicationIdSuffix = if (profileApplicationId == null) ".profile" else ""
             signingConfig = signingConfigs.getByName("debug")
         }
         release {

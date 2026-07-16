@@ -234,6 +234,7 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 ## Side-by-Side Profile Package
 
 - The Android `profile` build uses `applicationIdSuffix = ".profile"`, producing `lightly.tool.profile`.
+- One-off diagnostic Profile builds may set `PROFILE_APPLICATION_ID` to a full package name. This override must apply only when Gradle is executing a Profile task; release/debug application IDs must remain unchanged.
 - Manifest permission names and provider authorities must derive from `${applicationId}` so profile and release packages can be installed together without provider conflicts.
 - `EasyTierInfoProvider` must validate against the runtime package name via `EasyTierStateStore.authorityFor(context.packageName)` rather than a hardcoded release authority.
 - Profile-only popup diagnostics may log URL scheme, length, and case-presence flags, but must not log full external URLs or sensitive payload tokens.
