@@ -17,6 +17,12 @@ pluginManagement {
     }
 }
 
+gradle.beforeProject {
+    buildscript.configurations.configureEach {
+        resolutionStrategy.force("com.android.tools.build:gradle:8.11.1")
+    }
+}
+
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
