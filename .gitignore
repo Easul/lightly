@@ -79,3 +79,6 @@ key.properties
 *.hprof
 *.orig
 *.rej
+
+/.codex
+/.agents
