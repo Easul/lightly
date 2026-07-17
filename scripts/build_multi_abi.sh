@@ -34,6 +34,7 @@ cleanup_between_builds() {
   echo "🧹 Cleaning Flutter/Android intermediate build artifacts..."
   rm -rf \
     "$PROJECT_ROOT/.dart_tool/flutter_build" \
+    "$PROJECT_ROOT/build/native_assets/android" \
     "$PROJECT_ROOT/build/app/intermediates" \
     "$PROJECT_ROOT/build/app/kotlin" \
     "$ANDROID_DIR/.gradle"/kotlin \
