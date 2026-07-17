@@ -403,7 +403,7 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
           for (final message in _messages)
             ListTile(
               dense: true,
-              title: Text(message.text),
+              title: SelectableText(message.text),
               subtitle: Text(message.date.toLocal().toString()),
             ),
           if (_messages.isEmpty)
