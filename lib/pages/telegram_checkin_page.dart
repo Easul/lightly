@@ -28,12 +28,14 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
   void initState() {
     super.initState();
     _telegram.authStep.addListener(_onAuthChanged);
+    _telegram.proxyStatus.addListener(_onAuthChanged);
     unawaited(_load());
   }
 
   @override
   void dispose() {
     _telegram.authStep.removeListener(_onAuthChanged);
+    _telegram.proxyStatus.removeListener(_onAuthChanged);
     super.dispose();
   }
 
@@ -326,7 +328,8 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
       child: ListTile(
         leading: const Icon(Icons.telegram),
         title: const Text('Telegram 账号'),
-        subtitle: Text(label),
+        subtitle: Text('$label\n${_telegram.proxyStatus.value}'),
+        isThreeLine: true,
         trailing: action == null
             ? null
             : TextButton(onPressed: action, child: const Text('继续')),
