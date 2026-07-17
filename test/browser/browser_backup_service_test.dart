@@ -4,6 +4,7 @@ import 'package:lightly/browser/models/browser_favorite.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
+import 'package:lightly/telegram_checkin/telegram_checkin_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -32,6 +33,18 @@ void main() {
       ],
       easyTierProfiles: const [],
       selectedEasyTierProfileId: null,
+      telegramCheckinConfig: const TelegramCheckinConfig(
+        apiId: 12345,
+        apiHash: 'test_hash',
+        phoneNumber: '+8613800000000',
+        targets: <TelegramCheckinTarget>[
+          TelegramCheckinTarget(
+            id: '1',
+            username: '@checkin_bot',
+            command: '/checkin',
+          ),
+        ],
+      ),
       exportedAt: DateTime.parse('2026-05-25T00:00:00.000Z'),
     );
 
@@ -40,6 +53,13 @@ void main() {
     expect(restored.cookies, backup.cookies);
     expect(restored.webStorage, backup.webStorage);
     expect(restored.clipboardPort, 12345);
+    expect(restored.telegramCheckinConfig.apiId, 12345);
+    expect(restored.telegramCheckinConfig.apiHash, 'test_hash');
+    expect(restored.telegramCheckinConfig.phoneNumber, '+8613800000000');
+    expect(
+      restored.telegramCheckinConfig.targets.single.username,
+      '@checkin_bot',
+    );
   });
 
   test('ImportResult reports restored site storage', () {

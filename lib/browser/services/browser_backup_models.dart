@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../calculator/calculation_history.dart';
 import '../../models/easytier_network_profile.dart';
+import '../../telegram_checkin/telegram_checkin_models.dart';
 import '../browser_settings.dart';
 import '../models/browser_favorite.dart';
 import '../models/browser_history_entry.dart';
@@ -18,6 +19,7 @@ class BrowserBackupData {
     required this.webStorage,
     required this.easyTierProfiles,
     required this.selectedEasyTierProfileId,
+    required this.telegramCheckinConfig,
     required this.exportedAt,
   });
 
@@ -31,11 +33,12 @@ class BrowserBackupData {
   final List<Map<String, dynamic>> webStorage;
   final List<EasyTierNetworkProfile> easyTierProfiles;
   final String? selectedEasyTierProfileId;
+  final TelegramCheckinConfig telegramCheckinConfig;
   final DateTime exportedAt;
 
   Map<String, dynamic> toJson() {
     return {
-      'version': 7,
+      'version': 8,
       'exportedAt': exportedAt.toIso8601String(),
       'favorites': favorites.map((f) => f.toMap()).toList(),
       'settings': settings.toJson(),
@@ -49,6 +52,7 @@ class BrowserBackupData {
           .map((profile) => profile.toJson())
           .toList(),
       'selectedEasyTierProfileId': selectedEasyTierProfileId,
+      'telegramCheckinConfig': telegramCheckinConfig.toJson(),
     };
   }
 
@@ -106,6 +110,11 @@ class BrowserBackupData {
       easyTierProfiles: easyTierProfiles,
       selectedEasyTierProfileId:
           decoded['selectedEasyTierProfileId'] as String?,
+      telegramCheckinConfig: TelegramCheckinConfig.fromJson(
+        Map<String, dynamic>.from(
+          decoded['telegramCheckinConfig'] as Map? ?? const {},
+        ),
+      ),
       exportedAt:
           DateTime.tryParse(decoded['exportedAt'] as String? ?? '') ??
           DateTime.now(),

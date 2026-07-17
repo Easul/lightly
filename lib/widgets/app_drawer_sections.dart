@@ -57,6 +57,12 @@ class DrawerNavigationList extends StatelessWidget {
           selected: currentRoute == '/calculator',
           onTap: () => _openRoute(context, '/calculator'),
         ),
+        SidebarItem(
+          icon: Icons.telegram,
+          label: 'TG 签到',
+          selected: currentRoute == '/telegram-checkin',
+          onTap: () => _openRoute(context, '/telegram-checkin'),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Divider(color: colorScheme.outlineVariant),

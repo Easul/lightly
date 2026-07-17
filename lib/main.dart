@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:tdlib/tdlib.dart';
 
 import 'theme/app_theme.dart';
 import 'services/app_log_service.dart';
@@ -17,11 +19,15 @@ import 'pages/browser_history_page.dart';
 import 'pages/easytier_settings_page.dart';
 import 'pages/remote_control_page.dart';
 import 'pages/simple_file_manager_settings_page.dart';
+import 'pages/telegram_checkin_page.dart';
 import 'services/app_toast.dart';
 import 'services/simple_file_manager_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isAndroid) {
+    await TdPlugin.initialize('libtdjson.so');
+  }
   final appLogService = AppLogService.instance;
   await appLogService.initialize();
 
@@ -86,6 +92,7 @@ class MyApp extends StatelessWidget {
             const SimpleFileManagerSettingsPage(),
         '/easytier': (context) => const EasyTierSettingsPage(),
         '/remote-control': (context) => const RemoteControlPage(),
+        '/telegram-checkin': (context) => const TelegramCheckinPage(),
       },
     );
   }

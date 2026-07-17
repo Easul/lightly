@@ -8,6 +8,7 @@ import '../../calculator/history_service.dart';
 import '../../services/easytier_profile_service.dart';
 import '../../services/app_log_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
+import '../../telegram_checkin/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';
 import '../clipboard_storage_service.dart';
 import '../models/browser_favorite.dart';
@@ -30,6 +31,7 @@ class BrowserBackupService {
     HistoryService? calculatorHistoryService,
     ClipboardStorageService? clipboardStorageService,
     EasyTierProfileService? easyTierProfileService,
+    TelegramCheckinStore? telegramCheckinStore,
     SharedDownloadsDirectoryService? sharedDownloadsDirectoryService,
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _settingsService = settingsService ?? BrowserSettingsService(),
@@ -41,6 +43,7 @@ class BrowserBackupService {
            clipboardStorageService ?? ClipboardStorageService(),
        _easyTierProfileService =
            easyTierProfileService ?? EasyTierProfileService(),
+       _telegramCheckinStore = telegramCheckinStore ?? TelegramCheckinStore(),
        _sharedDownloadsDirectoryService =
            sharedDownloadsDirectoryService ?? SharedDownloadsDirectoryService();
 
@@ -51,6 +54,7 @@ class BrowserBackupService {
   final HistoryService _calculatorHistoryService;
   final ClipboardStorageService _clipboardStorageService;
   final EasyTierProfileService _easyTierProfileService;
+  final TelegramCheckinStore _telegramCheckinStore;
   final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService;
   late final BrowserBackupWebDataService _webDataService =
       BrowserBackupWebDataService(
@@ -85,6 +89,7 @@ class BrowserBackupService {
     final easyTierProfiles = await _easyTierProfileService.loadProfiles();
     final selectedEasyTierProfileId = await _easyTierProfileService
         .getSelectedProfileId();
+    final telegramCheckinConfig = await _telegramCheckinStore.load();
     final cookieUrls = await _webDataService.collectCookieUrls();
     final cookies = await _webDataService.exportCookies(urls: cookieUrls);
     final webStorageOrigins = _webDataService.collectWebStorageOrigins(
@@ -108,6 +113,7 @@ class BrowserBackupService {
       webStorage: webStorage,
       easyTierProfiles: easyTierProfiles,
       selectedEasyTierProfileId: selectedEasyTierProfileId,
+      telegramCheckinConfig: telegramCheckinConfig,
       exportedAt: DateTime.now(),
     );
   }
@@ -171,6 +177,7 @@ class BrowserBackupService {
 
     if (importSettings) {
       await _settingsService.saveSettings(data.settings);
+      await _telegramCheckinStore.save(data.telegramCheckinConfig);
     }
 
     if (importHistory && data.history.isNotEmpty) {

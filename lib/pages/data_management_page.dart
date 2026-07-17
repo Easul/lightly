@@ -133,6 +133,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('导入设置'),
+                  subtitle: const Text('包含 TG 签到的 API、手机号、目标与命令配置'),
                   value: importSettings,
                   onChanged: (value) => setDialogState(() {
                     importSettings = value ?? true;
