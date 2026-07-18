@@ -52,6 +52,7 @@ key.properties
 /android/app/release
 /android/build/
 /android/.gradle/
+/android/.kotlin/
 /android/captures/
 /android/local.properties
 /android/build/reports/
