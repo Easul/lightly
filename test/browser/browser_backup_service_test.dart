@@ -42,6 +42,7 @@ void main() {
             id: '1',
             username: '@checkin_bot',
             command: '/checkin',
+            enabled: false,
           ),
         ],
       ),
@@ -60,6 +61,7 @@ void main() {
       restored.telegramCheckinConfig.targets.single.username,
       '@checkin_bot',
     );
+    expect(restored.telegramCheckinConfig.targets.single.enabled, isFalse);
   });
 
   test('ImportResult reports restored site storage', () {

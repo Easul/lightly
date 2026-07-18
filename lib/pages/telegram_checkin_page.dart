@@ -6,6 +6,7 @@ import '../services/app_toast.dart';
 import '../telegram_checkin/telegram_checkin_models.dart';
 import '../telegram_checkin/telegram_checkin_store.dart';
 import '../telegram_checkin/telegram_tdlib_service.dart';
+import '../widgets/telegram_chats_pane.dart';
 
 class TelegramCheckinPage extends StatefulWidget {
   const TelegramCheckinPage({super.key});
@@ -239,6 +240,57 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
     });
   }
 
+  Future<void> _setTargetEnabled(
+    TelegramCheckinTarget target,
+    bool enabled,
+  ) async {
+    final updated = _config.copyWith(
+      targets: _config.targets
+          .map(
+            (item) =>
+                item.id == target.id ? item.copyWith(enabled: enabled) : item,
+          )
+          .toList(),
+    );
+    await _store.save(updated);
+    if (mounted) setState(() => _config = updated);
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出 Telegram'),
+        content: const Text('将删除本机 Telegram 登录会话，签到配置会保留。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _telegram.logout();
+      _toast('已退出 Telegram');
+    } catch (error) {
+      _toast('退出失败：$error');
+    }
+  }
+
+  Future<void> _restartLogin() async {
+    try {
+      await _telegram.start(_config);
+    } catch (error) {
+      _toast('重新登录失败：$error');
+    }
+  }
+
   Future<void> _refreshMessages() async {
     final target = _selectedTarget;
     if (target == null) return;
@@ -278,29 +330,49 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('TG 签到'),
-        actions: [
-          IconButton(
-            onPressed: _editApiConfig,
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'API 配置',
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildLoginCard(),
-                const SizedBox(height: 12),
-                _buildTargetsCard(),
-                const SizedBox(height: 12),
-                _buildMessagesCard(),
-              ],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('TG 工具'),
+          actions: [
+            if (_telegram.authStep.value == TelegramAuthStep.ready)
+              IconButton(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded),
+                tooltip: '退出 Telegram',
+              ),
+            IconButton(
+              onPressed: _editApiConfig,
+              icon: const Icon(Icons.settings_rounded),
+              tooltip: 'API 配置',
             ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.chat_bubble_outline_rounded), text: '会话'),
+              Tab(icon: Icon(Icons.task_alt_rounded), text: '签到'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [
+                  const TelegramChatsPane(),
+                  ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildLoginCard(),
+                      const SizedBox(height: 12),
+                      _buildTargetsCard(),
+                      const SizedBox(height: 12),
+                      _buildMessagesCard(),
+                    ],
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -311,6 +383,7 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
       TelegramAuthStep.phone => '需要手机号',
       TelegramAuthStep.code => '需要验证码',
       TelegramAuthStep.password => '需要两步验证密码',
+      TelegramAuthStep.loggedOut => '已退出',
       TelegramAuthStep.error => '请先配置 App ID / App Hash',
       TelegramAuthStep.loading => '正在初始化',
     };
@@ -323,6 +396,8 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
       action = () => _submitAuthValue('输入两步验证密码', true);
     } else if (step == TelegramAuthStep.error) {
       action = _editApiConfig;
+    } else if (step == TelegramAuthStep.loggedOut) {
+      action = _restartLogin;
     }
     return Card(
       child: ListTile(
@@ -357,9 +432,18 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
               }),
               title: Text(target.username),
               subtitle: Text('${target.command}  ${_results[target.id] ?? ''}'),
-              trailing: IconButton(
-                onPressed: () => _deleteTarget(target),
-                icon: const Icon(Icons.delete_outline_rounded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Switch(
+                    value: target.enabled,
+                    onChanged: (value) => _setTargetEnabled(target, value),
+                  ),
+                  IconButton(
+                    onPressed: () => _deleteTarget(target),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
               ),
             ),
           if (_config.targets.isEmpty)
@@ -372,7 +456,10 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _busy || _config.targets.isEmpty ? null : _runAll,
+                onPressed:
+                    _busy || !_config.targets.any((target) => target.enabled)
+                    ? null
+                    : _runAll,
                 icon: const Icon(Icons.send_rounded),
                 label: const Text('一键签到'),
               ),

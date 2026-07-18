@@ -46,22 +46,10 @@ class DrawerNavigationList extends StatelessWidget {
           },
         ),
         SidebarItem(
-          icon: Icons.grid_view_rounded,
-          label: '2048',
-          selected: currentRoute == '/game-2048',
-          onTap: () => _openRoute(context, '/game-2048'),
-        ),
-        SidebarItem(
-          icon: Icons.calculate_rounded,
-          label: '计算器',
-          selected: currentRoute == '/calculator',
-          onTap: () => _openRoute(context, '/calculator'),
-        ),
-        SidebarItem(
-          icon: Icons.telegram,
-          label: 'TG 签到',
-          selected: currentRoute == '/telegram-checkin',
-          onTap: () => _openRoute(context, '/telegram-checkin'),
+          icon: Icons.widgets_rounded,
+          label: '小工具',
+          selected: currentRoute == '/tools',
+          onTap: () => _openRoute(context, '/tools'),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

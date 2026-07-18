@@ -9,7 +9,15 @@ import 'package:tdlib/tdlib.dart';
 import '../browser/proxy_service.dart';
 import 'telegram_checkin_models.dart';
 
-enum TelegramAuthStep { loading, phone, code, password, ready, error }
+enum TelegramAuthStep {
+  loading,
+  phone,
+  code,
+  password,
+  ready,
+  loggedOut,
+  error,
+}
 
 class TelegramTdlibService {
   TelegramTdlibService._();
@@ -76,8 +84,10 @@ class TelegramTdlibService {
               ? content.text.text
               : '[${content.getConstructor()}]';
           return TelegramMessagePreview(
+            id: message.id,
             text: text,
             date: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
+            isOutgoing: message.isOutgoing,
           );
         })
         .toList(growable: false);
@@ -99,6 +109,123 @@ class TelegramTdlibService {
       ),
     );
     if (response is td.TdError) throw StateError(response.message);
+  }
+
+  Future<List<TelegramChatSummary>> loadChats({int limit = 30}) async {
+    await configureProxyIfAvailable();
+    _ensureReady();
+    final loadResponse = await _request(
+      td.LoadChats(chatList: null, limit: limit),
+    );
+    if (loadResponse is td.TdError && loadResponse.code != 404) {
+      throw StateError(loadResponse.message);
+    }
+    final response = await _request(td.GetChats(chatList: null, limit: limit));
+    if (response is td.TdError) throw StateError(response.message);
+    final chats = response as td.Chats;
+    final summaries = await Future.wait(
+      chats.chatIds.map((chatId) async {
+        final chatResponse = await _request(td.GetChat(chatId: chatId));
+        if (chatResponse is td.TdError) return null;
+        return _toChatSummary(chatResponse as td.Chat);
+      }),
+    );
+    return summaries.whereType<TelegramChatSummary>().toList(growable: false);
+  }
+
+  Future<TelegramChatSummary> resolvePublicChat(String rawUsername) async {
+    await configureProxyIfAvailable();
+    _ensureReady();
+    return _toChatSummary(await _resolveChat(rawUsername));
+  }
+
+  Future<List<TelegramMessagePreview>> loadChatMessages(
+    int chatId, {
+    int fromMessageId = 0,
+    int limit = 30,
+  }) async {
+    await configureProxyIfAvailable();
+    _ensureReady();
+    await _expectOk(td.OpenChat(chatId: chatId));
+    final response = await _request(
+      td.GetChatHistory(
+        chatId: chatId,
+        fromMessageId: fromMessageId,
+        offset: 0,
+        limit: limit,
+        onlyLocal: false,
+      ),
+    );
+    if (response is td.TdError) throw StateError(response.message);
+    final messages = (response as td.Messages).messages;
+    if (messages.isNotEmpty) {
+      await _expectOk(
+        td.ViewMessages(
+          chatId: chatId,
+          messageIds: messages.map((message) => message.id).toList(),
+          source: null,
+          forceRead: true,
+        ),
+      );
+    }
+    return messages.map(_toMessagePreview).toList(growable: false);
+  }
+
+  Future<void> closeChat(int chatId) async {
+    if (_clientId == 0) return;
+    await _expectOk(td.CloseChat(chatId: chatId));
+  }
+
+  Future<void> sendText(int chatId, String text) async {
+    await configureProxyIfAvailable();
+    _ensureReady();
+    final response = await _request(
+      td.SendMessage(
+        chatId: chatId,
+        messageThreadId: 0,
+        inputMessageContent: td.InputMessageText(
+          text: td.FormattedText(text: text, entities: const []),
+          disableWebPagePreview: false,
+          clearDraft: true,
+        ),
+      ),
+    );
+    if (response is td.TdError) throw StateError(response.message);
+  }
+
+  Future<void> logout() async {
+    await configureProxyIfAvailable();
+    _ensureReady();
+    await _expectOk(const td.LogOut());
+    authStep.value = TelegramAuthStep.loading;
+  }
+
+  TelegramChatSummary _toChatSummary(td.Chat chat) {
+    final lastMessage = chat.lastMessage;
+    return TelegramChatSummary(
+      id: chat.id,
+      title: chat.title,
+      lastMessage: lastMessage == null ? '' : _messageText(lastMessage.content),
+      date: lastMessage == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(lastMessage.date * 1000),
+      unreadCount: chat.unreadCount,
+    );
+  }
+
+  TelegramMessagePreview _toMessagePreview(td.Message message) {
+    return TelegramMessagePreview(
+      id: message.id,
+      text: _messageText(message.content),
+      date: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
+      isOutgoing: message.isOutgoing,
+    );
+  }
+
+  String _messageText(td.MessageContent content) {
+    return content is td.MessageText
+        ? content.text.text
+        : '[${content.getConstructor()}]';
   }
 
   Future<td.Chat> _resolveChat(String rawUsername) async {
@@ -179,6 +306,10 @@ class TelegramTdlibService {
     } else if (state is td.AuthorizationStateReady) {
       await configureProxyIfAvailable();
       authStep.value = TelegramAuthStep.ready;
+    } else if (state is td.AuthorizationStateClosed) {
+      _clientId = 0;
+      _configuredProxyPort = null;
+      authStep.value = TelegramAuthStep.loggedOut;
     }
   }
 

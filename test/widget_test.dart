@@ -32,32 +32,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('浏览器'), findsWidgets);
-    expect(find.text('2048'), findsOneWidget);
-    expect(find.text('计算器'), findsOneWidget);
+    expect(find.text('小工具'), findsOneWidget);
+    expect(find.text('2048'), findsNothing);
+    expect(find.text('计算器'), findsNothing);
     expect(find.text('Home'), findsNothing);
   });
 
-  testWidgets('drawer navigates to 2048 page', (WidgetTester tester) async {
+  testWidgets('tools page navigates to 2048 page', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp(browserWebViewEnabled: false));
     await tester.pump(const Duration(milliseconds: 600));
 
     await tester.tap(find.byIcon(Icons.menu));
     await tester.pump(const Duration(milliseconds: 400));
-    final gameTile = tester.widget<ListTile>(
+    final toolsTile = tester.widget<ListTile>(
       find.descendant(
         of: find.byType(Drawer),
-        matching: find.widgetWithText(ListTile, '2048'),
+        matching: find.widgetWithText(ListTile, '小工具'),
       ),
     );
-    gameTile.onTap!.call();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    toolsTile.onTap!.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2048'));
+    await tester.pumpAndSettle();
 
     expect(find.text('2048'), findsWidgets);
     expect(find.text('New Game'), findsOneWidget);
   });
 
-  testWidgets('drawer navigates to calculator page', (
+  testWidgets('tools page navigates to calculator page', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MyApp(browserWebViewEnabled: false));
@@ -65,15 +67,16 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.menu));
     await tester.pump(const Duration(milliseconds: 400));
-    final calculatorTile = tester.widget<ListTile>(
+    final toolsTile = tester.widget<ListTile>(
       find.descendant(
         of: find.byType(Drawer),
-        matching: find.widgetWithText(ListTile, '计算器'),
+        matching: find.widgetWithText(ListTile, '小工具'),
       ),
     );
-    calculatorTile.onTap!.call();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    toolsTile.onTap!.call();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('计算器'));
+    await tester.pumpAndSettle();
 
     expect(find.text('计算器'), findsWidgets);
   });

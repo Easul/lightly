@@ -914,6 +914,16 @@ void dispose() {
 - Related files: `lib/browser/services/browser_history_service.dart`, `lib/browser/services/browser_suggestion_service.dart`, `lib/pages/browser_history_page.dart`, `lib/pages/settings_page_home_sections.dart`.
 - Verification: run `flutter test test/browser/browser_address_bar_test.dart test/browser/browser_history_page_test.dart test/browser/browser_suggestion_service_test.dart test/browser/browser_history_recorder_test.dart`.
 
+## TG Tools & System-Time Overlay
+
+- Keep TG Tools foreground/manual-refresh only. Recent chats, text history, text sending, and check-in must not introduce background polling or notification delivery.
+- One-click check-in sends only targets whose `enabled` switch is on; this flag is part of unified backup import/export.
+- TDLib requests must continue to follow the active local SOCKS5 proxy before login, chat loading, refresh, and sending.
+- The system-time overlay displays the device `HH:mm:ss`, remains draggable, and runs as an Android `specialUse` foreground service with overlay permission.
+- Drawer navigation exposes one `小工具` entry; TG Tools, Calculator, and 2048 live inside the tools page.
+- Related files: `lib/pages/telegram_checkin_page.dart`, `lib/pages/telegram_chat_page.dart`, `lib/pages/tools_page.dart`, `lib/telegram_checkin/telegram_tdlib_service.dart`, `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
+- Verification: run `flutter analyze`, `flutter test test/browser/browser_backup_service_test.dart`, and `./gradlew :app:compileDebugKotlin`.
+
 ### 2. Android Shared Downloads Write Permission
 
 **Error**: `PathAccessException: Cannot open file, path = '/storage/emulated/0/Download/...' (OS Error: Permission denied)`

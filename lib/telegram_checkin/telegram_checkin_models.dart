@@ -11,6 +11,19 @@ class TelegramCheckinTarget {
   final String command;
   final bool enabled;
 
+  TelegramCheckinTarget copyWith({
+    String? username,
+    String? command,
+    bool? enabled,
+  }) {
+    return TelegramCheckinTarget(
+      id: id,
+      username: username ?? this.username,
+      command: command ?? this.command,
+      enabled: enabled ?? this.enabled,
+    );
+  }
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'username': username,
@@ -80,9 +93,32 @@ class TelegramCheckinConfig {
   }
 }
 
-class TelegramMessagePreview {
-  const TelegramMessagePreview({required this.text, required this.date});
+class TelegramChatSummary {
+  const TelegramChatSummary({
+    required this.id,
+    required this.title,
+    required this.lastMessage,
+    required this.date,
+    required this.unreadCount,
+  });
 
+  final int id;
+  final String title;
+  final String lastMessage;
+  final DateTime? date;
+  final int unreadCount;
+}
+
+class TelegramMessagePreview {
+  const TelegramMessagePreview({
+    required this.id,
+    required this.text,
+    required this.date,
+    this.isOutgoing = false,
+  });
+
+  final int id;
   final String text;
   final DateTime date;
+  final bool isOutgoing;
 }
