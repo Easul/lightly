@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
 import '../services/app_toast.dart';
-import '../widgets/app_drawer.dart';
 import 'clipboard_page_sections.dart';
 
 class ClipboardPage extends StatefulWidget {
@@ -245,7 +244,6 @@ class _ClipboardPageState extends State<ClipboardPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('剪贴板')),
-      drawer: const AppDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

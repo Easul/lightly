@@ -294,11 +294,13 @@ release {
 - Clipboard server default: enabled, port 12345.
 - HTTP file server default: enabled, port 3001.
 
-## Drawer Navigation Guidelines
+## Browser Navigation Entry Guidelines
 
-- The app drawer uses `Navigator.pushNamed()` (NOT `pushReplacementNamed`) for all internal routes.
-- This keeps `BrowserPage` alive in the navigation stack so WebView tab state is not destroyed when switching to Clipboard / Settings / etc.
-- The back button from any sub-page naturally returns to `BrowserPage`.
+- The app no longer uses a navigation drawer. Do not reintroduce `AppDrawer` or drawer menu buttons without explicit design review.
+- Browser bottom-bar “更多” owns the top-level `小工具` and `设置` entries and must use `Navigator.pushNamed()` so `BrowserPage` and retained WebViews stay alive.
+- `数据管理` belongs to the Settings home page, not Browser More.
+- Clipboard, local HTTP file service, simple file manager, P2P VPN, remote control, TG tools, calculator, 2048, and the system-time overlay belong to the grouped `小工具` page.
+- The back button from any sub-page naturally returns through `小工具` or `设置` to `BrowserPage`.
 
 ## Release Build (per-ABI packages)
 

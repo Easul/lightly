@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../game_2048/game_2048_engine.dart';
 import '../game_2048/game_2048_widgets.dart';
-import '../widgets/app_drawer.dart';
 
 class Game2048Page extends StatefulWidget {
   const Game2048Page({super.key});
@@ -39,7 +38,6 @@ class _Game2048PageState extends State<Game2048Page> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('2048'),
       ),
-      drawer: const AppDrawer(),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(

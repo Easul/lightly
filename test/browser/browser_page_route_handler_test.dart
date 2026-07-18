@@ -25,6 +25,25 @@ void main() {
       expect(plan.openHistoryUrl, 'https://example.com');
     });
 
+    test('forwards data management result from settings', () {
+      const dataResult = DataManagementPageResult(
+        changed: true,
+        favoritesChanged: true,
+        settingsChanged: true,
+        webDataChanged: false,
+        restoredOrigins: <String>[],
+      );
+      final plan = handler.planSettingsActions(
+        const SettingsPageResult(
+          settingsChanged: true,
+          dataManagementResult: dataResult,
+        ),
+      );
+
+      expect(plan.dataManagementResult, same(dataResult));
+      expect(plan.reloadSettings, isTrue);
+    });
+
     test(
       'plans favorites and web reload actions from data management result',
       () {

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../browser/browser_settings.dart';
-import '../browser/local_http_file_server_service.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_settings_form_controller.dart';
-import '../browser/widgets/settings/local_http_settings_section.dart';
 import '../browser/widgets/settings/proxy_settings_section.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';
 
@@ -15,16 +13,14 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.buildVideoSection,
     required this.pushSection,
     required this.onOpenBrowserHistory,
+    required this.onOpenDataManagement,
     required this.formController,
     required this.proxySupported,
     required this.isSaving,
     required this.isTestingNodeSpeed,
     required this.proxyStateLabel,
     required this.proxyStateColor,
-    required this.localHttpStateLabel,
-    required this.localHttpStateColor,
     required this.proxyService,
-    required this.localHttpFileServerService,
     required this.errorMessage,
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
@@ -39,9 +35,6 @@ class SettingsPageHomeSections extends StatelessWidget {
     required this.onProxyTransportTypeChanged,
     required this.onProxyPacketEncodingChanged,
     required this.onProxyTlsInsecureChanged,
-    required this.onLocalHttpToggle,
-    required this.onLocalHttpBindAllInterfacesChanged,
-    required this.onUseSharedDownloadsDirectory,
   });
 
   final Widget Function() buildGeneralSection;
@@ -53,16 +46,14 @@ class SettingsPageHomeSections extends StatelessWidget {
   })
   pushSection;
   final Future<void> Function() onOpenBrowserHistory;
+  final Future<void> Function() onOpenDataManagement;
   final BrowserSettingsFormController formController;
   final bool proxySupported;
   final bool isSaving;
   final bool isTestingNodeSpeed;
   final String proxyStateLabel;
   final Color Function(ColorScheme colorScheme) proxyStateColor;
-  final String localHttpStateLabel;
-  final Color Function(ColorScheme colorScheme) localHttpStateColor;
   final ProxyService proxyService;
-  final LocalHttpFileServerService localHttpFileServerService;
   final String? errorMessage;
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
@@ -77,9 +68,6 @@ class SettingsPageHomeSections extends StatelessWidget {
   final ValueChanged<String> onProxyTransportTypeChanged;
   final ValueChanged<String> onProxyPacketEncodingChanged;
   final ValueChanged<bool> onProxyTlsInsecureChanged;
-  final ValueChanged<bool> onLocalHttpToggle;
-  final ValueChanged<bool> onLocalHttpBindAllInterfacesChanged;
-  final Future<void> Function() onUseSharedDownloadsDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +91,13 @@ class SettingsPageHomeSections extends StatelessWidget {
               title: '历史浏览',
               subtitle: '查看、搜索和清理浏览历史',
               onTap: () => onOpenBrowserHistory(),
+            ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.import_export_rounded,
+              title: '数据管理',
+              subtitle: '导入导出、运行日志与备份恢复',
+              onTap: () => onOpenDataManagement(),
             ),
           ],
         ),
@@ -189,68 +184,6 @@ class SettingsPageHomeSections extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            const Divider(height: 1),
-            SettingsTile(
-              icon: Icons.folder_shared_outlined,
-              title: '本地 HTTP 文件服务',
-              subtitle: '本地目录 HTTP 托管',
-              onTap: () => pushSection(
-                title: '本地 HTTP 文件服务',
-                icon: Icons.folder_shared_outlined,
-                buildChildren: (sectionContext) => [
-                  LocalHttpSettingsSection(
-                    enabled: formController.localHttpServerEnabled,
-                    stateLabel: localHttpStateLabel,
-                    stateColor: localHttpStateColor(
-                      Theme.of(sectionContext).colorScheme,
-                    ),
-                    portText:
-                        '监听端口：${localHttpFileServerService.boundPort?.toString() ?? '未启动'}',
-                    baseUrlText: localHttpFileServerService.baseUrl == null
-                        ? null
-                        : '访问地址：${localHttpFileServerService.baseUrl}',
-                    lanUrls: localHttpFileServerService.lanUrls,
-                    bindAllInterfaces:
-                        formController.localHttpBindAllInterfaces,
-                    rootPathController:
-                        formController.localHttpRootPathController,
-                    portController: formController.localHttpPortController,
-                    uploadKeyController:
-                        formController.localHttpUploadKeyController,
-                    onToggle: onLocalHttpToggle,
-                    onUseSharedDownloadsDirectory:
-                        onUseSharedDownloadsDirectory,
-                    onBindAllInterfacesChanged:
-                        onLocalHttpBindAllInterfacesChanged,
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            SettingsTile(
-              icon: Icons.edit_document,
-              title: '文件简易管理',
-              subtitle: '网页文件树、文本编辑、收藏路径',
-              onTap: () => Navigator.pushNamed(context, '/simple-file-manager'),
-            ),
-            const Divider(height: 1),
-            SettingsTile(
-              icon: Icons.vpn_lock_rounded,
-              title: 'P2P VPN',
-              subtitle: 'EasyTier 网络配置与设备联通',
-              onTap: () => Navigator.pushNamed(context, '/easytier'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        SettingsHomeSectionsCard(
-          children: [
-            SettingsTile(
-              icon: Icons.control_camera,
-              title: '远程控制',
-              subtitle: '局域网设备间远程控制',
-              onTap: () => Navigator.pushNamed(context, '/remote-control'),
             ),
           ],
         ),

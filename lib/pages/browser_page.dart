@@ -48,7 +48,6 @@ import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_webview_host.dart';
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
-import '../widgets/app_drawer.dart';
 import 'browser_page_address_sync.dart';
 import 'browser_page_address_bar_coordinator.dart';
 import 'browser_page_action_coordinator.dart';
@@ -1452,7 +1451,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final result = await Navigator.of(context).pushNamed('/settings');
     _suggestionService.clearCache();
     final plan = _routeHandler.planSettingsActions(result);
-    if (plan.reloadSettings) {
+    if (plan.dataManagementResult != null) {
+      await _applyDataManagementResult(plan.dataManagementResult);
+    } else if (plan.reloadSettings) {
       await _reloadSettings();
     }
     final historyUrl = plan.openHistoryUrl;
@@ -1463,6 +1464,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
 
   Future<void> _openDownloads() async {
     await Navigator.of(context).pushNamed('/downloads');
+  }
+
+  Future<void> _openTools() async {
+    await Navigator.of(context).pushNamed('/tools');
   }
 
   Future<void> _toggleProxy() async {
@@ -2089,7 +2094,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       onToggleWebDebugConsole: _toggleWebDebugConsole,
       onToggleDesktopMode: _toggleDesktopMode,
       onOpenDownloads: _openDownloads,
-      onOpenDataManagement: _openDataManagement,
+      onOpenTools: _openTools,
       onCloseTab: _closeCurrentTab,
       onOpenSettings: _openSettings,
       onEnterFloatingWindowMode: _enterFloatingButtonMode,
@@ -2122,8 +2127,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _openDataManagement() async {
-    final result = await Navigator.pushNamed(context, '/data-management');
+  Future<void> _applyDataManagementResult(Object? result) async {
     final plan = _routeHandler.planDataManagementActions(
       result: result,
       currentUrl: _currentUrl,
@@ -2265,14 +2269,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         await _handleBrowserBack();
       },
       child: Scaffold(
-        drawer: AppDrawer(onOpenSettings: _openSettings),
-        onDrawerChanged: (isOpened) {
-          if (isOpened) {
-            _handleOverlayOpened(trimKeepAlives: false);
-          } else {
-            _handleOverlayClosed();
-          }
-        },
         appBar: BrowserPageAppBar(
           addressController: _addressController,
           addressFocusNode: _addressFocusNode,

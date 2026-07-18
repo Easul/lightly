@@ -88,6 +88,9 @@ class MyApp extends StatelessWidget {
         '/downloads': (context) => const DownloadsPage(),
         '/data-management': (context) => const DataManagementPage(),
         '/settings': (context) => const SettingsPage(),
+        '/local-http-settings': (context) => const SettingsPage(
+          initialSection: SettingsInitialSection.localHttp,
+        ),
         '/browser-history': (context) => const BrowserHistoryPage(),
         '/simple-file-manager': (context) =>
             const SimpleFileManagerSettingsPage(),

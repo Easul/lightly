@@ -191,7 +191,7 @@ void main() {
                       onToggleWebDebugConsole: () {},
                       onToggleDesktopMode: () {},
                       onOpenDownloads: () {},
-                      onOpenDataManagement: () {},
+                      onOpenTools: () {},
                       onCloseTab: () {},
                       onOpenSettings: () {},
                       onEnterFloatingWindowMode: () {},
@@ -217,7 +217,8 @@ void main() {
     );
     expect(find.text('添加收藏'), findsOneWidget);
     expect(find.text('下载'), findsOneWidget);
-    expect(find.text('数据管理'), findsOneWidget);
+    expect(find.text('小工具'), findsOneWidget);
+    expect(find.text('数据管理'), findsNothing);
     expect(find.text('关闭标签'), findsOneWidget);
     expect(find.text('页面调试'), findsOneWidget);
     expect(find.text('电脑模式'), findsOneWidget);
@@ -251,7 +252,7 @@ void main() {
                     onToggleWebDebugConsole: () {},
                     onToggleDesktopMode: () {},
                     onOpenDownloads: () {},
-                    onOpenDataManagement: () {},
+                    onOpenTools: () {},
                     onCloseTab: () {},
                     onOpenSettings: () {},
                     onEnterFloatingWindowMode: () {},

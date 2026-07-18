@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../browser/local_http_file_server_service.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_settings_form_controller.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';
@@ -9,22 +8,18 @@ import 'settings_page_home_sections.dart';
 class SettingsPageScaffold extends StatelessWidget {
   const SettingsPageScaffold({
     super.key,
-    required this.hasAppliedChanges,
     required this.isLoading,
     required this.isSaving,
     required this.body,
+    required this.onClose,
     required this.onSave,
   });
 
-  final bool hasAppliedChanges;
   final bool isLoading;
   final bool isSaving;
   final Widget body;
+  final VoidCallback onClose;
   final Future<void> Function({bool closeAfterSave}) onSave;
-
-  void _popWithResult(BuildContext context) {
-    Navigator.of(context).pop(hasAppliedChanges);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +27,7 @@ class SettingsPageScaffold extends StatelessWidget {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          _popWithResult(context);
+          onClose();
         }
       },
       child: Scaffold(
@@ -40,7 +35,7 @@ class SettingsPageScaffold extends StatelessWidget {
           title: const Text('设置'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => _popWithResult(context),
+            onPressed: onClose,
           ),
         ),
         body: body,
@@ -48,7 +43,7 @@ class SettingsPageScaffold extends StatelessWidget {
             ? null
             : SettingsHomeBottomActions(
                 isSaving: isSaving,
-                onCancel: () => _popWithResult(context),
+                onCancel: onClose,
                 onSave: onSave,
               ),
       ),
@@ -66,15 +61,13 @@ class SettingsPageBody extends StatelessWidget {
     required this.isTestingNodeSpeed,
     required this.proxyStateLabel,
     required this.proxyStateColor,
-    required this.localHttpStateLabel,
-    required this.localHttpStateColor,
     required this.proxyService,
-    required this.localHttpFileServerService,
     required this.errorMessage,
     required this.buildGeneralSection,
     required this.buildVideoSection,
     required this.pushSection,
     required this.onOpenBrowserHistory,
+    required this.onOpenDataManagement,
     required this.onHandleProxyToggle,
     required this.onParseNodeLink,
     required this.onTestNodeSpeed,
@@ -88,9 +81,6 @@ class SettingsPageBody extends StatelessWidget {
     required this.onProxyTransportTypeChanged,
     required this.onProxyPacketEncodingChanged,
     required this.onProxyTlsInsecureChanged,
-    required this.onLocalHttpToggle,
-    required this.onLocalHttpBindAllInterfacesChanged,
-    required this.onUseSharedDownloadsDirectory,
   });
 
   final bool isLoading;
@@ -100,10 +90,7 @@ class SettingsPageBody extends StatelessWidget {
   final bool isTestingNodeSpeed;
   final String proxyStateLabel;
   final Color Function(ColorScheme colorScheme) proxyStateColor;
-  final String localHttpStateLabel;
-  final Color Function(ColorScheme colorScheme) localHttpStateColor;
   final ProxyService proxyService;
-  final LocalHttpFileServerService localHttpFileServerService;
   final String? errorMessage;
   final Widget Function() buildGeneralSection;
   final Widget Function() buildVideoSection;
@@ -114,6 +101,7 @@ class SettingsPageBody extends StatelessWidget {
   })
   pushSection;
   final Future<void> Function() onOpenBrowserHistory;
+  final Future<void> Function() onOpenDataManagement;
   final Future<void> Function(bool enabled) onHandleProxyToggle;
   final Future<void> Function() onParseNodeLink;
   final Future<void> Function() onTestNodeSpeed;
@@ -127,9 +115,6 @@ class SettingsPageBody extends StatelessWidget {
   final ValueChanged<String> onProxyTransportTypeChanged;
   final ValueChanged<String> onProxyPacketEncodingChanged;
   final ValueChanged<bool> onProxyTlsInsecureChanged;
-  final ValueChanged<bool> onLocalHttpToggle;
-  final ValueChanged<bool> onLocalHttpBindAllInterfacesChanged;
-  final Future<void> Function() onUseSharedDownloadsDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -145,16 +130,14 @@ class SettingsPageBody extends StatelessWidget {
           buildVideoSection: buildVideoSection,
           pushSection: pushSection,
           onOpenBrowserHistory: onOpenBrowserHistory,
+          onOpenDataManagement: onOpenDataManagement,
           formController: formController,
           proxySupported: proxySupported,
           isSaving: isSaving,
           isTestingNodeSpeed: isTestingNodeSpeed,
           proxyStateLabel: proxyStateLabel,
           proxyStateColor: proxyStateColor,
-          localHttpStateLabel: localHttpStateLabel,
-          localHttpStateColor: localHttpStateColor,
           proxyService: proxyService,
-          localHttpFileServerService: localHttpFileServerService,
           errorMessage: errorMessage,
           onHandleProxyToggle: onHandleProxyToggle,
           onParseNodeLink: onParseNodeLink,
@@ -169,10 +152,6 @@ class SettingsPageBody extends StatelessWidget {
           onProxyTransportTypeChanged: onProxyTransportTypeChanged,
           onProxyPacketEncodingChanged: onProxyPacketEncodingChanged,
           onProxyTlsInsecureChanged: onProxyTlsInsecureChanged,
-          onLocalHttpToggle: onLocalHttpToggle,
-          onLocalHttpBindAllInterfacesChanged:
-              onLocalHttpBindAllInterfacesChanged,
-          onUseSharedDownloadsDirectory: onUseSharedDownloadsDirectory,
         ),
         const SizedBox(height: 20),
       ],

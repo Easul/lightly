@@ -5,10 +5,12 @@ class BrowserPageSettingsActionPlan {
   const BrowserPageSettingsActionPlan({
     required this.reloadSettings,
     this.openHistoryUrl,
+    this.dataManagementResult,
   });
 
   final bool reloadSettings;
   final String? openHistoryUrl;
+  final DataManagementPageResult? dataManagementResult;
 }
 
 class BrowserPageDataManagementActionPlan {
@@ -46,6 +48,7 @@ class BrowserPageRouteHandler {
       return BrowserPageSettingsActionPlan(
         reloadSettings: result.settingsChanged,
         openHistoryUrl: result.openHistoryUrl,
+        dataManagementResult: result.dataManagementResult,
       );
     }
     return BrowserPageSettingsActionPlan(reloadSettings: result == true);

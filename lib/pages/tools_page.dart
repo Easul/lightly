@@ -79,19 +79,53 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.05,
+          _ToolSection(
+            title: '通讯与协作',
             children: [
               _ToolTile(
                 icon: Icons.telegram,
                 label: 'TG 工具',
                 onTap: () => Navigator.pushNamed(context, '/telegram-checkin'),
               ),
+              _ToolTile(
+                icon: Icons.content_paste_rounded,
+                label: '剪贴板',
+                onTap: () => Navigator.pushNamed(context, '/clipboard'),
+              ),
+              _ToolTile(
+                icon: Icons.control_camera_rounded,
+                label: '远程控制',
+                onTap: () => Navigator.pushNamed(context, '/remote-control'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _ToolSection(
+            title: '网络与文件',
+            children: [
+              _ToolTile(
+                icon: Icons.folder_shared_outlined,
+                label: 'HTTP 文件',
+                onTap: () =>
+                    Navigator.pushNamed(context, '/local-http-settings'),
+              ),
+              _ToolTile(
+                icon: Icons.edit_document,
+                label: '文件管理',
+                onTap: () =>
+                    Navigator.pushNamed(context, '/simple-file-manager'),
+              ),
+              _ToolTile(
+                icon: Icons.vpn_lock_rounded,
+                label: 'P2P VPN',
+                onTap: () => Navigator.pushNamed(context, '/easytier'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _ToolSection(
+            title: '日常工具',
+            children: [
               _ToolTile(
                 icon: Icons.calculate_rounded,
                 label: '计算器',
@@ -102,20 +136,53 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 label: '2048',
                 onTap: () => Navigator.pushNamed(context, '/game-2048'),
               ),
+              _ToolTile(
+                icon: Icons.schedule_rounded,
+                label: '时间悬浮窗',
+                active: _timeOverlayRunning,
+                busy: _busy,
+                onTap: _busy
+                    ? null
+                    : () => unawaited(_toggleTimeOverlay(!_timeOverlayRunning)),
+              ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: SwitchListTile(
-              value: _timeOverlayRunning,
-              onChanged: _busy ? null : _toggleTimeOverlay,
-              secondary: const Icon(Icons.schedule_rounded),
-              title: const Text('系统时间悬浮窗'),
-              subtitle: const Text('显示手机系统时分秒和毫秒，可拖动位置'),
-            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ToolSection extends StatelessWidget {
+  const _ToolSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 10),
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.05,
+          children: children,
+        ),
+      ],
     );
   }
 }
@@ -125,11 +192,15 @@ class _ToolTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.active = false,
+    this.busy = false,
   });
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool active;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -146,9 +217,28 @@ class _ToolTile extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 30),
+            if (busy)
+              const SizedBox.square(
+                dimension: 26,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            else
+              Icon(
+                active ? Icons.check_circle_rounded : icon,
+                size: 30,
+                color: active ? colorScheme.primary : null,
+              ),
             const SizedBox(height: 8),
-            Text(label),
+            Text(label, textAlign: TextAlign.center),
+            if (active) ...[
+              const SizedBox(height: 2),
+              Text(
+                '已开启',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colorScheme.primary),
+              ),
+            ],
           ],
         ),
       ),

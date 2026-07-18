@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/app_drawer.dart';
 import 'home_page_widgets.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,7 +26,6 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(widget.title),
       ),
-      drawer: const AppDrawer(),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(

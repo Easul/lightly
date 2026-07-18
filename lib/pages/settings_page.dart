@@ -19,15 +19,24 @@ import '../browser/services/browser_settings_runtime_service.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/widgets/settings/clear_browsing_data_dialog.dart';
 import '../browser/widgets/settings/general_settings_section.dart';
+import '../browser/widgets/settings/local_http_settings_section.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';
 import '../browser/widgets/settings/video_settings_section.dart';
 import '../services/app_toast.dart';
 import 'settings_page_body.dart';
 import 'browser_history_page.dart';
+import 'data_management_page.dart';
 import 'settings_page_result.dart';
 
+enum SettingsInitialSection { home, localHttp }
+
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({
+    super.key,
+    this.initialSection = SettingsInitialSection.home,
+  });
+
+  final SettingsInitialSection initialSection;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -57,6 +66,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isClearingAppCache = false;
   bool _isTestingNodeSpeed = false;
   bool _hasAppliedChanges = false;
+  DataManagementPageResult? _dataManagementResult;
   String? _errorMessage;
   VoidCallback? _cancelNodeSpeedTest;
   ProxyState get _proxyState => _statusMonitor.proxyState.value;
@@ -135,8 +145,54 @@ class _SettingsPageState extends State<SettingsPage> {
       SettingsPageResult(
         settingsChanged: _hasAppliedChanges,
         openHistoryUrl: result.url,
+        dataManagementResult: _dataManagementResult,
       ),
     );
+  }
+
+  Future<void> _openDataManagement() async {
+    final result = await Navigator.of(context).pushNamed('/data-management');
+    if (!mounted || result is! DataManagementPageResult || !result.changed) {
+      return;
+    }
+    _dataManagementResult = _mergeDataManagementResults(
+      _dataManagementResult,
+      result,
+    );
+    _hasAppliedChanges = _hasAppliedChanges || result.settingsChanged;
+    await _loadSettings();
+  }
+
+  DataManagementPageResult _mergeDataManagementResults(
+    DataManagementPageResult? previous,
+    DataManagementPageResult current,
+  ) {
+    if (previous == null) return current;
+    return DataManagementPageResult(
+      changed: previous.changed || current.changed,
+      favoritesChanged: previous.favoritesChanged || current.favoritesChanged,
+      settingsChanged: previous.settingsChanged || current.settingsChanged,
+      webDataChanged: previous.webDataChanged || current.webDataChanged,
+      restoredOrigins: <String>{
+        ...previous.restoredOrigins,
+        ...current.restoredOrigins,
+      }.toList(growable: false),
+    );
+  }
+
+  SettingsPageResult _pageResult({
+    bool? settingsChanged,
+    String? openHistoryUrl,
+  }) {
+    return SettingsPageResult(
+      settingsChanged: settingsChanged ?? _hasAppliedChanges,
+      openHistoryUrl: openHistoryUrl,
+      dataManagementResult: _dataManagementResult,
+    );
+  }
+
+  void _closePage({bool? settingsChanged}) {
+    Navigator.of(context).pop(_pageResult(settingsChanged: settingsChanged));
   }
 
   void _handleProxyFormChanged() {
@@ -323,7 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       _hasAppliedChanges = result.appliedChanges;
       if (closeAfterSave) {
-        Navigator.of(context).pop(true);
+        _closePage(settingsChanged: true);
       }
     } catch (error) {
       _showSnackBar(_proxyService.describeError(error));
@@ -331,7 +387,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
       if (closeAfterSave) {
-        Navigator.of(context).pop(true);
+        _closePage(settingsChanged: true);
       }
     } finally {
       if (mounted) {
@@ -603,6 +659,27 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildLocalHttpSection(BuildContext context) {
+    return LocalHttpSettingsSection(
+      enabled: _formController.localHttpServerEnabled,
+      stateLabel: _localHttpStateLabel,
+      stateColor: _localHttpStateColor(Theme.of(context).colorScheme),
+      portText:
+          '监听端口：${_localHttpFileServerService.boundPort?.toString() ?? '未启动'}',
+      baseUrlText: _localHttpFileServerService.baseUrl == null
+          ? null
+          : '访问地址：${_localHttpFileServerService.baseUrl}',
+      lanUrls: _localHttpFileServerService.lanUrls,
+      bindAllInterfaces: _formController.localHttpBindAllInterfaces,
+      rootPathController: _formController.localHttpRootPathController,
+      portController: _formController.localHttpPortController,
+      uploadKeyController: _formController.localHttpUploadKeyController,
+      onToggle: _handleLocalHttpToggle,
+      onUseSharedDownloadsDirectory: _useSharedDownloadsDirectory,
+      onBindAllInterfacesChanged: _handleLocalHttpBindAllInterfacesChanged,
+    );
+  }
+
   void _handleProxyProtocolChanged(String value) {
     _applyProxyFormMutation(
       () => _proxyFormMutator.changeProtocol(_formController, value),
@@ -655,10 +732,28 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.initialSection == SettingsInitialSection.localHttp) {
+      if (_isLoading) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('本地 HTTP 文件服务')),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
+      return SettingsSectionPage(
+        title: '本地 HTTP 文件服务',
+        icon: Icons.folder_shared_outlined,
+        revisionListenable: _formController.revision,
+        isSavingBuilder: () => _isSaving,
+        buildChildren: (sectionContext) => [
+          _buildLocalHttpSection(sectionContext),
+        ],
+        onSave: () => _saveSettings(closeAfterSave: false),
+      );
+    }
     return SettingsPageScaffold(
-      hasAppliedChanges: _hasAppliedChanges,
       isLoading: _isLoading,
       isSaving: _isSaving,
+      onClose: _closePage,
       onSave: _saveSettings,
       body: SettingsPageBody(
         isLoading: _isLoading,
@@ -666,16 +761,14 @@ class _SettingsPageState extends State<SettingsPage> {
         buildVideoSection: _buildVideoSection,
         pushSection: _pushSection,
         onOpenBrowserHistory: _openBrowserHistory,
+        onOpenDataManagement: _openDataManagement,
         formController: _formController,
         proxySupported: _proxySupported,
         isSaving: _isSaving,
         isTestingNodeSpeed: _isTestingNodeSpeed,
         proxyStateLabel: _proxyStateLabel,
         proxyStateColor: _proxyStateColor,
-        localHttpStateLabel: _localHttpStateLabel,
-        localHttpStateColor: _localHttpStateColor,
         proxyService: _proxyService,
-        localHttpFileServerService: _localHttpFileServerService,
         errorMessage: _errorMessage,
         onHandleProxyToggle: _handleProxyToggle,
         onParseNodeLink: _parseNodeLink,
@@ -690,10 +783,6 @@ class _SettingsPageState extends State<SettingsPage> {
         onProxyTransportTypeChanged: _handleProxyTransportTypeChanged,
         onProxyPacketEncodingChanged: _handleProxyPacketEncodingChanged,
         onProxyTlsInsecureChanged: _handleProxyTlsInsecureChanged,
-        onLocalHttpToggle: _handleLocalHttpToggle,
-        onLocalHttpBindAllInterfacesChanged:
-            _handleLocalHttpBindAllInterfacesChanged,
-        onUseSharedDownloadsDirectory: _useSharedDownloadsDirectory,
       ),
     );
   }

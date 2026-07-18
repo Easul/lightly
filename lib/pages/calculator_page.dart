@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
-import '../widgets/app_drawer.dart';
 import '../calculator/calculator_action_sheets.dart';
 import '../calculator/calculator_history_widgets.dart';
 import '../calculator/calculator_input_tab.dart';
@@ -286,7 +285,6 @@ class _CalculatorPageState extends State<CalculatorPage>
           ],
         ),
       ),
-      drawer: const AppDrawer(),
       body: TabBarView(
         controller: _tabController,
         children: [_buildCalculatorTab(), _buildHistoryTab()],

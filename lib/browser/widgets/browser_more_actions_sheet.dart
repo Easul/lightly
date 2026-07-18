@@ -12,7 +12,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
     required this.onToggleWebDebugConsole,
     required this.onToggleDesktopMode,
     required this.onOpenDownloads,
-    required this.onOpenDataManagement,
+    required this.onOpenTools,
     required this.onCloseTab,
     required this.onOpenSettings,
     required this.onEnterFloatingWindowMode,
@@ -29,7 +29,7 @@ class BrowserMoreActionsSheet extends StatelessWidget {
   final VoidCallback onToggleWebDebugConsole;
   final VoidCallback onToggleDesktopMode;
   final VoidCallback onOpenDownloads;
-  final VoidCallback onOpenDataManagement;
+  final VoidCallback onOpenTools;
   final VoidCallback onCloseTab;
   final VoidCallback onOpenSettings;
   final VoidCallback onEnterFloatingWindowMode;
@@ -55,9 +55,9 @@ class BrowserMoreActionsSheet extends StatelessWidget {
         onTap: onOpenDownloads,
       ),
       _ActionData(
-        icon: Icons.import_export_rounded,
-        label: '数据管理',
-        onTap: onOpenDataManagement,
+        icon: Icons.widgets_outlined,
+        label: '小工具',
+        onTap: onOpenTools,
       ),
       _ActionData(icon: Icons.close_rounded, label: '关闭标签', onTap: onCloseTab),
       if (onOpenFavoritesMenu != null)
