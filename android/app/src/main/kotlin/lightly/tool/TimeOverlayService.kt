@@ -47,7 +47,7 @@ class TimeOverlayService : Service() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    private val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private val formatter = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
     private var windowManager: WindowManager? = null
     private var timeView: TextView? = null
 
@@ -55,7 +55,7 @@ class TimeOverlayService : Service() {
         override fun run() {
             val now = System.currentTimeMillis()
             timeView?.text = formatter.format(Date(now))
-            handler.postDelayed(this, 1000L - (now % 1000L))
+            handler.postDelayed(this, 10L - (now % 10L))
         }
     }
 
@@ -167,7 +167,7 @@ class TimeOverlayService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("系统时间悬浮窗运行中")
-            .setContentText("显示手机系统时分秒")
+            .setContentText("显示手机系统时分秒和毫秒")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(0, "关闭", stopPendingIntent)

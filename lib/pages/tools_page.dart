@@ -111,7 +111,7 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
               onChanged: _busy ? null : _toggleTimeOverlay,
               secondary: const Icon(Icons.schedule_rounded),
               title: const Text('系统时间悬浮窗'),
-              subtitle: const Text('在其他应用上方显示手机系统时分秒，可拖动位置'),
+              subtitle: const Text('显示手机系统时分秒和毫秒，可拖动位置'),
             ),
           ),
         ],
