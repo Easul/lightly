@@ -18,6 +18,7 @@ class TelegramChatPage extends StatefulWidget {
 class _TelegramChatPageState extends State<TelegramChatPage> {
   final TelegramTdlibService _telegram = TelegramTdlibService.instance;
   final TextEditingController _inputController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   List<TelegramMessagePreview> _messages = const [];
   bool _loading = true;
   bool _sending = false;
@@ -32,7 +33,8 @@ class _TelegramChatPageState extends State<TelegramChatPage> {
   @override
   void dispose() {
     _inputController.dispose();
-    unawaited(_telegram.closeChat(widget.chat.id));
+    _scrollController.dispose();
+    unawaited(_closeChatSafely());
     super.dispose();
   }
 
@@ -40,7 +42,10 @@ class _TelegramChatPageState extends State<TelegramChatPage> {
     setState(() => _loading = true);
     try {
       final messages = await _telegram.loadChatMessages(widget.chat.id);
-      if (mounted) setState(() => _messages = messages.reversed.toList());
+      if (mounted) {
+        setState(() => _messages = messages.reversed.toList());
+        _scrollToLatest();
+      }
     } catch (error) {
       _toast('加载消息失败：$error');
     } finally {
@@ -62,7 +67,24 @@ class _TelegramChatPageState extends State<TelegramChatPage> {
           .toList()
           .reversed;
       if (mounted) {
+        final oldMaxScrollExtent = _scrollController.hasClients
+            ? _scrollController.position.maxScrollExtent
+            : 0.0;
+        final oldOffset = _scrollController.hasClients
+            ? _scrollController.offset
+            : 0.0;
         setState(() => _messages = [...uniqueOlder, ..._messages]);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scrollController.hasClients) return;
+          final addedExtent =
+              _scrollController.position.maxScrollExtent - oldMaxScrollExtent;
+          _scrollController.jumpTo(
+            (oldOffset + addedExtent).clamp(
+              0.0,
+              _scrollController.position.maxScrollExtent,
+            ),
+          );
+        });
       }
     } catch (error) {
       _toast('加载更早消息失败：$error');
@@ -88,6 +110,21 @@ class _TelegramChatPageState extends State<TelegramChatPage> {
 
   void _toast(String message) => unawaited(AppToast.show(message));
 
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  Future<void> _closeChatSafely() async {
+    try {
+      await _telegram.closeChat(widget.chat.id);
+    } catch (error) {
+      debugPrint('Close Telegram chat failed: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -106,6 +143,7 @@ class _TelegramChatPageState extends State<TelegramChatPage> {
             child: _loading && _messages.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(12),
                     itemCount: _messages.length + 1,
                     itemBuilder: (context, index) {

@@ -29,6 +29,8 @@ class TelegramTdlibService {
   final ValueNotifier<String> proxyStatus = ValueNotifier<String>('正在检查代理');
   final Map<String, Completer<td.TdObject>> _requests =
       <String, Completer<td.TdObject>>{};
+  Timer? _receiveTimer;
+  Future<void> _authorizationQueue = Future<void>.value();
   int _clientId = 0;
   int _requestId = 0;
   int? _configuredProxyPort;
@@ -38,12 +40,15 @@ class TelegramTdlibService {
     _config = config;
     if (_clientId == 0) {
       _clientId = tdCreate();
-      Timer.periodic(const Duration(milliseconds: 80), (_) => _drainUpdates());
+      _receiveTimer ??= Timer.periodic(
+        const Duration(milliseconds: 80),
+        (_) => _drainUpdates(),
+      );
     }
     authStep.value = TelegramAuthStep.loading;
     final state = await _request(const td.GetAuthorizationState());
     if (state is td.AuthorizationState) {
-      await _handleAuthorizationState(state);
+      await _enqueueAuthorizationState(state);
     }
   }
 
@@ -146,7 +151,10 @@ class TelegramTdlibService {
   }) async {
     await configureProxyIfAvailable();
     _ensureReady();
-    await _expectOk(td.OpenChat(chatId: chatId));
+    final isLatestPage = fromMessageId == 0;
+    if (isLatestPage) {
+      await _expectOk(td.OpenChat(chatId: chatId));
+    }
     final response = await _request(
       td.GetChatHistory(
         chatId: chatId,
@@ -158,7 +166,7 @@ class TelegramTdlibService {
     );
     if (response is td.TdError) throw StateError(response.message);
     final messages = (response as td.Messages).messages;
-    if (messages.isNotEmpty) {
+    if (isLatestPage && messages.isNotEmpty) {
       await _expectOk(
         td.ViewMessages(
           chatId: chatId,
@@ -309,30 +317,67 @@ class TelegramTdlibService {
     } else if (state is td.AuthorizationStateClosed) {
       _clientId = 0;
       _configuredProxyPort = null;
+      _failPendingRequests(StateError('Telegram 连接已关闭'));
       authStep.value = TelegramAuthStep.loggedOut;
     }
+  }
+
+  Future<void> _enqueueAuthorizationState(td.AuthorizationState state) {
+    _authorizationQueue = _authorizationQueue
+        .then((_) => _handleAuthorizationState(state))
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Telegram authorization update failed: $error');
+          authStep.value = TelegramAuthStep.error;
+        });
+    return _authorizationQueue;
   }
 
   void _drainUpdates() {
     for (var index = 0; index < 20; index++) {
       final object = tdReceive(0);
       if (object == null) return;
+      final clientId = object.clientId;
+      if (clientId != null && clientId != _clientId) continue;
       final extra = object.extra?.toString();
       if (extra != null) {
         _requests.remove(extra)?.complete(object);
       }
       if (object is td.UpdateAuthorizationState) {
-        unawaited(_handleAuthorizationState(object.authorizationState));
+        unawaited(_enqueueAuthorizationState(object.authorizationState));
       }
     }
   }
 
   Future<td.TdObject> _request(td.TdFunction function) {
+    if (_clientId == 0) {
+      throw StateError('Telegram 客户端尚未启动');
+    }
     final extra = 'tg_${_requestId++}';
     final completer = Completer<td.TdObject>();
     _requests[extra] = completer;
-    tdSend(_clientId, function, extra);
-    return completer.future.timeout(const Duration(seconds: 30));
+    try {
+      tdSend(_clientId, function, extra);
+    } catch (_) {
+      _requests.remove(extra);
+      rethrow;
+    }
+    return completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        if (identical(_requests[extra], completer)) {
+          _requests.remove(extra);
+        }
+        throw TimeoutException('Telegram 请求超时：${function.getConstructor()}');
+      },
+    );
+  }
+
+  void _failPendingRequests(Object error) {
+    final requests = _requests.values.toList(growable: false);
+    _requests.clear();
+    for (final request in requests) {
+      if (!request.isCompleted) request.completeError(error);
+    }
   }
 
   Future<void> _expectOk(td.TdFunction function) async {

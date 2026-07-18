@@ -53,8 +53,9 @@ class TimeOverlayService : Service() {
 
     private val updateTime = object : Runnable {
         override fun run() {
-            timeView?.text = formatter.format(Date())
-            handler.postDelayed(this, 100L)
+            val now = System.currentTimeMillis()
+            timeView?.text = formatter.format(Date(now))
+            handler.postDelayed(this, 1000L - (now % 1000L))
         }
     }
 
@@ -122,8 +123,14 @@ class TimeOverlayService : Service() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = initialX + (event.rawX - touchX).toInt()
-                    params.y = initialY + (event.rawY - touchY).toInt()
+                    val maxX = (resources.displayMetrics.widthPixels - view.width)
+                        .coerceAtLeast(0)
+                    val maxY = (resources.displayMetrics.heightPixels - view.height)
+                        .coerceAtLeast(0)
+                    params.x = (initialX + (event.rawX - touchX).toInt())
+                        .coerceIn(0, maxX)
+                    params.y = (initialY + (event.rawY - touchY).toInt())
+                        .coerceIn(0, maxY)
                     windowManager?.updateViewLayout(view, params)
                     true
                 }

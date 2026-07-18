@@ -12,7 +12,7 @@ class ToolsPage extends StatefulWidget {
   State<ToolsPage> createState() => _ToolsPageState();
 }
 
-class _ToolsPageState extends State<ToolsPage> {
+class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
   final TimeOverlayService _timeOverlayService = TimeOverlayService();
   bool _timeOverlayRunning = false;
   bool _busy = false;
@@ -20,12 +20,32 @@ class _ToolsPageState extends State<ToolsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_refreshOverlayState());
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshOverlayState());
+    }
+  }
+
   Future<void> _refreshOverlayState() async {
-    final running = await _timeOverlayService.isRunning();
-    if (mounted) setState(() => _timeOverlayRunning = running);
+    try {
+      final running = await _timeOverlayService.isRunning();
+      if (mounted && running != _timeOverlayRunning) {
+        setState(() => _timeOverlayRunning = running);
+      }
+    } catch (error) {
+      debugPrint('Refresh time overlay state failed: $error');
+    }
   }
 
   Future<void> _toggleTimeOverlay(bool enabled) async {
