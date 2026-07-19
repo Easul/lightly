@@ -88,6 +88,11 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 onTap: () => Navigator.pushNamed(context, '/telegram-checkin'),
               ),
               _ToolTile(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: '聊天工具',
+                onTap: () => Navigator.pushNamed(context, '/ai-chat'),
+              ),
+              _ToolTile(
                 icon: Icons.content_paste_rounded,
                 label: '剪贴板',
                 onTap: () => Navigator.pushNamed(context, '/clipboard'),
@@ -130,6 +135,11 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 icon: Icons.calculate_rounded,
                 label: '计算器',
                 onTap: () => Navigator.pushNamed(context, '/calculator'),
+              ),
+              _ToolTile(
+                icon: Icons.translate_rounded,
+                label: '翻译工具',
+                onTap: () => Navigator.pushNamed(context, '/translation-tool'),
               ),
               _ToolTile(
                 icon: Icons.grid_view_rounded,

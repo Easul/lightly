@@ -206,6 +206,16 @@
                 android:value="User-requested system clock overlay" />
         </service>
         <service
+            android:name=".TranslationOverlayService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled floating translation toolbar" />
+        </service>
+        <service
             android:name=".ProxyFloatingButtonService"
             android:enabled="true"
             android:exported="false"

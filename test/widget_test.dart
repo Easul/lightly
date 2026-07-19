@@ -20,10 +20,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  setUpAll(() {
+  setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    final path = '${await getDatabasesPath()}/browser_data.db';
+    await databaseFactory.deleteDatabase(path);
   });
 
   testWidgets('browser page is the default route', (WidgetTester tester) async {
@@ -110,9 +112,11 @@ void main() {
     expect(find.text('日常工具'), findsOneWidget);
     expect(find.text('剪贴板'), findsOneWidget);
     expect(find.text('远程控制'), findsOneWidget);
+    expect(find.text('聊天工具'), findsOneWidget);
     expect(find.text('HTTP 文件'), findsOneWidget);
     expect(find.text('文件管理'), findsOneWidget);
     expect(find.text('P2P VPN'), findsOneWidget);
+    expect(find.text('翻译工具'), findsOneWidget);
     expect(find.text('时间悬浮窗'), findsOneWidget);
   });
 

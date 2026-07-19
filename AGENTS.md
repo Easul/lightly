@@ -926,6 +926,19 @@ void dispose() {
 - Related files: `lib/pages/telegram_checkin_page.dart`, `lib/pages/telegram_chat_page.dart`, `lib/pages/tools_page.dart`, `lib/telegram_checkin/telegram_tdlib_service.dart`, `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
 - Verification: run `flutter analyze`, `flutter test test/browser/browser_backup_service_test.dart`, and `./gradlew :app:compileDebugKotlin`.
 
+## AI Translation / Chat Tool Integration
+
+- Translation and chat share `AiConfigStore`; keep Base URL, API key, endpoint type, and model selection aligned across both tools.
+- Supported request paths are OpenAI-compatible `/v1/completions`, OpenAI `/v1/responses`, and Anthropic `/v1/messages`; model discovery remains `/v1/models` and custom model text must remain available.
+- Chat streaming must parse SSE incrementally and must not wait for the entire response before updating the message bubble.
+- Keep the floating translation toolbar compact by default; its header must retain size cycling plus collapse-to-draggable-icon behavior.
+- Keep the overlay window non-focusable until its input is tapped, restore non-focusable state on outside taps/collapse/translate, and never use match-parent overlay content that can become a full-screen transparent touch layer on some ROMs.
+- Chat history tables live in the existing `browser_data.db` through `BrowserDatabase`; do not introduce a second SQLite database for AI tools.
+- Android floating translation runs in `TranslationOverlayService`, performs its own background-safe request, and stores history through `TranslationHistoryStore` so it still works while Flutter is paused.
+- Never log API keys, full request bodies, translated private text, or chat contents.
+- Related files: `lib/ai_tools/`, `lib/pages/translation_tool_page.dart`, `lib/pages/ai_chat_page.dart`, `android/app/src/main/kotlin/lightly/tool/Translation*`.
+- Verification: run `flutter test test/ai_tools/`, targeted `flutter analyze`, and Android Kotlin compilation.
+
 ### 2. Android Shared Downloads Write Permission
 
 **Error**: `PathAccessException: Cannot open file, path = '/storage/emulated/0/Download/...' (OS Error: Permission denied)`

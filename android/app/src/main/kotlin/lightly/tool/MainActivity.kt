@@ -197,6 +197,8 @@ class MainActivity : FlutterActivity() {
             .register(flutterEngine.dartExecutor.binaryMessenger)
         TimeOverlayChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
+        TranslationOverlayChannelHandler(this)
+            .register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
         browserProxyChannel?.setMethodCallHandler { call, result ->

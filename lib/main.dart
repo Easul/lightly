@@ -21,6 +21,8 @@ import 'pages/remote_control_page.dart';
 import 'pages/simple_file_manager_settings_page.dart';
 import 'pages/telegram_checkin_page.dart';
 import 'pages/tools_page.dart';
+import 'pages/translation_tool_page.dart';
+import 'pages/ai_chat_page.dart';
 import 'services/app_toast.dart';
 import 'services/simple_file_manager_service.dart';
 
@@ -97,6 +99,8 @@ class MyApp extends StatelessWidget {
         '/easytier': (context) => const EasyTierSettingsPage(),
         '/remote-control': (context) => const RemoteControlPage(),
         '/telegram-checkin': (context) => const TelegramCheckinPage(),
+        '/translation-tool': (context) => const TranslationToolPage(),
+        '/ai-chat': (context) => const AiChatPage(),
         '/tools': (context) => const ToolsPage(),
       },
     );

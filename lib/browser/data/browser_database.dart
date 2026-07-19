@@ -8,7 +8,9 @@ class BrowserDatabase {
   static const String historyVisitsTable = 'browser_history_visits';
   static const String downloadTable = 'browser_downloads';
   static const String favoriteTable = 'browser_favorites';
-  static const int schemaVersion = 3;
+  static const String aiChatSessionTable = 'ai_chat_sessions';
+  static const String aiChatMessageTable = 'ai_chat_messages';
+  static const int schemaVersion = 4;
 
   static final BrowserDatabase instance = BrowserDatabase._();
 
@@ -87,6 +89,7 @@ class BrowserDatabase {
     await db.execute(
       'CREATE INDEX idx_browser_favorites_sort ON $favoriteTable(sortOrder ASC)',
     );
+    await _createAiChatTables(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -117,6 +120,9 @@ class BrowserDatabase {
         SELECT url, title, visitedAt FROM $historyTable
       ''');
     }
+    if (oldVersion < 4) {
+      await _createAiChatTables(db);
+    }
   }
 
   static Future<void> _createHistoryVisitsTable(Database db) async {
@@ -135,6 +141,35 @@ class BrowserDatabase {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_browser_history_visits_url '
       'ON $historyVisitsTable(url)',
+    );
+  }
+
+  static Future<void> _createAiChatTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $aiChatSessionTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $aiChatMessageTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sessionId INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY(sessionId) REFERENCES $aiChatSessionTable(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_ai_chat_sessions_updated '
+      'ON $aiChatSessionTable(updatedAt DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_session '
+      'ON $aiChatMessageTable(sessionId, id)',
     );
   }
 
