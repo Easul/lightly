@@ -22,13 +22,15 @@ class _AiChatPageState extends State<AiChatPage> {
   final AiHistoryDatabase _database = AiHistoryDatabase.instance;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<String> _streamingText = ValueNotifier<String>('');
 
   AiConfig _config = const AiConfig();
   List<AiChatSession> _sessions = const [];
   List<AiChatMessageRecord> _messages = const [];
   AiChatSession? _session;
   http.Client? _requestClient;
-  String _streamingText = '';
+  Timer? _streamScrollTimer;
+  String _streamingContent = '';
   bool _loading = true;
   bool _sending = false;
   bool _stopping = false;
@@ -42,6 +44,8 @@ class _AiChatPageState extends State<AiChatPage> {
   @override
   void dispose() {
     _requestClient?.close();
+    _streamScrollTimer?.cancel();
+    _streamingText.dispose();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -103,10 +107,11 @@ class _AiChatPageState extends State<AiChatPage> {
     setState(() {
       _session = session;
       _messages = [..._messages, userMessage];
-      _streamingText = '';
       _sending = true;
       _stopping = false;
     });
+    _streamingContent = '';
+    _streamingText.value = '';
     _scrollToBottom();
 
     final requestClient = http.Client();
@@ -118,14 +123,14 @@ class _AiChatPageState extends State<AiChatPage> {
         messages: requestMessages,
       )) {
         if (!mounted) return;
-        setState(() => _streamingText += delta);
-        _scrollToBottom();
-        await Future<void>.delayed(const Duration(milliseconds: 12));
+        _streamingContent += delta;
+        _streamingText.value = _streamingContent;
+        _scheduleStreamScroll();
       }
     } catch (error) {
       if (!_stopping && mounted) _showMessage(error.toString());
     } finally {
-      final completedText = _streamingText.trim();
+      final completedText = _streamingContent.trim();
       if (completedText.isNotEmpty) {
         await _database.addMessage(
           sessionId: session.id,
@@ -138,13 +143,16 @@ class _AiChatPageState extends State<AiChatPage> {
       final messages = await _database.listMessages(session.id);
       final sessions = await _database.listSessions();
       if (mounted) {
+        _streamScrollTimer?.cancel();
+        _streamScrollTimer = null;
         setState(() {
           _messages = messages;
           _sessions = sessions;
-          _streamingText = '';
           _sending = false;
           _stopping = false;
         });
+        _streamingContent = '';
+        _streamingText.value = '';
         _scrollToBottom();
       }
     }
@@ -389,6 +397,17 @@ class _AiChatPageState extends State<AiChatPage> {
     });
   }
 
+  void _scheduleStreamScroll() {
+    if (_streamScrollTimer?.isActive ?? false) return;
+    _streamScrollTimer = Timer(const Duration(milliseconds: 80), () {
+      _streamScrollTimer = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      });
+    });
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -432,15 +451,17 @@ class _AiChatPageState extends State<AiChatPage> {
                       : ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(12),
-                          itemCount:
-                              _messages.length +
-                              (_streamingText.isNotEmpty ? 1 : 0),
+                          itemCount: _messages.length + (_sending ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index == _messages.length) {
-                              return _ChatBubble(
-                                role: 'assistant',
-                                content: _streamingText,
-                                streaming: true,
+                              return ValueListenableBuilder<String>(
+                                valueListenable: _streamingText,
+                                builder: (context, content, child) =>
+                                    _ChatBubble(
+                                      role: 'assistant',
+                                      content: content,
+                                      streaming: true,
+                                    ),
                               );
                             }
                             final message = _messages[index];

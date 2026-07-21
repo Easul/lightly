@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 
 /// 网络延迟统计点
@@ -90,10 +91,12 @@ class PerformanceMonitorService {
   static const int _audioSequenceModulo = 0x10000;
 
   // 数据缓存
-  final List<LatencyPoint> _latencyHistory = [];
-  final List<VideoStatsPoint> _videoStatsHistory = [];
-  final List<AudioStatsPoint> _audioStatsHistory = [];
-  final List<DiscoveryPath> _discoveryPaths = [];
+  final ListQueue<LatencyPoint> _latencyHistory = ListQueue<LatencyPoint>();
+  final ListQueue<VideoStatsPoint> _videoStatsHistory =
+      ListQueue<VideoStatsPoint>();
+  final ListQueue<AudioStatsPoint> _audioStatsHistory =
+      ListQueue<AudioStatsPoint>();
+  final ListQueue<DiscoveryPath> _discoveryPaths = ListQueue<DiscoveryPath>();
 
   // 实时计数器
   int _frameCount = 0;
@@ -182,7 +185,7 @@ class PerformanceMonitorService {
 
     _discoveryPaths.add(path);
     if (_discoveryPaths.length > 10) {
-      _discoveryPaths.removeAt(0);
+      _discoveryPaths.removeFirst();
     }
   }
 
@@ -228,7 +231,7 @@ class PerformanceMonitorService {
 
     _videoStatsHistory.add(stats);
     if (_videoStatsHistory.length > _maxStatsWindow) {
-      _videoStatsHistory.removeAt(0);
+      _videoStatsHistory.removeFirst();
     }
   }
 
@@ -261,7 +264,7 @@ class PerformanceMonitorService {
 
     _audioStatsHistory.add(stats);
     if (_audioStatsHistory.length > _maxStatsWindow) {
-      _audioStatsHistory.removeAt(0);
+      _audioStatsHistory.removeFirst();
     }
   }
 
@@ -278,7 +281,7 @@ class PerformanceMonitorService {
 
     _latencyHistory.add(point);
     if (_latencyHistory.length > _maxStatsWindow) {
-      _latencyHistory.removeAt(0);
+      _latencyHistory.removeFirst();
     }
   }
 
