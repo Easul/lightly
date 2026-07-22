@@ -40,7 +40,7 @@ class ExternalApiVideoSourceResolver extends VideoSourceResolver {
     final client = IOClient(httpClient);
     try {
       final response = await client.post(
-        Uri.parse('$apiBaseUrl/parse'),
+        _parseEndpointUri(),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'url': url}),
       );
@@ -69,6 +69,21 @@ class ExternalApiVideoSourceResolver extends VideoSourceResolver {
     } finally {
       client.close();
     }
+  }
+
+  Uri _parseEndpointUri() {
+    final baseUri = Uri.parse(apiBaseUrl.trim());
+    var path = baseUri.path;
+    while (path.length > 1 && path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    if (path == '/') {
+      path = '';
+    }
+    if (path != '/parse' && !path.endsWith('/parse')) {
+      path = '$path/parse';
+    }
+    return baseUri.replace(path: path, fragment: null);
   }
 
   String? _extractFirstPlayableUrl(dynamic data) {

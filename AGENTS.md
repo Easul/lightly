@@ -842,6 +842,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - The YouTube/native-player parser endpoint is user-configurable via `BrowserSettings.nativeVideoParserApiBaseUrl`.
 - Default parser endpoint: `https://parser.example.com`
+- The setting may contain either the parser service root or the full endpoint ending in `/parse`; endpoint construction must avoid producing `/parse/parse`.
 - If the parser input is empty, YouTube links must **not** trigger native-player/floating parse behavior even when the native video player switch is enabled.
 - Parser responses may include `title` alongside `urls`; keep that title visible in parsed video UI and use it as the initial download filename while preserving existing ellipsis and filename sanitization rules.
 - This setting is part of the normal settings JSON, so backup export/import automatically persists it.
