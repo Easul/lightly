@@ -14,6 +14,7 @@ import 'pages/game_2048_page.dart';
 import 'pages/calculator_page.dart';
 import 'pages/downloads_page.dart';
 import 'pages/data_management_page.dart';
+import 'pages/about_version_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/browser_history_page.dart';
 import 'pages/easytier_settings_page.dart';
@@ -89,6 +90,7 @@ class MyApp extends StatelessWidget {
         '/clipboard': (context) => const ClipboardPage(),
         '/downloads': (context) => const DownloadsPage(),
         '/data-management': (context) => const DataManagementPage(),
+        '/about-version': (context) => const AboutVersionPage(),
         '/settings': (context) => const SettingsPage(),
         '/local-http-settings': (context) => const SettingsPage(
           initialSection: SettingsInitialSection.localHttp,

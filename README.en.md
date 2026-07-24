@@ -22,17 +22,22 @@ The project aims to keep browsing, connectivity, transfer, and device-control to
 - Address bar suggestions and favorites entry points
 - Favorites management, long-press page actions, and a compact More tools panel
 - Video detection, floating playback, and background audio
-- Download management and site-data clearing
+- Download management (with independent deletion of download records and files), site-data clearing, and browser history management
+- Desktop mode and mobile viewport switching, web debug console
+- Paginated action panel for narrow screens
 
 ### Networking
 - VLESS over WebSocket / TLS / XUDP
 - Local mixed proxy server (HTTP + SOCKS5)
+- Hysteria2 / SOCKS5 proxy protocol support with diagnostic logging
 - EasyTier P2P VPN integration for remote control over virtual IPs
 - LAN file server and clipboard sync
 - Simple file manager: browse a local web file tree, edit/save/delete text files, and favorite common paths
 
 ### Other Tools
-- Native video playback
+- Native video playback (with media cache and speed test controls, millisecond-level time overlay)
+- AI translation and chat tools
+- Telegram check-in tool and message text selection
 - Calculator and 2048 utility pages
 
 ## Interface and Interaction
@@ -77,6 +82,7 @@ Requirements:
 - [Remote Control Regression Checklist (CN)](docs/remote_control_regression_checklist.md)
 - [Browser / Remote Module Map (CN)](docs/browser_remote_module_map.md)
 - [v1.0.7 Release Summary (CN)](docs/release-summary-v1.0.7.md)
+- [v1.0.8 Release Summary (CN)](docs/release-summary-v1.0.8.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
 - [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
 
@@ -86,6 +92,7 @@ Requirements:
 - [Architecture](docs/architecture.en.md)
 - [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
+- [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 

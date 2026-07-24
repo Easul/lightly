@@ -22,17 +22,22 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - 地址栏建议与常用页面入口
 - 收藏管理、页面长按操作与紧凑型“更多”工具面板
 - 视频检测、悬浮播放、后台音频
-- 下载管理与站点数据清理
+- 下载管理（支持独立删除下载记录与文件）、站点数据清理与浏览历史管理
+- 桌面模式与移动视口切换、Web 调试控制台
+- 窄屏分页操作面板
 
 ### 网络能力
 - VLESS over WebSocket / TLS / XUDP
 - 本地混合代理（HTTP + SOCKS5）
+- Hysteria2 / SOCKS5 代理协议支持，支持诊断日志记录
 - EasyTier P2P VPN 集成，支持通过虚拟 IP 进行远程控制
 - 局域网文件服务与剪贴板同步
 - 文件简易管理：通过本地网页浏览文件树、编辑/保存/删除文本文件，并收藏常用路径
 
 ### 其他工具
-- 原生视频播放器
+- 原生视频播放器（支持视频缓存与测速控制、毫秒级时间覆盖）
+- AI 翻译与对话工具
+- Telegram 签到工具与消息文本选择
 - 计算器与 2048 小工具
 
 ## 界面与交互
@@ -77,6 +82,7 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - [远程控制回归清单](docs/remote_control_regression_checklist.md)
 - [浏览器 / 远控模块地图](docs/browser_remote_module_map.md)
 - [v1.0.7 功能更新摘要](docs/release-summary-v1.0.7.md)
+- [v1.0.8 功能更新摘要](docs/release-summary-v1.0.8.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
 - [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
 
@@ -86,6 +92,7 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - [Architecture](docs/architecture.en.md)
 - [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
+- [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
