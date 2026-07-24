@@ -129,3 +129,4 @@ Settings → SimpleFileManagerService
 - [浏览器回归清单](browser_regression_checklist.md)
 - [远程控制回归清单](remote_control_regression_checklist.md)
 - [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)
+- [v1.0.8 功能更新摘要](release-summary-v1.0.8.md)

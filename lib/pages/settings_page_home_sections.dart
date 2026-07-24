@@ -187,6 +187,17 @@ class SettingsPageHomeSections extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        SettingsHomeSectionsCard(
+          children: [
+            SettingsTile(
+              icon: Icons.info_outline_rounded,
+              title: '版本',
+              subtitle: '关于若轻与版本信息',
+              onTap: () => Navigator.of(context).pushNamed('/about-version'),
+            ),
+          ],
+        ),
       ],
     );
   }

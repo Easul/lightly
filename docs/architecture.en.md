@@ -129,3 +129,4 @@ Settings → SimpleFileManagerService
 - [Browser Regression Checklist](browser_regression_checklist.md)
 - [Remote Control Regression Checklist](remote_control_regression_checklist.md)
 - [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
+- [v1.0.8 Release Summary](release-summary-v1.0.8.en.md)
