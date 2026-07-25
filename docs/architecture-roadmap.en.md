@@ -182,6 +182,16 @@ Rollback:
 
 Status: **current phase**
 
+Implementation progress (2026-07-26):
+
+- Persisted Simple File Manager startup has moved out of `main.dart`.
+- Remote-control/EasyTier shutdown and remote-control EasyTier startup policy now live in
+  `AppRuntimeCoordinator`.
+- `AppLifecycleManager` now contains only Flutter lifecycle forwarding and compatibility delegates;
+  it owns no concrete service.
+- Remaining: app startup/settings policy for local HTTP, clipboard, and proxy runtime, plus direct
+  page-level start/stop entry points.
+
 Goal: give all background runtimes one application-level policy entry point.
 
 Suggested API:

@@ -95,7 +95,8 @@ flowchart TB
         BROWSER_FLOW[Browser coordinators / helpers]
         REMOTE_OWNER[RemoteControlService<br/>Socket / session owner]
         REMOTE_FLOW[Connection / screen / voice coordinators]
-        LIFECYCLE[AppLifecycleManager]
+        LIFECYCLE[AppLifecycleManager<br/>lifecycle event forwarding]
+        APP_RUNTIME[AppRuntimeCoordinator<br/>application runtime policy]
     end
 
     subgraph SERVICE[Dart feature services]
@@ -142,8 +143,10 @@ flowchart TB
     SETTINGS --> SHARED
     SETTINGS --> PROXY
     SETTINGS --> LOCAL
-    LIFECYCLE --> REMOTE_OWNER
-    LIFECYCLE --> EASY
+    LIFECYCLE --> APP_RUNTIME
+    APP_RUNTIME --> REMOTE_OWNER
+    APP_RUNTIME --> EASY
+    APP_RUNTIME --> LOCAL
     TOOLS --> AI_TG
 
     SHARED --> DB
@@ -176,7 +179,10 @@ flowchart TB
 - `lib/app/app.dart` and `lib/app/routes.dart`: root application and route table.
 - `AppServices`: composition root for production implementations; cross-feature capabilities are exposed as ports.
 - `lib/theme/app_theme.dart`: global visual tokens and Material component theme.
-- `AppLifecycleManager`: currently centralizes only part of remote-control and EasyTier shutdown.
+- `AppRuntimeCoordinator`: application runtime policy entry point. It now owns persisted Simple File
+  Manager startup, EasyTier policy for remote control, and application shutdown orchestration.
+- `AppLifecycleManager`: forwards Flutter lifecycle events only; compatibility methods also only
+  delegate to the coordinator.
 
 ### Browser
 
@@ -302,8 +308,8 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 
 ## Identified Architecture Debt
 
-1. Service startup is distributed across `main.dart`, `BrowserPageInitializer`, pages, and
-   `AppLifecycleManager`, so app-level lifecycle has no single coordinator.
+1. `AppRuntimeCoordinator` now exists, but local HTTP, clipboard, and proxy startup/settings policy
+   remains distributed across `BrowserPageInitializer` and pages, so Phase 2 is not complete.
 2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
    AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
 3. `BrowserDatabase` stores AI data, so its name no longer matches its responsibility.

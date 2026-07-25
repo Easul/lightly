@@ -164,6 +164,13 @@ lib/app/
 
 状态：**当前阶段**
 
+实施进度（2026-07-26）：
+
+- 已将 simple file manager 持久化启动移出 `main.dart`。
+- 已将远控/EasyTier 的退出与远控启动 EasyTier 策略迁入 `AppRuntimeCoordinator`。
+- `AppLifecycleManager` 已只保留 Flutter lifecycle 转发和兼容委托，不再持有具体 service。
+- 待迁移：local HTTP、clipboard、proxy runtime 的应用启动/设置应用，以及页面中的直接启动停止入口。
+
 目标：所有后台 runtime 有唯一应用级策略入口。
 
 建议新增：
