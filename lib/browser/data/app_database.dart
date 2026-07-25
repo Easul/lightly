@@ -2,7 +2,12 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
-  AppDatabase._();
+  AppDatabase._({String? databasePath}) : _databasePath = databasePath;
+
+  /// Opens an isolated database while exercising the production schema and
+  /// upgrade callbacks. Production code must use [instance].
+  AppDatabase.forTesting(String databasePath)
+    : this._(databasePath: databasePath);
 
   static const String historyTable = 'browser_history';
   static const String historyVisitsTable = 'browser_history_visits';
@@ -14,6 +19,7 @@ class AppDatabase {
 
   static final AppDatabase instance = AppDatabase._();
 
+  final String? _databasePath;
   Database? _database;
 
   Future<Database> get database async {
@@ -22,8 +28,8 @@ class AppDatabase {
       return cachedDatabase;
     }
 
-    final databasePath = await getDatabasesPath();
-    final path = p.join(databasePath, 'browser_data.db');
+    final path =
+        _databasePath ?? p.join(await getDatabasesPath(), 'browser_data.db');
     final database = await openDatabase(
       path,
       version: schemaVersion,
