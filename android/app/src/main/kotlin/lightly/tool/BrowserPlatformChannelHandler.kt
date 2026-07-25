@@ -12,15 +12,13 @@ import java.util.concurrent.Executor
 
 class BrowserPlatformChannelHandler internal constructor(
     private val proxyOverride: BrowserProxyOverride = AndroidBrowserProxyOverride(),
+    private val methodHandlers: List<BrowserPlatformMethodHandler> = emptyList(),
 ) {
-    fun register(
-        messenger: BinaryMessenger,
-        fallback: (MethodCall, MethodChannel.Result) -> Unit,
-    ): MethodChannel {
+    fun register(messenger: BinaryMessenger): MethodChannel {
         return MethodChannel(messenger, CHANNEL_NAME).also { channel ->
             channel.setMethodCallHandler { call, result ->
                 if (!handle(call, result)) {
-                    fallback(call, result)
+                    result.notImplemented()
                 }
             }
         }
@@ -31,7 +29,7 @@ class BrowserPlatformChannelHandler internal constructor(
             METHOD_IS_SUPPORTED -> result.success(proxyOverride.isSupported())
             METHOD_SET_PROXY -> setProxy(call, result)
             METHOD_CLEAR_PROXY -> clearProxy(result)
-            else -> return false
+            else -> return methodHandlers.any { it.handle(call, result) }
         }
         return true
     }
@@ -84,6 +82,10 @@ class BrowserPlatformChannelHandler internal constructor(
         private const val ERROR_UNSUPPORTED = "UNSUPPORTED"
         private const val ERROR_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
     }
+}
+
+internal fun interface BrowserPlatformMethodHandler {
+    fun handle(call: MethodCall, result: MethodChannel.Result): Boolean
 }
 
 internal interface BrowserProxyOverride {

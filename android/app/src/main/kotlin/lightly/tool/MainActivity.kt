@@ -1,36 +1,26 @@
 package lightly.tool
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.easytier.jni.EasyTierJNI
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.renderer.FlutterRenderer
-import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
 import org.json.JSONObject
 
 class MainActivity : FlutterActivity() {
-    private val manageStorageRequestCode = 4101
-    private val readStorageRequestCode = 4102
     private val vpnPermissionRequestCode = 4103
-    private var pendingStoragePermissionResult: MethodChannel.Result? = null
     private var pendingVpnPermissionResult: MethodChannel.Result? = null
     private var pendingVpnConfig: String? = null
     private var pendingVpnInstanceName: String? = null
@@ -46,10 +36,11 @@ class MainActivity : FlutterActivity() {
     private var easyTierUseAndroidVpn = true
     private var remoteControlService: RemoteControlService? = null
 
-    private var initialIntentUrl: String? = null
     private var browserProxyChannel: MethodChannel? = null
-    private val browserImportedFileService by lazy {
-        BrowserImportedFileService(this, logTag)
+    private val storageAccessChannelHandler by lazy { StorageAccessChannelHandler(this) }
+    private val externalIntentChannelHandler by lazy { ExternalIntentChannelHandler(this) }
+    private val proxyFloatingModeChannelHandler by lazy {
+        ProxyFloatingModeChannelHandler(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,7 +62,9 @@ class MainActivity : FlutterActivity() {
         val url = handleIntent(intent)
         if (url != null && browserProxyChannel != null) {
             mainHandler.post {
-                browserProxyChannel?.invokeMethod("onNewIntentUrl", mapOf("url" to url))
+                browserProxyChannel?.let { channel ->
+                    externalIntentChannelHandler.publishNewIntent(channel, url)
+                }
             }
         }
     }
@@ -95,7 +88,7 @@ class MainActivity : FlutterActivity() {
             else -> null
         }
 
-        initialIntentUrl = resolvedUrl
+        externalIntentChannelHandler.updateInitialIntentUrl(resolvedUrl)
         if (resolvedUrl != null) {
             Log.d(logTag, "Resolved external browser input: $resolvedUrl")
         }
@@ -128,9 +121,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun stopProxyFloatingButtonService() {
-        runCatching {
-            stopService(Intent(this, ProxyFloatingButtonService::class.java))
-        }
+        proxyFloatingModeChannelHandler.stop()
     }
 
     private val easyTierChannelName = "easytier_vpn"
@@ -187,11 +178,13 @@ class MainActivity : FlutterActivity() {
         TranslationOverlayChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
 
-        browserProxyChannel = BrowserPlatformChannelHandler().register(
-            flutterEngine.dartExecutor.binaryMessenger,
-        ) { call, result ->
-            handleLegacyBrowserPlatformCall(call, result)
-        }
+        browserProxyChannel = BrowserPlatformChannelHandler(
+            methodHandlers = listOf(
+                storageAccessChannelHandler,
+                externalIntentChannelHandler,
+                proxyFloatingModeChannelHandler,
+            ),
+        ).register(flutterEngine.dartExecutor.binaryMessenger)
 
         MediaScannerChannelHandler(this).register(flutterEngine.dartExecutor.binaryMessenger)
 
@@ -529,128 +522,10 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun handleLegacyBrowserPlatformCall(
-        call: MethodCall,
-        result: MethodChannel.Result,
-    ) {
-        when (call.method) {
-            "getSharedDownloadsPath" -> {
-                result.success(
-                    Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_DOWNLOADS,
-                    ).absolutePath,
-                )
-            }
-
-            "hasFileAccessPermission" -> result.success(hasFileAccessPermission())
-
-            "requestFileAccessPermission" -> {
-                if (pendingStoragePermissionResult != null) {
-                    result.error(
-                        "IN_PROGRESS",
-                        "Storage permission request already in progress",
-                        null,
-                    )
-                    return
-                }
-                if (hasFileAccessPermission()) {
-                    result.success(true)
-                    return
-                }
-                pendingStoragePermissionResult = result
-                requestFileAccessPermission()
-            }
-
-            "getInitialIntentUrl" -> {
-                val url = initialIntentUrl
-                initialIntentUrl = null
-                result.success(url)
-            }
-
-            "detachExternalIntent" -> {
-                initialIntentUrl = null
-                setIntent(Intent(this, MainActivity::class.java).apply {
-                    action = Intent.ACTION_MAIN
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                })
-                result.success(true)
-            }
-
-            "importContentUriToPrivateFile" -> {
-                val uriString = call.argument<String>("uri")
-                if (uriString.isNullOrBlank()) {
-                    result.error("INVALID_URI", "URI is required", null)
-                    return
-                }
-                try {
-                    result.success(
-                        browserImportedFileService.importContentUriToPrivateFile(uriString),
-                    )
-                } catch (error: Exception) {
-                    Log.e(logTag, "Failed to import content URI: $uriString", error)
-                    result.error("IMPORT_FAILED", error.message, null)
-                }
-            }
-
-            "getContentMimeType" -> {
-                val uriString = call.argument<String>("uri")
-                if (uriString.isNullOrBlank()) {
-                    result.success(null)
-                    return
-                }
-                try {
-                    result.success(browserImportedFileService.getContentMimeType(uriString))
-                } catch (_: Exception) {
-                    result.success(null)
-                }
-            }
-
-            "cleanupImportedPrivateFiles" -> {
-                val retainedUrls = call.argument<List<String>>("retainedUrls") ?: emptyList()
-                try {
-                    result.success(
-                        browserImportedFileService.cleanupImportedPrivateFiles(retainedUrls),
-                    )
-                } catch (error: Exception) {
-                    Log.e(logTag, "Failed to cleanup imported private files", error)
-                    result.error("CLEANUP_FAILED", error.message, null)
-                }
-            }
-
-            "startProxyFloatingButtonMode" -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    !Settings.canDrawOverlays(this)
-                ) {
-                    startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName"),
-                        ),
-                    )
-                    result.success("permission_required")
-                    return
-                }
-                ContextCompat.startForegroundService(
-                    this,
-                    Intent(this, ProxyFloatingButtonService::class.java),
-                )
-                moveTaskToBack(true)
-                result.success("started")
-            }
-
-            "stopProxyFloatingButtonMode" -> {
-                stopProxyFloatingButtonService()
-                result.success(true)
-            }
-
-            else -> result.notImplemented()
-        }
-    }
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == manageStorageRequestCode) {
-            finishPendingStoragePermissionResult()
+        if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
+            return
         } else if (requestCode == vpnPermissionRequestCode) {
             finishPendingVpnPermissionResult(resultCode)
         } else if (requestCode == RemoteControlService.REQUEST_MEDIA_PROJECTION) {
@@ -1006,49 +881,7 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == readStorageRequestCode) {
-            finishPendingStoragePermissionResult()
-        }
-    }
-
-    private fun hasFileAccessPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            val readGranted = ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-            ) == PackageManager.PERMISSION_GRANTED
-            val writeGranted = ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            ) == PackageManager.PERMISSION_GRANTED
-            readGranted && writeGranted
-        }
-    }
-
-    private fun requestFileAccessPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            startActivityForResult(intent, manageStorageRequestCode)
-        } else {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                ),
-                readStorageRequestCode,
-            )
-        }
-    }
-
-    private fun finishPendingStoragePermissionResult() {
-        val pendingResult = pendingStoragePermissionResult ?: return
-        pendingStoragePermissionResult = null
-        pendingResult.success(hasFileAccessPermission())
+        storageAccessChannelHandler.handlePermissionResult(requestCode)
     }
 
     override fun onDestroy() {

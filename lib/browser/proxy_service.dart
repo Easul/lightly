@@ -21,10 +21,8 @@ const String _localProxyHost = '127.0.0.1';
 class ProxyService {
   ProxyService._internal({
     required proxy_core.ProxyCoreService proxyCoreService,
-    required MethodChannel proxyChannel,
     required BrowserPlatformGateway browserPlatformGateway,
   }) : _proxyCoreService = proxyCoreService,
-       _proxyChannel = proxyChannel,
        _browserPlatformGateway = browserPlatformGateway;
 
   factory ProxyService({
@@ -42,7 +40,6 @@ class ProxyService {
         proxyChannel ?? const MethodChannel(BrowserPlatformGateway.channelName);
     return ProxyService._internal(
       proxyCoreService: proxyCoreService ?? proxy_core.ProxyCoreService(),
-      proxyChannel: resolvedChannel,
       browserPlatformGateway:
           browserPlatformGateway ??
           BrowserPlatformGateway(channel: resolvedChannel),
@@ -51,12 +48,10 @@ class ProxyService {
 
   static final ProxyService _sharedInstance = ProxyService._internal(
     proxyCoreService: proxy_core.ProxyCoreService(),
-    proxyChannel: const MethodChannel(BrowserPlatformGateway.channelName),
     browserPlatformGateway: BrowserPlatformGateway(),
   );
 
   final proxy_core.ProxyCoreService _proxyCoreService;
-  final MethodChannel _proxyChannel;
   final BrowserPlatformGateway _browserPlatformGateway;
   final ProxyConfigMapper _configMapper = const ProxyConfigMapper();
   final ProxyDownloadRouteResolver _downloadRouteResolver =
@@ -309,15 +304,12 @@ class ProxyService {
   }
 
   Future<String> startFloatingButtonMode() async {
-    final result = await _proxyChannel.invokeMethod<String>(
-      'startProxyFloatingButtonMode',
-    );
-    return result ?? 'unknown';
+    return _browserPlatformGateway.startProxyFloatingButtonMode();
   }
 
   Future<void> stopFloatingButtonMode() async {
     try {
-      await _proxyChannel.invokeMethod('stopProxyFloatingButtonMode');
+      await _browserPlatformGateway.stopProxyFloatingButtonMode();
     } catch (_) {}
   }
 }

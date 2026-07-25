@@ -14,6 +14,9 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           calls.add(call);
+          if (call.method == 'startProxyFloatingButtonMode') {
+            return 'started';
+          }
           return true;
         });
   });
@@ -53,6 +56,20 @@ void main() {
     expect(await gateway.clearProxy(), isTrue);
     expect(calls, hasLength(1));
     expect(calls.single.method, 'clearProxy');
+    expect(calls.single.arguments, isNull);
+  });
+
+  test('starts proxy floating button mode', () async {
+    expect(await gateway.startProxyFloatingButtonMode(), 'started');
+    expect(calls, hasLength(1));
+    expect(calls.single.method, 'startProxyFloatingButtonMode');
+    expect(calls.single.arguments, isNull);
+  });
+
+  test('stops proxy floating button mode', () async {
+    expect(await gateway.stopProxyFloatingButtonMode(), isTrue);
+    expect(calls, hasLength(1));
+    expect(calls.single.method, 'stopProxyFloatingButtonMode');
     expect(calls.single.arguments, isNull);
   });
 }

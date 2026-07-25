@@ -118,7 +118,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final BrowserSiteDataManager _siteDataManager =
       const BrowserSiteDataManager();
   final BrowserPageExternalIntentHelper _externalIntentHelper =
-      const BrowserPageExternalIntentHelper();
+      BrowserPageExternalIntentHelper();
   final BrowserPageLifecycleCoordinator _lifecycleCoordinator =
       const BrowserPageLifecycleCoordinator();
   final BrowserPageWebViewLifecycleHelper _webViewLifecycleHelper =
@@ -887,17 +887,11 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   void _setupExternalUrlListener() {
-    BrowserPageExternalIntentHelper.browserProxyChannel.setMethodCallHandler((
-      call,
-    ) async {
-      if (call.method == 'onNewIntentUrl') {
-        final rawUrl = call.arguments['url'] as String?;
-        final url = await _prepareExternalIntentUrl(rawUrl);
-        if (url != null && url.isNotEmpty && mounted) {
-          await _openExternalIntentTarget(url);
-        }
+    _externalIntentHelper.setNewIntentUrlHandler((rawUrl) async {
+      final url = await _prepareExternalIntentUrl(rawUrl);
+      if (url != null && url.isNotEmpty && mounted) {
+        await _openExternalIntentTarget(url);
       }
-      return null;
     });
   }
 

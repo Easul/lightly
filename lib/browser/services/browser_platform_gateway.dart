@@ -32,7 +32,25 @@ class BrowserPlatformGateway {
     return await _channel.invokeMethod<bool>(_clearProxyMethod) ?? false;
   }
 
+  Future<String> startProxyFloatingButtonMode() async {
+    return await _channel.invokeMethod<String>(
+          _startProxyFloatingButtonModeMethod,
+        ) ??
+        'unknown';
+  }
+
+  Future<bool> stopProxyFloatingButtonMode() async {
+    return await _channel.invokeMethod<bool>(
+          _stopProxyFloatingButtonModeMethod,
+        ) ??
+        false;
+  }
+
   static const String _isSupportedMethod = 'isSupported';
   static const String _setProxyMethod = 'setProxy';
   static const String _clearProxyMethod = 'clearProxy';
+  static const String _startProxyFloatingButtonModeMethod =
+      'startProxyFloatingButtonMode';
+  static const String _stopProxyFloatingButtonModeMethod =
+      'stopProxyFloatingButtonMode';
 }

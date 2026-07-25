@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/storage/shared_downloads_access.dart';
+import 'storage_access_gateway.dart';
 
 class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
   SharedDownloadsDirectoryService({
@@ -32,10 +33,6 @@ class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
        _getTemporaryDirectory =
            getTemporaryDirectoryFn ?? getTemporaryDirectory,
        _isAndroid = isAndroid ?? (() => Platform.isAndroid);
-
-  static const MethodChannel _browserProxyChannel = MethodChannel(
-    'browser_proxy',
-  );
 
   final Future<bool> Function() _hasFileAccessPermission;
   final Future<bool> Function() _requestFileAccessPermission;
@@ -192,10 +189,7 @@ class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
 
   static Future<bool> _defaultHasFileAccessPermission() async {
     try {
-      return await _browserProxyChannel.invokeMethod<bool>(
-            'hasFileAccessPermission',
-          ) ??
-          false;
+      return await StorageAccessGateway.instance.hasFileAccessPermission();
     } on MissingPluginException {
       return true;
     }
@@ -203,10 +197,7 @@ class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
 
   static Future<bool> _defaultRequestFileAccessPermission() async {
     try {
-      return await _browserProxyChannel.invokeMethod<bool>(
-            'requestFileAccessPermission',
-          ) ??
-          false;
+      return await StorageAccessGateway.instance.requestFileAccessPermission();
     } on MissingPluginException {
       return true;
     }
@@ -214,9 +205,7 @@ class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
 
   static Future<String?> _defaultGetSharedDownloadsPath() async {
     try {
-      return await _browserProxyChannel.invokeMethod<String>(
-        'getSharedDownloadsPath',
-      );
+      return await StorageAccessGateway.instance.getSharedDownloadsPath();
     } on MissingPluginException {
       return null;
     }

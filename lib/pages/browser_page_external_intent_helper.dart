@@ -1,17 +1,20 @@
 import 'package:flutter/services.dart';
 
-class BrowserPageExternalIntentHelper {
-  const BrowserPageExternalIntentHelper();
+import '../browser/services/external_intent_gateway.dart';
 
-  static const MethodChannel browserProxyChannel = MethodChannel(
-    'browser_proxy',
-  );
+class BrowserPageExternalIntentHelper {
+  BrowserPageExternalIntentHelper({ExternalIntentGateway? gateway})
+    : _gateway = gateway ?? ExternalIntentGateway.instance;
+
+  final ExternalIntentGateway _gateway;
+
+  void setNewIntentUrlHandler(NewExternalIntentUrlHandler? handler) {
+    _gateway.setNewIntentUrlHandler(handler);
+  }
 
   Future<String?> getInitialIntentUrl() async {
     try {
-      final url = await browserProxyChannel.invokeMethod<String>(
-        'getInitialIntentUrl',
-      );
+      final url = await _gateway.getInitialIntentUrl();
       return await prepareExternalIntentUrl(url);
     } on MissingPluginException {
       return null;
@@ -22,7 +25,7 @@ class BrowserPageExternalIntentHelper {
 
   Future<void> detachExternalIntent() async {
     try {
-      await browserProxyChannel.invokeMethod<bool>('detachExternalIntent');
+      await _gateway.detachExternalIntent();
     } on MissingPluginException {
       return;
     } catch (_) {
@@ -41,17 +44,11 @@ class BrowserPageExternalIntentHelper {
     }
 
     try {
-      final mimeType = await browserProxyChannel.invokeMethod<String>(
-        'getContentMimeType',
-        {'uri': url},
-      );
+      final mimeType = await _gateway.getContentMimeType(url);
       if (mimeType?.toLowerCase().startsWith('video/') == true) {
         return url;
       }
-      final imported = await browserProxyChannel.invokeMethod<String>(
-        'importContentUriToPrivateFile',
-        {'uri': url},
-      );
+      final imported = await _gateway.importContentUriToPrivateFile(url);
       return imported?.isNotEmpty == true ? imported : url;
     } on MissingPluginException {
       return url;
