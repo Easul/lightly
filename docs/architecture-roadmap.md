@@ -162,14 +162,19 @@ lib/app/
 
 ## Phase 2：统一 Runtime 生命周期
 
-状态：**当前阶段**
+状态：**代码完成，待真机验收**
 
 实施进度（2026-07-26）：
 
 - 已将 simple file manager 持久化启动移出 `main.dart`。
 - 已将远控/EasyTier 的退出与远控启动 EasyTier 策略迁入 `AppRuntimeCoordinator`。
 - `AppLifecycleManager` 已只保留 Flutter lifecycle 转发和兼容委托，不再持有具体 service。
-- 待迁移：local HTTP、clipboard、proxy runtime 的应用启动/设置应用，以及页面中的直接启动停止入口。
+- local HTTP、clipboard、proxy runtime 的冷启动恢复、设置应用和关闭已迁入
+  `BrowserRuntimeCoordinator`，由 `AppRuntimeCoordinator` 统一调用。
+- Settings、BrowserPage、EasyTier、Clipboard 和 Simple File Manager 页面已改为提交策略命令；
+  service 仍是运行状态 source of truth。
+- `RemoteControlService` 的 receiver host cleanup 不再直接停止 EasyTier，而是回调应用 runtime 策略。
+- 待验收：真机完整退出后通过 `adb shell dumpsys` 确认无 capture/VPN 前台服务残留。
 
 目标：所有后台 runtime 有唯一应用级策略入口。
 

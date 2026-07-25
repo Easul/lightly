@@ -68,9 +68,10 @@
   gateway and keep the Dart/Kotlin method contract aligned.
 - New cross-feature dependencies should use a small domain port or app-level coordinator. A feature
   must not import another feature's private infrastructure when a capability contract is sufficient.
-- Background service startup must not depend on a page remaining mounted. Until the planned
-  `AppRuntimeCoordinator` exists, preserve existing startup behavior and migrate one service at a
-  time with lifecycle tests.
+- Background service startup must not depend on a page remaining mounted. `AppRuntimeCoordinator`
+  is the application policy entry point, with `BrowserRuntimeCoordinator` owning proxy/local HTTP/
+  clipboard policy. Pages submit user intent and read owner state; do not add new direct runtime
+  start/stop paths in pages. Keep lifecycle tests when migrating another runtime.
 - Architecture work must be incremental:
   - behavior changes, dependency inversion, file moves, and renames belong in separate commits
   - move-only commits should primarily show renames/import updates

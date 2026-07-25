@@ -179,8 +179,10 @@ flowchart TB
 - `lib/app/app.dart` and `lib/app/routes.dart`: root application and route table.
 - `AppServices`: composition root for production implementations; cross-feature capabilities are exposed as ports.
 - `lib/theme/app_theme.dart`: global visual tokens and Material component theme.
-- `AppRuntimeCoordinator`: application runtime policy entry point. It now owns persisted Simple File
-  Manager startup, EasyTier policy for remote control, and application shutdown orchestration.
+- `AppRuntimeCoordinator`: application runtime policy entry point for Simple File Manager, browser
+  runtimes, EasyTier/remote control, and application shutdown.
+- `BrowserRuntimeCoordinator`: persisted restore, settings application, idempotence, and shutdown
+  policy for proxy, local HTTP, and clipboard runtimes.
 - `AppLifecycleManager`: forwards Flutter lifecycle events only; compatibility methods also only
   delegate to the coordinator.
 
@@ -308,8 +310,8 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 
 ## Identified Architecture Debt
 
-1. `AppRuntimeCoordinator` now exists, but local HTTP, clipboard, and proxy startup/settings policy
-   remains distributed across `BrowserPageInitializer` and pages, so Phase 2 is not complete.
+1. Runtime policy code is centralized in app/browser coordinators. Phase 2 still needs on-device
+   confirmation that full exit leaves no VPN/capture foreground service behind.
 2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
    AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
 3. `BrowserDatabase` stores AI data, so its name no longer matches its responsibility.

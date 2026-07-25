@@ -50,8 +50,9 @@ This file tracks independently deliverable engineering-quality candidates.
 
 ### App runtime coordinator
 
-Gradually centralize startup policy for simple file manager, local HTTP, clipboard, proxy, EasyTier,
-and remote control. The coordinator chooses timing; services keep resource ownership.
+Code centralization is complete: application-level policy for Simple File Manager, local HTTP,
+clipboard, proxy, EasyTier, and remote control goes through coordinators while services retain
+resource ownership. The remaining Phase 2 item is on-device exit-residue acceptance testing.
 
 ### MainActivity reduction
 

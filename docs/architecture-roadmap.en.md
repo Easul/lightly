@@ -180,7 +180,7 @@ Rollback:
 
 ## Phase 2: Unified Runtime Lifecycle
 
-Status: **current phase**
+Status: **code complete; pending on-device acceptance**
 
 Implementation progress (2026-07-26):
 
@@ -189,8 +189,14 @@ Implementation progress (2026-07-26):
   `AppRuntimeCoordinator`.
 - `AppLifecycleManager` now contains only Flutter lifecycle forwarding and compatibility delegates;
   it owns no concrete service.
-- Remaining: app startup/settings policy for local HTTP, clipboard, and proxy runtime, plus direct
-  page-level start/stop entry points.
+- Cold-start restore, settings application, and shutdown for local HTTP, clipboard, and proxy now
+  live in `BrowserRuntimeCoordinator`, invoked by `AppRuntimeCoordinator`.
+- Settings, BrowserPage, EasyTier, Clipboard, and Simple File Manager pages now submit policy
+  commands; services remain the runtime-state source of truth.
+- Receiver host cleanup no longer lets `RemoteControlService` stop EasyTier directly; it calls back
+  into application runtime policy.
+- Remaining acceptance check: after full exit on a device, use `adb shell dumpsys` to confirm no
+  capture/VPN foreground service remains.
 
 Goal: give all background runtimes one application-level policy entry point.
 

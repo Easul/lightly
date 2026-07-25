@@ -47,8 +47,8 @@
 
 ### App runtime coordinator
 
-按架构路线逐步收口 simple file manager、local HTTP、clipboard、proxy、EasyTier 和 remote
-control 的启动策略。Coordinator 只决定时机，service 仍持有实际资源。
+代码收口已完成：simple file manager、local HTTP、clipboard、proxy、EasyTier 和 remote control
+的应用级策略经过 coordinator，service 仍持有实际资源。剩余项是 Phase 2 的真机退出残留验收。
 
 ### MainActivity 瘦身
 

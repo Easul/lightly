@@ -175,8 +175,9 @@ flowchart TB
 - `lib/app/app.dart`、`lib/app/routes.dart`：根应用和路由表。
 - `AppServices`：生产实现的 composition root；跨 feature 能力以 port 暴露。
 - `lib/theme/app_theme.dart`：全局视觉令牌和 Material 组件主题。
-- `AppRuntimeCoordinator`：应用级 runtime 策略入口；已接管 simple file manager 持久化启动、
-  远控所需 EasyTier 策略和应用退出清理。
+- `AppRuntimeCoordinator`：应用级 runtime 策略入口；统一 simple file manager、browser runtimes、
+  EasyTier/远控和应用退出清理。
+- `BrowserRuntimeCoordinator`：proxy、local HTTP、clipboard 的持久化恢复、设置应用、幂等与关闭策略。
 - `AppLifecycleManager`：只转发 Flutter lifecycle 事件；兼容方法也仅委托 coordinator。
 
 ### Browser
@@ -297,8 +298,8 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 ## 已识别的架构债务
 
-1. `AppRuntimeCoordinator` 已建立，但 local HTTP、clipboard、proxy 的启动/设置应用仍分散在
-   `BrowserPageInitializer` 和页面，Phase 2 尚未完成。
+1. Runtime 策略代码已收口到 app/browser coordinators；Phase 2 仍需真机验证完整退出后无
+   VPN/capture 前台服务残留。
 2. `lib/browser/` 与 `lib/services/` 仍存在目录级双向依赖；AI 和 Telegram 的已知直接依赖已由
    `AppDatabaseProvider` 与 `LocalProxyEndpointProvider` 消除。
 3. `BrowserDatabase` 已存储 AI 数据，命名与职责不再匹配。
