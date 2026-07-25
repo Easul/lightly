@@ -11,8 +11,8 @@ feature 目录变化而静默改变物理 key、表名、文件名或清除范�
 
 ## SQLite
 
-物理文件固定为 `browser_data.db`，当前 schema version 为 `4`。Phase 4 可将代码类名
-`BrowserDatabase` 改为 `AppDatabase`，但不得同时改文件名或 schema。
+物理文件固定为 `browser_data.db`，当前 schema version 为 `4`。代码 owner 已在 Phase 4 改名为
+`AppDatabase`；该改名没有改变文件名、表名或 schema。
 
 | 表 | 数据 owner | 敏感 | 统一备份 | 清除/删除合同 |
 |---|---|---:|---|---|
@@ -23,27 +23,31 @@ feature 目录变化而静默改变物理 key、表名、文件名或清除范�
 | `ai_chat_sessions` | `AiHistoryDatabase` | 高 | 否 | AI 聊天内按会话删除；删除会话时先删对应消息 |
 | `ai_chat_messages` | `AiHistoryDatabase` | 高 | 否 | 随会话删除或在 AI 聊天内单条删除；不得被浏览数据清理误删 |
 
-AI 通过 `AppDatabaseProvider` 获取共享句柄；表名仍由 AI feature 持有。SQLite schema 创建目前仍由
-共享数据库 owner 执行，待 Phase 4 收敛，但这不改变上述数据 owner。
+AI 通过 `AppDatabaseProvider` 获取共享句柄；表名仍由 AI feature 持有。SQLite schema 创建由
+`AppDatabase` 执行，但这不改变上述数据 owner。v3 到 v4 升级与按类别隔离清理已有合同测试。
 
 ## Dart SharedPreferences
 
 Flutter `shared_preferences` 在 Android 上落到应用私有 preferences。下表按 key 组列出全部当前 owner。
+现有物理 key 均为兼容合同，不因目录或类名重构而改名。新 key 必须带 feature 前缀；兼容的 JSON
+字段扩展保留原 key 并使用容错默认值，破坏性格式变更必须使用带版本的新 key、显式迁移，并在确认
+迁移成功后再删除旧 key。带 `_vN` 后缀的 key，其版本由 key 名负责；其余历史 key 视为物理格式 v0，
+由 owner 的解析器保持向后兼容。
 
 | Key / key 组 | Owner / 版本 | 敏感 | 统一备份 | 清除/重置合同 |
 |---|---|---:|---|---|
-| `browser_settings` | `BrowserSettingsService`；JSON 自带默认值兼容 | 高（含代理凭据） | 是 | 导入可覆盖；无独立“清除全部设置”，重置必须走 settings owner |
+| `browser_settings` | `BrowserSettingsService`；历史 key v0，JSON 字段默认值兼容 | 高（含代理凭据） | 是 | 导入可覆盖；无独立“清除全部设置”，重置必须走 settings owner |
 | `browser_tab_sessions_v1` | `BrowserTabService`；key 版本 `v1` | 中 | 否 | 会话恢复 owner 自行覆盖；清浏览历史不得删除 tab session |
 | `browser_cookie_origins_v1` | `BrowserCookieOriginService`；key 版本 `v1` | 中 | 不直接备份；用于枚举 Cookie 导出 origin | 清 Cookie/站点数据时清除；只清历史时保留 |
-| `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`；未显式版本化 | 高（订阅节点可能含凭据） | 否 | 由订阅设置删除/覆盖；不得随历史清理删除 |
-| `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`；未显式版本化 | 高（内容）、低（开关/端口） | 内容与启用时端口会备份；enabled 不独立导出 | “剪贴板”清除只清 app 保存内容；不得清 Android 系统剪贴板；服务设置由 owner 更新 |
-| `calculation_history` | `HistoryService`；未显式版本化 | 中 | 是 | “计算器历史”全量清除 |
-| `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`；profile model 负责 JSON 兼容 | 高（网络 secret/peer） | 是 | P2P 设置中删除/覆盖；删除选中 profile 时 owner 修正 selected id |
-| `simple_file_manager_settings` | `SimpleFileManagerService`；未显式版本化 | 中（根路径、服务设置） | 否 | 文件管理设置保存/重置；清浏览数据不得影响运行配置 |
+| `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`；历史 key v0，节点 JSON 容错读取 | 高（订阅节点可能含凭据） | 否 | 由订阅设置删除/覆盖；不得随历史清理删除 |
+| `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`；历史标量 key v0 | 高（内容）、低（开关/端口） | 内容与启用时端口会备份；enabled 不独立导出 | “剪贴板”清除只清 app 保存内容；不得清 Android 系统剪贴板；服务设置由 owner 更新 |
+| `calculation_history` | `HistoryService`；历史 key v0，JSON list 容错读取 | 中 | 是 | “计算器历史”全量清除 |
+| `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`；历史 key v0，profile model 负责 JSON 兼容 | 高（网络 secret/peer） | 是 | P2P 设置中删除/覆盖；删除选中 profile 时 owner 修正 selected id |
+| `simple_file_manager_settings` | `SimpleFileManagerService`；历史 key v0，JSON 字段默认值兼容 | 中（根路径、服务设置） | 否 | 文件管理设置保存/重置；清浏览数据不得影响运行配置 |
 | `app_log_enabled` | `AppLogService`；布尔值 | 低 | 否 | 关闭记录时写 `false`、等待队列并删除 `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`；epoch ms | 低 | 否 | 仅调度提示；缓存清理成功后更新，设置导入不覆盖 |
-| `ai_tools_config` | `AiConfigStore`；未显式版本化 | 高（API key） | 否 | AI 设置保存/覆盖；不得写入日志或普通备份 |
-| `translation_history` | `TranslationHistoryStore` 非 Android fallback；最多 200 条 | 高（原文/译文） | 否 | 翻译历史清除；Android 上不读取此 key |
+| `ai_tools_config` | `AiConfigStore`；历史 key v0，JSON 字段默认值兼容 | 高（API key） | 否 | AI 设置保存/覆盖；不得写入日志或普通备份 |
+| `translation_history` | `TranslationHistoryStore` 非 Android fallback；历史 key v0，最多 200 条 | 高（原文/译文） | 否 | 翻译历史清除；Android 上不读取此 key |
 | `telegram_checkin_config` | `TelegramCheckinStore`；backup schema version `8` 包含该对象 | 高（App ID/hash、手机号、目标/命令） | 是 | TG 设置保存/覆盖；不得记录到 runtime log |
 
 ## Android 原生存储
@@ -60,7 +64,7 @@ SharedPreferences 清理来模拟停止；必须调用各自 service/gateway 的
 
 | 位置 / 数据 | Owner | 敏感 | 备份/导出 | 清除合同 |
 |---|---|---:|---|---|
-| app database path / `browser_data.db` | 当前 `BrowserDatabase`，目标 `AppDatabase` | 高 | 仅由统一备份选择性序列化部分表，不复制 DB 文件 | 由各 repository 按类别清理，不整库删除 |
+| app database path / `browser_data.db` | `AppDatabase` | 高 | 仅由统一备份选择性序列化部分表，不复制 DB 文件 | 由各 repository 按类别清理，不整库删除 |
 | app external `logs/runtime.log` | `AppLogService` | 高（已脱敏诊断） | 用户显式“导出日志”时复制到 Download | 关闭 runtime logging 时等待写队列后删除；缓存清理不负责删除 |
 | shared Download 或 app fallback 下的 `ruoqing-*.json` | `BrowserBackupFileWriter` | 高（备份含 Cookie、配置与私密内容） | 文件本身就是用户导出物 | 应用不自动删除；由用户/文件管理器处理 |
 | shared Download / app fallback 下载文件 | `BrowserDownloadService`（记录由 `BrowserDownloadStore`） | 取决于文件 | 不进入统一备份 | 全局清记录保留文件；单条“记录+文件”才删除对应文件 |

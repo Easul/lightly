@@ -56,14 +56,15 @@ resource ownership. The remaining Phase 2 item is on-device exit-residue accepta
 
 ### MainActivity reduction
 
-Extract browser proxy/storage/intent, EasyTier, and remote-control handlers in sequence. Establish a
-typed Dart gateway and contract tests before moving Kotlin implementation.
+Code work is complete: browser proxy/storage/intent, EasyTier, and remote control are owned by
+typed Dart gateways and independent Kotlin handlers. Phase 3 only retains on-device acceptance for
+permissions, external intents, VPN/no-tun, and screen capture/texture paths.
 
 ### Data ownership
 
-- Rename the code concept `BrowserDatabase` to `AppDatabase` without changing the database filename.
-- Catalog owner, schema, sensitivity, backup, and deletion policy.
-- Define one-way synchronization between native translation history and the Dart fallback.
+Complete: the code owner is now `AppDatabase` without changing the database filename/schema; the
+catalog covers owners, schema, sensitivity, backup, and clearing; SharedPreferences compatibility
+and native-translation-history source-of-truth rules are explicit.
 
 ### Large-owner convergence
 

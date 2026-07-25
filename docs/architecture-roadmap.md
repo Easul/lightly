@@ -289,6 +289,20 @@ Dart
 
 ## Phase 4：持久化与 Repository 边界
 
+状态：**已完成（2026-07-26）**
+
+实施结果：
+
+- 代码 owner 已从 `BrowserDatabase` 改为 `AppDatabase`，物理文件仍是 `browser_data.db`，
+  schema version 仍是 `4`，表名和 SQL 未改变。
+- history、favorites、downloads 继续由各自 repository/store 持有；AI chat 继续通过
+  `AppDatabaseProvider` 获取共享句柄，并持有自己的表名。
+- 新增 v3 到 v4 升级与数据类别隔离清理合同测试。
+- `docs/data-ownership.md` 已对齐真实 owner，并明确 SharedPreferences 兼容策略：冻结现有
+  物理 key；新 key 使用 feature 前缀；破坏性格式变化使用带版本的新 key 和显式迁移。
+- Android 翻译历史保持 native store 为 source of truth，Dart fallback 仅用于非 Android，
+  不做自动双向合并。
+
 目标：存储实现不再决定 feature 依赖方向。
 
 工作项：
@@ -299,7 +313,8 @@ Dart
 2. 为 history、favorites、downloads、AI chat 保持独立 repository。
 3. 按 Phase 0 已建立的 `docs/data-ownership.md` 补全实际实现细节，并让 AI chat 通过
    `AppDatabaseProvider`（Phase 1 引入的 port）而非直接依赖 `BrowserDatabase`。
-4. 为 SharedPreferences Store 增加统一 key 前缀和版本策略。
+4. 为 SharedPreferences Store 建立统一 key 前缀和版本策略；已有物理 key 保持兼容，
+   不因架构重构改名。
 5. 明确 translation native history 与 Dart fallback 的单向同步规则。
 
 完成标准（exit criteria）：

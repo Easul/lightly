@@ -58,9 +58,9 @@ Phase 3 真机验收，重点验证文件权限、外部 Intent、EasyTier VPN/n
 
 ### 数据 ownership
 
-- 将代码概念 `BrowserDatabase` 迁为 `AppDatabase`，暂不改数据库文件名。
-- 建立数据 owner、schema、敏感级别、备份、清除策略清单。
-- 明确 native translation history 与 Dart fallback 的单向同步。
+已完成：代码 owner 已迁为 `AppDatabase` 且数据库文件名/schema 未变；数据清单已覆盖 owner、
+schema、敏感级别、备份和清除策略；SharedPreferences 兼容规则与 native translation history
+到 Flutter channel 的 source-of-truth 规则均已明确。
 
 ### 大 owner 的后续收敛
 

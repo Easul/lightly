@@ -325,6 +325,21 @@ delegation still works and runtime behavior is unchanged.
 
 ## Phase 4: Persistence and Repository Boundaries
 
+Status: **complete (2026-07-26)**
+
+Delivered:
+
+- The code owner was renamed from `BrowserDatabase` to `AppDatabase`; the physical file remains
+  `browser_data.db`, schema version remains `4`, and table names/SQL are unchanged.
+- History, favorites, and downloads remain owned by their repositories/stores. AI chat continues
+  to obtain the shared handle through `AppDatabaseProvider` and owns its own table names.
+- Contract tests now cover v3-to-v4 upgrades and category-isolated data clearing.
+- `docs/data-ownership.md` matches real owners and records the SharedPreferences compatibility
+  policy: freeze existing physical keys, prefix new keys by feature, and use a versioned replacement
+  key plus explicit migration for incompatible format changes.
+- Android translation history keeps the native store as source of truth; the Dart fallback is only
+  for non-Android platforms and is never automatically merged in both directions.
+
 Goal: prevent storage implementation from deciding feature dependencies.
 
 Work items:
@@ -336,7 +351,8 @@ Work items:
 3. Fill in the real implementation details behind the `docs/data-ownership.md` catalog already
    created in Phase 0, and route AI chat through `AppDatabaseProvider` (the port introduced in
    Phase 1) instead of depending directly on `BrowserDatabase`.
-4. Add consistent key prefixes and version strategy to SharedPreferences stores.
+4. Establish a consistent SharedPreferences prefix/version strategy while preserving existing
+   physical keys across architecture refactors.
 5. Define one-way synchronization between native translation history and Dart fallback storage.
 
 Completion criteria:

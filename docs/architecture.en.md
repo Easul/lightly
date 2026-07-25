@@ -192,8 +192,8 @@ flowchart TB
 - `BrowserPageServices`: composes shared services and page-local coordinators.
 - `BrowserSharedServices`: singleton collection for browser-related services.
 - `BrowserTabService`: source of truth for global tabs and session persistence.
-- `BrowserDatabase`: current owner of the shared SQLite schema/handle. AI obtains the handle through
-  `AppDatabaseProvider` and no longer depends on this browser-named concrete class.
+- `AppDatabase`: owner of the shared SQLite schema/handle. AI obtains the handle through
+  `AppDatabaseProvider` and does not depend on the concrete database class.
 
 See [Browser / Remote Module Map](browser_remote_module_map.md) for detailed responsibilities.
 
@@ -314,10 +314,9 @@ activity only registers independent handlers and forwards permission/capture res
    confirmation that full exit leaves no VPN/capture foreground service behind.
 2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
    AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
-3. `BrowserDatabase` stores AI data, so its name no longer matches its responsibility.
-4. SharedPreferences keys now have one catalog, but most legacy keys still lack an explicit
-   prefix/version migration strategy.
-5. Page owners remain large, but splitting them mechanically by line count would damage ownership.
+3. Legacy SharedPreferences keys are frozen compatibility contracts; future incompatible format
+   changes still require a versioned key and explicit per-feature migration.
+4. Page owners remain large, but splitting them mechanically by line count would damage ownership.
 
 ## Target Dependency Direction
 

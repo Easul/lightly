@@ -80,6 +80,10 @@
   should remain shallow and avoid ceremonial abstractions.
 - New persisted data must document its owner, version, sensitivity, backup/export behavior, and
   clear/delete behavior. Keep a single source of truth across Flutter and native storage.
+- Existing SharedPreferences keys are compatibility contracts and must not be renamed by an
+  architecture-only change. New keys require a feature prefix; incompatible value-format changes
+  require an explicit versioned key plus migration, while compatible JSON field additions keep the
+  existing key and use tolerant defaults.
 - Source of truth: `docs/architecture.md` and `docs/architecture-roadmap.md`.
 
 ## VLESS over WebSocket pitfalls
@@ -348,11 +352,14 @@ release {
 
 ## Service Auto-Start Guidelines
 
-- On app launch, `BrowserPage._initialize` automatically starts:
+- On app launch, `AppRuntimeCoordinator.initializePersistedServices()` delegates browser-owned
+  runtime restoration to `BrowserRuntimeCoordinator`, which starts:
   - Local HTTP file server (if enabled in settings, default port 3001)
   - Clipboard HTTP server (if enabled in storage, default port 12345)
   - Proxy (if configured and enabled)
 - These services are singletons; calling `start()` while already running should gracefully restart (stop then start) to pick up new ports/paths.
+- Pages must submit runtime policy commands through the coordinators; do not restore direct
+  cold-start ownership to `BrowserPage`.
 - Clipboard server default: enabled, port 12345.
 - HTTP file server default: enabled, port 3001.
 
@@ -1090,7 +1097,9 @@ void dispose() {
 - Chat streaming must parse SSE incrementally and must not wait for the entire response before updating the message bubble.
 - Keep the floating translation toolbar compact by default; its header must retain size cycling plus collapse-to-draggable-icon behavior.
 - Keep the overlay window non-focusable until its input is tapped, restore non-focusable state on outside taps/collapse/translate, and never use match-parent overlay content that can become a full-screen transparent touch layer on some ROMs.
-- Chat history tables live in the existing `browser_data.db` through `BrowserDatabase`; do not introduce a second SQLite database for AI tools.
+- Chat history tables live in the existing `browser_data.db`; AI obtains the shared handle through
+  `AppDatabaseProvider`, while `AppDatabase` owns the physical schema. Do not introduce a second
+  SQLite database for AI tools.
 - Android floating translation runs in `TranslationOverlayService`, performs its own background-safe request, and stores history through `TranslationHistoryStore` so it still works while Flutter is paused.
 - Never log API keys, full request bodies, translated private text, or chat contents.
 - Related files: `lib/ai_tools/`, `lib/pages/translation_tool_page.dart`, `lib/pages/ai_chat_page.dart`, `android/app/src/main/kotlin/lightly/tool/Translation*`.

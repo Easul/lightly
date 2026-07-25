@@ -186,8 +186,8 @@ flowchart TB
 - `BrowserPageServices`：为 BrowserPage 组装共享服务和页面级 coordinator。
 - `BrowserSharedServices`：浏览器相关单例服务集合。
 - `BrowserTabService`：全局标签与会话持久化 source of truth。
-- `BrowserDatabase`：当前共享 SQLite schema/句柄 owner；AI 通过 `AppDatabaseProvider` 获取句柄，
-  不再依赖该浏览器命名的具体类。
+- `AppDatabase`：共享 SQLite schema/句柄 owner；AI 通过 `AppDatabaseProvider` 获取句柄，
+  不直接依赖具体数据库类。
 
 浏览器详细职责见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
 
@@ -302,9 +302,9 @@ Lightly 没有引入全局状态管理框架，主要使用：
    VPN/capture 前台服务残留。
 2. `lib/browser/` 与 `lib/services/` 仍存在目录级双向依赖；AI 和 Telegram 的已知直接依赖已由
    `AppDatabaseProvider` 与 `LocalProxyEndpointProvider` 消除。
-3. `BrowserDatabase` 已存储 AI 数据，命名与职责不再匹配。
-4. SharedPreferences key 已有统一清单，但多数旧 key 仍缺少显式前缀/版本迁移策略。
-5. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
+3. SharedPreferences 旧 key 已冻结为兼容合同；后续破坏性格式变化仍需逐 feature 提供
+   版本化 key 和显式迁移。
+4. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
 
 ## 目标依赖方向
 

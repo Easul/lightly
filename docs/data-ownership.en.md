@@ -13,9 +13,8 @@ is credentials, private content, or restorable session data.
 
 ## SQLite
 
-The physical file remains `browser_data.db`; the current schema version is `4`. Phase 4 may rename
-the code-level `BrowserDatabase` class to `AppDatabase`, but must not rename the file or alter the
-schema in the same commit.
+The physical file remains `browser_data.db`; the current schema version is `4`. Phase 4 renamed the
+code owner to `AppDatabase` without changing the filename, table names, or schema.
 
 | Table | Data owner | Sensitivity | Unified backup | Clear/delete contract |
 |---|---|---:|---|---|
@@ -26,25 +25,33 @@ schema in the same commit.
 | `ai_chat_sessions` | `AiHistoryDatabase` | high | No | Deleted per session inside AI chat; session deletion removes its messages first |
 | `ai_chat_messages` | `AiHistoryDatabase` | high | No | Deleted with a session or individually inside AI chat; browser-data clearing must not remove it |
 
-AI obtains the shared handle through `AppDatabaseProvider` and owns its table names. Schema creation
-still resides in the shared database owner until Phase 4; that does not transfer data ownership.
+AI obtains the shared handle through `AppDatabaseProvider` and owns its table names. `AppDatabase`
+executes schema creation without taking ownership of AI data. Contract tests cover the v3-to-v4
+upgrade and category-isolated clearing.
 
 ## Dart SharedPreferences
 
+Existing physical keys are compatibility contracts and are not renamed by directory/class
+refactors. New keys require a feature prefix. Compatible JSON field additions retain the key and
+use tolerant defaults; incompatible format changes require a versioned replacement key, an explicit
+migration, and deletion of the old key only after migration succeeds. Keys with a `_vN` suffix carry
+their version in the name; other historical keys are physical format v0 and stay backward compatible
+through their owner's parser.
+
 | Key / key group | Owner / version | Sensitivity | Unified backup | Clear/reset contract |
 |---|---|---:|---|---|
-| `browser_settings` | `BrowserSettingsService`; JSON defaults provide compatibility | high (proxy credentials) | Yes | Import may replace it; resets must go through the settings owner |
+| `browser_settings` | `BrowserSettingsService`; historical key v0 with JSON field defaults | high (proxy credentials) | Yes | Import may replace it; resets must go through the settings owner |
 | `browser_tab_sessions_v1` | `BrowserTabService`; key version `v1` | medium | No | Owned by session restore; history clearing must preserve it |
 | `browser_cookie_origins_v1` | `BrowserCookieOriginService`; key version `v1` | medium | Not directly; drives Cookie origin enumeration | Cleared with cookies/site data, preserved when only history is cleared |
-| `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`; unversioned | high | No | Removed/replaced by subscription settings only |
-| `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`; unversioned | high for content, low for settings | Content and enabled port are backed up | Clipboard clear removes app content only and never changes the Android system clipboard |
-| `calculation_history` | `HistoryService`; unversioned | medium | Yes | Cleared by Calculator History |
-| `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`; profile model owns JSON compatibility | high | Yes | P2P settings remove/replace profiles and repair the selected id |
-| `simple_file_manager_settings` | `SimpleFileManagerService`; unversioned | medium | No | File-manager settings own reset; browser-data clearing preserves it |
+| `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`; historical key v0 with tolerant node JSON parsing | high | No | Removed/replaced by subscription settings only |
+| `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`; historical scalar keys v0 | high for content, low for settings | Content and enabled port are backed up | Clipboard clear removes app content only and never changes the Android system clipboard |
+| `calculation_history` | `HistoryService`; historical key v0 with tolerant JSON-list parsing | medium | Yes | Cleared by Calculator History |
+| `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`; historical key v0, profile model owns JSON compatibility | high | Yes | P2P settings remove/replace profiles and repair the selected id |
+| `simple_file_manager_settings` | `SimpleFileManagerService`; historical key v0 with JSON field defaults | medium | No | File-manager settings own reset; browser-data clearing preserves it |
 | `app_log_enabled` | `AppLogService`; boolean | low | No | Disabling writes `false`, drains queued writes, and deletes `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`; epoch ms | low | No | Scheduling hint updated after successful cleanup |
-| `ai_tools_config` | `AiConfigStore`; unversioned | high (API key) | No | AI settings replace it; it must not enter logs or ordinary backups |
-| `translation_history` | Non-Android `TranslationHistoryStore` fallback; max 200 rows | high | No | Translation-history clear removes it; Android does not read this key |
+| `ai_tools_config` | `AiConfigStore`; historical key v0 with JSON field defaults | high (API key) | No | AI settings replace it; it must not enter logs or ordinary backups |
+| `translation_history` | Non-Android `TranslationHistoryStore` fallback; historical key v0, max 200 rows | high | No | Translation-history clear removes it; Android does not read this key |
 | `telegram_checkin_config` | `TelegramCheckinStore`; included by backup schema `8` | high | Yes | TG settings/import replace it; never log its secrets |
 
 ## Android Native Stores
@@ -61,7 +68,7 @@ an app data schema. Stop them through their services/gateways, never by clearing
 
 | Location / data | Owner | Sensitivity | Backup/export | Clear contract |
 |---|---|---:|---|---|
-| app database path / `browser_data.db` | current `BrowserDatabase`, target `AppDatabase` | high | Unified backup serializes selected rows; it does not copy the DB | Repositories clear categories; never delete the whole DB for a partial clear |
+| app database path / `browser_data.db` | `AppDatabase` | high | Unified backup serializes selected rows; it does not copy the DB | Repositories clear categories; never delete the whole DB for a partial clear |
 | app external `logs/runtime.log` | `AppLogService` | high, sanitized diagnostics | Explicit Log Export copies it to Downloads | Disabling logging drains writes and deletes it |
 | shared Downloads or fallback `ruoqing-*.json` | `BrowserBackupFileWriter` | high | It is the user export | The app does not auto-delete exported backups |
 | downloaded files in shared Downloads/app fallback | `BrowserDownloadService`; records belong to `BrowserDownloadStore` | file-dependent | Not in unified backup | Global record clear preserves files; only explicit record-plus-file deletion removes one |
