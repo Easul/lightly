@@ -1,9 +1,9 @@
-import 'package:flutter/services.dart';
+import 'browser_platform_gateway.dart';
 
 class ProxyWebViewBridge {
-  const ProxyWebViewBridge(this._proxyChannel);
+  const ProxyWebViewBridge(this._platformGateway);
 
-  final MethodChannel _proxyChannel;
+  final BrowserPlatformGateway _platformGateway;
 
   Future<void> setProxy(
     String host,
@@ -12,12 +12,12 @@ class ProxyWebViewBridge {
     List<String> bypassDomains = const [],
   }) async {
     try {
-      await _proxyChannel.invokeMethod('setProxy', {
-        'host': host,
-        'port': port,
-        'scheme': scheme,
-        'bypassDomains': bypassDomains,
-      });
+      await _platformGateway.setProxy(
+        host: host,
+        port: port,
+        scheme: scheme,
+        bypassDomains: bypassDomains,
+      );
     } catch (_) {
       // Ignore WebView proxy errors on unsupported platforms
     }
@@ -25,7 +25,7 @@ class ProxyWebViewBridge {
 
   Future<void> clearProxy() async {
     try {
-      await _proxyChannel.invokeMethod('clearProxy');
+      await _platformGateway.clearProxy();
     } catch (_) {
       // Ignore WebView proxy errors on unsupported platforms
     }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../services/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
+import 'services/browser_platform_gateway.dart';
 import 'services/proxy_config_mapper.dart';
 import 'services/proxy_download_route_resolver.dart';
 import 'services/proxy_error_formatter.dart';
@@ -21,30 +22,42 @@ class ProxyService {
   ProxyService._internal({
     required proxy_core.ProxyCoreService proxyCoreService,
     required MethodChannel proxyChannel,
+    required BrowserPlatformGateway browserPlatformGateway,
   }) : _proxyCoreService = proxyCoreService,
-       _proxyChannel = proxyChannel;
+       _proxyChannel = proxyChannel,
+       _browserPlatformGateway = browserPlatformGateway;
 
   factory ProxyService({
     proxy_core.ProxyCoreService? proxyCoreService,
     MethodChannel? proxyChannel,
+    BrowserPlatformGateway? browserPlatformGateway,
   }) {
-    if (proxyCoreService == null && proxyChannel == null) {
+    if (proxyCoreService == null &&
+        proxyChannel == null &&
+        browserPlatformGateway == null) {
       return _sharedInstance;
     }
 
+    final resolvedChannel =
+        proxyChannel ?? const MethodChannel(BrowserPlatformGateway.channelName);
     return ProxyService._internal(
       proxyCoreService: proxyCoreService ?? proxy_core.ProxyCoreService(),
-      proxyChannel: proxyChannel ?? const MethodChannel('browser_proxy'),
+      proxyChannel: resolvedChannel,
+      browserPlatformGateway:
+          browserPlatformGateway ??
+          BrowserPlatformGateway(channel: resolvedChannel),
     );
   }
 
   static final ProxyService _sharedInstance = ProxyService._internal(
     proxyCoreService: proxy_core.ProxyCoreService(),
-    proxyChannel: const MethodChannel('browser_proxy'),
+    proxyChannel: const MethodChannel(BrowserPlatformGateway.channelName),
+    browserPlatformGateway: BrowserPlatformGateway(),
   );
 
   final proxy_core.ProxyCoreService _proxyCoreService;
   final MethodChannel _proxyChannel;
+  final BrowserPlatformGateway _browserPlatformGateway;
   final ProxyConfigMapper _configMapper = const ProxyConfigMapper();
   final ProxyDownloadRouteResolver _downloadRouteResolver =
       const ProxyDownloadRouteResolver();
@@ -60,7 +73,7 @@ class ProxyService {
     localProxyHost: _localProxyHost,
   );
   late final ProxyWebViewBridge _webViewBridge = ProxyWebViewBridge(
-    _proxyChannel,
+    _browserPlatformGateway,
   );
   final ProxyWebViewTargetResolver _webViewTargetResolver =
       const ProxyWebViewTargetResolver();

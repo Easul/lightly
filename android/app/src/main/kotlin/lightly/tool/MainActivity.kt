@@ -17,17 +17,14 @@ import android.view.WindowManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.webkit.ProxyConfig
-import androidx.webkit.ProxyController
-import androidx.webkit.WebViewFeature
 import com.easytier.jni.EasyTierJNI
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.renderer.FlutterRenderer
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
 import org.json.JSONObject
-import java.util.concurrent.Executor
 
 class MainActivity : FlutterActivity() {
     private val manageStorageRequestCode = 4101
@@ -136,21 +133,11 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private val channelName = "browser_proxy"
     private val easyTierChannelName = "easytier_vpn"
     private val remoteControlChannelName = "remote_control"
     private val logTag = "BrowserProxy"
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val executor: Executor by lazy {
-        Executor { runnable ->
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                runnable.run()
-            } else {
-                mainHandler.post(runnable)
-            }
-        }
-    }
-    
+
     private var channel: MethodChannel? = null
     private var pendingScreenCaptureFps = 15
     private var pendingScreenCaptureBitrate = 2000000
@@ -200,179 +187,11 @@ class MainActivity : FlutterActivity() {
         TranslationOverlayChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
 
-        browserProxyChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-        browserProxyChannel?.setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "isSupported" -> {
-                        Log.d(logTag, "Checking proxy override support")
-                        result.success(WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE))
-                    }
-
-                    "setProxy" -> {
-                        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
-                            result.error("UNSUPPORTED", "WebView proxy override is not supported", null)
-                            return@setMethodCallHandler
-                        }
-
-                        val host = call.argument<String>("host")
-                        val port = call.argument<Int>("port")
-                        val scheme = call.argument<String>("scheme") ?: "http"
-                        val bypassDomains = call.argument<List<String>>("bypassDomains") ?: emptyList()
-
-                        if (host.isNullOrBlank() || port == null) {
-                            Log.e(logTag, "Invalid proxy arguments: host=$host port=$port")
-                            result.error("INVALID_ARGUMENTS", "Host and port are required", null)
-                            return@setMethodCallHandler
-                        }
-
-                        val normalizedScheme = scheme.lowercase()
-                        val proxyRule = "$normalizedScheme://$host:$port"
-                        Log.d(logTag, "Applying proxy rule: $proxyRule")
-                        val proxyConfigBuilder = ProxyConfig.Builder()
-                            .addProxyRule(proxyRule)
-                            .addDirect()
-                            .addBypassRule("localhost")
-                            .addBypassRule("127.0.0.1")
-                            .addBypassRule("127.*")
-                            .addBypassRule("::1")
-
-                        bypassDomains
-                            .map { it.trim().lowercase() }
-                            .filter { it.isNotEmpty() }
-                            .forEach { domain ->
-                                proxyConfigBuilder.addBypassRule(domain)
-                            }
-
-                        val proxyConfig = proxyConfigBuilder.build()
-
-                        ProxyController.getInstance().setProxyOverride(proxyConfig, executor) {
-                            Log.d(logTag, "Proxy override applied")
-                            result.success(true)
-                        }
-                    }
-
-                    "clearProxy" -> {
-                        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
-                            Log.d(logTag, "Proxy override unsupported while clearing")
-                            result.success(false)
-                            return@setMethodCallHandler
-                        }
-
-                        ProxyController.getInstance().clearProxyOverride(executor) {
-                            Log.d(logTag, "Proxy override cleared")
-                            result.success(true)
-                        }
-                    }
-
-                    "getSharedDownloadsPath" -> {
-                        result.success(
-                            Environment.getExternalStoragePublicDirectory(
-                                Environment.DIRECTORY_DOWNLOADS
-                            ).absolutePath
-                        )
-                    }
-
-                    "hasFileAccessPermission" -> {
-                        result.success(hasFileAccessPermission())
-                    }
-
-                    "requestFileAccessPermission" -> {
-                        if (pendingStoragePermissionResult != null) {
-                            result.error("IN_PROGRESS", "Storage permission request already in progress", null)
-                            return@setMethodCallHandler
-                        }
-
-                        if (hasFileAccessPermission()) {
-                            result.success(true)
-                            return@setMethodCallHandler
-                        }
-
-                        pendingStoragePermissionResult = result
-                        requestFileAccessPermission()
-                    }
-
-                    "getInitialIntentUrl" -> {
-                        val url = initialIntentUrl
-                        initialIntentUrl = null
-                        result.success(url)
-                    }
-
-                    "detachExternalIntent" -> {
-                        initialIntentUrl = null
-                        setIntent(Intent(this, MainActivity::class.java).apply {
-                            action = Intent.ACTION_MAIN
-                            addCategory(Intent.CATEGORY_LAUNCHER)
-                        })
-                        result.success(true)
-                    }
-
-                    "importContentUriToPrivateFile" -> {
-                        val uriString = call.argument<String>("uri")
-                        if (uriString.isNullOrBlank()) {
-                            result.error("INVALID_URI", "URI is required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            result.success(
-                                browserImportedFileService.importContentUriToPrivateFile(uriString),
-                            )
-                        } catch (e: Exception) {
-                            Log.e(logTag, "Failed to import content URI: $uriString", e)
-                            result.error("IMPORT_FAILED", e.message, null)
-                        }
-                    }
-
-                    "getContentMimeType" -> {
-                        val uriString = call.argument<String>("uri")
-                        if (uriString.isNullOrBlank()) {
-                            result.success(null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            result.success(browserImportedFileService.getContentMimeType(uriString))
-                        } catch (e: Exception) {
-                            result.success(null)
-                        }
-                    }
-
-                    "cleanupImportedPrivateFiles" -> {
-                        val retainedUrls =
-                            call.argument<List<String>>("retainedUrls") ?: emptyList()
-                        try {
-                            result.success(
-                                browserImportedFileService.cleanupImportedPrivateFiles(retainedUrls),
-                            )
-                        } catch (e: Exception) {
-                            Log.e(logTag, "Failed to cleanup imported private files", e)
-                            result.error("CLEANUP_FAILED", e.message, null)
-                        }
-                    }
-
-                    "startProxyFloatingButtonMode" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                            val permissionIntent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:$packageName"),
-                            )
-                            startActivity(permissionIntent)
-                            result.success("permission_required")
-                            return@setMethodCallHandler
-                        }
-
-                        val serviceIntent = Intent(this, ProxyFloatingButtonService::class.java)
-                        ContextCompat.startForegroundService(this, serviceIntent)
-                        moveTaskToBack(true)
-                        result.success("started")
-                    }
-
-                    "stopProxyFloatingButtonMode" -> {
-                        stopProxyFloatingButtonService()
-                        result.success(true)
-                    }
-
-                    else -> result.notImplemented()
-                }
-            }
+        browserProxyChannel = BrowserPlatformChannelHandler().register(
+            flutterEngine.dartExecutor.binaryMessenger,
+        ) { call, result ->
+            handleLegacyBrowserPlatformCall(call, result)
+        }
 
         MediaScannerChannelHandler(this).register(flutterEngine.dartExecutor.binaryMessenger)
 
@@ -708,6 +527,124 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun handleLegacyBrowserPlatformCall(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        when (call.method) {
+            "getSharedDownloadsPath" -> {
+                result.success(
+                    Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS,
+                    ).absolutePath,
+                )
+            }
+
+            "hasFileAccessPermission" -> result.success(hasFileAccessPermission())
+
+            "requestFileAccessPermission" -> {
+                if (pendingStoragePermissionResult != null) {
+                    result.error(
+                        "IN_PROGRESS",
+                        "Storage permission request already in progress",
+                        null,
+                    )
+                    return
+                }
+                if (hasFileAccessPermission()) {
+                    result.success(true)
+                    return
+                }
+                pendingStoragePermissionResult = result
+                requestFileAccessPermission()
+            }
+
+            "getInitialIntentUrl" -> {
+                val url = initialIntentUrl
+                initialIntentUrl = null
+                result.success(url)
+            }
+
+            "detachExternalIntent" -> {
+                initialIntentUrl = null
+                setIntent(Intent(this, MainActivity::class.java).apply {
+                    action = Intent.ACTION_MAIN
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                })
+                result.success(true)
+            }
+
+            "importContentUriToPrivateFile" -> {
+                val uriString = call.argument<String>("uri")
+                if (uriString.isNullOrBlank()) {
+                    result.error("INVALID_URI", "URI is required", null)
+                    return
+                }
+                try {
+                    result.success(
+                        browserImportedFileService.importContentUriToPrivateFile(uriString),
+                    )
+                } catch (error: Exception) {
+                    Log.e(logTag, "Failed to import content URI: $uriString", error)
+                    result.error("IMPORT_FAILED", error.message, null)
+                }
+            }
+
+            "getContentMimeType" -> {
+                val uriString = call.argument<String>("uri")
+                if (uriString.isNullOrBlank()) {
+                    result.success(null)
+                    return
+                }
+                try {
+                    result.success(browserImportedFileService.getContentMimeType(uriString))
+                } catch (_: Exception) {
+                    result.success(null)
+                }
+            }
+
+            "cleanupImportedPrivateFiles" -> {
+                val retainedUrls = call.argument<List<String>>("retainedUrls") ?: emptyList()
+                try {
+                    result.success(
+                        browserImportedFileService.cleanupImportedPrivateFiles(retainedUrls),
+                    )
+                } catch (error: Exception) {
+                    Log.e(logTag, "Failed to cleanup imported private files", error)
+                    result.error("CLEANUP_FAILED", error.message, null)
+                }
+            }
+
+            "startProxyFloatingButtonMode" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    !Settings.canDrawOverlays(this)
+                ) {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName"),
+                        ),
+                    )
+                    result.success("permission_required")
+                    return
+                }
+                ContextCompat.startForegroundService(
+                    this,
+                    Intent(this, ProxyFloatingButtonService::class.java),
+                )
+                moveTaskToBack(true)
+                result.success("started")
+            }
+
+            "stopProxyFloatingButtonMode" -> {
+                stopProxyFloatingButtonService()
+                result.success(true)
+            }
+
+            else -> result.notImplemented()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
