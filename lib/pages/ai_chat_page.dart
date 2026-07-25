@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
-import '../ai_tools/ai_client.dart';
-import '../ai_tools/ai_config.dart';
-import '../ai_tools/ai_history_database.dart';
-import '../ai_tools/ai_settings_dialog.dart';
-import '../ai_tools/simple_markdown.dart';
+import '../features/ai/ai_client.dart';
+import '../features/ai/ai_config.dart';
+import '../features/ai/ai_history_database.dart';
+import '../features/ai/ai_settings_dialog.dart';
+import '../features/ai/simple_markdown.dart';
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});

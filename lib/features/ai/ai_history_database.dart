@@ -1,6 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
-import '../core/storage/app_database_provider.dart';
+import '../../core/storage/app_database_provider.dart';
 
 class AiChatSession {
   const AiChatSession({

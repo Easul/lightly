@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../ai_tools/ai_client.dart';
-import '../ai_tools/ai_config.dart';
-import '../ai_tools/ai_settings_dialog.dart';
-import '../ai_tools/translation_history.dart';
+import '../features/ai/ai_client.dart';
+import '../features/ai/ai_config.dart';
+import '../features/ai/ai_settings_dialog.dart';
+import '../features/ai/translation_history.dart';
 import '../services/translation_overlay_service.dart';
 
 class TranslationToolPage extends StatefulWidget {

@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:lightly/ai_tools/ai_client.dart';
-import 'package:lightly/ai_tools/ai_config.dart';
+import 'package:lightly/features/ai/ai_client.dart';
+import 'package:lightly/features/ai/ai_config.dart';
 
 void main() {
   group('AiClient', () {

@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/ai_tools/ai_history_database.dart';
 import 'package:lightly/browser/data/app_database.dart';
 import 'package:lightly/browser/data/app_database_adapter.dart';
 import 'package:lightly/browser/models/browser_download_record.dart';
 import 'package:lightly/browser/services/browser_download_store.dart';
 import 'package:lightly/browser/services/browser_favorite_service.dart';
 import 'package:lightly/browser/services/browser_history_service.dart';
+import 'package:lightly/features/ai/ai_history_database.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 

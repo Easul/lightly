@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/ai_tools/ai_history_database.dart';
 import 'package:lightly/browser/data/app_database.dart';
 import 'package:lightly/browser/data/app_database_adapter.dart';
+import 'package:lightly/features/ai/ai_history_database.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {

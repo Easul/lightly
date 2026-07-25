@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-import '../ai_tools/ai_config.dart';
+import '../features/ai/ai_config.dart';
 
 class TranslationOverlayService {
   static const MethodChannel _channel = MethodChannel('translation_overlay');
