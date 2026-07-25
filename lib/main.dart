@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:tdlib/tdlib.dart';
 
 import 'app/app.dart';
-import 'services/app_log_service.dart';
-import 'services/app_lifecycle_manager.dart';
-import 'services/simple_file_manager_service.dart';
+import 'app/app_services.dart';
 
 // Re-export so existing `package:lightly/main.dart` importers (e.g. tests)
 // keep resolving `MyApp` after it moved to `lib/app/app.dart`.
@@ -19,13 +17,14 @@ Future<void> main() async {
   if (Platform.isAndroid) {
     await TdPlugin.initialize('libtdjson.so');
   }
-  final appLogService = AppLogService.instance;
+  final services = AppServices.production();
+  final appLogService = services.logService;
   await appLogService.initialize();
 
   // 初始化应用生命周期管理器，确保服务默认关闭状态
-  await AppLifecycleManager().initialize();
+  await services.lifecycleManager.initialize();
 
-  final simpleFileManagerService = SimpleFileManagerService();
+  final simpleFileManagerService = services.simpleFileManager;
   final simpleFileManagerSettings = await simpleFileManagerService
       .loadSettings();
   if (simpleFileManagerSettings.enabled) {
