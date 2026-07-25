@@ -1,4 +1,4 @@
-import '../browser/data/browser_database_app_provider.dart';
+import '../browser/data/app_database_adapter.dart';
 import '../browser/services/proxy_service_local_endpoint_adapter.dart';
 import '../core/logging/runtime_logger.dart';
 import '../core/network/local_proxy_endpoint_provider.dart';
@@ -34,7 +34,7 @@ class AppServices {
       lifecycleManager: AppLifecycleManager(),
       simpleFileManager: SimpleFileManagerService(),
       localProxyEndpoint: ProxyServiceLocalEndpointAdapter(),
-      appDatabase: BrowserDatabaseAppProvider(),
+      appDatabase: AppDatabaseAdapter(),
       sharedDownloadsAccess: SharedDownloadsDirectoryService(),
       runtimeCoordinator: AppRuntimeCoordinator.instance,
     );

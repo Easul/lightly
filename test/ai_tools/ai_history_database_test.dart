@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/ai_tools/ai_history_database.dart';
-import 'package:lightly/browser/data/browser_database.dart';
-import 'package:lightly/browser/data/browser_database_app_provider.dart';
+import 'package:lightly/browser/data/app_database.dart';
+import 'package:lightly/browser/data/app_database_adapter.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -13,11 +13,11 @@ void main() {
     final path = '${await getDatabasesPath()}/browser_data.db';
     await databaseFactory.deleteDatabase(path);
     // AI history now depends on the AppDatabaseProvider port; inject the
-    // browser-backed adapter the way the composition root does at runtime.
-    database.databaseProvider = BrowserDatabaseAppProvider();
+    // shared-database adapter the way the composition root does at runtime.
+    database.databaseProvider = AppDatabaseAdapter();
   });
 
-  tearDownAll(BrowserDatabase.instance.close);
+  tearDownAll(AppDatabase.instance.close);
 
   test('chat sessions and messages support CRUD', () async {
     final session = await database.createSession('First chat');
@@ -42,13 +42,13 @@ void main() {
     await database.deleteSession(session.id);
     expect(await database.listSessions(), isEmpty);
 
-    final db = await BrowserDatabase.instance.database;
+    final db = await AppDatabase.instance.database;
     final tables = await db.rawQuery(
       "SELECT name FROM sqlite_master WHERE type = 'table'",
     );
     final tableNames = tables.map((row) => row['name']).toSet();
-    expect(tableNames, contains(BrowserDatabase.historyTable));
-    expect(tableNames, contains(BrowserDatabase.favoriteTable));
+    expect(tableNames, contains(AppDatabase.historyTable));
+    expect(tableNames, contains(AppDatabase.favoriteTable));
     expect(tableNames, contains(AiHistoryDatabase.sessionTable));
     expect(tableNames, contains(AiHistoryDatabase.messageTable));
   });

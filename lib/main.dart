@@ -29,7 +29,7 @@ Future<void> main() async {
       services.localProxyEndpoint;
 
   // Inject the shared database behind the AppDatabaseProvider port so AI history
-  // does not depend on the browser-named database class. Done before runApp, so
+  // does not depend on the concrete database class. Done before runApp, so
   // every page that reads AI history is constructed after the provider is wired.
   AiHistoryDatabase.instance.databaseProvider = services.appDatabase;
 

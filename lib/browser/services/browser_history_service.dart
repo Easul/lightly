@@ -1,14 +1,14 @@
 import 'package:sqflite/sqflite.dart';
 
-import '../data/browser_database.dart';
+import '../data/app_database.dart';
 import '../models/browser_history_entry.dart';
 import '../models/browser_history_visit.dart';
 
 class BrowserHistoryService {
-  BrowserHistoryService({BrowserDatabase? database})
-    : _database = database ?? BrowserDatabase.instance;
+  BrowserHistoryService({AppDatabase? database})
+    : _database = database ?? AppDatabase.instance;
 
-  final BrowserDatabase _database;
+  final AppDatabase _database;
 
   Future<BrowserHistoryEntry> insert({
     required String url,
@@ -26,7 +26,7 @@ class BrowserHistoryService {
 
     return db.transaction((txn) async {
       await txn.insert(
-        BrowserDatabase.historyVisitsTable,
+        AppDatabase.historyVisitsTable,
         BrowserHistoryVisit(
           url: trimmedUrl,
           title: normalizedTitle,
@@ -35,7 +35,7 @@ class BrowserHistoryService {
       );
 
       final existingRows = await txn.query(
-        BrowserDatabase.historyTable,
+        AppDatabase.historyTable,
         where: 'url = ?',
         whereArgs: [trimmedUrl],
         limit: 1,
@@ -49,7 +49,7 @@ class BrowserHistoryService {
           visitCount: existingEntry.visitCount + 1,
         );
         await txn.update(
-          BrowserDatabase.historyTable,
+          AppDatabase.historyTable,
           updatedEntry.toMap()..remove('id'),
           where: 'id = ?',
           whereArgs: [existingEntry.id],
@@ -65,7 +65,7 @@ class BrowserHistoryService {
         visitCount: 1,
       );
       final id = await txn.insert(
-        BrowserDatabase.historyTable,
+        AppDatabase.historyTable,
         entry.toMap()..remove('id'),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -81,7 +81,7 @@ class BrowserHistoryService {
     final normalizedSearchTerm = searchTerm?.trim();
 
     final rows = await db.query(
-      BrowserDatabase.historyTable,
+      AppDatabase.historyTable,
       where: normalizedSearchTerm != null && normalizedSearchTerm.isNotEmpty
           ? '(url LIKE ? OR title LIKE ?)'
           : null,
@@ -98,8 +98,8 @@ class BrowserHistoryService {
   Future<void> clearHistory() async {
     final db = await _database.database;
     await db.transaction((txn) async {
-      await txn.delete(BrowserDatabase.historyVisitsTable);
-      await txn.delete(BrowserDatabase.historyTable);
+      await txn.delete(AppDatabase.historyVisitsTable);
+      await txn.delete(AppDatabase.historyTable);
     });
   }
 
@@ -116,13 +116,13 @@ class BrowserHistoryService {
     final db = await _database.database;
     await db.transaction((txn) async {
       await txn.update(
-        BrowserDatabase.historyTable,
+        AppDatabase.historyTable,
         <String, Object?>{'title': trimmedTitle},
         where: 'url = ?',
         whereArgs: <Object?>[trimmedUrl],
       );
       final latestRows = await txn.query(
-        BrowserDatabase.historyVisitsTable,
+        AppDatabase.historyVisitsTable,
         columns: <String>['id'],
         where: 'url = ?',
         whereArgs: <Object?>[trimmedUrl],
@@ -131,7 +131,7 @@ class BrowserHistoryService {
       );
       if (latestRows.isNotEmpty) {
         await txn.update(
-          BrowserDatabase.historyVisitsTable,
+          AppDatabase.historyVisitsTable,
           <String, Object?>{'title': trimmedTitle},
           where: 'id = ?',
           whereArgs: <Object?>[latestRows.first['id']],
@@ -166,7 +166,7 @@ class BrowserHistoryService {
     }
 
     final rows = await db.query(
-      BrowserDatabase.historyVisitsTable,
+      AppDatabase.historyVisitsTable,
       where: whereParts.isEmpty ? null : whereParts.join(' AND '),
       whereArgs: whereArgs.isEmpty ? null : whereArgs,
       orderBy: 'visitedAt DESC, id DESC',
@@ -184,13 +184,13 @@ class BrowserHistoryService {
     final db = await _database.database;
     await db.transaction((txn) async {
       await txn.delete(
-        BrowserDatabase.historyVisitsTable,
+        AppDatabase.historyVisitsTable,
         where: 'id = ?',
         whereArgs: <Object?>[visitId],
       );
 
       final remaining = await txn.query(
-        BrowserDatabase.historyVisitsTable,
+        AppDatabase.historyVisitsTable,
         where: 'url = ?',
         whereArgs: <Object?>[visit.url],
         orderBy: 'visitedAt DESC, id DESC',
@@ -198,7 +198,7 @@ class BrowserHistoryService {
       );
       if (remaining.isEmpty) {
         await txn.delete(
-          BrowserDatabase.historyTable,
+          AppDatabase.historyTable,
           where: 'url = ?',
           whereArgs: <Object?>[visit.url],
         );
@@ -207,13 +207,13 @@ class BrowserHistoryService {
 
       final latest = BrowserHistoryVisit.fromMap(remaining.first);
       final countRows = await txn.rawQuery(
-        'SELECT COUNT(*) AS count FROM ${BrowserDatabase.historyVisitsTable} '
+        'SELECT COUNT(*) AS count FROM ${AppDatabase.historyVisitsTable} '
         'WHERE url = ?',
         <Object?>[visit.url],
       );
       final visitCount = (countRows.first['count'] as num?)?.toInt() ?? 0;
       await txn.update(
-        BrowserDatabase.historyTable,
+        AppDatabase.historyTable,
         <String, Object?>{
           'title': latest.title,
           'visitedAt': latest.visitedAt.millisecondsSinceEpoch,
@@ -236,7 +236,7 @@ class BrowserHistoryService {
 
     final db = await _database.database;
     final rows = await db.query(
-      BrowserDatabase.historyTable,
+      AppDatabase.historyTable,
       where: '(url LIKE ? OR title LIKE ?)',
       whereArgs: ['$normalizedPrefix%', '$normalizedPrefix%'],
       orderBy: 'visitCount DESC, visitedAt DESC',
@@ -248,7 +248,7 @@ class BrowserHistoryService {
   Future<List<BrowserHistoryEntry>> getTop({int limit = 8}) async {
     final db = await _database.database;
     final rows = await db.query(
-      BrowserDatabase.historyTable,
+      AppDatabase.historyTable,
       orderBy: 'visitCount DESC, visitedAt DESC',
       limit: limit,
     );

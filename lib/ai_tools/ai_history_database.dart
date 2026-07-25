@@ -55,7 +55,7 @@ class AiHistoryDatabase {
 
   /// AI chat table names. These are a data contract — the strings must stay
   /// `ai_chat_sessions` / `ai_chat_messages` to match the existing schema.
-  /// They previously lived on `BrowserDatabase`; ownership moved here so AI
+  /// They previously lived on the shared database class; ownership moved here so AI
   /// does not depend on the browser database class. The CREATE TABLE statements
   /// still live in the shared database owner (schema relocation is Phase 4).
   static const String sessionTable = 'ai_chat_sessions';

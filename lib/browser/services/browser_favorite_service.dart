@@ -1,14 +1,14 @@
 import 'package:sqflite/sqflite.dart';
 
-import '../data/browser_database.dart';
+import '../data/app_database.dart';
 import '../models/browser_favorite.dart';
 import '../utils/browser_url_utils.dart';
 
 class BrowserFavoriteService {
-  BrowserFavoriteService({BrowserDatabase? database})
-    : _database = database ?? BrowserDatabase.instance;
+  BrowserFavoriteService({AppDatabase? database})
+    : _database = database ?? AppDatabase.instance;
 
-  final BrowserDatabase _database;
+  final AppDatabase _database;
 
   String _normalizeComparableUrl(String url) {
     final trimmed = remapImportedDocumentFileUrl(url.trim());
@@ -48,7 +48,7 @@ class BrowserFavoriteService {
     var order = sortOrder;
     if (order == null) {
       final maxResult = await db.rawQuery(
-        'SELECT MAX(sortOrder) as maxOrder FROM ${BrowserDatabase.favoriteTable}',
+        'SELECT MAX(sortOrder) as maxOrder FROM ${AppDatabase.favoriteTable}',
       );
       order = ((maxResult.first['maxOrder'] as num?)?.toInt() ?? -1) + 1;
     }
@@ -61,7 +61,7 @@ class BrowserFavoriteService {
     );
 
     final id = await db.insert(
-      BrowserDatabase.favoriteTable,
+      AppDatabase.favoriteTable,
       favorite.toMap()..remove('id'),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -74,7 +74,7 @@ class BrowserFavoriteService {
     final normalizedSearchTerm = searchTerm?.trim();
 
     final rows = await db.query(
-      BrowserDatabase.favoriteTable,
+      AppDatabase.favoriteTable,
       where: normalizedSearchTerm != null && normalizedSearchTerm.isNotEmpty
           ? '(url LIKE ? OR title LIKE ?)'
           : null,
@@ -90,7 +90,7 @@ class BrowserFavoriteService {
   Future<BrowserFavorite?> findByUrl(String url) async {
     final db = await _database.database;
     final rows = await db.query(
-      BrowserDatabase.favoriteTable,
+      AppDatabase.favoriteTable,
       where: 'url = ?',
       whereArgs: [_normalizeComparableUrl(url)],
       limit: 1,
@@ -106,7 +106,7 @@ class BrowserFavoriteService {
   Future<void> update(BrowserFavorite favorite) async {
     final db = await _database.database;
     await db.update(
-      BrowserDatabase.favoriteTable,
+      AppDatabase.favoriteTable,
       favorite.toMap()..remove('id'),
       where: 'id = ?',
       whereArgs: [favorite.id],
@@ -117,7 +117,7 @@ class BrowserFavoriteService {
   Future<void> delete(int id) async {
     final db = await _database.database;
     await db.delete(
-      BrowserDatabase.favoriteTable,
+      AppDatabase.favoriteTable,
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -140,7 +140,7 @@ class BrowserFavoriteService {
     await db.transaction((txn) async {
       for (var i = 0; i < favorites.length; i++) {
         await txn.update(
-          BrowserDatabase.favoriteTable,
+          AppDatabase.favoriteTable,
           {'sortOrder': i},
           where: 'id = ?',
           whereArgs: [favorites[i].id],
@@ -151,6 +151,6 @@ class BrowserFavoriteService {
 
   Future<void> clearAll() async {
     final db = await _database.database;
-    await db.delete(BrowserDatabase.favoriteTable);
+    await db.delete(AppDatabase.favoriteTable);
   }
 }

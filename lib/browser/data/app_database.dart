@@ -1,8 +1,8 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-class BrowserDatabase {
-  BrowserDatabase._();
+class AppDatabase {
+  AppDatabase._();
 
   static const String historyTable = 'browser_history';
   static const String historyVisitsTable = 'browser_history_visits';
@@ -12,7 +12,7 @@ class BrowserDatabase {
   static const String aiChatMessageTable = 'ai_chat_messages';
   static const int schemaVersion = 4;
 
-  static final BrowserDatabase instance = BrowserDatabase._();
+  static final AppDatabase instance = AppDatabase._();
 
   Database? _database;
 

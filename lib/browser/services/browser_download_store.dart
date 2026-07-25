@@ -1,16 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
-import '../data/browser_database.dart';
+import '../data/app_database.dart';
 import '../models/browser_download_record.dart';
 
 class BrowserDownloadStore {
-  BrowserDownloadStore({BrowserDatabase? database})
-    : _database = database ?? BrowserDatabase.instance;
+  BrowserDownloadStore({AppDatabase? database})
+    : _database = database ?? AppDatabase.instance;
 
   static final ValueNotifier<int> _changeNotifier = ValueNotifier<int>(0);
 
-  final BrowserDatabase _database;
+  final AppDatabase _database;
 
   ValueListenable<int> get changes => _changeNotifier;
 
@@ -21,7 +21,7 @@ class BrowserDownloadStore {
   Future<BrowserDownloadRecord> insert(BrowserDownloadRecord record) async {
     final db = await _database.database;
     final id = await db.insert(
-      BrowserDatabase.downloadTable,
+      AppDatabase.downloadTable,
       record.toMap()..remove('id'),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -41,7 +41,7 @@ class BrowserDownloadStore {
 
     final db = await _database.database;
     await db.update(
-      BrowserDatabase.downloadTable,
+      AppDatabase.downloadTable,
       record.toMap()..remove('id'),
       where: 'id = ?',
       whereArgs: [id],
@@ -52,7 +52,7 @@ class BrowserDownloadStore {
   Future<void> delete(int id) async {
     final db = await _database.database;
     await db.delete(
-      BrowserDatabase.downloadTable,
+      AppDatabase.downloadTable,
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -61,14 +61,14 @@ class BrowserDownloadStore {
 
   Future<void> clearAll() async {
     final db = await _database.database;
-    await db.delete(BrowserDatabase.downloadTable);
+    await db.delete(AppDatabase.downloadTable);
     _notifyChanged();
   }
 
   Future<BrowserDownloadRecord?> query(int id) async {
     final db = await _database.database;
     final rows = await db.query(
-      BrowserDatabase.downloadTable,
+      AppDatabase.downloadTable,
       where: 'id = ?',
       whereArgs: [id],
       limit: 1,
@@ -88,7 +88,7 @@ class BrowserDownloadStore {
     final db = await _database.database;
     final normalizedStatus = status?.trim();
     final rows = await db.query(
-      BrowserDatabase.downloadTable,
+      AppDatabase.downloadTable,
       where: normalizedStatus != null && normalizedStatus.isNotEmpty
           ? 'status = ?'
           : null,
