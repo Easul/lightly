@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/ai_tools/ai_history_database.dart';
 import 'package:lightly/browser/data/browser_database.dart';
+import 'package:lightly/browser/data/browser_database_app_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -11,6 +12,9 @@ void main() {
     databaseFactory = databaseFactoryFfi;
     final path = '${await getDatabasesPath()}/browser_data.db';
     await databaseFactory.deleteDatabase(path);
+    // AI history now depends on the AppDatabaseProvider port; inject the
+    // browser-backed adapter the way the composition root does at runtime.
+    database.databaseProvider = BrowserDatabaseAppProvider();
   });
 
   tearDownAll(BrowserDatabase.instance.close);
@@ -45,7 +49,15 @@ void main() {
     final tableNames = tables.map((row) => row['name']).toSet();
     expect(tableNames, contains(BrowserDatabase.historyTable));
     expect(tableNames, contains(BrowserDatabase.favoriteTable));
-    expect(tableNames, contains(BrowserDatabase.aiChatSessionTable));
-    expect(tableNames, contains(BrowserDatabase.aiChatMessageTable));
+    expect(tableNames, contains(AiHistoryDatabase.sessionTable));
+    expect(tableNames, contains(AiHistoryDatabase.messageTable));
+  });
+
+  test('throws when used before a database provider is injected', () async {
+    // A fresh instance with no injected provider must fail loudly rather than
+    // silently fall back to a browser database — the composition root is
+    // responsible for wiring it during bootstrap.
+    final unwired = AiHistoryDatabase();
+    await expectLater(unwired.listSessions(), throwsStateError);
   });
 }
