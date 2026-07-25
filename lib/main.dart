@@ -5,27 +5,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:tdlib/tdlib.dart';
 
-import 'theme/app_theme.dart';
+import 'app/app.dart';
 import 'services/app_log_service.dart';
 import 'services/app_lifecycle_manager.dart';
-import 'pages/browser_page.dart';
-import 'pages/clipboard_page.dart';
-import 'pages/game_2048_page.dart';
-import 'pages/calculator_page.dart';
-import 'pages/downloads_page.dart';
-import 'pages/data_management_page.dart';
-import 'pages/about_version_page.dart';
-import 'pages/settings_page.dart';
-import 'pages/browser_history_page.dart';
-import 'pages/easytier_settings_page.dart';
-import 'pages/remote_control_page.dart';
-import 'pages/simple_file_manager_settings_page.dart';
-import 'pages/telegram_checkin_page.dart';
-import 'pages/tools_page.dart';
-import 'pages/translation_tool_page.dart';
-import 'pages/ai_chat_page.dart';
-import 'services/app_toast.dart';
 import 'services/simple_file_manager_service.dart';
+
+// Re-export so existing `package:lightly/main.dart` importers (e.g. tests)
+// keep resolving `MyApp` after it moved to `lib/app/app.dart`.
+export 'app/app.dart' show MyApp;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,43 +55,4 @@ Future<void> main() async {
       unawaited(appLogService.logUnhandledError(error, stackTrace));
     },
   );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key, this.browserWebViewEnabled = true});
-
-  final bool browserWebViewEnabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: AppToast.navigatorKey,
-      title: '若轻',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => BrowserPage(enableWebView: browserWebViewEnabled),
-        '/game-2048': (context) => const Game2048Page(),
-        '/calculator': (context) => const CalculatorPage(),
-        '/clipboard': (context) => const ClipboardPage(),
-        '/downloads': (context) => const DownloadsPage(),
-        '/data-management': (context) => const DataManagementPage(),
-        '/about-version': (context) => const AboutVersionPage(),
-        '/settings': (context) => const SettingsPage(),
-        '/local-http-settings': (context) => const SettingsPage(
-          initialSection: SettingsInitialSection.localHttp,
-        ),
-        '/browser-history': (context) => const BrowserHistoryPage(),
-        '/simple-file-manager': (context) =>
-            const SimpleFileManagerSettingsPage(),
-        '/easytier': (context) => const EasyTierSettingsPage(),
-        '/remote-control': (context) => const RemoteControlPage(),
-        '/telegram-checkin': (context) => const TelegramCheckinPage(),
-        '/translation-tool': (context) => const TranslationToolPage(),
-        '/ai-chat': (context) => const AiChatPage(),
-        '/tools': (context) => const ToolsPage(),
-      },
-    );
-  }
 }
