@@ -1,8 +1,9 @@
 # Project Notes for Future Agents
 
-> **Agent 工作规则**：每次对话开始时，必须先阅读 `temp/agent_rules.md` 了解工作流程规范，再阅读本文件了解技术约束。
+> **Agent 工作规则**：每次对话开始时先完整阅读本文件。长期有效的工作流程、技术约束和踩坑记录必须维护在本文件或 `docs/`，不得再以 `temp/` 作为规则来源。
 >
-> **文件优先级**：`AGENTS.md`（技术约束）> `temp/rules.md`（用户要求/踩坑记录）> `temp/agent_rules.md`（工作流程）
+> **文件优先级**：当前明确用户要求（不得绕过安全与已验证兼容性约束）>
+> `AGENTS.md`（强制技术与工作约束）> `docs/`（设计、流程和验证说明）。
 
 ## Quick Index
 
@@ -11,7 +12,9 @@
   - `## Telegram SOCKS5 Compatibility Requirements`
   - `## Cloudflare-Challenged Site Compatibility`
 - Browser / WebView runtime:
+  - `## Repository Workflow`
   - `## Minimal UI Design System`
+  - `## Architecture Boundaries`
   - `## WebView HTTP Auth & Popup Compatibility`
   - `## Selective Browsing Data Clearing`
   - `## Settings → BrowserPage State Refresh Pattern`
@@ -29,6 +32,55 @@
   - `## Calculator Input / Compact Layout Rules`
   - `## Common Production Fixes (v1.0.1+2)`
 
+## Repository Workflow
+
+- Never implement directly on `main`. Create a focused feature/fix/refactor/docs branch directly
+  from `main`, and confirm the merge base before starting when other feature branches exist.
+- Do not mix unrelated branch work. In particular, behavior changes, dependency inversion, file
+  moves, and renames should be separate commits whenever practical.
+- Keep changes scoped and preserve user changes in a dirty worktree. Do not discard or overwrite
+  unrelated work.
+- Use conventional English commit messages such as `feat: ...`, `fix: ...`, `perf: ...`,
+  `refactor: ...`, and `docs: ...`.
+- Complete and commit the requested change before handoff. Before committing, review the staged
+  file list and exclude generated binaries, logs, local configuration, secrets, and build output.
+- Verification must be proportional to risk:
+  - documentation-only changes: link checks, `git diff --check`, and content consistency
+  - Dart/UI changes: targeted analyze/tests, then broader tests when the surface is shared
+  - native/Rust/proxy/WebView changes: follow the dedicated verification sections in this file
+  - user-requested release builds: commit first, then use the canonical release script/flags
+- Record newly discovered long-term constraints in `AGENTS.md` or the appropriate permanent doc.
+  `temp/` is only for disposable local artifacts, logs, and experiments, never durable guidance.
+- Refactors must preserve behavior unless behavior change is explicitly in scope. Prefer small,
+  reversible extractions with an identified owner and test seam over broad rewrites.
+
+## Architecture Boundaries
+
+- Lightly is a Flutter modular monolith with Kotlin platform adapters and Rust networking cores.
+  The documented feature-first layout is a target, not the current filesystem state.
+- Keep one owner for lifecycle-sensitive resources:
+  - `BrowserPage` owns the active WebView controller and browser-page state.
+  - `RemoteControlService` owns remote-control sockets and session state.
+  - `ProxyService` / `EasyTierService` own their respective runtime state.
+- Coordinators may orchestrate owners but must not duplicate WebView, socket, server, or native
+  service state.
+- Do not add raw `MethodChannel` instances in pages or widgets. Add or extend a typed platform
+  gateway and keep the Dart/Kotlin method contract aligned.
+- New cross-feature dependencies should use a small domain port or app-level coordinator. A feature
+  must not import another feature's private infrastructure when a capability contract is sufficient.
+- Background service startup must not depend on a page remaining mounted. Until the planned
+  `AppRuntimeCoordinator` exists, preserve existing startup behavior and migrate one service at a
+  time with lifecycle tests.
+- Architecture work must be incremental:
+  - behavior changes, dependency inversion, file moves, and renames belong in separate commits
+  - move-only commits should primarily show renames/import updates
+  - do not split owners mechanically by line count
+- Complex features may use presentation/application/domain/infrastructure boundaries; small tools
+  should remain shallow and avoid ceremonial abstractions.
+- New persisted data must document its owner, version, sensitivity, backup/export behavior, and
+  clear/delete behavior. Keep a single source of truth across Flutter and native storage.
+- Source of truth: `docs/architecture.md` and `docs/architecture-roadmap.md`.
+
 ## VLESS over WebSocket pitfalls
 
 This project has two important real-world VLESS WS compatibility cases that must not be regressed:
@@ -38,29 +90,34 @@ This project has two important real-world VLESS WS compatibility cases that must
 
 ### Do not regress these behaviors
 
-- Keep the current `webSocketTlsServerName` vs `webSocketHttpHost` split in `lib/browser/vless_client.dart`.
-  - TLS/SNI and HTTP `Host` are not interchangeable.
-  - The visa node depends on correct TLS SNI + WS Host handling.
-
-- Keep the current **combined first WebSocket frame** behavior in `VlessTunnel._writeWebSocketPayload()`.
-  - The openai/workers-style node may fail or stall if the VLESS request and the first client payload are sent as separate early frames.
-  - There is also a short fallback timer for server-speaks-first cases; do not remove it without re-testing both nodes.
-
-- Do not move VLESS request sending earlier than the current listener setup.
-  - Response listeners must be ready before the VLESS request is sent.
-  - Earlier attempts caused missing responses / timeouts.
-
-- Do not reintroduce upgraded-socket subscription reuse.
-  - The current custom WS transport exists because the previous upgraded-socket path could lose inbound frames after manual HTTP 101 handling.
+- The active Android release implementation lives in `rust/proxy-core/src/outbound/`.
+  Do not reintroduce a second Dart VLESS runtime without an explicit migration plan.
+- Keep the TLS SNI vs HTTP `Host` split in
+  `rust/proxy-core/src/outbound/vless_transport.rs::build_connect_plan()`.
+  - TLS/SNI and the WebSocket HTTP `Host` header are not interchangeable.
+  - The visa-style node depends on correct TLS SNI + WS Host handling.
+- Keep the **combined first WebSocket frame** behavior in
+  `rust/proxy-core/src/outbound/vless_handshake.rs::prepare_vless_handshake()` and the SOCKS5
+  first-payload boundary.
+  - The workers-style node may fail or stall if the VLESS request and first client payload are sent
+    as separate early frames.
+  - Server-speaks-first traffic must retain the timeout fallback that sends a handshake without
+    client payload.
+- Keep the WebSocket split/read path ready before the lazy VLESS handshake is sent. The current
+  `VlessClient::connect()` establishes and splits the WebSocket before returning `VlessStream`.
+- Do not replace the Tokio Tungstenite transport with manual HTTP 101 upgraded-socket subscription
+  reuse without re-testing both real-world nodes.
 
 ### Performance pitfalls
 
-- Avoid verbose per-packet / per-frame logging in:
-  - `lib/browser/vless_client.dart`
-  - `lib/browser/local_mixed_proxy_server.dart`
+- Avoid info-level per-packet / per-frame logging in:
+  - `rust/proxy-core/src/inbound/relay.rs`
+  - `rust/proxy-core/src/outbound/vless.rs`
+  - `rust/proxy-core/src/outbound/hysteria2.rs`
 - The openai/workers-style node amplifies hot-path overhead because traffic is more fragmented and frame frequency is higher.
-- Do not reintroduce per-frame `flush()` behavior on WebSocket writes unless you have benchmarked it.
-  - Serial `addStream(...)+flush()` on every frame caused noticeable browser lag.
+- Keep normal Release proxy-core logging at `warn`; use the documented diagnostic build flag for
+  temporary `info` logging.
+- Do not add per-frame serialization, forced flushes, or packet-content logging without benchmarks.
 
 ### Browser/UI pitfalls
 
@@ -178,9 +235,11 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 ### WebSocket Connection Pacing
 
 - Global WebSocket connect pacing caused starvation with Telegram's parallel connections.
-- The fix: **Only retry attempts are paced**, not initial connections.
-- In `VlessClient._connectWithRetry()`, the retry loop has delay, but initial connection does not.
-- **Do not** add global pacing that delays all concurrent WebSocket connections.
+- Initial VLESS connections must remain unpaced. Address fallback in
+  `rust/proxy-core/src/outbound/vless_transport.rs::connect_tcp_with_fallback()` is per tunnel and
+  must not become a global semaphore or delay across concurrent Telegram connections.
+- If retry backoff is added later, apply it only after a failed attempt. **Do not** add global
+  pacing that delays all initial connections.
 
 ### Hysteria2 First-Downstream Timing
 
@@ -195,8 +254,10 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 ### Address Fallback
 
 - Telegram may connect to multiple addresses in parallel (IPv4/IPv6).
-- WebSocket connection now falls back to the first resolved address if the preferred fails.
-- **Do not** remove the fallback logic in `_connectToWebSocket()`.
+- VLESS TCP setup sorts resolved candidates with IPv4 preference and tries remaining candidates if
+  the preferred address fails.
+- **Do not** remove `connect_tcp_with_fallback()` in
+  `rust/proxy-core/src/outbound/vless_transport.rs` without equivalent IPv4/IPv6 fallback tests.
 
 ### Hysteria2 IPv6 Target Formatting
 
@@ -386,6 +447,34 @@ INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected
 
 ## WebRTC Voice over EasyTier / Remote-Control Path
 
+The current runtime and protocol boundaries are documented in
+`docs/remote-control-architecture.md`. The old temporary implementation proposal is obsolete and
+must not be used as the current design; fixed UDP/Opus audio has been replaced by WebRTC voice.
+
+### Remote-control session and lifecycle boundaries
+
+- `RemoteControlService` is the single owner of control/screen sockets and session state. Pages,
+  coordinators, and helpers may request actions but must not duplicate socket ownership.
+- Control and screen ports use a consecutive pair in the `18080-18088` range; WebRTC voice does not
+  own a fixed third audio port.
+- A short port-discovery connection that only reads `port_config` is a probe, not a real session.
+  Mark the receiver connected only after real controller activity such as control data/heartbeat or
+  screen attachment.
+- Re-entering `RemoteControlPage` must restore receiver state from the singleton service, including
+  running ports and no-VPN mode. Do not reset a live receiver from page-local defaults.
+- Temporary close disconnects the controller only. Full close must stop Dart sockets, native
+  capture/decoder/audio resources, accessibility state, and any EasyTier runtime owned by the
+  remote-control flow.
+- Receiver heartbeat timeout uses 10 missed checks before the offline prompt; if the controller
+  remains absent for the configured cleanup window, host resources must be shut down.
+- Screen delivery favors freshness: preserve key frames and the newest pending delta frame rather
+  than allowing stale H.264 deltas to accumulate in Dart/TCP queues.
+- In no-VPN mode, run EasyTier with `no_tun = true`, do not start Android `VpnService`, and use the
+  no-tun SOCKS5 portal for controller control/screen sockets to `10.126.*`. WebRTC voice remains
+  unavailable in this mode.
+- Session UI keeps the projected screen full-size with floating controls. Preserve keyboard input,
+  draggable tail, temporary close, wake-screen, trajectory/single swipe, and annotation behavior.
+
 ### Remote-control platform channel boundary
 
 - Dart code must access the native `remote_control` MethodChannel through `RemoteControlPlatformGateway`; do not create additional raw `MethodChannel('remote_control')` instances in pages, widgets, or services.
@@ -569,6 +658,19 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
   - from `https://example-site.com/login`, tapping the Telegram button should open the auth popup
   - linux.do avatar/image links should remain suppressed
 
+### External file intents must detach from the caller task
+
+- Opening videos, Markdown, HTML, and other supported local documents from a file manager must hand
+  the URI into Lightly's existing task and detach from the caller. Repeated opens must not stack
+  Lightly activities inside the file-manager task.
+- Keep `MainActivity` single-task reuse and `documentLaunchMode="never"`; route all external file
+  targets through the shared external-intent helper.
+- Download-record video playback uses the same floating video surface as file-manager video opens,
+  not the parser-oriented native video dialog.
+- Related files: `android/app/src/main/AndroidManifest.xml`,
+  `android/app/src/main/kotlin/lightly/tool/MainActivity.kt`,
+  `lib/pages/browser_page_external_intent_helper.dart`, and `lib/pages/browser_page.dart`.
+
 ## X / YouTube WebView Mobile Layout Compatibility
 
 - `x.com` / `twitter.com` and `youtube.com` / `youtu.be` should prefer the mobile WebView layout in this app.
@@ -588,6 +690,20 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
   - `lib/pages/settings_page.dart`
   - `lib/browser/services/browser_tab_service.dart`
 
+## Proxy Settings Field Boundaries
+
+- The proxy settings form must display only fields relevant to the selected protocol.
+- VLESS owns WebSocket path/host, packet encoding, TLS, and SNI fields.
+- Hysteria2 owns auth password, obfuscation type/password, SNI, and insecure-certificate fields;
+  it must not display VLESS packet encoding.
+- HTTP proxy owns host, port, and password only. Clear hidden transport/TLS values when switching
+  to HTTP so stale values do not leak into saved configuration.
+- Full SSR runtime support remains deferred until real SSR protocol/obfs plugins are implemented;
+  do not expose a UI option that the runtime cannot honor.
+- Related files: `lib/browser/services/browser_settings_form_controller.dart`,
+  `lib/browser/services/browser_proxy_form_mutator.dart`, and
+  `lib/browser/widgets/settings/proxy_settings_section.dart`.
+
 ## Selective Browsing Data Clearing
 
 The browser supports clearing different categories of data independently:
@@ -600,6 +716,16 @@ The browser supports clearing different categories of data independently:
 - **Favorites**: All bookmark entries
 - **Clipboard**: Stored clipboard content
 - **Calculator History**: Calculator expression history
+
+### Download record deletion semantics
+
+- Per-entry deletion must offer record-only deletion and record-plus-file deletion.
+- If the item is still downloading, stop the active task and delete the partial file only when the
+  user selected the record-plus-file mode.
+- Global clear remains record-only: stop active tasks, preserve completed/partial files, then clear
+  database records.
+- Related files: `lib/pages/downloads_page.dart`, `lib/pages/downloads_page_actions.dart`, and
+  `lib/pages/downloads_page_sections.dart`.
 
 ### Cookie export origin tracking
 
@@ -857,6 +983,16 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - `lib/pages/settings_page.dart`
   - `lib/pages/clipboard_page.dart`
 
+### Clipboard storage semantics
+
+- `ClipboardStorageService.saveContent()` and `clearContent()` update only Lightly's stored
+  clipboard content. They must not implicitly write to or clear the Android system clipboard.
+- The in-app refresh action reloads the saved app/web value; reading the system clipboard requires
+  an explicit paste action.
+- The web clipboard page's button and `Ctrl+S` / `Cmd+S` path must use the same storage-only save
+  behavior and no-cache HTTP response policy.
+- UI copy must describe this as saving content, not saving to the system clipboard.
+
 ## Export / Download Directory Rules
 
 - User-facing data exports should use the shared Android Download directory when available, with `/storage/emulated/0/Download` treated as the fixed primary path on Android.
@@ -922,6 +1058,10 @@ void dispose() {
 - Keep TG Tools foreground/manual-refresh only. Recent chats, text history, text sending, and check-in must not introduce background polling or notification delivery.
 - One-click check-in sends only targets whose `enabled` switch is on; this flag is part of unified backup import/export.
 - TDLib requests must continue to follow the active local SOCKS5 proxy before login, chat loading, refresh, and sending.
+- Unified backup includes Telegram App ID, App Hash, phone number, targets, and commands; treat that
+  backup as sensitive data and never write these values to runtime logs.
+- If the local proxy is unavailable, the UI must explicitly say Telegram is attempting a direct
+  connection so timeouts are not misdiagnosed as verification-code or API configuration failures.
 - The system-time overlay displays the device `HH:mm:ss`, remains draggable, and runs as an Android `specialUse` foreground service with overlay permission.
 - Drawer navigation exposes one `小工具` entry; TG Tools, Calculator, and 2048 live inside the tools page.
 - Related files: `lib/pages/telegram_checkin_page.dart`, `lib/pages/telegram_chat_page.dart`, `lib/pages/tools_page.dart`, `lib/telegram_checkin/telegram_tdlib_service.dart`, `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
@@ -957,36 +1097,17 @@ void dispose() {
 - `android/app/src/main/kotlin/.../MainActivity.kt`
 - `lib/services/shared_downloads_directory_service.dart`
 
-### 3. VLESS "Broken pipe" Socket Error
+### 3. Proxy peer-close handling
 
 **Error**: `SocketException: Write failed (OS Error: Broken pipe, errno = 32)`
 
-**Cause**: Writing to a socket after the peer has closed the connection, or writing to `IOSink` after it's closed.
+**Cause**: A SOCKS/HTTP client may close one direction while the upstream still has data to drain.
+Treating every later `Broken pipe`, reset, aborted, or not-connected write as a protocol failure can
+tear down healthy half-close paths or produce misleading diagnostics.
 
-**Fix**: Add state tracking and exception handling:
-- Add `outgoingClosed` flag to track stream state
-- Wrap all socket writes in try-catch blocks
-- Check `outgoingClosed` before writing
-- Catch `SocketException` and handle gracefully without propagating
+**Current rule**:
 
-**Pattern**:
-```dart
-var outgoingClosed = false;
-
-// In data handler:
-try {
-  if (!outgoingClosed) {
-    outgoing.add(payload);
-  }
-} on SocketException {
-  outgoingClosed = true;
-}
-
-// In onDone/onError handlers:
-if (!outgoingClosed) {
-  outgoingClosed = true;
-  unawaited(outgoing.close().catchError((_) {}));
-}
-```
-
-**File**: `lib/browser/vless_client.dart` (in `pipeBroadcast` and `_pipeWebSocket`)
+- The active implementation is Rust, not the removed Dart VLESS runtime.
+- Preserve half-close and expected peer-close classification in
+  `rust/proxy-core/src/inbound/relay.rs` and `rust/proxy-core/src/inbound/socks5.rs`.
+- Do not recreate the removed Dart VLESS/mixed-proxy runtime as a fix.

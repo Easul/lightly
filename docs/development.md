@@ -104,10 +104,51 @@ bash scripts/build_multi_abi.sh
 
 ## 开发流程
 
-1. 从 `main` 拉出功能或修复分支
-2. 修改代码时尽量保持最小变更范围
-3. 修改后运行相关测试与构建验证
-4. 提交前确认没有引入新的 lint / 构建错误
+1. 确认当前分支、工作区状态和 `main` 基线。
+2. 从 `main` 创建用途单一的 feature/fix/perf/refactor/docs 分支。
+3. 修改代码时保持最小范围，不覆盖工作区中与当前任务无关的用户改动。
+4. 按风险运行定向测试、分析和构建验证。
+5. 提交前检查 staged 文件、`git diff --check` 和生成物/敏感信息。
+6. 使用简洁英文 conventional commit 提交，并在交付时说明分支、commit 与验证结果。
+
+长期有效的工作流和技术约束统一维护在根目录 `AGENTS.md` 与 `docs/`。`temp/` 只用于
+可随时删除的日志、截图、实验脚本和诊断输出，不再保存规则、任务计划或设计文档。
+
+### 分支与提交边界
+
+- 禁止直接在 `main` 上实现修改。
+- 新分支必须直接基于 `main`；如果当前处于其他 feature 分支，先核对 merge base，避免
+  把无关功能带入新提交。
+- 行为修改、依赖反转、文件移动、重命名应尽量拆成独立提交。
+- 构建产物、`.so`、Rust `target/`、日志、密钥、代理配置和本地环境文件不得提交。
+- 用户要求打包时先提交代码，再从准确 commit 进行构建。
+
+### 验证层级
+
+| 改动类型 | 最低验证 |
+|---|---|
+| 文档 | Markdown 链接、`git diff --check`、中英文一致性 |
+| Dart/UI | 定向 `flutter analyze`、相关测试 |
+| 共享服务/架构 | 定向测试 + 完整 `flutter test` |
+| Kotlin/平台通道 | Dart contract test + Kotlin 编译/测试 |
+| Rust/代理/WebView | `AGENTS.md` 对应协议测试、Flutter 测试和 Release 构建 |
+
+不为了满足形式而在纯文档改动后构建 APK；也不能用文档校验替代运行时代码所需的测试。
+
+## 架构变更流程
+
+架构目标与迁移阶段见 [架构设计](architecture.md) 和
+[架构迁移路线](architecture-roadmap.md)。开始结构性修改前：
+
+1. 明确资源 owner、source of truth 和生命周期变化。
+2. 先引入可测试的 contract/port，再改变依赖方向。
+3. 行为修改、依赖反转、文件移动和类名重命名分别提交。
+4. 目录移动应保持为纯 rename/import 变更，不顺带修复业务。
+5. 新增平台能力必须通过 typed gateway，不在 Page/Widget 中创建裸 MethodChannel。
+6. 新增持久化数据时记录 owner、版本、敏感级别、备份与清除策略。
+
+复杂 feature 可以使用 presentation/application/domain/infrastructure 边界；小工具保持
+浅层结构即可。不要为了统一形式全面替换现有状态管理或机械拆分 owner。
 
 ## 贡献约定
 
@@ -139,6 +180,9 @@ docs: update xxx
 
 - [快速入门](quickstart.md)
 - [架构文档](architecture.md)
+- [架构迁移路线](architecture-roadmap.md)
+- [工程维护待办](maintenance-backlog.md)
+- [远程控制架构](remote-control-architecture.md)
 - [界面设计规范](ui-design.md)
 - [发布构建说明](release_build.md)
 - [浏览器回归清单](browser_regression_checklist.md)

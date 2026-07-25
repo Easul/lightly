@@ -104,10 +104,59 @@ bash scripts/build_multi_abi.sh
 
 ## Development Flow
 
-1. Branch from `main` for features or fixes
-2. Keep changes scoped to the task
-3. Run relevant tests and build verification
-4. Confirm there are no new lint or build failures before committing
+1. Confirm the current branch, worktree state, and `main` baseline.
+2. Create a focused feature/fix/perf/refactor/docs branch directly from `main`.
+3. Keep changes scoped and preserve unrelated user changes in the worktree.
+4. Run targeted tests, analysis, and build verification in proportion to risk.
+5. Before committing, review staged files, run `git diff --check`, and exclude generated or
+   sensitive artifacts.
+6. Commit with a concise English conventional message and report the branch, commit, and
+   verification during handoff.
+
+Durable workflow and technical guidance belongs in root `AGENTS.md` or `docs/`. `temp/` is only
+for disposable logs, screenshots, experiment scripts, and diagnostic output; it must not contain
+rules, task plans, or design documents.
+
+### Branch and commit boundaries
+
+- Never implement directly on `main`.
+- New work must branch directly from `main`. If another feature branch is checked out, verify the
+  merge base so unrelated work is not inherited.
+- Separate behavior changes, dependency inversion, file moves, and renames when practical.
+- Do not commit build outputs, `.so` files, Rust `target/`, logs, keys, proxy configuration, or
+  local environment files.
+- When the user requests packaging, commit first and build from the exact revision.
+
+### Verification levels
+
+| Change | Minimum verification |
+|---|---|
+| Documentation | Markdown links, `git diff --check`, Chinese/English consistency |
+| Dart/UI | Targeted `flutter analyze` and related tests |
+| Shared service/architecture | Targeted tests plus full `flutter test` |
+| Kotlin/platform channel | Dart contract tests plus Kotlin compilation/tests |
+| Rust/proxy/WebView | Relevant `AGENTS.md` protocol tests, Flutter tests, and Release build |
+
+Do not build an APK merely for documentation-only changes, and do not substitute documentation
+checks for runtime verification when code changes.
+
+## Architecture Change Workflow
+
+See [Architecture Design](architecture.en.md) and the
+[Architecture Migration Roadmap](architecture-roadmap.en.md). Before structural work:
+
+1. Identify the resource owner, source of truth, and lifecycle change.
+2. Introduce a testable contract/port before reversing dependencies.
+3. Separate behavior changes, dependency inversion, file moves, and class renames into different
+   commits.
+4. Directory moves should remain pure rename/import changes without opportunistic fixes.
+5. New platform capabilities must use typed gateways; do not create raw MethodChannels in pages or
+   widgets.
+6. New persisted data must document owner, version, sensitivity, backup policy, and deletion policy.
+
+Complex features may use presentation/application/domain/infrastructure boundaries. Small tools
+should remain shallow. Do not replace the state model wholesale or split owners mechanically for
+uniformity.
 
 ## Contribution Style
 
@@ -139,6 +188,9 @@ docs: update xxx
 
 - [Quick Start](quickstart.en.md)
 - [Architecture](architecture.en.md)
+- [Architecture Migration Roadmap](architecture-roadmap.en.md)
+- [Engineering Maintenance Backlog](maintenance-backlog.en.md)
+- [Remote Control Architecture](remote-control-architecture.en.md)
 - [UI Design Guidelines](ui-design.en.md)
 - [Release Build Guide](release_build.md)
 - [Browser Regression Checklist](browser_regression_checklist.md)

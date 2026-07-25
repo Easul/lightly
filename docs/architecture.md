@@ -1,132 +1,381 @@
-# Lightly 架构文档
+# Lightly 架构设计
 
 [English](architecture.en.md)
 
-## 总览
+## 文档状态
 
-Lightly 是一个以 Flutter 为主、结合 Kotlin 原生模块与 EasyTier Rust 组件的 Android 浏览器应用。
+本文档同时描述：
 
-整体可以分成三层：
+- **当前架构**：仓库今天真实运行的结构与依赖。
+- **目标架构**：后续重构应逐步靠拢的边界。
+- **强制原则**：新增代码现在就应遵守的约束。
+
+目标架构尚未全部落地。目录移动和行为修改必须分开实施，具体阶段见
+[架构迁移路线](architecture-roadmap.md)。
+
+## 产品与架构定位
+
+Lightly 不是单纯的 WebView 浏览器，而是一个以浏览器为工作台、面向 Android
+本地能力的轻量工具平台：
+
+- 浏览器负责浏览、标签、历史、收藏、下载与媒体入口。
+- 代理与 EasyTier 提供互联网代理、P2P 和虚拟网络能力。
+- 远程控制组合 TCP、MediaProjection、MediaCodec、Accessibility 和 WebRTC。
+- 本地 HTTP、剪贴板和文件服务把设备能力安全地暴露给局域网。
+- AI、翻译和 Telegram 是独立工具功能，不应依附于浏览器页面生命周期。
+
+整体采用 **Flutter 模块化单体 + Kotlin 平台适配 + Rust 网络核心**：
 
 ```text
-UI 层（Flutter 页面与组件）
+Flutter UI 与应用编排
     ↓
-业务层（浏览器、代理、远程控制、文件服务、视频服务）
+Dart 功能服务、状态与本地网络
     ↓
-平台层（Android Kotlin、JNI、Rust EasyTier、MediaCodec）
+Typed Platform Gateways / MethodChannel
+    ↓
+Android Kotlin 系统能力
+    ↓
+Rust proxy-core / EasyTier runtime
 ```
 
-## UI 层
+## 设计理念
 
-主要位于 `lib/pages/` 与 `lib/widgets/`：
+### 1. Local-first
 
-- `BrowserPage`：浏览器主页面
-- `SettingsPage`：设置入口与功能开关
-- `ClipboardPage`：剪贴板页
-- EasyTier / 视频 / 数据管理 / 文件简易管理等专用页面
+用户数据、配置和本地服务默认在设备上运行。只有用户明确触发的浏览、代理、AI、
+Telegram 或远控流量才离开设备。
 
-界面统一由 `lib/theme/app_theme.dart` 提供颜色、文字、按钮、输入框、列表、对话框与 BottomSheet 主题。设置首页使用按功能域拆分的白色分组块；短操作菜单使用紧凑宫格，长操作菜单使用纯文字列表。共享设置行位于 `lib/widgets/shared/setting_tile.dart`。
+### 2. 浏览器是工作台，不是全局生命周期容器
 
-完整约束见 [界面设计规范](ui-design.md)。UI 重构不得改变 WebView keepAlive、代理连接、远控 socket 或后台服务生命周期。
+`BrowserPage` 是浏览体验 owner，但独立工具和后台服务不能依赖
+`BrowserPage` 是否正在展示。服务启动策略应由应用级 runtime coordinator 管理。
 
-## 业务层
+### 3. 单一资源 Owner
 
-主要位于 `lib/browser/`、`lib/services/`：
+- `BrowserPage` 持有当前 WebView controller 和浏览器页面状态。
+- `RemoteControlService` 持有远控 socket、会话和协议状态。
+- `ProxyService`、`EasyTierService` 等服务持有各自 native runtime 状态。
 
-### 浏览器
-- WebView 承载页面
-- 标签页管理与恢复
-- 地址栏建议、收藏、下载协调
+Coordinator 可以编排 owner，但不能复制或竞争资源所有权。
 
-### 代理
-- `vless_client.dart`：VLESS 协议实现
-- `local_mixed_proxy_server.dart`：本地 HTTP + SOCKS5 混合代理
-- `proxy_service.dart`：代理生命周期与配置管理
+### 4. 平台能力必须经过 Gateway
 
-### 远程控制
-- 屏幕采集与 H.264 帧管线，Android 端负责 MediaProjection / MediaCodec 编码，Flutter 端负责 socket 传输与解码显示
-- 触摸、键盘、全局动作、点亮屏幕、轨迹滑动与标注注入
-- WebRTC 双向语音，EasyTier 场景下优先使用远控 TCP 已验证的远端地址
-- 剪贴板与状态消息联动
+页面、Widget 和普通业务服务不得新增裸 `MethodChannel`。每个平台通道应由一个
+typed gateway 统一定义通道名、方法名、参数与返回值。
 
-### 本地服务
-- HTTP 文件服务
-- 文件简易管理服务：本地网页文件树、文本编辑保存、删除确认和收藏路径
-- 剪贴板 HTTP 服务
+### 5. 热路径只允许局部刷新
 
-### EasyTier / P2P
-- VPN 与 no-tun/no-VPN 两种运行模式
-- no-VPN 远控通过 EasyTier no-tun SOCKS5 portal 访问虚拟 IP
-- 签名权限保护的 EasyTier 状态 Provider，供同签名 Monitor 应用读取运行状态
+WebView progress/scroll、代理包、远控视频帧、WebRTC stats 和 AI SSE 增量不得触发
+页面级重建或高频持久化日志。优先使用 `ValueListenable`、局部 `ListenableBuilder`、
+流聚合、节流和帧丢弃策略。
 
-## 平台层
+### 6. 渐进式架构，不追求仪式化分层
 
-位于 `android/app/src/main/kotlin/` 与 `jniLibs/`：
+浏览器、远控、代理、EasyTier 等复杂功能需要明确的 presentation/application/domain/
+infrastructure 边界。计算器、2048 等小功能保持浅层结构，不为了形式创建空抽象。
 
-- `MainActivity.kt`：Flutter 与原生能力桥接
-- `ScreenCapture.kt`：屏幕捕获与 AVC 编码，包含机型兼容的编码尺寸 fallback
-- `H264Decoder.kt`：视频解码
-- `RemoteControlAccessibilityService.kt`：远控输入、全局动作、标注与断连提示
-- `EasyTierInfoProvider.kt` / `EasyTierStateStore.kt`：EasyTier 状态共享
-- EasyTier JNI / Rust `.so`：P2P VPN 核心能力
+## 当前整体架构
 
-## 关键数据流
+```mermaid
+flowchart TB
+    USER[用户]
 
-### 浏览器代理链路
+    subgraph UI[Flutter 展示层]
+        APP[MyApp 路由与主题]
+        BROWSER[BrowserPage<br/>WebView / Tab / Overlay Owner]
+        SETTINGS[SettingsPage]
+        TOOLS[ToolsPage 与功能页面]
+    end
+
+    subgraph ORCH[应用编排层]
+        BROWSER_FLOW[Browser coordinators / helpers]
+        REMOTE_OWNER[RemoteControlService<br/>Socket / Session Owner]
+        REMOTE_FLOW[Connection / Screen / Voice coordinators]
+        LIFECYCLE[AppLifecycleManager]
+    end
+
+    subgraph SERVICE[Dart 功能服务层]
+        SHARED[BrowserSharedServices]
+        PROXY[ProxyService]
+        EASY[EasyTierService]
+        LOCAL[HTTP 文件 / 剪贴板 / 文件管理]
+        MEDIA[下载 / 视频解析 / 视频代理]
+        AI_TG[AI / 翻译 / Telegram TDLib]
+        OBS[日志 / 缓存 / 性能监控]
+    end
+
+    subgraph DATA[持久化层]
+        DB[browser_data.db<br/>历史 / 收藏 / 下载 / AI 聊天]
+        PREFS[SharedPreferences<br/>设置 / Tab / Feature Config]
+        FILES[Download / imported files / runtime.log]
+        NATIVE_STORE[Android native preferences]
+    end
+
+    subgraph PLATFORM[平台桥接与 Android]
+        CHANNEL[MethodChannel gateways]
+        MAIN[MainActivity 与 ChannelHandlers]
+        ANDROID[VPN / MediaProjection / MediaCodec<br/>Accessibility / Overlay Services]
+        PROXY_JNI[ProxyCore JNI]
+        EASY_JNI[EasyTier JNI]
+    end
+
+    subgraph NATIVE[原生核心]
+        RUST_PROXY[Rust proxy-core<br/>HTTP + SOCKS5 → VLESS / Hysteria2]
+        EASY_CORE[EasyTier Rust runtime]
+    end
+
+    USER --> APP
+    APP --> BROWSER
+    APP --> SETTINGS
+    APP --> TOOLS
+    BROWSER --> BROWSER_FLOW
+    BROWSER_FLOW --> SHARED
+    BROWSER_FLOW --> PROXY
+    BROWSER_FLOW --> MEDIA
+    TOOLS --> REMOTE_OWNER
+    REMOTE_OWNER --> REMOTE_FLOW
+    REMOTE_FLOW --> EASY
+    SETTINGS --> SHARED
+    SETTINGS --> PROXY
+    SETTINGS --> LOCAL
+    LIFECYCLE --> REMOTE_OWNER
+    LIFECYCLE --> EASY
+    TOOLS --> AI_TG
+
+    SHARED --> DB
+    SHARED --> PREFS
+    LOCAL --> PREFS
+    LOCAL --> FILES
+    MEDIA --> FILES
+    AI_TG --> DB
+    AI_TG --> PREFS
+    AI_TG --> NATIVE_STORE
+    OBS --> FILES
+
+    PROXY --> CHANNEL
+    EASY --> CHANNEL
+    REMOTE_OWNER --> CHANNEL
+    AI_TG --> CHANNEL
+    CHANNEL --> MAIN
+    MAIN --> ANDROID
+    MAIN --> PROXY_JNI
+    MAIN --> EASY_JNI
+    PROXY_JNI --> RUST_PROXY
+    EASY_JNI --> EASY_CORE
+```
+
+## 当前模块与 Owner
+
+### App Shell
+
+- `lib/main.dart`：进程启动、TDLib 初始化、全局错误捕获、根路由。
+- `lib/theme/app_theme.dart`：全局视觉令牌和 Material 组件主题。
+- `AppLifecycleManager`：目前只统一了远控与 EasyTier 的部分关闭流程。
+
+### Browser
+
+- `BrowserPage`：WebView、active tab、地址栏、页面 overlay 和 Flutter lifecycle owner。
+- `BrowserPageServices`：为 BrowserPage 组装共享服务和页面级 coordinator。
+- `BrowserSharedServices`：浏览器相关单例服务集合。
+- `BrowserTabService`：全局标签与会话持久化 source of truth。
+- `BrowserDatabase`：历史、访问记录、收藏、下载和 AI 聊天表。
+
+浏览器详细职责见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
+
+### Proxy
+
+当前 Android Release 的真实链路为：
 
 ```text
-Browser WebView
-  → LocalMixedProxyServer
-  → VlessClient
-  → Remote VLESS server
-  → response back to WebView
+WebView
+  → AndroidX WebKit ProxyController
+  → 127.0.0.1 mixed HTTP/SOCKS5 port
+  → Rust proxy-core inbound
+  → VLESS over WebSocket/TLS 或 Hysteria2/QUIC
+  → remote server
 ```
 
-### EasyTier VPN 链路
+`ProxyService` 负责配置、复用、测速、下载路由和 WebView proxy override；
+`ProxyCoreService` 通过 `com.proxy.core/proxy` 通道控制 Kotlin/JNI/Rust runtime。
+
+### Remote Control
 
 ```text
-Flutter UI
-  → MethodChannel
-  → Kotlin wrapper
-  → EasyTier JNI
-  → Rust easytier core
-  → Android VpnService / tun
+Controller Flutter UI
+  → Dart control/screen TCP sockets
+  → Receiver RemoteControlService
+  → Android MediaProjection / H.264 encoder
+  → Dart frame transport
+  → Android H.264 decoder / Flutter texture
 ```
 
-### 远程控制链路
+控制命令经 TCP JSON/line protocol 传输，Android AccessibilityService 执行触摸、键盘、
+全局动作、标注与断连提示。WebRTC 语音由 Dart 协调，并针对 EasyTier 地址改写 ICE host
+candidate。
+
+当前通道、owner、连接模式和 lifecycle 详见
+[远程控制架构](remote-control-architecture.md)。
+
+### EasyTier
 
 ```text
-LAN browser
-  → Remote control HTTP interface
-  → Android capture / input services
-  → screen / touch / clipboard / audio
+EasyTierPage / RemoteControl flow
+  → EasyTierService
+  → easytier_vpn MethodChannel
+  → MainActivity / EasyTierJNI
+  → EasyTier Rust runtime
+  → Android VpnService 或 no-tun SOCKS5 portal
 ```
 
-远控模块按职责拆分为连接流程、消息路由、屏幕帧管线、健康检测、语音协调等组件，详见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
+同签名 Monitor 应用通过受签名权限保护的 ContentProvider 读取 EasyTier 运行状态。
 
-### 文件简易管理链路
+### Local Services
+
+- `LocalHttpFileServerService`：目录浏览、静态文件、上传。
+- `ClipboardHttpServerService`：局域网剪贴板页面与保存接口。
+- `SimpleFileManagerService`：文件树、文本编辑、删除和收藏路径。
+
+三者保持独立生命周期，但应逐步复用地址解析、路径沙箱、响应错误处理和运行状态模型。
+
+### AI / Translation / Telegram
+
+- `AiClient`：OpenAI completions/responses 与 Anthropic messages。
+- `AiHistoryDatabase`：复用应用 SQLite 数据库。
+- Android `TranslationOverlayService`：Flutter 后台时独立执行翻译。
+- `TelegramTdlibService`：TDLib 登录、查询、发送和签到，并使用当前本地 SOCKS5 端点。
+
+## 当前状态管理模型
+
+Lightly 没有引入全局状态管理框架，主要使用：
+
+- `StatefulWidget`：页面级短生命周期 UI 状态。
+- `ValueNotifier`：局部、低成本 UI 更新。
+- broadcast `StreamController`：服务运行状态与远控消息。
+- singleton service：跨页面 native/socket/server 生命周期。
+- coordinator/helper：无资源所有权的流程和决策逻辑。
+
+这个模型仍适合当前项目，不应为了统一风格整体迁移到 Bloc/Riverpod。新状态首先应判断
+它属于页面、feature owner 还是应用 runtime，再选择最小机制。
+
+## 当前持久化边界
+
+| 存储 | 当前内容 | 目标 Owner |
+|---|---|---|
+| SQLite `browser_data.db` | 历史、访问记录、收藏、下载、AI 聊天 | `AppDatabase` + feature repositories |
+| SharedPreferences | 浏览器设置、Tab、代理节点、AI/TG/EasyTier 配置、剪贴板、工具历史 | 各 feature `Store` |
+| App files | TDLib 数据、导入文件、日志、缓存 | 对应 feature service |
+| Shared Download | 下载、备份、日志导出 | `SharedDownloadsDirectoryService` |
+| Android native preferences | 悬浮翻译历史和窗口状态 | native overlay module |
+
+每份数据必须只有一个 source of truth。跨 Flutter/native 的数据需要明确同步方向、版本和
+失败回退，不能让两个存储长期双向写入同一状态。
+
+## 当前平台通道
+
+| Channel | Dart Owner | Android Owner |
+|---|---|---|
+| `browser_proxy` | `ProxyWebViewBridge` 及文件/Intent gateway | 当前在 `MainActivity` |
+| `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
+| `easytier_vpn` | `EasyTierService` | 当前在 `MainActivity` |
+| `remote_control` | `RemoteControlPlatformGateway` | 当前在 `MainActivity` |
+| `floating_video` | floating video gateway | `FloatingVideoChannelHandler` / service |
+| `translation_overlay` | translation services | `TranslationOverlayChannelHandler` / service |
+| `time_overlay` | `TimeOverlayService` | `TimeOverlayChannelHandler` / service |
+| `media_scanner` | `MediaScannerService` | `MediaScannerChannelHandler` |
+
+`browser_proxy`、`easytier_vpn` 和 `remote_control` 是下一阶段应从 `MainActivity` 提取的
+三个主要通道。
+
+## 已识别的架构债务
+
+1. 服务启动分散在 `main.dart`、`BrowserPageInitializer`、页面和
+   `AppLifecycleManager`，应用级生命周期没有唯一协调者。
+2. `lib/browser/` 与 `lib/services/` 存在双向依赖；AI 和 Telegram 也直接依赖浏览器实现。
+3. `BrowserDatabase` 已存储 AI 数据，命名与职责不再匹配。
+4. `MainActivity` 同时承担 Activity、权限、Intent、EasyTier、远控和 WebView proxy 逻辑。
+5. 多个 feature 直接创建或持有 MethodChannel，契约分散。
+6. SharedPreferences key、版本和备份敏感级别缺少统一清单。
+7. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
+
+## 目标依赖方向
 
 ```text
-Settings → SimpleFileManagerService
-  → Dart HttpServer (default 12580)
-  → Web file tree / editor
-  → safe read / save / delete under configured root
+app composition root
+    ↓
+feature presentation
+    ↓
+feature application/use cases
+    ↓
+feature domain contracts
+    ↑
+feature infrastructure implements contracts
+
+core 只能被 feature 依赖，不能依赖任何 feature。
+feature 不得直接依赖另一个 feature 的 infrastructure。
+跨 feature 协作通过 domain port 或 app-level coordinator 完成。
 ```
 
-## 性能注意点
+推荐目标目录：
 
-- 浏览进度更新使用节流，避免高频重建
-- WebSocket / 代理热路径避免逐包详细日志
-- 浏览器滚动位置与视频检测使用阈值 / 防抖
-- WebView、服务、流对象需要及时释放
+```text
+lib/
+├── app/
+│   ├── app.dart
+│   ├── routes.dart
+│   ├── app_scope.dart
+│   └── runtime/
+├── core/
+│   ├── logging/
+│   ├── network/
+│   ├── platform/
+│   ├── storage/
+│   └── ui/
+├── features/
+│   ├── browser/
+│   ├── proxy/
+│   ├── video/
+│   ├── remote_control/
+│   ├── easytier/
+│   ├── local_sharing/
+│   ├── ai/
+│   ├── telegram/
+│   └── utilities/
+└── theme/
+```
+
+复杂 feature 可以继续分 `presentation/`、`application/`、`domain/`、`infrastructure/`；
+小 feature 保持一层目录即可。
+
+## 架构守则
+
+- 不在页面或 Widget 中新增裸 MethodChannel。
+- 不让 feature 直接控制另一个 feature 的 private runtime。
+- 不复制 WebView、socket、server、native service 的运行状态。
+- 不让后台服务依赖某个页面保持 mounted。
+- 不在移动目录的提交中修改行为。
+- 不按文件行数机械拆分 owner。
+- 不在 WebView、视频、代理、远控和 SSE 热路径持久化高频日志。
+- 新增持久化数据时同时记录 owner、版本、敏感级别、备份与清除策略。
+
+## 验证策略
+
+每次架构迁移应至少保证：
+
+1. import-only 移动不改变运行行为。
+2. owner 的资源生命周期仍有单一 source of truth。
+3. platform channel contract 有 Dart/Kotlin 对应测试。
+4. 数据库迁移和 SharedPreferences 兼容旧版本。
+5. 浏览器、代理、远控和 EasyTier 按各自回归清单验证。
 
 ## 相关文档
 
-- [快速入门](quickstart.md)
+- [架构迁移路线](architecture-roadmap.md)
+- [工程维护待办](maintenance-backlog.md)
 - [开发指南](development.md)
 - [界面设计规范](ui-design.md)
-- [浏览器 / 远控模块地图](browser_remote_module_map.md)
+- [Browser / Remote 模块分类图](browser_remote_module_map.md)
 - [浏览器回归清单](browser_regression_checklist.md)
 - [远程控制回归清单](remote_control_regression_checklist.md)
-- [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)
-- [v1.0.8 功能更新摘要](release-summary-v1.0.8.md)
+- [远程控制架构](remote-control-architecture.md)
+- [EasyTier 编译记录](easytier-build.md)
+- [EasyTier 状态共享给 Monitor](easytier-state-sharing.md)
