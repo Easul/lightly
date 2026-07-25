@@ -64,6 +64,25 @@ orchestration now need formal boundaries.
 - Still inside `MainActivity`: browser proxy/file/intent, EasyTier, and remote control.
 - `RemoteControlPlatformGateway` is the preferred pattern.
 
+### Test baseline
+
+The roadmap repeatedly requires "contract tests pass," but most of those tests do not exist yet, so
+"build the test scaffolding" is itself prerequisite work and must not be hidden inside move commits.
+Re-measure current coverage before starting any phase:
+
+```bash
+flutter test              # existing Dart tests
+cargo test --manifest-path rust/proxy-core/Cargo.toml
+find android -name '*Test.kt' | wc -l   # current Kotlin unit-test count
+```
+
+- Dart-side coverage today is mainly proxy and some browser services; there is no systematic platform
+  channel contract test suite.
+- The Kotlin side has almost no channel-handler unit tests, so Phase 3's "at least one test per method"
+  must be scheduled as its own work item.
+- Write the actual numbers into each phase's PR description; do not reuse this document's historical
+  figures as current fact.
+
 ## Migration Principles
 
 1. **Contracts before moves.** Define owner, interface, state, and tests before reorganizing files.
@@ -84,11 +103,20 @@ Deliverables:
 - Module owners, dependency direction, and design principles.
 - Lifecycle, persistence, and platform-channel baselines.
 - This migration roadmap.
+- A **first version** of the data-ownership catalog in `docs/data-ownership.md` (key/table/file,
+  owner, schema/version, sensitivity, backup, clear/delete policy). This is pure documentation with
+  zero code risk and must exist before any code moves, so every later phase can check itself against
+  it for "no broken implicit data contract." Phase 4 only makes the code structure catch up to this
+  table; it does not create the table from scratch.
 
-Completion criteria:
+Completion criteria (exit criteria):
 
 - Documentation no longer describes the removed Dart VLESS/local mixed-proxy path.
 - New code reviews can reference explicit boundary rules.
+- `docs/data-ownership.md` exists and covers every current SQLite table, SharedPreferences key group,
+  and native store.
+- The proxy routing/bypass correctness contract has an explicit entry in `AGENTS.md` (see
+  `## Proxy Bypass / Routing Correctness`); later proxy-feature moves must reference it.
 
 ## Phase 1: Composition Root and Dependency Ports
 
@@ -110,11 +138,18 @@ Work items:
 2. Compose global services explicitly in `AppServices`; existing singletons may remain initially.
 3. Let pages receive services through constructors or `AppScope`, retaining defaults for gradual
    migration and tests.
-4. Introduce cross-feature ports:
-   - `LocalProxyEndpointProvider`
-   - `SharedDownloadsAccess`
-   - `RuntimeLogger`
-   - `AppDatabaseProvider`
+4. Introduce cross-feature ports, each aimed at a dependency violation that exists today rather than
+   an interface designed in the abstract:
+   - `LocalProxyEndpointProvider` — removes the direct `Telegram → ProxyService` dependency; Telegram
+     only takes a local SOCKS5 endpoint and stops knowing the proxy implementation.
+   - `AppDatabaseProvider` — removes the direct `AI history → BrowserDatabase` dependency; AI takes a
+     database handle through the provider and no longer depends on a "browser"-named class.
+   - `SharedDownloadsAccess` — unifies download/backup/log-export access to the shared directory so
+     features stop assembling paths independently.
+   - `RuntimeLogger` — lets features log without depending back on a concrete logging service.
+
+   Each port must land together with evidence that the old direct dependency now goes through the
+   port; otherwise the port is just "designed but unused."
 
 Non-goals:
 
@@ -127,6 +162,19 @@ Verification:
 - `flutter test`
 - Route/default-page widget tests
 - Service-injection unit tests
+
+Exit criteria:
+
+- `lib/app/` exists and `main.dart` only bootstraps; it no longer assembles scattered global services.
+- The four ports are defined, and at least `LocalProxyEndpointProvider` and `AppDatabaseProvider` are
+  actually used by Telegram and AI — `grep` no longer shows direct `Telegram → ProxyService` or
+  `AI → BrowserDatabase` construction.
+
+Rollback:
+
+- This phase is all new files plus dependency-injection point swaps, with no behavior change. Any
+  commit can be reverted independently; if a port is unused, deleting the interface file is enough,
+  with no data or protocol impact.
 
 ## Phase 2: Unified Runtime Lifecycle
 
@@ -149,13 +197,25 @@ Boundaries:
 - Concrete services remain owners of runtime state and native/socket resources.
 - Pages submit user intent and do not duplicate `isRunning` state.
 
+Relationship between `AppLifecycleManager` and `AppRuntimeCoordinator` (avoid overlapping
+responsibilities):
+
+- `AppRuntimeCoordinator` is the single **policy** entry point: it decides "under what conditions to
+  start/stop which runtime".
+- `AppLifecycleManager` is demoted to a pure **Flutter lifecycle event forwarder**: it only relays
+  `paused`/`resumed`/`detached` callbacks to the coordinator and no longer decides on its own to
+  shut down remote control or EasyTier.
+- After migration `AppLifecycleManager` must not hold any service stop logic; if it becomes empty it
+  is deleted, and exit cleanup is funnelled through `shutdownAll()`.
+
 Migration order:
 
 1. Move simple-file-manager startup out of `main.dart`.
 2. Move local HTTP and clipboard auto-start out of BrowserPage initialization.
 3. Move proxy runtime settings into the coordinator while WebView attachment remains behind a
    browser port.
-4. Merge `AppLifecycleManager` exit behavior.
+4. Move existing `AppLifecycleManager` exit logic into `shutdownAll()` and convert it to event
+   forwarding.
 5. Reuse the same runtime policy for EasyTier and remote control.
 
 Verification:
@@ -164,6 +224,20 @@ Verification:
 - Services continue according to settings after pages close.
 - Full exit releases remote/EasyTier/native resources.
 - Repeated start/stop operations remain idempotent.
+
+Completion criteria:
+
+- Start/stop calls for all six runtimes (simple file manager, local HTTP, clipboard, proxy runtime,
+  EasyTier, remote control) go through `AppRuntimeCoordinator`; pages contain no scattered direct
+  `.start()/.stop()` calls.
+- `AppLifecycleManager` no longer contains any concrete service shutdown logic.
+- After full app exit, `adb shell dumpsys` shows no leftover capture/VPN foreground services.
+
+Rollback:
+
+- The coordinator is a new orchestration layer that still calls existing service methods internally.
+  If behavior breaks, first restore direct calls in pages/`main.dart` (revert the relevant move
+  commit); the coordinator stays but is left unwired, leaving service implementations untouched.
 
 ## Phase 3: Platform Gateways and MainActivity Reduction
 
@@ -201,6 +275,19 @@ Migration order:
 3. `easytier_vpn`.
 4. `remote_control`, with screen texture and Activity Result work last.
 
+Completion criteria:
+
+- `MainActivity` no longer registers any `setMethodCallHandler` directly; all three target channels
+  are carried by independent handlers.
+- In the platform-channel table (architecture doc), the Android owner of `browser_proxy`,
+  `easytier_vpn`, and `remote_control` is no longer `MainActivity`.
+- Every migrated method has at least one Dart contract test, and the `remote_control` binary frame
+  path still uses raw `Uint8List`.
+
+Rollback: extract one channel per commit — first add the handler + gateway and let `MainActivity`
+delegate, then delete the old `MainActivity` implementation. Rollback = revert the second step;
+delegation still works and runtime behavior is unchanged.
+
 ## Phase 4: Persistence and Repository Boundaries
 
 Goal: prevent storage implementation from deciding feature dependencies.
@@ -208,17 +295,24 @@ Goal: prevent storage implementation from deciding feature dependencies.
 Work items:
 
 1. Rename the code concept `BrowserDatabase` to `AppDatabase`, while retaining the physical
-   `browser_data.db` filename to avoid migration risk.
+   `browser_data.db` filename to avoid migration risk. This is a pure rename: no schema change, no
+   change to table-creation SQL or serialization format, only class name and imports.
 2. Keep separate repositories for history, favorites, downloads, and AI chat.
-3. Add `docs/data-ownership.md` recording:
-   - key/table/file
-   - owner
-   - schema/version
-   - sensitivity classification
-   - backup/export policy
-   - clear/delete policy
+3. Fill in the real implementation details behind the `docs/data-ownership.md` catalog already
+   created in Phase 0, and route AI chat through `AppDatabaseProvider` (the port introduced in
+   Phase 1) instead of depending directly on `BrowserDatabase`.
 4. Add consistent key prefixes and version strategy to SharedPreferences stores.
 5. Define one-way synchronization between native translation history and Dart fallback storage.
+
+Completion criteria:
+
+- The `BrowserDatabase` class name no longer appears in code (the DB file is still `browser_data.db`).
+- AI/history no longer imports the browser database implementation directly; it goes through
+  `AppDatabaseProvider`.
+- Every row in `docs/data-ownership.md` maps to a real owner.
+
+Rollback: the rename commit is a pure mechanical rename — rollback = revert the single commit; the
+database file and schema are never touched, so there is no data-migration risk.
 
 Verification:
 

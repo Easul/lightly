@@ -704,6 +704,21 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
   `lib/browser/services/browser_proxy_form_mutator.dart`, and
   `lib/browser/widgets/settings/proxy_settings_section.dart`.
 
+## Proxy Bypass / Routing Correctness
+
+Proxy bypass and direct-route decisions are a compatibility contract, not a refactor detail. This
+looks unrelated to architecture work, but any move of proxy routing logic can silently regress it.
+
+- **Host bypass rules must match on host boundaries, never on substrings.**
+  - `googlevideo.com` must not be considered a match for a `google.com` bypass entry.
+  - A regression here routed YouTube playback DIRECT instead of through the proxy and produced `403`
+    responses.
+  - Use exact host equality or dotted-suffix matching (`host == rule || host.endsWith('.' + rule)`),
+    not `host.contains(rule)` or `host.endsWith(rule)`.
+- When bypass/routing logic is moved during the architecture migration, treat it as a behavior
+  change: keep it in a separate commit and re-run the proxy routing tests, do not fold it into an
+  import-only move.
+
 ## Selective Browsing Data Clearing
 
 The browser supports clearing different categories of data independently:

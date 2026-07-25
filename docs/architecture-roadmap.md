@@ -60,6 +60,21 @@ SettingsPage           789 lines
 - 仍集中在 `MainActivity`：browser proxy/file/intent、EasyTier、remote control。
 - `RemoteControlPlatformGateway` 已提供良好模板。
 
+### 测试基线
+
+迁移路线多次要求“contract test 通过”，但这些测试大部分尚不存在，因此“补齐测试脚手架”本身
+就是迁移的前置工作，不能隐含在移动提交里。执行任何 Phase 前先重新测量当前覆盖：
+
+```bash
+flutter test              # 现有 Dart 测试
+cargo test --manifest-path rust/proxy-core/Cargo.toml
+find android -name '*Test.kt' | wc -l   # 当前 Kotlin 单测数量
+```
+
+- Dart 侧目前主要覆盖 proxy、部分 browser 服务，尚无系统性的 platform channel contract test。
+- Kotlin 侧几乎没有 channel handler 单测，Phase 3 的“每个方法至少一个测试”需当作独立工作量排期。
+- 每个 Phase 开始前把上述实际数字写进对应 PR 描述，不要复用本文历史数字当事实。
+
 ## 迁移原则
 
 1. **先契约，后移动。** 先定义 owner、接口、状态和测试，再迁目录。
@@ -79,11 +94,17 @@ SettingsPage           789 lines
 - 模块 owner、依赖方向和设计原则。
 - 生命周期、持久化和平台通道基线。
 - 本迁移路线。
+- `docs/data-ownership.md` 的**初版**数据 owner 清单（key/table/file、owner、schema/version、
+  敏感级别、备份、清除策略）。这是纯文档、零代码风险，必须在移动任何代码前存在，让后续每个
+  Phase 都能对照它验证"没有破坏隐性数据合同"。Phase 4 只负责让代码结构追平这张表，而不是从头创建它。
 
-完成标准：
+完成标准（exit criteria）：
 
 - 文档不再描述已经删除的 Dart VLESS/local mixed proxy 路径。
 - 新代码评审可以引用明确的边界规则。
+- `docs/data-ownership.md` 存在，且覆盖当前所有 SQLite 表、SharedPreferences key 组和 native store。
+- 代理路由/bypass 正确性合同已在 `AGENTS.md` 有明确条目（见 `## Proxy Bypass / Routing Correctness`），
+  后续 proxy feature 迁移必须引用它。
 
 ## Phase 1：Composition Root 与依赖接口
 
@@ -104,11 +125,15 @@ lib/app/
 1. 把 `MyApp`、路由表和 bootstrap 组织到 `lib/app/`。
 2. 用 `AppServices` 明确组装全局 service；初期可以继续引用现有 singleton。
 3. 页面优先通过构造参数或 `AppScope` 获取 service，保留默认值支持渐进迁移和测试。
-4. 抽出跨 feature ports：
-   - `LocalProxyEndpointProvider`
-   - `SharedDownloadsAccess`
-   - `RuntimeLogger`
-   - `AppDatabaseProvider`
+4. 抽出跨 feature ports，每个 port 都对准一个当前真实存在的违规依赖，而不是凭空设计接口：
+   - `LocalProxyEndpointProvider` —— 消灭 `Telegram → ProxyService` 的直接依赖，Telegram 只拿本地
+     SOCKS5 端点，不再感知代理实现。
+   - `AppDatabaseProvider` —— 消灭 `AI history → BrowserDatabase` 的直接依赖，AI 通过 provider 拿到
+     数据库句柄，不再依赖"浏览器"命名的类。
+   - `SharedDownloadsAccess` —— 统一下载/备份/日志导出对共享目录的访问，避免多 feature 各自拼路径。
+   - `RuntimeLogger` —— 让各 feature 记日志时不再反向依赖具体日志服务实现。
+
+   每个 port 必须同时提交"旧的直接依赖已改为依赖 port"的证据，否则 port 只是"设计了但没人用"。
 
 非目标：
 
@@ -121,6 +146,17 @@ lib/app/
 - `flutter test`
 - 路由与默认页 Widget 测试
 - service 注入单元测试
+
+完成标准（exit criteria）：
+
+- `lib/app/` 存在且 `main.dart` 只负责 bootstrap，不再直接组装分散的全局 service。
+- 上述四个 port 已定义，且至少 `LocalProxyEndpointProvider` 与 `AppDatabaseProvider` 已被
+  Telegram 和 AI 实际使用，`grep` 不再出现 `Telegram → ProxyService`、`AI → BrowserDatabase` 的直接构造。
+
+回退（rollback）：
+
+- 本阶段全部是新增文件 + 依赖注入点替换，不改行为。任一提交可单独 `git revert`，port 未被使用时
+  删除接口文件即可，不涉及数据或协议。
 
 ## Phase 2：统一 Runtime 生命周期
 
@@ -143,12 +179,20 @@ AppRuntimeCoordinator
 - 具体 service 仍是运行状态和 native/socket 资源 owner。
 - 页面只提交用户意图，不复制 `isRunning` source of truth。
 
+`AppLifecycleManager` 与 `AppRuntimeCoordinator` 的关系（避免两者职责重叠）：
+
+- `AppRuntimeCoordinator` 是唯一的**策略**入口：决定"在什么条件下启动/停止哪个 runtime"。
+- `AppLifecycleManager` 降级为纯 **Flutter lifecycle 事件转发器**：只把 `paused`/`resumed`/`detached`
+  等回调转交给 coordinator，不再自己直接决定关闭远控或 EasyTier。
+- 迁移完成后 `AppLifecycleManager` 不得再持有任何 service 的 stop 逻辑；如果它变空则删除，退出清理
+  统一由 `shutdownAll()` 收口。
+
 迁移顺序：
 
 1. Simple file manager startup 从 `main.dart` 移入 coordinator。
 2. Local HTTP 与 clipboard auto-start 从 BrowserPage 初始化移入 coordinator。
 3. Proxy settings runtime 应用移入 coordinator，但 WebView proxy attach 仍通过 browser port。
-4. 合并 `AppLifecycleManager` 的退出逻辑。
+4. 把 `AppLifecycleManager` 现有退出逻辑迁入 `shutdownAll()`，并将其改为事件转发。
 5. EasyTier/remote-control 复用同一 runtime policy。
 
 验证：
@@ -157,6 +201,18 @@ AppRuntimeCoordinator
 - 页面退出后服务仍按设置运行。
 - 完整退出能够关闭 remote/EasyTier/native resources。
 - 多次 start/stop 保持幂等。
+
+完成标准（exit criteria）：
+
+- simple file manager、local HTTP、clipboard、proxy runtime、EasyTier、remote control 六个 runtime 的
+  启动/停止调用都经过 `AppRuntimeCoordinator`，页面里不再有直接 `.start()/.stop()` 散点。
+- `AppLifecycleManager` 不再包含任何具体 service 的关闭逻辑。
+- 应用完整退出后，`adb shell dumpsys` 下无残留 capture/VPN 前台服务。
+
+回退（rollback）：
+
+- coordinator 是新增的编排层，内部仍调用现有 service 方法。若行为异常，可先让页面/`main.dart` 恢复
+  直接调用（revert 对应移动提交），coordinator 保留但不接线，不影响 service 自身实现。
 
 ## Phase 3：Platform Gateway 与 MainActivity 瘦身
 
@@ -194,6 +250,16 @@ Dart
 3. `easytier_vpn`。
 4. `remote_control`，最后迁移屏幕纹理和 Activity Result 相关逻辑。
 
+完成标准（exit criteria）：
+
+- `MainActivity` 不再直接注册任何 `setMethodCallHandler`；三个目标通道全部由独立 handler 承载。
+- 平台通道清单（架构文档表格）中 `browser_proxy`、`easytier_vpn`、`remote_control` 的
+  Android Owner 不再是 `MainActivity`。
+- 每个已迁移方法至少有一个 Dart contract test，`remote_control` 二进制帧路径仍是 `Uint8List` 直传。
+
+回退：每个通道一次提取一个提交，先加 handler + gateway 并让 `MainActivity` 委派，再删除
+`MainActivity` 内旧实现。回退 = revert 后一步，委派仍可用，运行行为不变。
+
 ## Phase 4：持久化与 Repository 边界
 
 目标：存储实现不再决定 feature 依赖方向。
@@ -201,17 +267,22 @@ Dart
 工作项：
 
 1. 将代码概念 `BrowserDatabase` 改为 `AppDatabase`，数据库文件名暂时保持
-   `browser_data.db`，避免数据迁移风险。
+   `browser_data.db`，避免数据迁移风险。此步为纯 rename：不改 schema、不改建表 SQL、
+   不改序列化格式，仅改类名与 import。
 2. 为 history、favorites、downloads、AI chat 保持独立 repository。
-3. 建立 `docs/data-ownership.md`，记录：
-   - key/table/file
-   - owner
-   - schema/version
-   - sensitive classification
-   - backup/export policy
-   - clear/delete policy
+3. 按 Phase 0 已建立的 `docs/data-ownership.md` 补全实际实现细节，并让 AI chat 通过
+   `AppDatabaseProvider`（Phase 1 引入的 port）而非直接依赖 `BrowserDatabase`。
 4. 为 SharedPreferences Store 增加统一 key 前缀和版本策略。
 5. 明确 translation native history 与 Dart fallback 的单向同步规则。
+
+完成标准（exit criteria）：
+
+- 代码中不再出现 `BrowserDatabase` 类名（数据库文件名仍为 `browser_data.db`）。
+- AI/history 不再直接 import 浏览器数据库实现，改经 `AppDatabaseProvider`。
+- `docs/data-ownership.md` 的每一行都对应到真实 owner。
+
+回退：改名提交是纯机械 rename，回退 = revert 单个 commit，数据库文件与 schema 全程未动，
+无数据迁移风险。
 
 验证：
 
