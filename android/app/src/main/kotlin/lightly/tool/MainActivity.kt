@@ -2,7 +2,6 @@ package lightly.tool
 
 import android.content.Intent
 import android.net.Uri
-import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -11,29 +10,13 @@ import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
-import com.easytier.jni.EasyTierJNI
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.renderer.FlutterRenderer
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
-import org.json.JSONObject
 
 class MainActivity : FlutterActivity() {
-    private val vpnPermissionRequestCode = 4103
-    private var pendingVpnPermissionResult: MethodChannel.Result? = null
-    private var pendingVpnConfig: String? = null
-    private var pendingVpnInstanceName: String? = null
-    private val easyTierMonitorHandler = Handler(Looper.getMainLooper())
-    private var easyTierMonitorRunnable: Runnable? = null
-    private var easyTierRunningInstanceName: String? = null
-    private var easyTierCurrentIpv4: String? = null
-    private var easyTierMonitorTick = 0
-    private var easyTierRunningConfig: String? = null
-    private var easyTierMissingInfoTicks = 0
-    private var easyTierNotRunningTicks = 0
-    private var easyTierRestartInProgress = false
-    private var easyTierUseAndroidVpn = true
     private var remoteControlService: RemoteControlService? = null
 
     private var browserProxyChannel: MethodChannel? = null
@@ -42,6 +25,7 @@ class MainActivity : FlutterActivity() {
     private val proxyFloatingModeChannelHandler by lazy {
         ProxyFloatingModeChannelHandler(this)
     }
+    private val easyTierChannelHandler by lazy { EasyTierChannelHandler(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,7 +108,6 @@ class MainActivity : FlutterActivity() {
         proxyFloatingModeChannelHandler.stop()
     }
 
-    private val easyTierChannelName = "easytier_vpn"
     private val remoteControlChannelName = "remote_control"
     private val logTag = "BrowserProxy"
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -150,22 +133,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun shutdownEasyTierVpnResources() {
-        try {
-            stopEasyTierMonitor()
-            val intent = Intent(this, EasyTierVpnService::class.java).apply {
-                action = EasyTierVpnService.ACTION_STOP
-            }
-            startService(intent)
-        } catch (e: Exception) {
-            Log.w(easyTierChannelName, "Failed to stop EasyTier VPN service", e)
-        }
-
-        try {
-            EasyTierJNI.stopAllInstances()
-            easyTierRunningConfig = null
-        } catch (e: Exception) {
-            Log.w(easyTierChannelName, "Failed to stop EasyTier instances", e)
-        }
+        easyTierChannelHandler.shutdown()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -188,107 +156,7 @@ class MainActivity : FlutterActivity() {
 
         MediaScannerChannelHandler(this).register(flutterEngine.dartExecutor.binaryMessenger)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, easyTierChannelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "parseConfig" -> {
-                        val config = call.argument<String>("config")
-                        if (config.isNullOrBlank()) {
-                            result.error("INVALID_CONFIG", "Config is required", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            val res = EasyTierJNI.parseConfig(config)
-                            if (res == 0) {
-                                result.success(true)
-                            } else {
-                                val error = EasyTierJNI.getLastError()
-                                result.error("PARSE_FAILED", error ?: "Config parse failed", null)
-                            }
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "startVpn" -> {
-                        val config = call.argument<String>("config")
-                        val instanceName = call.argument<String>("instanceName")
-                        val useAndroidVpn = call.argument<Boolean>("useAndroidVpn") ?: true
-                        Log.d("EasyTier", "startVpn called with config length: ${config?.length ?: 0}")
-                        
-                        if (config.isNullOrBlank() || instanceName.isNullOrBlank()) {
-                            Log.e("EasyTier", "Config is null or blank")
-                            result.error("INVALID_CONFIG", "Config and instanceName are required", null)
-                            return@setMethodCallHandler
-                        }
-
-                        if (!useAndroidVpn) {
-                            Log.d("EasyTier", "Starting EasyTier without Android VpnService")
-                            stopEasyTierVpnService()
-                            startVpnWithConfig(config, instanceName, result, useAndroidVpn = false)
-                            return@setMethodCallHandler
-                        }
-                        
-                        Log.d("EasyTier", "Checking VPN permission with VpnService.prepare()")
-                        val intent = VpnService.prepare(this)
-                        
-                        if (intent != null) {
-                            Log.d("EasyTier", "VPN permission not granted, launching permission dialog")
-                            pendingVpnPermissionResult = result
-                            pendingVpnConfig = config
-                            pendingVpnInstanceName = instanceName
-                            startActivityForResult(intent, vpnPermissionRequestCode)
-                            return@setMethodCallHandler
-                        }
-
-                        Log.d("EasyTier", "VPN permission already granted, starting VPN directly")
-                        startVpnWithConfig(config, instanceName, result, useAndroidVpn = true)
-                    }
-                    
-                    "checkVpnPermission" -> {
-                        Log.d("EasyTier", "checkVpnPermission called")
-                        val intent = VpnService.prepare(this)
-                        result.success(intent == null)
-                    }
-
-                    "stopVpn" -> {
-                        try {
-                            stopEasyTierMonitor()
-                            stopEasyTierVpnService()
-                            EasyTierJNI.stopAllInstances()
-                            EasyTierStateStore.clear()
-                            easyTierRunningConfig = null
-                            easyTierUseAndroidVpn = true
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "getNetworkInfo" -> {
-                        try {
-                            val info = EasyTierJNI.collectNetworkInfos(10)
-                            if (!info.isNullOrBlank()) {
-                                EasyTierStateStore.refreshFromJni()
-                            }
-                            result.success(info)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    "getLastError" -> {
-                        try {
-                            val error = EasyTierJNI.getLastError()
-                            result.success(error)
-                        } catch (e: Exception) {
-                            result.error("EXCEPTION", e.message, null)
-                        }
-                    }
-
-                    else -> result.notImplemented()
-                }
-            }
+        easyTierChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
         ProxyCoreChannelHandler().register(flutterEngine.dartExecutor.binaryMessenger)
 
@@ -526,8 +394,8 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
             return
-        } else if (requestCode == vpnPermissionRequestCode) {
-            finishPendingVpnPermissionResult(resultCode)
+        } else if (easyTierChannelHandler.handleActivityResult(requestCode, resultCode)) {
+            return
         } else if (requestCode == RemoteControlService.REQUEST_MEDIA_PROJECTION) {
             val pendingResult = pendingScreenCaptureResult
             pendingScreenCaptureResult = null
@@ -541,23 +409,6 @@ class MainActivity : FlutterActivity() {
             } else {
                 pendingResult?.success(false)
             }
-        }
-    }
-
-    private fun finishPendingVpnPermissionResult(resultCode: Int) {
-        val pendingResult = pendingVpnPermissionResult ?: return
-        val config = pendingVpnConfig
-        val instanceName = pendingVpnInstanceName
-        pendingVpnPermissionResult = null
-        pendingVpnConfig = null
-        pendingVpnInstanceName = null
-
-        if (resultCode == RESULT_OK && config != null && instanceName != null) {
-            Log.d("EasyTier", "VPN permission granted by user, starting VPN")
-            startVpnWithConfig(config, instanceName, pendingResult, useAndroidVpn = true)
-        } else {
-            Log.e("EasyTier", "VPN permission denied by user, resultCode: $resultCode")
-            pendingResult.error("VPN_PERMISSION_DENIED", "User denied VPN permission", null)
         }
     }
 
@@ -601,278 +452,6 @@ class MainActivity : FlutterActivity() {
         screenTextureEntry = null
         pendingDecoderSps = null
         pendingDecoderPps = null
-    }
-
-    private fun startVpnWithConfig(
-        config: String,
-        instanceName: String,
-        result: MethodChannel.Result,
-        useAndroidVpn: Boolean = true,
-    ) {
-        try {
-            Log.d("EasyTier", "Starting EasyTier instance with config")
-            val res = EasyTierJNI.runNetworkInstance(config)
-            if (res == 0) {
-                easyTierRunningConfig = config
-                startEasyTierMonitor(instanceName)
-                easyTierUseAndroidVpn = useAndroidVpn
-                EasyTierStateStore.markStarted(instanceName)
-                Log.d("EasyTier", "EasyTier instance started successfully useAndroidVpn=$useAndroidVpn")
-                result.success(true)
-            } else {
-                val error = EasyTierJNI.getLastError()
-                Log.e("EasyTier", "VPN start failed: $error")
-                result.error("START_FAILED", error ?: "VPN start failed", null)
-            }
-        } catch (e: Exception) {
-            Log.e("EasyTier", "Exception starting VPN: ${e.message}")
-            result.error("EXCEPTION", e.message, null)
-        }
-    }
-
-    private fun startEasyTierMonitor(instanceName: String) {
-        stopEasyTierMonitor()
-        easyTierRunningInstanceName = instanceName
-        easyTierCurrentIpv4 = null
-        easyTierMonitorTick = 0
-        easyTierMissingInfoTicks = 0
-        easyTierNotRunningTicks = 0
-        easyTierRestartInProgress = false
-
-        easyTierMonitorRunnable = object : Runnable {
-            override fun run() {
-                try {
-                    monitorEasyTierStatus()
-                } finally {
-                    easyTierMonitorHandler.postDelayed(this, 3000)
-                }
-            }
-        }
-
-        easyTierMonitorRunnable?.let { easyTierMonitorHandler.post(it) }
-    }
-
-    private fun stopEasyTierMonitor() {
-        easyTierMonitorRunnable?.let { easyTierMonitorHandler.removeCallbacks(it) }
-        easyTierMonitorRunnable = null
-        easyTierRunningInstanceName = null
-        easyTierCurrentIpv4 = null
-        easyTierMonitorTick = 0
-        easyTierMissingInfoTicks = 0
-        easyTierNotRunningTicks = 0
-        easyTierRestartInProgress = false
-        easyTierUseAndroidVpn = true
-        EasyTierStateStore.clear()
-    }
-
-    private fun monitorEasyTierStatus() {
-        val instanceName = easyTierRunningInstanceName ?: return
-        easyTierMonitorTick += 1
-        val infosJson = EasyTierJNI.collectNetworkInfos(10)
-        if (infosJson.isNullOrBlank()) {
-            easyTierMissingInfoTicks += 1
-            Log.d("EasyTier", "No network info returned yet count=$easyTierMissingInfoTicks")
-            if (easyTierMissingInfoTicks >= 4) {
-                restartEasyTierInstance("missing-network-info")
-            }
-            return
-        }
-        easyTierMissingInfoTicks = 0
-
-        try {
-            val root = JSONObject(infosJson)
-            val map = root.optJSONObject("map") ?: return
-            val networkInfo = map.optJSONObject(instanceName) ?: return
-            EasyTierStateStore.updateFromNetworkInfo(
-                instanceName,
-                infosJson,
-                extractVirtualIpv4(networkInfo),
-                networkInfo.optBoolean("running", false),
-            )
-            val peerCount = networkInfo.optJSONArray("peers")?.length() ?: 0
-            val routeCount = networkInfo.optJSONArray("routes")?.length() ?: 0
-            val myNodeInfo = networkInfo.optJSONObject("my_node_info")
-            val hostname = myNodeInfo?.optString("hostname")
-            val errorMsg = networkInfo.optString("error_msg")
-
-            Log.d(
-                "EasyTier",
-                "Monitor tick=$easyTierMonitorTick instance=$instanceName running=${networkInfo.optBoolean("running", false)} hostname=$hostname peers=$peerCount routes=$routeCount error=$errorMsg",
-            )
-            logEasyTierDiagnostics(networkInfo)
-
-            if (!networkInfo.optBoolean("running", false)) {
-                easyTierNotRunningTicks += 1
-                Log.w("EasyTier", "Instance not running count=$easyTierNotRunningTicks: ${networkInfo.optString("error_msg")}")
-                if (easyTierNotRunningTicks >= 2) {
-                    restartEasyTierInstance("instance-not-running")
-                }
-                return
-            }
-            easyTierNotRunningTicks = 0
-
-            val virtualIpv4 = extractVirtualIpv4(networkInfo)
-            if (virtualIpv4 == null) {
-                if (easyTierMonitorTick <= 3 || easyTierMonitorTick % 5 == 0) {
-                    Log.d("EasyTier", "Raw network info: $networkInfo")
-                }
-                Log.d("EasyTier", "Instance running but virtual_ipv4 not assigned yet")
-                return
-            }
-
-            if (virtualIpv4 != easyTierCurrentIpv4) {
-                easyTierCurrentIpv4 = virtualIpv4
-                if (easyTierUseAndroidVpn) {
-                    restartEasyTierVpnService(instanceName, virtualIpv4)
-                } else {
-                    Log.i("EasyTier", "EasyTier no-tun mode active; skipping Android VpnService route for IPv4=$virtualIpv4")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("EasyTier", "Failed to parse network info JSON", e)
-        }
-    }
-
-    private fun logEasyTierDiagnostics(networkInfo: JSONObject) {
-        val myNodeInfo = networkInfo.optJSONObject("my_node_info")
-        val stunInfo = myNodeInfo?.optJSONObject("stun_info")
-        Log.d(
-            "EasyTier",
-            "Diagnostics virtualIpv4=${extractVirtualIpv4(networkInfo) ?: "null"} udpNat=${stunInfo?.optString("udp_nat_type", "-") ?: "-"} tcpNat=${stunInfo?.optString("tcp_nat_type", "-") ?: "-"}",
-        )
-
-        val peerDirectConnectionCountById = mutableMapOf<Long, Int>()
-        val peers = networkInfo.optJSONArray("peers")
-        if (peers != null) {
-            for (i in 0 until peers.length()) {
-                val peer = peers.optJSONObject(i) ?: continue
-                val peerId = peer.optLong("peer_id", 0L)
-                peerDirectConnectionCountById[peerId] =
-                    peer.optJSONArray("directly_connected_conns")?.length() ?: 0
-            }
-        }
-
-        val routes = networkInfo.optJSONArray("routes")
-        if (routes != null) {
-            for (i in 0 until routes.length()) {
-                val route = routes.optJSONObject(i) ?: continue
-                val peerId = route.optLong("peer_id", 0L)
-                val nextHopPeerId = route.optLong("next_hop_peer_id", 0L)
-                val cost = route.optInt("cost", -1)
-                val latency = route.optLong("path_latency", -1L)
-                val hostname = route.optString("hostname", "")
-                val featureFlag = route.optJSONObject("feature_flag")
-                val publicServer = featureFlag?.optBoolean("is_public_server", false) ?: false
-                val directConnectionCount = peerDirectConnectionCountById[peerId] ?: 0
-                val mode = describeEasyTierRouteMode(
-                    cost,
-                    peerId,
-                    nextHopPeerId,
-                    publicServer,
-                    directConnectionCount,
-                )
-                Log.d(
-                    "EasyTier",
-                    "Route[$i] host=$hostname peer=$peerId nextHop=$nextHopPeerId cost=$cost latency=${latency}ms directConns=$directConnectionCount public=$publicServer mode=$mode",
-                )
-            }
-        }
-
-        val events = networkInfo.optJSONArray("events")
-        if (events != null && events.length() > 0) {
-            val start = maxOf(0, events.length() - 3)
-            for (i in start until events.length()) {
-                Log.d("EasyTier", "RecentEvent[$i]=${events.optString(i)}")
-            }
-        }
-    }
-
-    private fun describeEasyTierRouteMode(
-        cost: Int,
-        peerId: Long,
-        nextHopPeerId: Long,
-        publicServer: Boolean,
-        directConnectionCount: Int,
-    ): String {
-        if (publicServer) return "public-server"
-        if (cost <= 1 && directConnectionCount > 0) return "direct-lan"
-        if (cost <= 1) return "p2p-direct"
-        if (nextHopPeerId != 0L && nextHopPeerId != peerId) return "relay-via-$nextHopPeerId"
-        return "relay"
-    }
-
-    private fun extractVirtualIpv4(networkInfo: JSONObject): String? {
-        val myNodeInfo = networkInfo.optJSONObject("my_node_info") ?: return null
-        val virtualIpv4 = myNodeInfo.optJSONObject("virtual_ipv4") ?: return null
-        val addressObj = virtualIpv4.optJSONObject("address") ?: return null
-        if (!addressObj.has("addr")) {
-            return null
-        }
-
-        val addr = addressObj.optLong("addr")
-        val networkLength = virtualIpv4.optInt("network_length", 24)
-        val normalized = addr and 0xffffffffL
-        val ip = listOf(
-            (normalized shr 24) and 0xff,
-            (normalized shr 16) and 0xff,
-            (normalized shr 8) and 0xff,
-            normalized and 0xff,
-        ).joinToString(".")
-
-        return "$ip/$networkLength"
-    }
-
-    private fun restartEasyTierInstance(reason: String) {
-        val config = easyTierRunningConfig
-        val instanceName = easyTierRunningInstanceName
-        if (config.isNullOrBlank() || instanceName.isNullOrBlank() || easyTierRestartInProgress) {
-            return
-        }
-        easyTierRestartInProgress = true
-        Log.w("EasyTier", "Restarting EasyTier instance after monitor failure: reason=$reason instance=$instanceName")
-        try {
-            runCatching { EasyTierJNI.stopAllInstances() }
-            val res = EasyTierJNI.runNetworkInstance(config)
-            if (res == 0) {
-                easyTierCurrentIpv4 = null
-                easyTierMissingInfoTicks = 0
-                easyTierNotRunningTicks = 0
-                Log.i("EasyTier", "EasyTier instance restarted: reason=$reason")
-            } else {
-                val error = EasyTierJNI.getLastError()
-                Log.e("EasyTier", "EasyTier instance restart failed: reason=$reason error=$error")
-            }
-        } catch (e: Exception) {
-            Log.e("EasyTier", "Exception restarting EasyTier instance: reason=$reason", e)
-        } finally {
-            easyTierRestartInProgress = false
-        }
-    }
-
-    private fun restartEasyTierVpnService(instanceName: String, ipv4: String) {
-        if (!easyTierUseAndroidVpn) {
-            Log.w("EasyTier", "Ignoring EasyTierVpnService start request while no-tun mode is active")
-            return
-        }
-
-        val stopIntent = Intent(this, EasyTierVpnService::class.java)
-        stopService(stopIntent)
-
-        val startIntent = Intent(this, EasyTierVpnService::class.java).apply {
-            putExtra("ipv4_address", ipv4)
-            putExtra("instance_name", instanceName)
-        }
-
-        startService(startIntent)
-        Log.i("EasyTier", "Started EasyTierVpnService with IPv4=$ipv4 routes=virtual-subnet-only")
-    }
-
-    private fun stopEasyTierVpnService() {
-        val intent = Intent(this, EasyTierVpnService::class.java).apply {
-            action = EasyTierVpnService.ACTION_STOP
-        }
-        startService(intent)
-        stopService(Intent(this, EasyTierVpnService::class.java))
     }
 
     override fun onRequestPermissionsResult(
