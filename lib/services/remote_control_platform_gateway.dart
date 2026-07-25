@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 
-class RemoteControlPlatformGateway {
+import 'remote_control_runtime.dart';
+
+class RemoteControlPlatformGateway implements RemoteControlPlatformRuntime {
   RemoteControlPlatformGateway({
     MethodChannel channel = const MethodChannel(channelName),
   }) : _channel = channel;
@@ -37,6 +39,7 @@ class RemoteControlPlatformGateway {
     });
   }
 
+  @override
   Future<void> stop() => _channel.invokeMethod<void>('stop');
 
   Future<void> executeCommand(String command) {
@@ -78,6 +81,7 @@ class RemoteControlPlatformGateway {
     });
   }
 
+  @override
   Future<void> stopScreenCapture() {
     return _channel.invokeMethod<void>('stopScreenCapture');
   }

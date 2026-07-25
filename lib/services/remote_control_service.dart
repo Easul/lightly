@@ -13,6 +13,7 @@ import 'remote_control_lifecycle_helper.dart';
 import 'remote_control_message_router.dart';
 import 'remote_control_platform_gateway.dart';
 import 'remote_control_protocol.dart';
+import 'remote_control_runtime.dart';
 import 'remote_control_receiver_startup_coordinator.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
 import 'remote_control_screen_frame_sender.dart';
@@ -29,7 +30,7 @@ enum RemoteControlMode { controller, receiver }
 
 enum RemoteControlState { idle, connecting, connected, disconnected, error }
 
-class RemoteControlService {
+class RemoteControlService implements RemoteControlRuntime {
   static const String _easyTierOverlayPrefix = '10.126.';
   static final RemoteControlService _instance =
       RemoteControlService._internal();
@@ -1249,6 +1250,7 @@ class RemoteControlService {
     _logMessage('State changed to $newState');
   }
 
+  @override
   Future<void> disconnect() async {
     _disconnectRequested = true;
     _performanceMonitor.stopMonitoring();

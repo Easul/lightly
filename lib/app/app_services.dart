@@ -8,6 +8,7 @@ import '../services/app_log_service.dart';
 import '../services/app_lifecycle_manager.dart';
 import '../services/shared_downloads_directory_service.dart';
 import '../services/simple_file_manager_service.dart';
+import 'app_runtime_coordinator.dart';
 
 /// Explicit composition of application-global services.
 ///
@@ -22,6 +23,7 @@ class AppServices {
     required this.localProxyEndpoint,
     required this.appDatabase,
     required this.sharedDownloadsAccess,
+    required this.runtimeCoordinator,
   });
 
   /// Wires the current production singletons. Tests may call the default
@@ -34,6 +36,7 @@ class AppServices {
       localProxyEndpoint: ProxyServiceLocalEndpointAdapter(),
       appDatabase: BrowserDatabaseAppProvider(),
       sharedDownloadsAccess: SharedDownloadsDirectoryService(),
+      runtimeCoordinator: AppRuntimeCoordinator.instance,
     );
   }
 
@@ -51,4 +54,5 @@ class AppServices {
 
   /// Shared permission and fallback policy for user-visible file exports.
   final SharedDownloadsAccess sharedDownloadsAccess;
+  final AppRuntimeCoordinator runtimeCoordinator;
 }

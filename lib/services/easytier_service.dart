@@ -5,8 +5,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
 import 'app_log_service.dart';
+import 'easytier_runtime.dart';
 
-class EasyTierService {
+class EasyTierService implements EasyTierRuntime {
   static const MethodChannel _channel = MethodChannel('easytier_vpn');
   static const int noTunSocksPort = 11080;
 
@@ -22,12 +23,14 @@ class EasyTierService {
   bool _usesAndroidVpn = true;
   int? _activeNoTunSocksPort;
 
+  @override
   bool get isRunning => _isRunning;
   String? get lastError => _lastError;
   String? get configString => _configString;
   String? get currentInstanceName => _currentInstanceName;
   String? get lastRawNetworkInfo => _lastRawNetworkInfo;
   bool get usesAndroidVpn => _usesAndroidVpn;
+  @override
   bool get isNoTunMode => _isRunning && !_usesAndroidVpn;
   int? get activeNoTunSocksPort => isNoTunMode ? _activeNoTunSocksPort : null;
 
@@ -75,10 +78,12 @@ class EasyTierService {
     }
   }
 
+  @override
   Future<bool> startVpn(EasyTierConfig config) async {
     return _startInstance(config, useAndroidVpn: true);
   }
 
+  @override
   Future<bool> startNoTun(EasyTierConfig config) async {
     return _startInstance(
       await _prepareNoTunConfig(config),
@@ -199,6 +204,7 @@ class EasyTierService {
     }
   }
 
+  @override
   Future<void> stopVpn() async {
     try {
       recordRuntimeLog('EasyTier', 'Stopping network instance');

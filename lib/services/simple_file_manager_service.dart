@@ -7,11 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../browser/utils/local_network_address_helper.dart';
 import 'simple_file_manager_request_handler.dart';
+import 'simple_file_manager_runtime.dart';
 import 'simple_file_manager_settings.dart';
 
 export 'simple_file_manager_settings.dart';
 
-class SimpleFileManagerService {
+class SimpleFileManagerService implements SimpleFileManagerRuntime {
   SimpleFileManagerService._();
 
   static final SimpleFileManagerService _instance =
@@ -51,6 +52,7 @@ class SimpleFileManagerService {
     return 'http://$host:${server.port}';
   }
 
+  @override
   Future<SimpleFileManagerSettings> loadSettings() async {
     final preferences = await SharedPreferences.getInstance();
     final raw = preferences.getString(_storageKey);
@@ -90,6 +92,7 @@ class SimpleFileManagerService {
     await start(settings: _settings);
   }
 
+  @override
   Future<void> start({SimpleFileManagerSettings? settings}) async {
     final nextSettings = settings ?? _settings;
     final validationError = nextSettings.validationError;
@@ -132,6 +135,7 @@ class SimpleFileManagerService {
     _emit(SimpleFileManagerState.started);
   }
 
+  @override
   Future<void> stop() async {
     final server = _server;
     _server = null;

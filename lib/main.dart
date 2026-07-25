@@ -34,18 +34,8 @@ Future<void> main() async {
   AiHistoryDatabase.instance.databaseProvider = services.appDatabase;
 
   // 初始化应用生命周期管理器，确保服务默认关闭状态
+  await services.runtimeCoordinator.initializePersistedServices();
   await services.lifecycleManager.initialize();
-
-  final simpleFileManagerService = services.simpleFileManager;
-  final simpleFileManagerSettings = await simpleFileManagerService
-      .loadSettings();
-  if (simpleFileManagerSettings.enabled) {
-    try {
-      await simpleFileManagerService.start(settings: simpleFileManagerSettings);
-    } catch (error, stackTrace) {
-      unawaited(appLogService.logUnhandledError(error, stackTrace));
-    }
-  }
 
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
