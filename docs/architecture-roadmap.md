@@ -86,7 +86,7 @@ find android -name '*Test.kt' | wc -l   # 当前 Kotlin 单测数量
 
 ## Phase 0：架构契约与文档
 
-状态：**当前阶段**
+状态：**已完成（2026-07-26）**
 
 交付物：
 
@@ -107,6 +107,8 @@ find android -name '*Test.kt' | wc -l   # 当前 Kotlin 单测数量
   后续 proxy feature 迁移必须引用它。
 
 ## Phase 1：Composition Root 与依赖接口
+
+状态：**已完成（2026-07-26）**
 
 目标：减少隐藏单例依赖，但不改变服务行为。
 
@@ -159,6 +161,8 @@ lib/app/
   删除接口文件即可，不涉及数据或协议。
 
 ## Phase 2：统一 Runtime 生命周期
+
+状态：**当前阶段**
 
 目标：所有后台 runtime 有唯一应用级策略入口。
 

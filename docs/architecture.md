@@ -168,7 +168,9 @@ flowchart TB
 
 ### App Shell
 
-- `lib/main.dart`：进程启动、TDLib 初始化、全局错误捕获、根路由。
+- `lib/main.dart`：进程 bootstrap、TDLib 初始化、全局错误捕获和依赖注入。
+- `lib/app/app.dart`、`lib/app/routes.dart`：根应用和路由表。
+- `AppServices`：生产实现的 composition root；跨 feature 能力以 port 暴露。
 - `lib/theme/app_theme.dart`：全局视觉令牌和 Material 组件主题。
 - `AppLifecycleManager`：目前只统一了远控与 EasyTier 的部分关闭流程。
 
@@ -178,7 +180,8 @@ flowchart TB
 - `BrowserPageServices`：为 BrowserPage 组装共享服务和页面级 coordinator。
 - `BrowserSharedServices`：浏览器相关单例服务集合。
 - `BrowserTabService`：全局标签与会话持久化 source of truth。
-- `BrowserDatabase`：历史、访问记录、收藏、下载和 AI 聊天表。
+- `BrowserDatabase`：当前共享 SQLite schema/句柄 owner；AI 通过 `AppDatabaseProvider` 获取句柄，
+  不再依赖该浏览器命名的具体类。
 
 浏览器详细职责见 [Browser / Remote 模块分类图](browser_remote_module_map.md)。
 
@@ -264,11 +267,12 @@ Lightly 没有引入全局状态管理框架，主要使用：
 | SQLite `browser_data.db` | 历史、访问记录、收藏、下载、AI 聊天 | `AppDatabase` + feature repositories |
 | SharedPreferences | 浏览器设置、Tab、代理节点、AI/TG/EasyTier 配置、剪贴板、工具历史 | 各 feature `Store` |
 | App files | TDLib 数据、导入文件、日志、缓存 | 对应 feature service |
-| Shared Download | 下载、备份、日志导出 | `SharedDownloadsDirectoryService` |
+| Shared Download | 下载、备份、日志导出 | `SharedDownloadsAccess`；当前实现 `SharedDownloadsDirectoryService` |
 | Android native preferences | 悬浮翻译历史和窗口状态 | native overlay module |
 
 每份数据必须只有一个 source of truth。跨 Flutter/native 的数据需要明确同步方向、版本和
 失败回退，不能让两个存储长期双向写入同一状态。
+完整 key/table/file 清单见 [数据所有权清单](data-ownership.md)。
 
 ## 当前平台通道
 
@@ -290,11 +294,12 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 1. 服务启动分散在 `main.dart`、`BrowserPageInitializer`、页面和
    `AppLifecycleManager`，应用级生命周期没有唯一协调者。
-2. `lib/browser/` 与 `lib/services/` 存在双向依赖；AI 和 Telegram 也直接依赖浏览器实现。
+2. `lib/browser/` 与 `lib/services/` 仍存在目录级双向依赖；AI 和 Telegram 的已知直接依赖已由
+   `AppDatabaseProvider` 与 `LocalProxyEndpointProvider` 消除。
 3. `BrowserDatabase` 已存储 AI 数据，命名与职责不再匹配。
 4. `MainActivity` 同时承担 Activity、权限、Intent、EasyTier、远控和 WebView proxy 逻辑。
 5. 多个 feature 直接创建或持有 MethodChannel，契约分散。
-6. SharedPreferences key、版本和备份敏感级别缺少统一清单。
+6. SharedPreferences key 已有统一清单，但多数旧 key 仍缺少显式前缀/版本迁移策略。
 7. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
 
 ## 目标依赖方向

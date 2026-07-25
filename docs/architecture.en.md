@@ -172,7 +172,9 @@ flowchart TB
 
 ### App Shell
 
-- `lib/main.dart`: process bootstrap, TDLib initialization, global error capture, and root routes.
+- `lib/main.dart`: process bootstrap, TDLib initialization, global error capture, and dependency wiring.
+- `lib/app/app.dart` and `lib/app/routes.dart`: root application and route table.
+- `AppServices`: composition root for production implementations; cross-feature capabilities are exposed as ports.
 - `lib/theme/app_theme.dart`: global visual tokens and Material component theme.
 - `AppLifecycleManager`: currently centralizes only part of remote-control and EasyTier shutdown.
 
@@ -182,7 +184,8 @@ flowchart TB
 - `BrowserPageServices`: composes shared services and page-local coordinators.
 - `BrowserSharedServices`: singleton collection for browser-related services.
 - `BrowserTabService`: source of truth for global tabs and session persistence.
-- `BrowserDatabase`: history, visits, favorites, downloads, and AI chat tables.
+- `BrowserDatabase`: current owner of the shared SQLite schema/handle. AI obtains the handle through
+  `AppDatabaseProvider` and no longer depends on this browser-named concrete class.
 
 See [Browser / Remote Module Map](browser_remote_module_map.md) for detailed responsibilities.
 
@@ -273,12 +276,13 @@ use the smallest suitable mechanism.
 | SQLite `browser_data.db` | History, visits, favorites, downloads, AI chat | `AppDatabase` + feature repositories |
 | SharedPreferences | Browser settings, tabs, proxy nodes, AI/TG/EasyTier config, clipboard, tool history | Per-feature `Store` |
 | App files | TDLib data, imported files, logs, cache | Corresponding feature service |
-| Shared Download | Downloads, backups, log exports | `SharedDownloadsDirectoryService` |
+| Shared Download | Downloads, backups, log exports | `SharedDownloadsAccess`; current implementation `SharedDownloadsDirectoryService` |
 | Android native preferences | Translation overlay history and window state | Native overlay module |
 
 Every value needs one source of truth. Flutter/native shared data must define synchronization
 direction, versioning, and failure fallback; two stores must not remain bidirectional writers for the
 same state.
+See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/table/file inventory.
 
 ## Current Platform Channels
 
@@ -300,13 +304,14 @@ same state.
 
 1. Service startup is distributed across `main.dart`, `BrowserPageInitializer`, pages, and
    `AppLifecycleManager`, so app-level lifecycle has no single coordinator.
-2. `lib/browser/` and `lib/services/` depend on each other; AI and Telegram also depend directly on
-   browser implementations.
+2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
+   AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
 3. `BrowserDatabase` stores AI data, so its name no longer matches its responsibility.
 4. `MainActivity` combines activity, permission, intent, EasyTier, remote-control, and WebView proxy
    responsibilities.
 5. Several features create or own MethodChannels directly, distributing the platform contract.
-6. SharedPreferences keys, versions, backup sensitivity, and deletion rules have no single catalog.
+6. SharedPreferences keys now have one catalog, but most legacy keys still lack an explicit
+   prefix/version migration strategy.
 7. Page owners remain large, but splitting them mechanically by line count would damage ownership.
 
 ## Target Dependency Direction

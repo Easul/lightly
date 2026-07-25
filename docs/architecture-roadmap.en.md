@@ -95,7 +95,7 @@ find android -name '*Test.kt' | wc -l   # current Kotlin unit-test count
 
 ## Phase 0: Architecture Contracts and Documentation
 
-Status: **current phase**
+Status: **complete (2026-07-26)**
 
 Deliverables:
 
@@ -119,6 +119,8 @@ Completion criteria (exit criteria):
   `## Proxy Bypass / Routing Correctness`); later proxy-feature moves must reference it.
 
 ## Phase 1: Composition Root and Dependency Ports
+
+Status: **complete (2026-07-26)**
 
 Goal: make global dependencies explicit without changing service behavior.
 
@@ -177,6 +179,8 @@ Rollback:
   with no data or protocol impact.
 
 ## Phase 2: Unified Runtime Lifecycle
+
+Status: **current phase**
 
 Goal: give all background runtimes one application-level policy entry point.
 
