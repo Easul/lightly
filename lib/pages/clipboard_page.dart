@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/clipboard_storage_service.dart';
+import '../browser/services/browser_runtime_coordinator.dart';
 import '../services/app_toast.dart';
 import 'clipboard_page_sections.dart';
 
@@ -205,7 +206,9 @@ class _ClipboardPageState extends State<ClipboardPage>
         return;
       }
       await _storage.saveServerPort(port);
-      await _server.start(preferredPort: port);
+      await BrowserRuntimeCoordinator.instance.startClipboard(
+        preferredPort: port,
+      );
       await _storage.saveServerEnabled(true);
       if (mounted) {
         setState(() {
@@ -223,7 +226,7 @@ class _ClipboardPageState extends State<ClipboardPage>
   }
 
   Future<void> _stopServer() async {
-    await _server.stop();
+    await BrowserRuntimeCoordinator.instance.stopClipboard();
     await _storage.saveServerEnabled(false);
     if (mounted) {
       setState(() {

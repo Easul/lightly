@@ -7,7 +7,6 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../theme/app_theme.dart';
 import '../browser/browser_settings.dart';
-import '../browser/local_http_file_server_service.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_tab_session.dart';
 import '../browser/proxy_service.dart';
@@ -46,8 +45,7 @@ import '../browser/utils/ui_update_thresholds.dart';
 import '../browser/utils/browser_url_utils.dart';
 import '../browser/widgets/browser_favorites_page.dart';
 import '../browser/widgets/browser_webview_host.dart';
-import '../browser/clipboard_http_server_service.dart';
-import '../browser/clipboard_storage_service.dart';
+import '../browser/services/browser_runtime_coordinator.dart';
 import 'browser_page_address_sync.dart';
 import 'browser_page_address_bar_coordinator.dart';
 import 'browser_page_action_coordinator.dart';
@@ -170,11 +168,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   BrowserVideoPlayerCoordinator get _videoPlayerCoordinator =>
       _services.videoPlayerCoordinator;
   BrowserFavoriteService get _favoriteService => _services.favoriteService;
-  LocalHttpFileServerService get _localHttpFileServerService =>
-      _services.localHttpFileServerService;
-  ClipboardHttpServerService get _clipboardService =>
-      _services.clipboardService;
-  ClipboardStorageService get _clipboardStorage => _services.clipboardStorage;
   BrowserSuggestionService get _suggestionService =>
       _services.suggestionService;
   final TextEditingController _addressController = TextEditingController();
@@ -233,10 +226,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       importedDocumentService: _importedDocumentService,
       favoriteStatusTracker: _favoriteStatusTracker,
       videoDetectionCoordinator: _videoDetectionCoordinator,
-      proxyService: _proxyService,
-      localHttpFileServerService: _localHttpFileServerService,
-      clipboardService: _clipboardService,
-      clipboardStorage: _clipboardStorage,
+      browserRuntime: BrowserRuntimeCoordinator.instance,
       appCacheMaintenanceService:
           BrowserSharedServices.instance.appCacheMaintenanceService,
     );
@@ -1580,7 +1570,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     }
 
     try {
-      await _proxyService.applyProxy(_settings);
+      await BrowserRuntimeCoordinator.instance.applyProxySettings(_settings);
       if (!mounted) {
         return;
       }

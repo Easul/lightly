@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/app/app_runtime_coordinator.dart';
+import 'package:lightly/browser/browser_settings.dart';
+import 'package:lightly/browser/services/browser_runtime_coordinator.dart';
 import 'package:lightly/core/logging/runtime_logger.dart';
 import 'package:lightly/models/easytier_config.dart';
 import 'package:lightly/models/easytier_network_profile.dart';
@@ -24,6 +26,7 @@ void main() {
         easyTierProfiles: _FakeEasyTierProfiles(),
         remoteControl: _FakeRemoteControlRuntime(),
         remoteControlPlatform: platform,
+        browserRuntime: _FakeBrowserRuntimePolicy(),
         logger: _RecordingRuntimeLogger(),
       );
 
@@ -49,6 +52,7 @@ void main() {
       easyTierProfiles: _FakeEasyTierProfiles(),
       remoteControl: _FakeRemoteControlRuntime(),
       remoteControlPlatform: _FakeRemoteControlPlatformRuntime(),
+      browserRuntime: _FakeBrowserRuntimePolicy(),
       logger: logger,
     );
 
@@ -102,12 +106,14 @@ void main() {
       final easyTier = _FakeEasyTierRuntime(isRunning: true);
       final platform = _FakeRemoteControlPlatformRuntime();
       final logger = _RecordingRuntimeLogger();
+      final files = _FakeSimpleFileManagerRuntime();
       final coordinator = AppRuntimeCoordinator(
-        simpleFileManager: _FakeSimpleFileManagerRuntime(),
+        simpleFileManager: files,
         easyTier: easyTier,
         easyTierProfiles: _FakeEasyTierProfiles(),
         remoteControl: remote,
         remoteControlPlatform: platform,
+        browserRuntime: _FakeBrowserRuntimePolicy(),
         logger: logger,
       );
 
@@ -117,6 +123,7 @@ void main() {
       await Future.wait(<Future<void>>[first, second]);
 
       expect(remote.disconnectCalls, 1);
+      expect(files.stopCalls, 1);
       expect(easyTier.stopCalls, 1);
       expect(platform.stopCalls, 1);
       expect(platform.stopCaptureCalls, 1);
@@ -147,6 +154,7 @@ AppRuntimeCoordinator _coordinator({
     easyTierProfiles: easyTierProfiles ?? _FakeEasyTierProfiles(),
     remoteControl: _FakeRemoteControlRuntime(),
     remoteControlPlatform: _FakeRemoteControlPlatformRuntime(),
+    browserRuntime: _FakeBrowserRuntimePolicy(),
     logger: _RecordingRuntimeLogger(),
   );
 }
@@ -158,11 +166,17 @@ class _FakeSimpleFileManagerRuntime implements SimpleFileManagerRuntime {
   final Object? startError;
   int loadCalls = 0;
   int startCalls = 0;
+  int stopCalls = 0;
 
   @override
   Future<SimpleFileManagerSettings> loadSettings() async {
     loadCalls += 1;
     return SimpleFileManagerSettings.defaults().copyWith(enabled: enabled);
+  }
+
+  @override
+  Future<void> applySettings(SimpleFileManagerSettings settings) async {
+    await start(settings: settings);
   }
 
   @override
@@ -174,7 +188,49 @@ class _FakeSimpleFileManagerRuntime implements SimpleFileManagerRuntime {
   }
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    stopCalls += 1;
+  }
+}
+
+class _FakeBrowserRuntimePolicy implements BrowserRuntimePolicy {
+  int initializeCalls = 0;
+  int shutdownCalls = 0;
+
+  @override
+  Future<BrowserRuntimeState> initializePersistedServices({
+    required bool enableWebView,
+  }) async {
+    initializeCalls += 1;
+    return _state();
+  }
+
+  @override
+  Future<BrowserRuntimeState> applySettings(
+    BrowserSettings settings, {
+    required bool enableWebView,
+    bool swallowLocalHttpErrors = true,
+    bool force = false,
+  }) async {
+    return _state(settings);
+  }
+
+  @override
+  Future<void> ensureClipboardServer() async {}
+
+  @override
+  Future<void> shutdown() async {
+    shutdownCalls += 1;
+  }
+
+  BrowserRuntimeState _state([BrowserSettings? settings]) {
+    return BrowserRuntimeState(
+      settings: settings ?? BrowserSettings.defaults(),
+      proxySupported: false,
+      isProxyActive: false,
+      proxyStatusMessage: '',
+    );
+  }
 }
 
 class _FakeEasyTierRuntime implements EasyTierRuntime {

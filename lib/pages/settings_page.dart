@@ -16,6 +16,7 @@ import '../browser/services/browser_settings_action_handler.dart';
 import '../browser/services/browser_settings_form_controller.dart';
 import '../browser/services/proxy_latency_probe.dart';
 import '../browser/services/browser_settings_runtime_service.dart';
+import '../browser/services/browser_runtime_coordinator.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/widgets/settings/clear_browsing_data_dialog.dart';
 import '../browser/widgets/settings/general_settings_section.dart';
@@ -85,10 +86,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _settingsActionHandler = BrowserSettingsActionHandler();
     _runtimeService = BrowserSettingsRuntimeService(
       saveSettings: _settingsService.saveSettings,
-      applyProxy: _proxyService.applyProxy,
-      clearProxy: _proxyService.clearProxy,
-      applyLocalHttpSettings: _localHttpFileServerService.applySettings,
-      stopLocalHttpServer: _localHttpFileServerService.stop,
+      applyProxy: BrowserRuntimeCoordinator.instance.applyProxySettings,
+      clearProxy: BrowserRuntimeCoordinator.instance.clearProxySettings,
+      applyLocalHttpSettings:
+          BrowserRuntimeCoordinator.instance.applyLocalHttpSettings,
+      stopLocalHttpServer: BrowserRuntimeCoordinator.instance.stopLocalHttp,
     );
     _statusMonitor = BrowserProxyStatusMonitor(
       proxyService: _proxyService,

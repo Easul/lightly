@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../services/app_toast.dart';
 import '../services/shared_downloads_directory_service.dart';
 import '../services/simple_file_manager_service.dart';
+import '../app/app_runtime_coordinator.dart';
 
 class SimpleFileManagerSettingsPage extends StatefulWidget {
   const SimpleFileManagerSettingsPage({super.key});
@@ -77,7 +78,9 @@ class _SimpleFileManagerSettingsPageState
     setState(() => _busy = true);
     try {
       final settings = _buildSettings(enabled: nextEnabled);
-      await _service.applySettings(settings);
+      await AppRuntimeCoordinator.instance.applySimpleFileManagerSettings(
+        settings,
+      );
       if (!mounted) return;
       setState(() {
         _enabled = nextEnabled;

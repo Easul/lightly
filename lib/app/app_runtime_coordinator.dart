@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 
+import '../browser/services/browser_runtime_coordinator.dart';
 import '../core/logging/runtime_logger.dart';
 import '../models/easytier_network_profile.dart';
+import '../models/easytier_config.dart';
 import '../services/app_log_service.dart';
 import '../services/easytier_profile_service.dart';
 import '../services/easytier_runtime.dart';
@@ -23,6 +26,7 @@ class AppRuntimeCoordinator {
     EasyTierProfileService? easyTierProfiles,
     RemoteControlRuntime? remoteControl,
     RemoteControlPlatformRuntime? remoteControlPlatform,
+    BrowserRuntimePolicy? browserRuntime,
     RuntimeLogger? logger,
   }) : _simpleFileManager = simpleFileManager ?? SimpleFileManagerService(),
        _easyTier = easyTier ?? EasyTierService(),
@@ -30,6 +34,7 @@ class AppRuntimeCoordinator {
        _remoteControl = remoteControl ?? RemoteControlService(),
        _remoteControlPlatform =
            remoteControlPlatform ?? RemoteControlPlatformGateway.instance,
+       _browserRuntime = browserRuntime ?? BrowserRuntimeCoordinator.instance,
        _logger = logger ?? AppLogService.instance;
 
   static final AppRuntimeCoordinator instance = AppRuntimeCoordinator();
@@ -39,6 +44,7 @@ class AppRuntimeCoordinator {
   final EasyTierProfileService _easyTierProfiles;
   final RemoteControlRuntime _remoteControl;
   final RemoteControlPlatformRuntime _remoteControlPlatform;
+  final BrowserRuntimePolicy _browserRuntime;
   final RuntimeLogger _logger;
 
   Future<void>? _initialization;
@@ -56,6 +62,12 @@ class AppRuntimeCoordinator {
       if (settings.enabled) {
         await _simpleFileManager.start(settings: settings);
       }
+    } catch (error, stackTrace) {
+      await _logger.logUnhandledError(error, stackTrace);
+    }
+
+    try {
+      await _browserRuntime.initializePersistedServices(enableWebView: !kIsWeb);
     } catch (error, stackTrace) {
       await _logger.logUnhandledError(error, stackTrace);
     }
@@ -87,6 +99,23 @@ class AppRuntimeCoordinator {
     }
     return _startSelectedEasyTierProfile(useAndroidVpn: true);
   }
+
+  Future<void> applySimpleFileManagerSettings(
+    SimpleFileManagerSettings settings,
+  ) {
+    return _simpleFileManager.applySettings(settings);
+  }
+
+  Future<bool> startEasyTier(
+    EasyTierConfig config, {
+    required bool useNoTunMode,
+  }) {
+    return useNoTunMode
+        ? _easyTier.startNoTun(config)
+        : _easyTier.startVpn(config);
+  }
+
+  Future<void> stopEasyTier() => _easyTier.stopVpn();
 
   Future<bool> _startSelectedEasyTierProfile({
     required bool useAndroidVpn,
@@ -149,6 +178,16 @@ class AppRuntimeCoordinator {
 
   Future<void> _shutdownAll() async {
     try {
+      await _simpleFileManager.stop();
+    } catch (error, stackTrace) {
+      await _logger.log(
+        '[AppRuntime] Simple file manager shutdown failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    try {
       await _remoteControl.disconnect();
     } catch (error, stackTrace) {
       await _logger.log(
@@ -167,5 +206,7 @@ class AppRuntimeCoordinator {
     try {
       await _remoteControlPlatform.stopScreenCapture();
     } catch (_) {}
+
+    await _browserRuntime.shutdown();
   }
 }

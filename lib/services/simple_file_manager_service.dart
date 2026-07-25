@@ -83,6 +83,7 @@ class SimpleFileManagerService implements SimpleFileManagerRuntime {
     await preferences.setString(_storageKey, jsonEncode(normalized.toJson()));
   }
 
+  @override
   Future<void> applySettings(SimpleFileManagerSettings settings) async {
     await saveSettings(settings);
     if (!settings.enabled) {

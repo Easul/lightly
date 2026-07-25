@@ -5,6 +5,7 @@ import '../browser/browser_settings.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/clipboard_http_server_service.dart';
 import '../browser/local_http_file_server_service.dart';
+import '../browser/services/browser_runtime_coordinator.dart';
 import '../models/easytier_config.dart';
 import '../models/easytier_network_profile.dart';
 import '../services/easytier_network_info_analyzer.dart';
@@ -12,6 +13,7 @@ import '../services/easytier_profile_coordinator.dart';
 import '../services/easytier_runtime_status_controller.dart';
 import '../services/easytier_service_access_coordinator.dart';
 import '../services/easytier_service.dart';
+import '../app/app_runtime_coordinator.dart';
 import 'easytier_settings_page_body.dart';
 
 part 'easytier_settings_profile_actions.dart';
@@ -72,9 +74,15 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     super.initState();
     _isRunning = _easyTierService.isRunning;
     _runtimeStatusController = EasyTierRuntimeStatusController(
-      startVpn: _easyTierService.startVpn,
-      startNoTun: _easyTierService.startNoTun,
-      stopVpn: _easyTierService.stopVpn,
+      startVpn: (config) => AppRuntimeCoordinator.instance.startEasyTier(
+        config,
+        useNoTunMode: false,
+      ),
+      startNoTun: (config) => AppRuntimeCoordinator.instance.startEasyTier(
+        config,
+        useNoTunMode: true,
+      ),
+      stopVpn: AppRuntimeCoordinator.instance.stopEasyTier,
       getNetworkInfo: _easyTierService.getNetworkInfo,
       readLastError: () => _easyTierService.lastError,
     );
@@ -141,7 +149,9 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       return;
     }
     await _browserSettingsService.saveSettings(result.settings);
-    await _localHttpFileServerService.applySettings(result.settings);
+    await BrowserRuntimeCoordinator.instance.applyLocalHttpSettings(
+      result.settings,
+    );
     if (!mounted) return;
     setState(() {
       _browserSettings = result.settings;
@@ -158,7 +168,9 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
     if (!result.didChange) {
       return;
     }
-    await _clipboardHttpServerService.start(preferredPort: 12345);
+    await BrowserRuntimeCoordinator.instance.startClipboard(
+      preferredPort: 12345,
+    );
     if (!mounted) return;
     setState(() {});
     if (result.message != null) {
@@ -176,11 +188,13 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
       boundClipboardPort: _clipboardHttpServerService.boundPort,
     );
     if (plan.localHttpSettings != null) {
-      await _localHttpFileServerService.applySettings(plan.localHttpSettings!);
+      await BrowserRuntimeCoordinator.instance.applyLocalHttpSettings(
+        plan.localHttpSettings!,
+      );
     }
 
     if (plan.restartClipboard) {
-      await _clipboardHttpServerService.start(
+      await BrowserRuntimeCoordinator.instance.startClipboard(
         preferredPort: plan.preferredClipboardPort,
       );
     }

@@ -2,9 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import '../browser_settings.dart';
 import '../browser_settings_service.dart';
-import '../clipboard_http_server_service.dart';
-import '../clipboard_storage_service.dart';
-import '../local_http_file_server_service.dart';
 import '../proxy_service.dart';
 import '../../services/app_cache_maintenance_service.dart';
 import 'browser_download_coordinator.dart';
@@ -22,6 +19,7 @@ import 'browser_history_service.dart';
 import 'browser_imported_document_service.dart';
 import 'browser_long_press_handler.dart';
 import 'browser_popup_window_handler.dart';
+import 'browser_runtime_coordinator.dart';
 import 'browser_shared_services.dart';
 import 'browser_suggestion_service.dart';
 import 'browser_tab_coordinator.dart';
@@ -46,9 +44,6 @@ class BrowserPageServices {
     required this.externalUrlLauncher,
     required this.favoriteService,
     required this.importedDocumentService,
-    required this.localHttpFileServerService,
-    required this.clipboardService,
-    required this.clipboardStorage,
     required this.videoProxyServer,
     required this.downloadCoordinator,
     required this.externalAppHandler,
@@ -83,10 +78,6 @@ class BrowserPageServices {
     final importedDocumentService = BrowserImportedDocumentService(
       favoriteService: favoriteService,
     );
-    final localHttpFileServerService =
-        sharedServices.localHttpFileServerService;
-    final clipboardService = sharedServices.clipboardService;
-    final clipboardStorage = sharedServices.clipboardStorage;
     final videoProxyServer = VideoProxyServer();
     final tabCoordinator = BrowserTabCoordinator(
       tabService: tabService,
@@ -152,9 +143,6 @@ class BrowserPageServices {
       externalUrlLauncher: externalUrlLauncher,
       favoriteService: favoriteService,
       importedDocumentService: importedDocumentService,
-      localHttpFileServerService: localHttpFileServerService,
-      clipboardService: clipboardService,
-      clipboardStorage: clipboardStorage,
       videoProxyServer: videoProxyServer,
       downloadCoordinator: downloadCoordinator,
       externalAppHandler: externalAppHandler,
@@ -184,9 +172,6 @@ class BrowserPageServices {
   final BrowserExternalUrlLauncherService externalUrlLauncher;
   final BrowserFavoriteService favoriteService;
   final BrowserImportedDocumentService importedDocumentService;
-  final LocalHttpFileServerService localHttpFileServerService;
-  final ClipboardHttpServerService clipboardService;
-  final ClipboardStorageService clipboardStorage;
   final VideoProxyServer videoProxyServer;
   final BrowserDownloadCoordinator downloadCoordinator;
   final BrowserExternalAppHandler externalAppHandler;
@@ -236,10 +221,7 @@ class BrowserPageInitializer {
     required BrowserImportedDocumentService importedDocumentService,
     required BrowserFavoriteStatusTracker favoriteStatusTracker,
     required BrowserVideoDetectionCoordinator videoDetectionCoordinator,
-    required ProxyService proxyService,
-    required LocalHttpFileServerService localHttpFileServerService,
-    required ClipboardHttpServerService clipboardService,
-    required ClipboardStorageService clipboardStorage,
+    required BrowserRuntimePolicy browserRuntime,
     required AppCacheMaintenanceService appCacheMaintenanceService,
   }) : _settingsService = settingsService,
        _tabService = tabService,
@@ -247,10 +229,7 @@ class BrowserPageInitializer {
        _importedDocumentService = importedDocumentService,
        _favoriteStatusTracker = favoriteStatusTracker,
        _videoDetectionCoordinator = videoDetectionCoordinator,
-       _proxyService = proxyService,
-       _localHttpFileServerService = localHttpFileServerService,
-       _clipboardService = clipboardService,
-       _clipboardStorage = clipboardStorage,
+       _browserRuntime = browserRuntime,
        _appCacheMaintenanceService = appCacheMaintenanceService;
 
   final BrowserSettingsService _settingsService;
@@ -259,10 +238,7 @@ class BrowserPageInitializer {
   final BrowserImportedDocumentService _importedDocumentService;
   final BrowserFavoriteStatusTracker _favoriteStatusTracker;
   final BrowserVideoDetectionCoordinator _videoDetectionCoordinator;
-  final ProxyService _proxyService;
-  final LocalHttpFileServerService _localHttpFileServerService;
-  final ClipboardHttpServerService _clipboardService;
-  final ClipboardStorageService _clipboardStorage;
+  final BrowserRuntimePolicy _browserRuntime;
   final AppCacheMaintenanceService _appCacheMaintenanceService;
 
   Future<BrowserPageAppliedSettings> initialize({
@@ -333,59 +309,23 @@ class BrowserPageInitializer {
     required VoidCallback onReplaceSuggestionService,
     required bool enableWebView,
   }) async {
-    final proxySupported = enableWebView && !kIsWeb
-        ? await _proxyService.isSupported().catchError((_) => false)
-        : false;
-    var proxyStatusMessage = '';
-    var isProxyActive = false;
-
-    if (proxySupported) {
-      if (_shouldUseProxy(settings, proxySupported)) {
-        try {
-          await _proxyService.applyProxy(settings);
-          isProxyActive = true;
-        } catch (error) {
-          proxyStatusMessage = _proxyService.describeError(error);
-        }
-      } else {
-        try {
-          await _proxyService.clearProxy();
-        } catch (error) {
-          proxyStatusMessage = _proxyService.describeError(error);
-        }
-      }
-    }
-
-    try {
-      await _localHttpFileServerService.applySettings(settings);
-    } catch (_) {
-      if (!swallowLocalHttpErrors) {
-        rethrow;
-      }
-    }
+    final runtimeState = await _browserRuntime.applySettings(
+      settings,
+      enableWebView: enableWebView,
+      swallowLocalHttpErrors: swallowLocalHttpErrors,
+    );
 
     onReplaceSuggestionService();
     return BrowserPageAppliedSettings(
       settings: settings,
-      proxySupported: proxySupported,
-      isProxyActive: isProxyActive,
-      proxyStatusMessage: proxyStatusMessage,
+      proxySupported: runtimeState.proxySupported,
+      isProxyActive: runtimeState.isProxyActive,
+      proxyStatusMessage: runtimeState.proxyStatusMessage,
     );
   }
 
   Future<void> maybeStartClipboardServer() async {
-    try {
-      final enabled = await _clipboardStorage.loadServerEnabled();
-      if (!enabled || _clipboardService.isRunning) {
-        return;
-      }
-      final port = await _clipboardStorage.loadServerPort();
-      await _clipboardService.start(preferredPort: port);
-    } catch (_) {}
-  }
-
-  bool _shouldUseProxy(BrowserSettings settings, bool proxySupported) {
-    return settings.shouldApplyProxy && proxySupported;
+    await _browserRuntime.ensureClipboardServer();
   }
 
   void resetFavoritesHomeState() {
