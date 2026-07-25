@@ -142,6 +142,28 @@ void main() {
 
     expect(easyTier.stopCalls, 1);
   });
+
+  test('receiver host cleanup is delegated back to runtime policy', () async {
+    final remote = _FakeRemoteControlRuntime();
+    final easyTier = _FakeEasyTierRuntime(isRunning: true);
+    final platform = _FakeRemoteControlPlatformRuntime();
+    AppRuntimeCoordinator(
+      simpleFileManager: _FakeSimpleFileManagerRuntime(),
+      easyTier: easyTier,
+      easyTierProfiles: _FakeEasyTierProfiles(),
+      remoteControl: remote,
+      remoteControlPlatform: platform,
+      browserRuntime: _FakeBrowserRuntimePolicy(),
+      logger: _RecordingRuntimeLogger(),
+    );
+
+    await remote.receiverHostShutdownHandler!();
+
+    expect(remote.disconnectCalls, 1);
+    expect(easyTier.stopCalls, 1);
+    expect(platform.stopCalls, 1);
+    expect(platform.stopCaptureCalls, 1);
+  });
 }
 
 AppRuntimeCoordinator _coordinator({
@@ -307,6 +329,7 @@ class _FakeRemoteControlRuntime implements RemoteControlRuntime {
   final Completer<void>? disconnectGate;
   final Object? disconnectError;
   int disconnectCalls = 0;
+  Future<void> Function()? receiverHostShutdownHandler;
 
   @override
   Future<void> disconnect() async {
@@ -315,6 +338,11 @@ class _FakeRemoteControlRuntime implements RemoteControlRuntime {
     if (disconnectError != null) {
       throw disconnectError!;
     }
+  }
+
+  @override
+  void setReceiverHostShutdownHandler(Future<void> Function()? handler) {
+    receiverHostShutdownHandler = handler;
   }
 }
 

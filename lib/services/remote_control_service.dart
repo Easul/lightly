@@ -22,7 +22,6 @@ import 'remote_control_status_bridge.dart';
 import 'remote_control_voice_coordinator.dart';
 import 'screen_capture_manager.dart';
 import 'app_log_service.dart';
-import 'easytier_service.dart';
 import 'performance_monitor_service.dart';
 import 'webrtc_voice_service.dart';
 
@@ -55,6 +54,7 @@ class RemoteControlService implements RemoteControlRuntime {
   RemoteControlMode _mode = RemoteControlMode.controller;
   RemoteControlState _state = RemoteControlState.idle;
   RemoteControlConfig? _config;
+  Future<void> Function()? _receiverHostShutdownHandler;
   String? _targetHost;
 
   Socket? _controllerControlSocket;
@@ -1223,15 +1223,20 @@ class RemoteControlService implements RemoteControlRuntime {
 
   Future<void> shutdownReceiverHostResources() async {
     _cancelReceiverAutoShutdown();
-    await disconnect();
-    try {
-      await EasyTierService().stopVpn();
-    } catch (e) {
-      _logMessage('Failed to stop EasyTier during receiver shutdown', error: e);
+    final handler = _receiverHostShutdownHandler;
+    if (handler != null) {
+      await handler();
+    } else {
+      await disconnect();
     }
     if (_mode == RemoteControlMode.receiver) {
       _updateState(RemoteControlState.idle);
     }
+  }
+
+  @override
+  void setReceiverHostShutdownHandler(Future<void> Function()? handler) {
+    _receiverHostShutdownHandler = handler;
   }
 
   Future<void> _sendAck(int messageId, bool success, [String? error]) async {

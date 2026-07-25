@@ -35,7 +35,11 @@ class AppRuntimeCoordinator {
        _remoteControlPlatform =
            remoteControlPlatform ?? RemoteControlPlatformGateway.instance,
        _browserRuntime = browserRuntime ?? BrowserRuntimeCoordinator.instance,
-       _logger = logger ?? AppLogService.instance;
+       _logger = logger ?? AppLogService.instance {
+    _remoteControl.setReceiverHostShutdownHandler(
+      shutdownRemoteControlHostResources,
+    );
+  }
 
   static final AppRuntimeCoordinator instance = AppRuntimeCoordinator();
 
@@ -49,6 +53,7 @@ class AppRuntimeCoordinator {
 
   Future<void>? _initialization;
   Future<void>? _shutdown;
+  Future<void>? _remoteHostShutdown;
 
   Future<void> initializePersistedServices() {
     return _initialization ??= _initializePersistedServices();
@@ -187,6 +192,26 @@ class AppRuntimeCoordinator {
       );
     }
 
+    await shutdownRemoteControlHostResources();
+
+    await _browserRuntime.shutdown();
+  }
+
+  Future<void> shutdownRemoteControlHostResources() {
+    final activeShutdown = _remoteHostShutdown;
+    if (activeShutdown != null) {
+      return activeShutdown;
+    }
+    final shutdown = _shutdownRemoteControlHostResources();
+    _remoteHostShutdown = shutdown;
+    return shutdown.whenComplete(() {
+      if (identical(_remoteHostShutdown, shutdown)) {
+        _remoteHostShutdown = null;
+      }
+    });
+  }
+
+  Future<void> _shutdownRemoteControlHostResources() async {
     try {
       await _remoteControl.disconnect();
     } catch (error, stackTrace) {
@@ -206,7 +231,5 @@ class AppRuntimeCoordinator {
     try {
       await _remoteControlPlatform.stopScreenCapture();
     } catch (_) {}
-
-    await _browserRuntime.shutdown();
   }
 }
