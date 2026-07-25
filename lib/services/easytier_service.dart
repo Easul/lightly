@@ -5,10 +5,12 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/easytier_config.dart';
 import 'app_log_service.dart';
+import 'easytier_platform_gateway.dart';
 import 'easytier_runtime.dart';
 
 class EasyTierService implements EasyTierRuntime {
-  static const MethodChannel _channel = MethodChannel('easytier_vpn');
+  static final EasyTierPlatformGateway _platformGateway =
+      EasyTierPlatformGateway.instance;
   static const int noTunSocksPort = 11080;
 
   static final EasyTierService _instance = EasyTierService._internal();
@@ -37,11 +39,9 @@ class EasyTierService implements EasyTierRuntime {
   Future<bool> parseConfig(String config) async {
     try {
       developer.log('Parsing EasyTier config', name: 'EasyTier');
-      final result = await _channel.invokeMethod<bool>('parseConfig', {
-        'config': config,
-      });
+      final result = await _platformGateway.parseConfig(config);
       developer.log('Config parse result: $result', name: 'EasyTier');
-      return result ?? false;
+      return result;
     } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
       recordRuntimeLog(
@@ -58,14 +58,12 @@ class EasyTierService implements EasyTierRuntime {
   Future<bool> checkVpnPermission() async {
     try {
       developer.log('Checking VPN permission', name: 'EasyTier');
-      final hasPermission = await _channel.invokeMethod<bool>(
-        'checkVpnPermission',
-      );
+      final hasPermission = await _platformGateway.checkVpnPermission();
       developer.log(
         'VPN permission check result: $hasPermission',
         name: 'EasyTier',
       );
-      return hasPermission ?? false;
+      return hasPermission;
     } on PlatformException catch (e, stackTrace) {
       recordRuntimeLog(
         'EasyTier',
@@ -147,11 +145,11 @@ class EasyTierService implements EasyTierRuntime {
           'configLength': configString.length,
         },
       );
-      final result = await _channel.invokeMethod<bool>('startVpn', {
-        'config': configString,
-        'instanceName': config.instanceName,
-        'useAndroidVpn': useAndroidVpn,
-      });
+      final result = await _platformGateway.startVpn(
+        config: configString,
+        instanceName: config.instanceName,
+        useAndroidVpn: useAndroidVpn,
+      );
 
       if (result == true) {
         _isRunning = true;
@@ -208,7 +206,7 @@ class EasyTierService implements EasyTierRuntime {
   Future<void> stopVpn() async {
     try {
       recordRuntimeLog('EasyTier', 'Stopping network instance');
-      await _channel.invokeMethod('stopVpn');
+      await _platformGateway.stopVpn();
       _isRunning = false;
       _currentInstanceName = null;
       _usesAndroidVpn = true;
@@ -229,7 +227,7 @@ class EasyTierService implements EasyTierRuntime {
   Future<Map<String, dynamic>?> getNetworkInfo() async {
     try {
       developer.log('Getting network info', name: 'EasyTier');
-      final info = await _channel.invokeMethod<String>('getNetworkInfo');
+      final info = await _platformGateway.getNetworkInfo();
       if (info != null && info.isNotEmpty) {
         _lastRawNetworkInfo = info;
         try {
@@ -283,7 +281,7 @@ class EasyTierService implements EasyTierRuntime {
 
   Future<String?> getLastError() async {
     try {
-      final error = await _channel.invokeMethod<String>('getLastError');
+      final error = await _platformGateway.getLastError();
       _lastError = error;
       return error;
     } on PlatformException catch (e) {
