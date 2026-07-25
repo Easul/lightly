@@ -2,27 +2,26 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-import '../../services/shared_downloads_directory_service.dart';
+import '../../core/storage/shared_downloads_access.dart';
 import 'browser_backup_models.dart';
 
 class BrowserBackupFileWriter {
   BrowserBackupFileWriter({
-    required SharedDownloadsDirectoryService sharedDownloadsDirectoryService,
-  }) : _sharedDownloadsDirectoryService = sharedDownloadsDirectoryService;
+    required SharedDownloadsAccess sharedDownloadsAccess,
+  }) : _sharedDownloadsAccess = sharedDownloadsAccess;
 
-  final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService;
+  final SharedDownloadsAccess _sharedDownloadsAccess;
 
   Future<File> writeToDownloads(
     BrowserBackupData backup, {
     required bool requestSharedAccessIfNeeded,
   }) async {
-    final downloadDirectory = await _sharedDownloadsDirectoryService
-        .resolveDirectory(
-          preferSharedDownloads: true,
-          requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
-          androidFallbackFolderName: 'exports',
-          nonAndroidFallbackFolderName: 'exports',
-        );
+    final downloadDirectory = await _sharedDownloadsAccess.resolveDirectory(
+      preferSharedDownloads: true,
+      requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
+      androidFallbackFolderName: 'exports',
+      nonAndroidFallbackFolderName: 'exports',
+    );
 
     final now = DateTime.now();
     final timestamp =

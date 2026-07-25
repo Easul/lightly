@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-class SharedDownloadsDirectoryService {
+import '../core/storage/shared_downloads_access.dart';
+
+class SharedDownloadsDirectoryService implements SharedDownloadsAccess {
   SharedDownloadsDirectoryService({
     Future<bool> Function()? hasFileAccessPermission,
     Future<bool> Function()? requestFileAccessPermission,
@@ -44,12 +46,16 @@ class SharedDownloadsDirectoryService {
   final Future<Directory> Function() _getTemporaryDirectory;
   final bool Function() _isAndroid;
 
+  @override
   Future<bool> hasFileAccessPermission() => _hasFileAccessPermission();
 
+  @override
   Future<bool> requestFileAccessPermission() => _requestFileAccessPermission();
 
+  @override
   Future<String?> getSharedDownloadsPath() => _getSharedDownloadsPath();
 
+  @override
   Future<Directory> resolveDirectory({
     bool preferSharedDownloads = true,
     bool requestSharedAccessIfNeeded = false,

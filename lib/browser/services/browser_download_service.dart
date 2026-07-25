@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/storage/shared_downloads_access.dart';
 import '../../services/media_scanner_service.dart';
-
+import '../../services/shared_downloads_directory_service.dart';
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
 import '../proxy_service.dart';
-import '../../services/shared_downloads_directory_service.dart';
 import 'browser_download_store.dart';
 
 class DownloadConfirmationResult {
@@ -49,13 +49,13 @@ class _ActiveDownloadSession {
 class BrowserDownloadService {
   BrowserDownloadService({
     DateTime Function()? now,
-    SharedDownloadsDirectoryService? sharedDownloadsDirectoryService,
+    SharedDownloadsAccess? sharedDownloadsAccess,
   }) : _now = now ?? DateTime.now,
-       _sharedDownloadsDirectoryService =
-           sharedDownloadsDirectoryService ?? SharedDownloadsDirectoryService();
+       _sharedDownloadsAccess =
+           sharedDownloadsAccess ?? SharedDownloadsDirectoryService();
 
   final DateTime Function() _now;
-  final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService;
+  final SharedDownloadsAccess _sharedDownloadsAccess;
   static const int _downloadProgressPersistStepBytes = 256 * 1024;
   final Map<int, _ActiveDownloadSession> _activeDownloads =
       <int, _ActiveDownloadSession>{};
@@ -213,11 +213,11 @@ class BrowserDownloadService {
   }
 
   Future<bool> hasStoragePermission() async {
-    return _sharedDownloadsDirectoryService.hasFileAccessPermission();
+    return _sharedDownloadsAccess.hasFileAccessPermission();
   }
 
   Future<bool> requestStoragePermission() async {
-    return _sharedDownloadsDirectoryService.requestFileAccessPermission();
+    return _sharedDownloadsAccess.requestFileAccessPermission();
   }
 
   Future<void> startDownload({
@@ -351,14 +351,14 @@ class BrowserDownloadService {
   }
 
   Future<String?> getSystemDownloadPath() async {
-    return _sharedDownloadsDirectoryService.getSharedDownloadsPath();
+    return _sharedDownloadsAccess.getSharedDownloadsPath();
   }
 
   Future<Directory> _ensureDownloadsDirectory({
     bool preferSystem = true,
     bool requestStoragePermissionIfNeeded = false,
   }) async {
-    return _sharedDownloadsDirectoryService.resolveDirectory(
+    return _sharedDownloadsAccess.resolveDirectory(
       preferSharedDownloads: preferSystem,
       requestSharedAccessIfNeeded: requestStoragePermissionIfNeeded,
       androidFallbackFolderName: 'browser_downloads',

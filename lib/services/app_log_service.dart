@@ -8,6 +8,8 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/logging/runtime_logger.dart';
+import '../core/storage/shared_downloads_access.dart';
 import 'runtime_log_sanitizer.dart';
 import 'shared_downloads_directory_service.dart';
 
@@ -17,7 +19,7 @@ Future<void> recordRuntimeLog(
   Object? error,
   StackTrace? stackTrace,
   Map<String, Object?>? metadata,
-  AppLogService? service,
+  RuntimeLogger? service,
 }) {
   developer.log(message, name: scope, error: error, stackTrace: stackTrace);
   return (service ?? AppLogService.instance)
@@ -30,14 +32,21 @@ Future<void> recordRuntimeLog(
       .catchError((_) {});
 }
 
-class AppLogService {
-  AppLogService._();
+class AppLogService implements RuntimeLogger {
+  AppLogService._({SharedDownloadsAccess? sharedDownloadsAccess})
+    : _sharedDownloadsAccess =
+          sharedDownloadsAccess ?? SharedDownloadsDirectoryService();
 
   @visibleForTesting
-  AppLogService.forTesting({required File logFile, bool enabled = false})
-    : _logFile = logFile,
-      _initialized = true,
-      _enabled = enabled;
+  AppLogService.forTesting({
+    required File logFile,
+    bool enabled = false,
+    SharedDownloadsAccess? sharedDownloadsAccess,
+  }) : _sharedDownloadsAccess =
+           sharedDownloadsAccess ?? SharedDownloadsDirectoryService(),
+       _logFile = logFile,
+       _initialized = true,
+       _enabled = enabled;
 
   static final AppLogService instance = AppLogService._();
   static const String _enabledPreferenceKey = 'app_log_enabled';
@@ -46,12 +55,12 @@ class AppLogService {
   bool _initialized = false;
   bool _enabled = false;
   Future<void> _pendingWrites = Future<void>.value();
-  final SharedDownloadsDirectoryService _downloadsDirectoryService =
-      SharedDownloadsDirectoryService();
+  final SharedDownloadsAccess _sharedDownloadsAccess;
   final RuntimeLogSanitizer _sanitizer = const RuntimeLogSanitizer();
 
   bool get isEnabled => _enabled;
 
+  @override
   Future<void> initialize() async {
     if (_initialized) {
       return;
@@ -142,6 +151,7 @@ class AppLogService {
 
   String? get logPath => _logFile?.path;
 
+  @override
   Future<void> log(
     String message, {
     Object? error,
@@ -205,6 +215,7 @@ class AppLogService {
     return write;
   }
 
+  @override
   Future<void> logFlutterError(FlutterErrorDetails details) async {
     await log(
       'FlutterError',
@@ -217,6 +228,7 @@ class AppLogService {
     );
   }
 
+  @override
   Future<void> logUnhandledError(Object error, StackTrace stackTrace) async {
     await log('Unhandled Dart error', error: error, stackTrace: stackTrace);
   }
@@ -246,7 +258,7 @@ class AppLogService {
       throw StateError('runtime.log not found');
     }
 
-    final downloadDirectory = await _downloadsDirectoryService.resolveDirectory(
+    final downloadDirectory = await _sharedDownloadsAccess.resolveDirectory(
       preferSharedDownloads: true,
       requestSharedAccessIfNeeded: requestSharedAccessIfNeeded,
       androidFallbackFolderName: 'exports',

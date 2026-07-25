@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../calculator/history_service.dart';
-import '../../services/easytier_profile_service.dart';
+import '../../core/logging/runtime_logger.dart';
+import '../../core/storage/shared_downloads_access.dart';
 import '../../services/app_log_service.dart';
+import '../../services/easytier_profile_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../../telegram_checkin/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';
@@ -32,7 +34,8 @@ class BrowserBackupService {
     ClipboardStorageService? clipboardStorageService,
     EasyTierProfileService? easyTierProfileService,
     TelegramCheckinStore? telegramCheckinStore,
-    SharedDownloadsDirectoryService? sharedDownloadsDirectoryService,
+    SharedDownloadsAccess? sharedDownloadsAccess,
+    RuntimeLogger? runtimeLogger,
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _settingsService = settingsService ?? BrowserSettingsService(),
        _historyService = historyService ?? BrowserHistoryService(),
@@ -44,8 +47,9 @@ class BrowserBackupService {
        _easyTierProfileService =
            easyTierProfileService ?? EasyTierProfileService(),
        _telegramCheckinStore = telegramCheckinStore ?? TelegramCheckinStore(),
-       _sharedDownloadsDirectoryService =
-           sharedDownloadsDirectoryService ?? SharedDownloadsDirectoryService();
+       _sharedDownloadsAccess =
+           sharedDownloadsAccess ?? SharedDownloadsDirectoryService(),
+       _runtimeLogger = runtimeLogger ?? AppLogService.instance;
 
   final BrowserFavoriteService _favoriteService;
   final BrowserSettingsService _settingsService;
@@ -55,14 +59,15 @@ class BrowserBackupService {
   final ClipboardStorageService _clipboardStorageService;
   final EasyTierProfileService _easyTierProfileService;
   final TelegramCheckinStore _telegramCheckinStore;
-  final SharedDownloadsDirectoryService _sharedDownloadsDirectoryService;
+  final SharedDownloadsAccess _sharedDownloadsAccess;
+  final RuntimeLogger _runtimeLogger;
   late final BrowserBackupWebDataService _webDataService =
       BrowserBackupWebDataService(
         cookieOriginService: _cookieOriginService,
         logDebug: _logDebug,
       );
   late final BrowserBackupFileWriter _fileWriter = BrowserBackupFileWriter(
-    sharedDownloadsDirectoryService: _sharedDownloadsDirectoryService,
+    sharedDownloadsAccess: _sharedDownloadsAccess,
   );
 
   void _logDebug(
@@ -75,6 +80,7 @@ class BrowserBackupService {
       message,
       error: error,
       metadata: metadata,
+      service: _runtimeLogger,
     );
   }
 
