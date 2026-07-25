@@ -231,7 +231,7 @@ candidate。
 EasyTierPage / RemoteControl flow
   → EasyTierService
   → easytier_vpn MethodChannel
-  → MainActivity / EasyTierJNI
+  → EasyTierChannelHandler / EasyTierJNI
   → EasyTier Rust runtime
   → Android VpnService 或 no-tun SOCKS5 portal
 ```
@@ -284,17 +284,17 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 | Channel | Dart Owner | Android Owner |
 |---|---|---|
-| `browser_proxy` | `ProxyWebViewBridge` 及文件/Intent gateway | 当前在 `MainActivity` |
+| `browser_proxy` | `BrowserPlatformGateway`、`StorageAccessGateway`、`ExternalIntentGateway` | `BrowserPlatformChannelHandler` 及分组 handler |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
-| `easytier_vpn` | `EasyTierService` | 当前在 `MainActivity` |
-| `remote_control` | `RemoteControlPlatformGateway` | 当前在 `MainActivity` |
+| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
+| `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
 | `floating_video` | floating video gateway | `FloatingVideoChannelHandler` / service |
 | `translation_overlay` | translation services | `TranslationOverlayChannelHandler` / service |
 | `time_overlay` | `TimeOverlayService` | `TimeOverlayChannelHandler` / service |
 | `media_scanner` | `MediaScannerService` | `MediaScannerChannelHandler` |
 
-`browser_proxy`、`easytier_vpn` 和 `remote_control` 是下一阶段应从 `MainActivity` 提取的
-三个主要通道。
+`browser_proxy`、`easytier_vpn` 和 `remote_control` 已从 `MainActivity` 提取；Activity 仅注册
+独立 handler 并转交权限/投屏结果与销毁事件。
 
 ## 已识别的架构债务
 
@@ -303,10 +303,8 @@ Lightly 没有引入全局状态管理框架，主要使用：
 2. `lib/browser/` 与 `lib/services/` 仍存在目录级双向依赖；AI 和 Telegram 的已知直接依赖已由
    `AppDatabaseProvider` 与 `LocalProxyEndpointProvider` 消除。
 3. `BrowserDatabase` 已存储 AI 数据，命名与职责不再匹配。
-4. `MainActivity` 同时承担 Activity、权限、Intent、EasyTier、远控和 WebView proxy 逻辑。
-5. 多个 feature 直接创建或持有 MethodChannel，契约分散。
-6. SharedPreferences key 已有统一清单，但多数旧 key 仍缺少显式前缀/版本迁移策略。
-7. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
+4. SharedPreferences key 已有统一清单，但多数旧 key 仍缺少显式前缀/版本迁移策略。
+5. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
 
 ## 目标依赖方向
 

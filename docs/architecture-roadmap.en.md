@@ -261,7 +261,22 @@ Rollback:
 
 ## Phase 3: Platform Gateways and MainActivity Reduction
 
+Status: **code complete (2026-07-26), pending on-device acceptance**
+
 Goal: centralize and test platform contracts while leaving MainActivity with activity concerns.
+
+Delivered:
+
+- `browser_proxy` is split across browser proxy, storage access, external intent, and floating-mode
+  handlers/gateways.
+- `easytier_vpn` is owned by `EasyTierPlatformGateway` / `EasyTierChannelHandler`, including
+  permission and monitor lifecycles.
+- `remote_control` is owned by `RemoteControlPlatformGateway` / `RemoteControlChannelHandler`, with
+  screen frames still passed directly as `Uint8List` / `ByteArray`.
+- `MainActivity` no longer registers MethodChannel handlers directly and only delegates Activity
+  Result and lifecycle events.
+- Dart contract tests cover every migrated method, with Kotlin tests for critical arguments,
+  permission state, and binary paths.
 
 Suggested extraction:
 

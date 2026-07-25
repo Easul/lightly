@@ -855,7 +855,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - peer route synchronization finished
   - `my_node_info.virtual_ipv4` exists
   - `VpnService` should already start
-- Keep the current monitor loop in `MainActivity.kt` that polls `collectNetworkInfos()` and only starts `EasyTierVpnService` after `virtual_ipv4` becomes available.
+- Keep the current monitor loop in `EasyTierChannelHandler.kt` that polls `collectNetworkInfos()` and only starts `EasyTierVpnService` after `virtual_ipv4` becomes available.
 - Also note: when `virtual_ipv4` becomes available, the Android `VpnService` must add the **EasyTier virtual subnet route itself** (for example `10.126.126.22/24`) in addition to any `proxy_cidrs`, otherwise Android 7 can bring up `tun0` and assign the address but still fail to route peer traffic correctly.
 
 ### Mobile DHCP caveat
@@ -942,7 +942,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - `android/app/src/main/AndroidManifest.xml`
   - `android/app/src/main/kotlin/lightly/tool/EasyTierInfoProvider.kt`
   - `android/app/src/main/kotlin/lightly/tool/EasyTierStateStore.kt`
-  - `android/app/src/main/kotlin/lightly/tool/MainActivity.kt`
+  - `android/app/src/main/kotlin/lightly/tool/EasyTierChannelHandler.kt`
 
 ### EasyTier local service exposure pitfall
 
@@ -964,7 +964,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - `stopService()` alone is not always enough to clear the Android system VPN indicator reliably.
 - Keep the explicit `ACTION_STOP` path inside `EasyTierVpnService`, let the service close its own `ParcelFileDescriptor`, and rely on `stopSelf()` / `onRevoke()` for cleanup.
-- Avoid immediately killing the service from `MainActivity` before the service has a chance to close the VPN interface itself, or the system VPN icon can linger.
+- Avoid immediately killing the service from `EasyTierChannelHandler` before the service has a chance to close the VPN interface itself, or the system VPN icon can linger.
 
 ### Android 7 / Android 10 service asymmetry note
 
@@ -1104,13 +1104,13 @@ void dispose() {
 
 **Fix**: 
 - Add `WRITE_EXTERNAL_STORAGE` to `AndroidManifest.xml` (maxSdkVersion="29")
-- Check both read AND write permissions in `MainActivity.kt`
+- Check both read AND write permissions in `StorageAccessChannelHandler.kt`
 - Implement `_isDirectoryWritable()` test that creates/deletes a temp file to verify actual write access
 - Fall back to app private directory if shared Downloads is not writable
 
 **Files**: 
 - `android/app/src/main/AndroidManifest.xml`
-- `android/app/src/main/kotlin/.../MainActivity.kt`
+- `android/app/src/main/kotlin/.../StorageAccessChannelHandler.kt`
 - `lib/services/shared_downloads_directory_service.dart`
 
 ### 3. Proxy peer-close handling

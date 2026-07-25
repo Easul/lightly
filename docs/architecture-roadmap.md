@@ -232,7 +232,18 @@ AppRuntimeCoordinator
 
 ## Phase 3：Platform Gateway 与 MainActivity 瘦身
 
+状态：**代码已完成（2026-07-26），待真机验收**
+
 目标：平台契约集中、可测试，MainActivity 只承担 Activity 职责。
+
+已交付：
+
+- `browser_proxy` 已拆为 browser proxy、storage access、external intent 与悬浮模式 handler/gateway。
+- `easytier_vpn` 已由 `EasyTierPlatformGateway` / `EasyTierChannelHandler` 持有，包含权限与监控生命周期。
+- `remote_control` 已由 `RemoteControlPlatformGateway` / `RemoteControlChannelHandler` 持有，
+  屏幕帧保持 `Uint8List` / `ByteArray` 直传。
+- `MainActivity` 不再直接注册 MethodChannel handler，保留 Activity Result 与生命周期委派。
+- Dart contract tests 覆盖全部迁移方法，关键 Kotlin handler 具备参数、权限状态和二进制路径单测。
 
 建议提取：
 

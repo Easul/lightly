@@ -238,7 +238,7 @@ owners, connection modes, and lifecycle.
 EasyTier page / remote-control flow
   → EasyTierService
   → easytier_vpn MethodChannel
-  → MainActivity / EasyTierJNI
+  → EasyTierChannelHandler / EasyTierJNI
   → EasyTier Rust runtime
   → Android VpnService or no-tun SOCKS5 portal
 ```
@@ -296,17 +296,17 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 
 | Channel | Dart owner | Android owner |
 |---|---|---|
-| `browser_proxy` | `ProxyWebViewBridge` and file/intent gateways | Currently `MainActivity` |
+| `browser_proxy` | `BrowserPlatformGateway`, `StorageAccessGateway`, and `ExternalIntentGateway` | `BrowserPlatformChannelHandler` and grouped handlers |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
-| `easytier_vpn` | `EasyTierService` | Currently `MainActivity` |
-| `remote_control` | `RemoteControlPlatformGateway` | Currently `MainActivity` |
+| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
+| `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
 | `floating_video` | Floating-video gateway | `FloatingVideoChannelHandler` / service |
 | `translation_overlay` | Translation services | `TranslationOverlayChannelHandler` / service |
 | `time_overlay` | `TimeOverlayService` | `TimeOverlayChannelHandler` / service |
 | `media_scanner` | `MediaScannerService` | `MediaScannerChannelHandler` |
 
-`browser_proxy`, `easytier_vpn`, and `remote_control` are the next major channels to extract from
-`MainActivity`.
+`browser_proxy`, `easytier_vpn`, and `remote_control` have been extracted from `MainActivity`; the
+activity only registers independent handlers and forwards permission/capture results and teardown.
 
 ## Identified Architecture Debt
 
@@ -315,12 +315,9 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
    AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
 3. `BrowserDatabase` stores AI data, so its name no longer matches its responsibility.
-4. `MainActivity` combines activity, permission, intent, EasyTier, remote-control, and WebView proxy
-   responsibilities.
-5. Several features create or own MethodChannels directly, distributing the platform contract.
-6. SharedPreferences keys now have one catalog, but most legacy keys still lack an explicit
+4. SharedPreferences keys now have one catalog, but most legacy keys still lack an explicit
    prefix/version migration strategy.
-7. Page owners remain large, but splitting them mechanically by line count would damage ownership.
+5. Page owners remain large, but splitting them mechanically by line count would damage ownership.
 
 ## Target Dependency Direction
 

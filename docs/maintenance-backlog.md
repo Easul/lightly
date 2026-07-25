@@ -52,8 +52,9 @@
 
 ### MainActivity 瘦身
 
-依次提取 browser proxy/storage/intent、EasyTier、remote-control handler。先建立 typed Dart
-gateway 和 contract test，再移动 Kotlin 实现。
+代码已完成：browser proxy/storage/intent、EasyTier、remote-control 均由 typed Dart gateway
+与独立 Kotlin handler 持有，`MainActivity` 只保留注册、Activity Result 和销毁委派。剩余项是
+Phase 3 真机验收，重点验证文件权限、外部 Intent、EasyTier VPN/no-tun 和远控投屏/纹理路径。
 
 ### 数据 ownership
 
