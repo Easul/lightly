@@ -7,6 +7,7 @@ import 'package:tdlib/tdlib.dart';
 
 import 'app/app.dart';
 import 'app/app_services.dart';
+import 'telegram_checkin/telegram_tdlib_service.dart';
 
 // Re-export so existing `package:lightly/main.dart` importers (e.g. tests)
 // keep resolving `MyApp` after it moved to `lib/app/app.dart`.
@@ -20,6 +21,11 @@ Future<void> main() async {
   final services = AppServices.production();
   final appLogService = services.logService;
   await appLogService.initialize();
+
+  // Inject the local-proxy port into Telegram so it depends only on the
+  // LocalProxyEndpointProvider port, not on the proxy implementation.
+  TelegramTdlibService.instance.proxyEndpointProvider =
+      services.localProxyEndpoint;
 
   // 初始化应用生命周期管理器，确保服务默认关闭状态
   await services.lifecycleManager.initialize();

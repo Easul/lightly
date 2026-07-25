@@ -1,3 +1,5 @@
+import '../browser/services/proxy_service_local_endpoint_adapter.dart';
+import '../core/network/local_proxy_endpoint_provider.dart';
 import '../services/app_log_service.dart';
 import '../services/app_lifecycle_manager.dart';
 import '../services/simple_file_manager_service.dart';
@@ -15,6 +17,7 @@ class AppServices {
     required this.logService,
     required this.lifecycleManager,
     required this.simpleFileManager,
+    required this.localProxyEndpoint,
   });
 
   /// Wires the current production singletons. Tests may call the default
@@ -24,10 +27,15 @@ class AppServices {
       logService: AppLogService.instance,
       lifecycleManager: AppLifecycleManager(),
       simpleFileManager: SimpleFileManagerService(),
+      localProxyEndpoint: ProxyServiceLocalEndpointAdapter(),
     );
   }
 
   final AppLogService logService;
   final AppLifecycleManager lifecycleManager;
   final SimpleFileManagerService simpleFileManager;
+
+  /// Cross-feature port giving the current local SOCKS5 port. Injected into
+  /// features (e.g. Telegram) so they do not depend on the proxy implementation.
+  final LocalProxyEndpointProvider localProxyEndpoint;
 }

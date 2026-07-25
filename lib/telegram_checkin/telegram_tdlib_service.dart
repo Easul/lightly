@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:tdlib/td_api.dart' as td;
 import 'package:tdlib/tdlib.dart';
 
-import '../browser/proxy_service.dart';
+import '../core/network/local_proxy_endpoint_provider.dart';
 import 'telegram_checkin_models.dart';
 
 enum TelegramAuthStep {
@@ -35,6 +35,12 @@ class TelegramTdlibService {
   int _requestId = 0;
   int? _configuredProxyPort;
   TelegramCheckinConfig? _config;
+
+  /// Source of the local SOCKS5 port. Injected by the composition root so this
+  /// feature does not depend on a concrete proxy implementation. Defaults to a
+  /// null provider (direct connection) until wired.
+  LocalProxyEndpointProvider proxyEndpointProvider =
+      const _NullProxyEndpointProvider();
 
   Future<void> start(TelegramCheckinConfig config) async {
     _config = config;
@@ -245,8 +251,7 @@ class TelegramTdlibService {
 
   Future<void> configureProxyIfAvailable() async {
     if (_clientId == 0) return;
-    final proxyService = ProxyService();
-    final port = proxyService.isRunning ? proxyService.localProxyPort : null;
+    final port = proxyEndpointProvider.localSocks5Port;
     if (port == null) {
       proxyStatus.value = '本地代理未运行，TDLib 将尝试直连';
       return;
@@ -390,4 +395,14 @@ class TelegramTdlibService {
       throw StateError('Telegram 账号尚未登录');
     }
   }
+}
+
+/// Default provider used before the composition root injects a real one.
+/// Reports no local proxy, so TDLib falls back to a direct connection —
+/// identical to the previous behavior when the proxy was not running.
+class _NullProxyEndpointProvider implements LocalProxyEndpointProvider {
+  const _NullProxyEndpointProvider();
+
+  @override
+  int? get localSocks5Port => null;
 }
