@@ -72,4 +72,85 @@ void main() {
 
     expect(info, <String, Object?>{'1': 'value', 'width': 1080});
   });
+
+  test('maps the remaining remote-control commands', () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return switch (call.method) {
+            'startController' ||
+            'showDisconnectOverlay' ||
+            'checkAccessibilityPermission' ||
+            'startScreenCapture' => true,
+            'createScreenTexture' => 42,
+            _ => null,
+          };
+        });
+
+    expect(await gateway.startController('10.126.126.2'), isTrue);
+    await gateway.stop();
+    await gateway.executeCommand('{"type":"global"}');
+    expect(await gateway.showDisconnectOverlay('disconnected'), isTrue);
+    expect(await gateway.checkAccessibilityPermission(), isTrue);
+    await gateway.openAccessibilitySettings();
+    expect(await gateway.startScreenCapture(fps: 12, bitrate: 2500000), isTrue);
+    await gateway.stopScreenCapture();
+    await gateway.requestKeyFrame();
+    await gateway.updateBitrate(1800000);
+    expect(await gateway.createScreenTexture(width: 1080, height: 2340), 42);
+    await gateway.disposeScreenTexture(42);
+
+    expect(
+      calls
+          .map(
+            (call) => <String, Object?>{
+              'method': call.method,
+              'arguments': call.arguments,
+            },
+          )
+          .toList(),
+      <Map<String, Object?>>[
+        <String, Object?>{
+          'method': 'startController',
+          'arguments': <String, Object?>{'host': '10.126.126.2'},
+        },
+        <String, Object?>{'method': 'stop', 'arguments': null},
+        <String, Object?>{
+          'method': 'executeCommand',
+          'arguments': <String, Object?>{'command': '{"type":"global"}'},
+        },
+        <String, Object?>{
+          'method': 'showDisconnectOverlay',
+          'arguments': <String, Object?>{'message': 'disconnected'},
+        },
+        <String, Object?>{
+          'method': 'checkAccessibilityPermission',
+          'arguments': null,
+        },
+        <String, Object?>{
+          'method': 'openAccessibilitySettings',
+          'arguments': null,
+        },
+        <String, Object?>{
+          'method': 'startScreenCapture',
+          'arguments': <String, Object?>{'fps': 12, 'bitrate': 2500000},
+        },
+        <String, Object?>{'method': 'stopScreenCapture', 'arguments': null},
+        <String, Object?>{'method': 'requestKeyFrame', 'arguments': null},
+        <String, Object?>{
+          'method': 'updateBitrate',
+          'arguments': <String, Object?>{'bitrate': 1800000},
+        },
+        <String, Object?>{
+          'method': 'createScreenTexture',
+          'arguments': <String, Object?>{'width': 1080, 'height': 2340},
+        },
+        <String, Object?>{
+          'method': 'disposeScreenTexture',
+          'arguments': <String, Object?>{'textureId': 42},
+        },
+      ],
+    );
+  });
 }
