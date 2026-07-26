@@ -385,16 +385,16 @@ Completed move-only batches:
 - Simple File Manager, Clipboard, and Local HTTP → `lib/features/local_sharing/`
 - EasyTier domain/application/infrastructure and independent widgets → `lib/features/easytier/`
 - proxy domain/application/infrastructure, runtime owner, and platform gateway → `lib/features/proxy/`
-- remote-control domain contracts, pure application policies, and platform gateway →
-  `lib/features/remote_control/`
+- remote-control domain contracts, connection/screen application policies, screen-capture
+  infrastructure, and platform gateway → `lib/features/remote_control/`
 
 The move batches only moved modules and updated imports; storage keys, database tables, network
 protocols, and runtime owners are unchanged. Before moving local sharing, logging was inverted to
 `RuntimeLogger` and Local HTTP input was narrowed to a dedicated config. Proxy logging was likewise
 inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
 The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
-local-sharing, and app runtime capabilities. The remote-control socket owner, screen/voice
-infrastructure, presentation, and browser/video remain staged below.
+local-sharing, and app runtime capabilities. The remote-control socket owner, socket connection
+helpers, voice infrastructure, presentation, and browser/video remain staged below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

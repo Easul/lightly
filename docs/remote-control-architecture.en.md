@@ -47,13 +47,16 @@ flowchart LR
 | `RemoteControlConnectionFlowCoordinator` | Connection and port-probe decisions | Long-lived sockets |
 | `RemoteControlMessageRouter` | Protocol dispatch | MethodChannels |
 | `RemoteControlScreenFrameSender` | Key/delta queue and freshness policy | Control commands |
+| `ScreenCaptureManager` | Native capture lifecycle and frame stream | Socket/session state |
 | `RemoteControlVoiceCoordinator` | WebRTC signaling and network preference | TCP socket state |
 | `RemoteControlPlatformGateway` | Typed Dart/Kotlin contract | Page state |
 | Kotlin capture/decode/accessibility | MediaProjection, MediaCodec, input/system actions | Dart session policy |
 
-Dart domain contracts, pure application policies, and the typed gateway now live under
-`lib/features/remote_control/`. `RemoteControlService` remains in `lib/services/` as the single
-owner of control/screen sockets and session state until its cross-feature dependencies are ported.
+Dart domain contracts, connection/screen application policies, `ScreenCaptureManager`, and the
+typed gateway now live under `lib/features/remote_control/`. `ScreenFrame` only wraps the original
+`Uint8List`, while the screen sender, pipeline, and watchdog do not own long-lived sockets.
+`RemoteControlService` remains in `lib/services/` as the single owner of control/screen sockets and
+session state until its cross-feature dependencies are ported.
 
 ## Transport and Ports
 

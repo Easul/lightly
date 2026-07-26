@@ -102,7 +102,7 @@ Only consider these after their current behavior is stable and covered by tests/
 ### Owner
 
 - `lib/services/remote_control_service.dart`
-  - Owns public Remote API, mode/state/config, socket fields, MethodChannel, connection/disconnect lifecycle, heartbeat and session-level sequencing.
+  - Owns public Remote API, mode/state/config, socket fields, connection/disconnect lifecycle, heartbeat and session-level sequencing.
   - Coordinates extracted screen, health, message routing, voice, connection and receiver startup components.
   - Do not split remaining socket/native ownership across multiple classes unless one class becomes the single obvious source of truth.
 
@@ -110,40 +110,48 @@ Only consider these after their current behavior is stable and covered by tests/
 
 - `lib/features/remote_control/domain/remote_control_protocol.dart`
   - Message and command models.
-- `lib/services/remote_control_command_helper.dart`
+- `lib/features/remote_control/application/remote_control_command_helper.dart`
   - Native command execution helper.
 - `lib/services/remote_control_status_bridge.dart`
-  - MethodChannel status bridge.
+  - Status serialization bridge over the typed platform gateway.
+- `lib/features/remote_control/infrastructure/remote_control_platform_gateway.dart`
+  - Typed owner of the Dart/Kotlin MethodChannel contract.
 
 ### Connection / receiver lifecycle
 
-- `lib/services/remote_control_connection_flow_coordinator.dart`
+- `lib/features/remote_control/application/remote_control_connection_flow_coordinator.dart`
   - Controller retry / ready wait / reset timing.
 - `lib/services/remote_control_connection_helper.dart`
   - Host normalization and port discovery.
 - `lib/services/remote_control_lifecycle_helper.dart`
   - Controller socket connection setup.
-- `lib/services/remote_control_receiver_startup_coordinator.dart`
+- `lib/features/remote_control/application/remote_control_receiver_startup_coordinator.dart`
   - Receiver native startup and server socket bind sequencing.
 - `lib/services/remote_control_cleanup_helper.dart`
   - Resource cleanup callbacks.
 
 ### Screen stream and health
 
-- `lib/services/remote_control_screen_frame_pipeline_coordinator.dart`
+- `lib/features/remote_control/domain/screen_frame.dart`
+  - Binary frame contract that retains the original `Uint8List`.
+- `lib/features/remote_control/application/remote_control_screen_frame_sender.dart`
+  - Outgoing key/delta queue and freshness policy.
+- `lib/features/remote_control/application/remote_control_screen_frame_pipeline_coordinator.dart`
   - TCP chunks to parsed screen frames, SPS/PPS tracking and recovery gating.
-- `lib/services/remote_control_screen_pipeline_helper.dart`
+- `lib/features/remote_control/application/remote_control_screen_pipeline_helper.dart`
   - Frame parsing/coalescing helper.
-- `lib/services/remote_control_screen_health_coordinator.dart`
+- `lib/features/remote_control/application/remote_control_screen_health_coordinator.dart`
   - Watchdog facade and key-frame recovery state.
-- `lib/services/remote_control_watchdog_controller.dart`
+- `lib/features/remote_control/application/remote_control_watchdog_controller.dart`
   - Stall detection and bitrate adjustment logic.
-- `lib/services/remote_control_recovery_helper.dart`
+- `lib/features/remote_control/application/remote_control_recovery_helper.dart`
   - Recovery policy helpers.
+- `lib/features/remote_control/infrastructure/screen_capture_manager.dart`
+  - Native capture lifecycle and frame stream adapter.
 
 ### Message routing
 
-- `lib/services/remote_control_message_router.dart`
+- `lib/features/remote_control/application/remote_control_message_router.dart`
   - Controller/receiver control-message buffering and dispatch.
 
 ### Voice / WebRTC

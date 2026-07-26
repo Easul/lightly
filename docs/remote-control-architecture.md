@@ -46,13 +46,16 @@ flowchart LR
 | `RemoteControlConnectionFlowCoordinator` | 连接流程与端口探测决策 | 长期持有 socket |
 | `RemoteControlMessageRouter` | 协议消息分发 | 创建 MethodChannel |
 | `RemoteControlScreenFrameSender` | key/delta 帧排队与新鲜度策略 | 控制通道命令 |
+| `ScreenCaptureManager` | native capture 生命周期与帧 stream | socket/session state |
 | `RemoteControlVoiceCoordinator` | WebRTC 信令与网络偏好 | TCP socket owner |
 | `RemoteControlPlatformGateway` | typed Dart/Kotlin 通道契约 | 页面状态 |
 | Kotlin capture/decode/accessibility | MediaProjection、MediaCodec、手势/键盘/全局动作 | Dart 会话策略 |
 
-Dart domain contracts、纯 application policies 与 typed gateway 已位于
-`lib/features/remote_control/`。`RemoteControlService` 仍留在 `lib/services/` 并继续作为
-control/screen socket 与 session state 的唯一 owner，直到其跨 feature 依赖经端口收敛。
+Dart domain contracts、connection/screen application policies、`ScreenCaptureManager` 与 typed
+gateway 已位于 `lib/features/remote_control/`。其中 `ScreenFrame` 只包装原始 `Uint8List`，
+screen sender/pipeline/watchdog 不持有长期 socket。`RemoteControlService` 仍留在
+`lib/services/` 并继续作为 control/screen socket 与 session state 的唯一 owner，直到其跨
+feature 依赖经端口收敛。
 
 ## 传输与端口
 
