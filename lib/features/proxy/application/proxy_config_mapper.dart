@@ -1,5 +1,5 @@
-import '../../features/proxy/domain/proxy_core_config.dart' as proxy_config;
-import '../../features/proxy/domain/proxy_configuration.dart';
+import '../domain/proxy_core_config.dart' as proxy_config;
+import '../domain/proxy_configuration.dart';
 
 class ProxyConfigMapper {
   const ProxyConfigMapper();

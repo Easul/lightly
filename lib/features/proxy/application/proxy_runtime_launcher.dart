@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import '../../features/proxy/domain/proxy_configuration.dart';
-import '../../features/proxy/domain/proxy_protocol.dart';
-import '../../features/proxy/infrastructure/proxy_core_service.dart'
-    as proxy_core;
+import '../domain/proxy_configuration.dart';
+import '../domain/proxy_protocol.dart';
+import '../infrastructure/proxy_core_service.dart' as proxy_core;
 import 'proxy_config_mapper.dart';
 
 const String _releaseProxyLogLevel = String.fromEnvironment(

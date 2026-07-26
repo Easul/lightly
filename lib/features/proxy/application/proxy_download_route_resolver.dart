@@ -1,5 +1,5 @@
-import '../../features/proxy/domain/proxy_configuration.dart';
-import '../../features/proxy/domain/proxy_protocol.dart';
+import '../domain/proxy_configuration.dart';
+import '../domain/proxy_protocol.dart';
 
 class ProxyDownloadRouteResolver {
   const ProxyDownloadRouteResolver();
