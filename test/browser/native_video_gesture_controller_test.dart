@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/pages/native_video_gesture_controller.dart';
+import 'package:lightly/features/video/application/native_video_gesture_controller.dart';
 
 void main() {
   group('NativeVideoGestureController', () {
