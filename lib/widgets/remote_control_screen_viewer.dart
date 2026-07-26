@@ -3,9 +3,9 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../features/remote_control/domain/screen_frame.dart';
+import '../features/remote_control/infrastructure/screen_capture_manager.dart';
 import '../services/app_log_service.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import '../services/screen_capture_manager.dart';
 
 class RemoteControlScreenViewer extends StatefulWidget {
   final Stream<ScreenFrame> frameStream;

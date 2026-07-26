@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
-import '../features/remote_control/domain/screen_frame.dart';
-import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import 'app_log_service.dart';
+import '../../../services/app_log_service.dart';
+import '../domain/screen_frame.dart';
+import 'remote_control_platform_gateway.dart';
 
 /// 屏幕捕获管理器
 ///
