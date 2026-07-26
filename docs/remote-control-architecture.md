@@ -50,6 +50,10 @@ flowchart LR
 | `RemoteControlPlatformGateway` | typed Dart/Kotlin 通道契约 | 页面状态 |
 | Kotlin capture/decode/accessibility | MediaProjection、MediaCodec、手势/键盘/全局动作 | Dart 会话策略 |
 
+Dart domain contracts、纯 application policies 与 typed gateway 已位于
+`lib/features/remote_control/`。`RemoteControlService` 仍留在 `lib/services/` 并继续作为
+control/screen socket 与 session state 的唯一 owner，直到其跨 feature 依赖经端口收敛。
+
 ## 传输与端口
 
 ### Control TCP

@@ -108,7 +108,7 @@ Only consider these after their current behavior is stable and covered by tests/
 
 ### Protocol and command layer
 
-- `lib/services/remote_control_protocol.dart`
+- `lib/features/remote_control/domain/remote_control_protocol.dart`
   - Message and command models.
 - `lib/services/remote_control_command_helper.dart`
   - Native command execution helper.
@@ -152,7 +152,7 @@ Only consider these after their current behavior is stable and covered by tests/
   - Remote voice session orchestration and microphone status flow.
 - `lib/services/webrtc_voice_service.dart`
   - PeerConnection, audio routing, local/remote tracks, EasyTier-aware candidates and stats.
-- `lib/services/webrtc_candidate_filter.dart`
+- `lib/features/remote_control/domain/webrtc_candidate_filter.dart`
   - Candidate classification and overlay host rewrite.
 - `lib/services/webrtc_stats_summary.dart`
   - Stats formatting.

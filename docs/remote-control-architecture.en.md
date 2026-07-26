@@ -51,6 +51,10 @@ flowchart LR
 | `RemoteControlPlatformGateway` | Typed Dart/Kotlin contract | Page state |
 | Kotlin capture/decode/accessibility | MediaProjection, MediaCodec, input/system actions | Dart session policy |
 
+Dart domain contracts, pure application policies, and the typed gateway now live under
+`lib/features/remote_control/`. `RemoteControlService` remains in `lib/services/` as the single
+owner of control/screen sockets and session state until its cross-feature dependencies are ported.
+
 ## Transport and Ports
 
 ### Control TCP

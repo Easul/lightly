@@ -486,6 +486,9 @@ must not be used as the current design; fixed UDP/Opus audio has been replaced b
 ### Remote-control platform channel boundary
 
 - Dart code must access the native `remote_control` MethodChannel through `RemoteControlPlatformGateway`; do not create additional raw `MethodChannel('remote_control')` instances in pages, widgets, or services.
+- The typed gateway now lives at
+  `lib/features/remote_control/infrastructure/remote_control_platform_gateway.dart`; protocol,
+  runtime ports, and pure connection policies live under `lib/features/remote_control/`.
 - Keep video-frame forwarding as a direct typed gateway call with the original `Uint8List`; do not add JSON/base64 conversion, event-bus routing, or extra buffer copies on the screen hot path.
 - `RemoteControlMessageRouter` and command helpers should depend on typed callbacks such as `executeCommand`, not on Flutter `MethodChannel` objects.
 - Tests may mock `RemoteControlPlatformGateway.channelName` to verify the Android contract without bypassing the shared channel name.
