@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/easytier_service_access_coordinator.dart';
+import 'package:lightly/features/easytier/application/easytier_service_access_coordinator.dart';
 
 void main() {
   group('EasyTierServiceAccessCoordinator', () {

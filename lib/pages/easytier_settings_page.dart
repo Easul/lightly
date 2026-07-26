@@ -11,8 +11,8 @@ import '../features/easytier/domain/easytier_network_profile.dart';
 import '../features/easytier/application/easytier_network_info_analyzer.dart';
 import '../features/easytier/application/easytier_profile_coordinator.dart';
 import '../features/easytier/application/easytier_runtime_status_controller.dart';
+import '../features/easytier/application/easytier_service_access_coordinator.dart';
 import '../features/easytier/infrastructure/easytier_service.dart';
-import '../services/easytier_service_access_coordinator.dart';
 import '../app/app_runtime_coordinator.dart';
 import 'easytier_settings_page_body.dart';
 
