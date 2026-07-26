@@ -57,7 +57,8 @@ screen capture、WebRTC infrastructure 与 typed gateway 已位于
 sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 持有
 PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和关闭。
 `RemoteControlService` 继续留在 `lib/services/`，作为 control/screen socket 与 session state
-的唯一 owner。
+的唯一 owner。独立 screen/session/setup/dialog widgets 已位于 feature presentation；两个页面
+owner 仍留在 `lib/pages/`，直到 app lifecycle 与 EasyTier/proxy/browser settings 编排依赖收敛。
 
 ## 传输与端口
 

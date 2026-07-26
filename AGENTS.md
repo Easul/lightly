@@ -545,7 +545,7 @@ Recommended verification after touching this path:
 
 ```bash
 ./gradlew :app:compileDebugKotlin
-flutter analyze lib/services/remote_control_service.dart lib/widgets/remote_control_screen_viewer.dart lib/pages/remote_control_session_page.dart
+flutter analyze lib/services/remote_control_service.dart lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart lib/pages/remote_control_session_page.dart
 ```
 
 Manual smoke test on Redmi:
@@ -615,7 +615,8 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Related files: `lib/services/app_log_service.dart`,
   `lib/features/proxy/infrastructure/proxy_core_service.dart`,
   `lib/features/easytier/infrastructure/easytier_service.dart`,
-  `lib/services/remote_control_service.dart`, `lib/widgets/remote_control_screen_viewer.dart`.
+  `lib/services/remote_control_service.dart`,
+  `lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart`.
 
 ### Low-risk service and settings boundaries
 

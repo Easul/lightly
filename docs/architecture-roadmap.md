@@ -348,13 +348,16 @@ Dart
 - proxy domain/application/infrastructure、runtime owner 与 platform gateway → `lib/features/proxy/`
 - remote-control config/protocol contracts、connection/screen/voice application policies、
   socket/screen/WebRTC infrastructure 与 platform gateway → `lib/features/remote_control/`
+- remote-control 独立 screen/session/setup/dialog widgets →
+  `lib/features/remote_control/presentation/widgets/`
 
 以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和 runtime owner 均未改变。
 local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
 proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `ProxyConfiguration` 隔离
 `BrowserSettings`。EasyTier 设置页因仍编排 browser/local-sharing/app runtime 而暂留 `lib/pages/`；
-`RemoteControlService` 作为 socket/session owner 暂留 `lib/services/`；remote-control
-presentation 与 browser/video 继续按下列顺序渐进处理。
+`RemoteControlService` 作为 socket/session owner 暂留 `lib/services/`；两个 remote-control
+页面 owner 因仍编排 app lifecycle、EasyTier、proxy/browser settings 而暂留 `lib/pages/`。
+其跨 feature 依赖收敛后，再与 browser/video 按下列顺序渐进处理。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 

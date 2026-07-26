@@ -19,7 +19,7 @@ Lightly combines a browser, network connectivity, local services, and remote-con
 - Settings group container: `lib/browser/widgets/settings/settings_section_widgets.dart`
 - Browser More grid: `lib/browser/widgets/browser_more_actions_sheet.dart`
 - Long-press action lists: `lib/browser/widgets/browser_long_press_actions_sheet.dart`
-- Custom disconnect dialog: `lib/pages/remote_control_disconnect_dialog.dart`
+- Custom disconnect dialog: `lib/features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart`
 
 New screens should reuse these components and `Theme.of(context).colorScheme`. Do not redefine nearly identical colors, radii, or shadows inside individual pages.
 

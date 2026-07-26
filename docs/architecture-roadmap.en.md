@@ -387,6 +387,8 @@ Completed move-only batches:
 - proxy domain/application/infrastructure, runtime owner, and platform gateway → `lib/features/proxy/`
 - remote-control config/protocol contracts, connection/screen/voice application policies,
   socket/screen/WebRTC infrastructure, and platform gateway → `lib/features/remote_control/`
+- independent remote-control screen/session/setup/dialog widgets →
+  `lib/features/remote_control/presentation/widgets/`
 
 The move batches only moved modules and updated imports; storage keys, database tables, network
 protocols, and runtime owners are unchanged. Before moving local sharing, logging was inverted to
@@ -394,7 +396,9 @@ protocols, and runtime owners are unchanged. Before moving local sharing, loggin
 inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
 The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
 local-sharing, and app runtime capabilities. `RemoteControlService` remains in `lib/services/` as
-the socket/session owner; remote-control presentation and browser/video remain staged below.
+the socket/session owner. The two remote-control page owners remain in `lib/pages/` while they
+orchestrate app lifecycle, EasyTier, proxy, and browser settings; move them only after those
+cross-feature dependencies converge, then continue with browser/video below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

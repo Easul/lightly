@@ -169,6 +169,18 @@ Only consider these after their current behavior is stable and covered by tests/
 
 `webrtc_voice_service.dart` is still medium-large, but it was recently fixed for EasyTier voice and receiver-side gain. Avoid splitting it until LAN/EasyTier two-way voice has stayed stable for at least one testing cycle.
 
+### Presentation
+
+- `lib/features/remote_control/presentation/widgets/`
+  - Owns independent screen, gesture, session, setup, and disconnect widgets.
+- `lib/pages/remote_control_page.dart`
+  - Page owner that still orchestrates app lifecycle, EasyTier, proxy, and browser settings.
+- `lib/pages/remote_control_session_page.dart`
+  - Session page lifecycle and user interaction orchestration.
+
+Keep both page owners in `lib/pages/` until their cross-feature dependencies use app-level
+coordinators or small domain ports.
+
 ## Directory organization guidance
 
 Current flat placement is acceptable because it minimizes import churn and keeps git history readable. If directory classification becomes necessary later, do it as a pure move-only change. Suggested shallow target:
@@ -186,6 +198,7 @@ lib/features/remote_control/
   application/
   domain/
   infrastructure/
+  presentation/widgets/
 
 lib/services/
   remote_control_service.dart  # socket/session owner

@@ -19,7 +19,7 @@ Lightly 的界面服务于浏览器、网络连接、本地服务和远程控制
 - 设置分组容器：`lib/browser/widgets/settings/settings_section_widgets.dart`
 - 浏览器“更多”宫格：`lib/browser/widgets/browser_more_actions_sheet.dart`
 - 长按操作列表：`lib/browser/widgets/browser_long_press_actions_sheet.dart`
-- 自定义断开提示：`lib/pages/remote_control_disconnect_dialog.dart`
+- 自定义断开提示：`lib/features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart`
 
 新页面优先复用这些组件和 `Theme.of(context).colorScheme`，不要在页面内重复定义接近但不一致的颜色、圆角和阴影。
 

@@ -58,7 +58,9 @@ screen-capture, WebRTC infrastructure, and the typed gateway now live under
 sender, pipeline, watchdog, and socket adapters do not retain sockets. `WebRtcVoiceService` owns its
 PeerConnection, tracks, and timers, but `RemoteControlService` still creates and closes it.
 `RemoteControlService` remains in `lib/services/` as the single owner of control/screen sockets and
-session state.
+session state. Independent screen/session/setup/dialog widgets now live under feature
+presentation. The two page owners remain in `lib/pages/` until their app-lifecycle and
+EasyTier/proxy/browser-settings orchestration dependencies converge.
 
 ## Transport and Ports
 
