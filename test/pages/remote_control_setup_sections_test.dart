@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/pages/remote_control_setup_sections.dart';
+import 'package:lightly/features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
 import 'package:lightly/services/remote_control_service.dart';
 
 void main() {

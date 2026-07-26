@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
+import '../features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
 import 'remote_control_session_page.dart';
 import 'remote_control_page_connection_helper.dart';
 import 'remote_control_page_port_config_helper.dart';
 import 'remote_control_page_receiver_helper.dart';
 import 'remote_control_disconnect_dialog.dart';
-import 'remote_control_setup_sections.dart';
 import '../services/remote_control_service.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart'
