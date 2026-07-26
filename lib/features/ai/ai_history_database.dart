@@ -55,14 +55,14 @@ class AiHistoryDatabase {
 
   /// AI chat table names. These are a data contract — the strings must stay
   /// `ai_chat_sessions` / `ai_chat_messages` to match the existing schema.
-  /// They previously lived on the shared database class; ownership moved here so AI
-  /// does not depend on the browser database class. The CREATE TABLE statements
-  /// still live in the shared database owner (schema relocation is Phase 4).
+  /// They previously lived on the shared database class; ownership moved here
+  /// so AI does not depend on a concrete database. [AppDatabaseProvider]
+  /// supplies the handle while `AppDatabase` executes the shared schema.
   static const String sessionTable = 'ai_chat_sessions';
   static const String messageTable = 'ai_chat_messages';
 
   /// Source of the shared database handle. Injected by the composition root so
-  /// this feature does not depend on the concrete (browser-named) database. It
+  /// this feature does not depend on the concrete database. It
   /// has no safe empty default — unlike a proxy port, a missing database is a
   /// wiring error, not a degraded mode — so access before injection throws.
   AppDatabaseProvider? _database;

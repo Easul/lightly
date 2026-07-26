@@ -334,6 +334,18 @@ Dart
 
 ## Phase 5：Feature-first 目录迁移
 
+状态：**进行中（2026-07-26）**
+
+已完成的纯移动批次：
+
+- `lib/ai_tools/` → `lib/features/ai/`
+- `lib/telegram_checkin/` → `lib/features/telegram/`
+- `lib/calculator/` → `lib/features/calculator/`
+- `lib/game_2048/` → `lib/features/game_2048/`
+
+以上批次只移动模块并更新 import；存储 key、数据库表、网络协议、页面和 runtime owner 均未改变。
+local sharing、proxy、EasyTier、remote control、browser/video 仍按下列顺序渐进处理。
+
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 
 建议顺序：

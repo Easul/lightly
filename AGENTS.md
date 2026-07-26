@@ -1087,7 +1087,9 @@ void dispose() {
   connection so timeouts are not misdiagnosed as verification-code or API configuration failures.
 - The system-time overlay displays the device `HH:mm:ss`, remains draggable, and runs as an Android `specialUse` foreground service with overlay permission.
 - Drawer navigation exposes one `小工具` entry; TG Tools, Calculator, and 2048 live inside the tools page.
-- Related files: `lib/pages/telegram_checkin_page.dart`, `lib/pages/telegram_chat_page.dart`, `lib/pages/tools_page.dart`, `lib/telegram_checkin/telegram_tdlib_service.dart`, `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
+- Related files: `lib/pages/telegram_checkin_page.dart`, `lib/pages/telegram_chat_page.dart`,
+  `lib/pages/tools_page.dart`, `lib/features/telegram/telegram_tdlib_service.dart`,
+  `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
 - Verification: run `flutter analyze`, `flutter test test/browser/browser_backup_service_test.dart`, and `./gradlew :app:compileDebugKotlin`.
 
 ## AI Translation / Chat Tool Integration
@@ -1102,7 +1104,8 @@ void dispose() {
   SQLite database for AI tools.
 - Android floating translation runs in `TranslationOverlayService`, performs its own background-safe request, and stores history through `TranslationHistoryStore` so it still works while Flutter is paused.
 - Never log API keys, full request bodies, translated private text, or chat contents.
-- Related files: `lib/ai_tools/`, `lib/pages/translation_tool_page.dart`, `lib/pages/ai_chat_page.dart`, `android/app/src/main/kotlin/lightly/tool/Translation*`.
+- Related files: `lib/features/ai/`, `lib/pages/translation_tool_page.dart`,
+  `lib/pages/ai_chat_page.dart`, `android/app/src/main/kotlin/lightly/tool/Translation*`.
 - Verification: run `flutter test test/ai_tools/`, targeted `flutter analyze`, and Android Kotlin compilation.
 
 ### 2. Android Shared Downloads Write Permission

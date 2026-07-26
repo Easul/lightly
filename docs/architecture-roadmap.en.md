@@ -373,6 +373,19 @@ Verification:
 
 ## Phase 5: Feature-first Directory Migration
 
+Status: **in progress (2026-07-26)**
+
+Completed move-only batches:
+
+- `lib/ai_tools/` → `lib/features/ai/`
+- `lib/telegram_checkin/` → `lib/features/telegram/`
+- `lib/calculator/` → `lib/features/calculator/`
+- `lib/game_2048/` → `lib/features/game_2048/`
+
+These batches only moved modules and updated imports; storage keys, database tables, network
+protocols, pages, and runtime owners are unchanged. Local sharing, proxy, EasyTier, remote control,
+and browser/video remain staged in the order below.
+
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 
 Recommended order:
