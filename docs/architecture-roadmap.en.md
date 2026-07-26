@@ -381,10 +381,13 @@ Completed move-only batches:
 - `lib/telegram_checkin/` → `lib/features/telegram/`
 - `lib/calculator/` → `lib/features/calculator/`
 - `lib/game_2048/` → `lib/features/game_2048/`
+- the shared LAN-address resolver → `lib/core/network/`
+- Simple File Manager, Clipboard, and Local HTTP → `lib/features/local_sharing/`
 
 These batches only moved modules and updated imports; storage keys, database tables, network
-protocols, pages, and runtime owners are unchanged. Local sharing, proxy, EasyTier, remote control,
-and browser/video remain staged in the order below.
+protocols, pages, and runtime owners are unchanged. Before moving local sharing, logging was
+inverted to `RuntimeLogger` and Local HTTP input was narrowed to a dedicated config. Proxy,
+EasyTier, remote control, and browser/video remain staged in the order below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

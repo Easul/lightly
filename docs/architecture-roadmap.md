@@ -342,9 +342,12 @@ Dart
 - `lib/telegram_checkin/` → `lib/features/telegram/`
 - `lib/calculator/` → `lib/features/calculator/`
 - `lib/game_2048/` → `lib/features/game_2048/`
+- local sharing 公共局域网地址解析器 → `lib/core/network/`
+- Simple File Manager、Clipboard、Local HTTP → `lib/features/local_sharing/`
 
 以上批次只移动模块并更新 import；存储 key、数据库表、网络协议、页面和 runtime owner 均未改变。
-local sharing、proxy、EasyTier、remote control、browser/video 仍按下列顺序渐进处理。
+local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
+proxy、EasyTier、remote control、browser/video 仍按下列顺序渐进处理。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 

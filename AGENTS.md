@@ -616,7 +616,10 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Keep runtime-log file/session management in `AppLogService` and all recursive redaction rules in `RuntimeLogSanitizer`; do not grow the file service with URL or metadata sanitization branches again.
 - Keep `SimpleFileManagerService` limited to settings, server lifecycle, root binding, and state notifications. HTTP routing/file operations belong in `SimpleFileManagerRequestHandler`, while the embedded browser UI belongs in `simple_file_manager_web_ui.dart`.
 - Keep proxy protocol field-reset rules in `BrowserProxyFormMutator`. `SettingsPage` should coordinate `setState`, dirty state, snackbars, and async actions rather than duplicating protocol-specific form mutation rules.
-- Related files: `lib/services/runtime_log_sanitizer.dart`, `lib/services/simple_file_manager_service.dart`, `lib/services/simple_file_manager_request_handler.dart`, `lib/browser/services/browser_proxy_form_mutator.dart`, `lib/pages/settings_page.dart`.
+- Related files: `lib/services/runtime_log_sanitizer.dart`,
+  `lib/features/local_sharing/simple_file_manager/simple_file_manager_service.dart`,
+  `lib/features/local_sharing/simple_file_manager/simple_file_manager_request_handler.dart`,
+  `lib/browser/services/browser_proxy_form_mutator.dart`, `lib/pages/settings_page.dart`.
 
 ### Percent-encoded popup URLs must be decoded before routing
 
@@ -1001,8 +1004,8 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - The local HTTP file service default root path is the shared Download directory: `/storage/emulated/0/Download`.
 - When services are reachable over private IPv4 addresses, display concrete LAN URLs (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`) instead of only `0.0.0.0`.
 - Files:
-  - `lib/browser/local_http_file_server_service.dart`
-  - `lib/browser/clipboard_http_server_service.dart`
+  - `lib/features/local_sharing/local_http/local_http_file_server_service.dart`
+  - `lib/features/local_sharing/clipboard/clipboard_http_server_service.dart`
   - `lib/pages/settings_page.dart`
   - `lib/pages/clipboard_page.dart`
 
