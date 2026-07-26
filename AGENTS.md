@@ -527,7 +527,7 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 Recommended verification after touching WebRTC voice:
 
 ```bash
-flutter analyze lib/features/remote_control/infrastructure/webrtc_voice_service.dart lib/features/remote_control/application/remote_control_voice_coordinator.dart lib/services/remote_control_service.dart
+flutter analyze lib/features/remote_control/infrastructure/webrtc_voice_service.dart lib/features/remote_control/application/remote_control_voice_coordinator.dart lib/features/remote_control/infrastructure/remote_control_service.dart
 flutter test test/services/webrtc_candidate_filter_test.dart test/services/remote_control_voice_coordinator_test.dart test/services/
 ```
 
@@ -554,7 +554,7 @@ Recommended verification after touching this path:
 
 ```bash
 ./gradlew :app:compileDebugKotlin
-flutter analyze lib/services/remote_control_service.dart lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart lib/features/remote_control/presentation/pages/remote_control_session_page.dart
+flutter analyze lib/features/remote_control/infrastructure/remote_control_service.dart lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart lib/features/remote_control/presentation/pages/remote_control_session_page.dart
 ```
 
 Manual smoke test on Redmi:
@@ -624,7 +624,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Related files: `lib/services/app_log_service.dart`,
   `lib/features/proxy/infrastructure/proxy_core_service.dart`,
   `lib/features/easytier/infrastructure/easytier_service.dart`,
-  `lib/services/remote_control_service.dart`,
+  `lib/features/remote_control/infrastructure/remote_control_service.dart`,
   `lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart`.
 
 ### Low-risk service and settings boundaries

@@ -56,8 +56,9 @@ screen capture、WebRTC infrastructure 与 typed gateway 已位于
 `lib/features/remote_control/`。其中 `ScreenFrame` 只包装原始 `Uint8List`，screen
 sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 持有
 PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和关闭。
-`RemoteControlService` 继续留在 `lib/services/`，作为 control/screen socket 与 session state
-的唯一 owner。独立 widgets 与 setup/session 页面均位于 feature presentation；页面通过
+`RemoteControlService` 位于 `lib/features/remote_control/infrastructure/`，仍是 control/screen
+socket 与 session state 的唯一 owner；日志和性能统计由 app composition 注入的 contract
+提供。独立 widgets 与 setup/session 页面均位于 feature presentation；页面通过
 `RemoteControlPresentationRuntime` 接收同一个 service owner，并通过
 `RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator` 的
 EasyTier/proxy/browser settings 能力。具体实现只在应用路由 composition root 中组装。

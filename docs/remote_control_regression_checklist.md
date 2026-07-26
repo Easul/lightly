@@ -5,7 +5,7 @@
 ## 自动验证
 
 ```bash
-flutter analyze lib/services/remote_control_service.dart
+flutter analyze lib/features/remote_control/infrastructure/remote_control_service.dart
 flutter test test/services/
 ```
 

@@ -57,8 +57,10 @@ screen-capture, WebRTC infrastructure, and the typed gateway now live under
 `lib/features/remote_control/`. `ScreenFrame` only wraps the original `Uint8List`; the screen
 sender, pipeline, watchdog, and socket adapters do not retain sockets. `WebRtcVoiceService` owns its
 PeerConnection, tracks, and timers, but `RemoteControlService` still creates and closes it.
-`RemoteControlService` remains in `lib/services/` as the single owner of control/screen sockets and
-session state. Independent widgets and the setup/session pages now live under feature presentation.
+`RemoteControlService` now lives in `lib/features/remote_control/infrastructure/` and remains the
+single owner of control/screen sockets and session state. Logging and performance diagnostics are
+provided through contracts injected by app composition. Independent widgets and the setup/session
+pages now live under feature presentation.
 The pages receive the same service owner through `RemoteControlPresentationRuntime` and consume
 EasyTier/proxy/browser-settings capabilities through the app-level `RemoteControlPageCoordinator`
 behind `RemoteControlPageRuntime`. Concrete implementations are composed only by the application

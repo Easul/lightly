@@ -352,13 +352,16 @@ Dart
   `lib/features/remote_control/presentation/widgets/`
 - remote-control setup/session 页面与页面 helper →
   `lib/features/remote_control/presentation/pages/`
+- `RemoteControlService` 唯一 socket/session owner 与性能诊断实现 →
+  `lib/features/remote_control/infrastructure/`
 
-以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和 runtime owner 均未改变。
+以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和资源所有权均未改变。
 local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
 proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `ProxyConfiguration` 隔离
 `BrowserSettings`。EasyTier 设置页因仍编排 browser/local-sharing/app runtime 而暂留 `lib/pages/`；
-`RemoteControlService` 作为 socket/session owner 暂留 `lib/services/`；两个 remote-control
-页面通过 `RemoteControlPresentationRuntime` 接收现有 owner，并通过
+`RemoteControlService` 继续作为唯一 socket/session owner，但已在日志与性能诊断依赖反转后
+迁入 remote-control infrastructure；两个 remote-control 页面通过
+`RemoteControlPresentationRuntime` 接收现有 owner，并通过
 `RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator`，不再直接依赖
 EasyTier、proxy、BrowserSettings、app lifecycle 或具体 service 实现。应用路由负责注入同一个
 singleton owner，因此页面已迁入 feature presentation；browser/video 仍按下列顺序最后处理。

@@ -391,14 +391,17 @@ Completed move-only batches:
   `lib/features/remote_control/presentation/widgets/`
 - remote-control setup/session pages and page helpers →
   `lib/features/remote_control/presentation/pages/`
+- the `RemoteControlService` single socket/session owner and performance diagnostics implementation →
+  `lib/features/remote_control/infrastructure/`
 
 The move batches only moved modules and updated imports; storage keys, database tables, network
-protocols, and runtime owners are unchanged. Before moving local sharing, logging was inverted to
+protocols, and resource ownership are unchanged. Before moving local sharing, logging was inverted to
 `RuntimeLogger` and Local HTTP input was narrowed to a dedicated config. Proxy logging was likewise
 inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
 The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
-local-sharing, and app runtime capabilities. `RemoteControlService` remains in `lib/services/` as
-the socket/session owner. The two remote-control pages receive that owner through
+local-sharing, and app runtime capabilities. `RemoteControlService` remains the single
+socket/session owner, but now lives in remote-control infrastructure after its logging and
+performance diagnostics dependencies were inverted. The two remote-control pages receive that owner through
 `RemoteControlPresentationRuntime` and use the app-level `RemoteControlPageCoordinator` through
 `RemoteControlPageRuntime`; they no longer import EasyTier, proxy, BrowserSettings, app lifecycle,
 or concrete service implementations. The application route injects the existing singleton owner,

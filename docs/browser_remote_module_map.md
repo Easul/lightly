@@ -101,7 +101,7 @@ Only consider these after their current behavior is stable and covered by tests/
 
 ### Owner
 
-- `lib/services/remote_control_service.dart`
+- `lib/features/remote_control/infrastructure/remote_control_service.dart`
   - Owns public Remote API, mode/state/config, socket fields, connection/disconnect lifecycle, heartbeat and session-level sequencing.
   - Coordinates extracted screen, health, message routing, voice, connection and receiver startup components.
   - Do not split remaining socket/native ownership across multiple classes unless one class becomes the single obvious source of truth.
@@ -221,7 +221,7 @@ Rules for any future move:
 ```bash
 flutter test test/browser/
 flutter test test/services/
-flutter analyze lib/pages/browser_page.dart lib/services/remote_control_service.dart
+flutter analyze lib/pages/browser_page.dart lib/features/remote_control/infrastructure/remote_control_service.dart
 ```
 
 ## When further extraction is justified
