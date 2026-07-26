@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 
 import '../browser_settings.dart';
 import '../../features/video/domain/youtube_long_press_utils.dart';
+import '../../features/video/domain/floating_video_system_ui_runtime.dart';
 import '../widgets/floating_video_player.dart';
 import '../../features/video/application/video_playback_preparer.dart';
 import 'browser_download_coordinator.dart';
@@ -19,12 +20,14 @@ class BrowserVideoPlayerCoordinator {
     required Future<void> Function() stopProxyServer,
     required void Function(String) onShowSnackBar,
     required void Function(String) onDebugLog,
+    required FloatingVideoSystemUiRuntime floatingVideoSystemUiRuntime,
   }) : _playbackPreparationService = playbackPreparationService,
        _downloadCoordinator = downloadCoordinator,
        _videoDetectionTracker = videoDetectionTracker,
        _stopProxyServer = stopProxyServer,
        _onShowSnackBar = onShowSnackBar,
-       _onDebugLog = onDebugLog;
+       _onDebugLog = onDebugLog,
+       _floatingVideoSystemUiRuntime = floatingVideoSystemUiRuntime;
 
   final VideoPlaybackPreparer _playbackPreparationService;
   final BrowserDownloadCoordinator _downloadCoordinator;
@@ -32,6 +35,7 @@ class BrowserVideoPlayerCoordinator {
   final Future<void> Function() _stopProxyServer;
   final void Function(String) _onShowSnackBar;
   final void Function(String) _onDebugLog;
+  final FloatingVideoSystemUiRuntime _floatingVideoSystemUiRuntime;
 
   OverlayEntry? _floatingVideoOverlay;
   VideoPlayerController? _floatingVideoController;
@@ -90,6 +94,7 @@ class BrowserVideoPlayerCoordinator {
       isLooping: _globalLooping,
       onLoopingChanged: _setLooping,
       playerController: _floatingVideoPlayerController,
+      systemUiRuntime: _floatingVideoSystemUiRuntime,
     );
 
     var playbackUrl = url;
@@ -197,6 +202,7 @@ class BrowserVideoPlayerCoordinator {
           );
         },
         playerController: _floatingVideoPlayerController,
+        systemUiRuntime: _floatingVideoSystemUiRuntime,
       );
     } catch (error) {
       _onDebugLog('Failed to initialize floating video player: $error');
@@ -281,6 +287,7 @@ class BrowserVideoPlayerCoordinator {
       onLoopingChanged: _setLooping,
       onDownload: onDownload,
       playerController: _floatingVideoPlayerController,
+      systemUiRuntime: _floatingVideoSystemUiRuntime,
     );
     _onShowSnackBar(message);
   }

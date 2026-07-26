@@ -8,6 +8,7 @@ import 'package:lightly/browser/services/browser_video_detection_tracker.dart';
 import 'package:lightly/browser/services/browser_video_playback_preparation_service.dart';
 import 'package:lightly/browser/services/browser_video_player_coordinator.dart';
 import 'package:lightly/features/video/domain/video_source_resolver.dart';
+import 'package:lightly/features/video/domain/floating_video_system_ui_runtime.dart';
 
 void main() {
   group('BrowserVideoPlayerCoordinator', () {
@@ -41,6 +42,7 @@ void main() {
         },
         onShowSnackBar: (_) {},
         onDebugLog: (_) {},
+        floatingVideoSystemUiRuntime: _FakeFloatingVideoSystemUiRuntime(),
       );
     });
 
@@ -99,4 +101,10 @@ void main() {
       },
     );
   });
+}
+
+class _FakeFloatingVideoSystemUiRuntime
+    implements FloatingVideoSystemUiRuntime {
+  @override
+  Future<void> setKeepScreenOn(bool keepOn) async {}
 }

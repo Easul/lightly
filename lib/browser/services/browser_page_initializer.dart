@@ -29,6 +29,7 @@ import 'browser_video_player_coordinator.dart';
 import 'browser_video_playback_preparation_service.dart';
 import 'browser_tab_service.dart';
 import '../../features/video/infrastructure/external_api_video_source_resolver.dart';
+import '../../features/video/infrastructure/floating_video_platform_gateway.dart';
 import 'video_proxy_server.dart';
 
 class BrowserPageServices {
@@ -133,6 +134,7 @@ class BrowserPageServices {
       stopProxyServer: videoProxyServer.stop,
       onShowSnackBar: onShowSnackBar,
       onDebugLog: onDebugLog,
+      floatingVideoSystemUiRuntime: const FloatingVideoPlatformGateway(),
     );
 
     return BrowserPageServices._(

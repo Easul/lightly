@@ -6,19 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../features/video/domain/floating_video_system_ui_runtime.dart';
 import 'floating_video_player_widget.dart';
-
-const MethodChannel _floatingVideoChannel = MethodChannel('floating_video');
-
-Future<void> _setKeepScreenOn(bool keepOn) async {
-  try {
-    await _floatingVideoChannel.invokeMethod('keepScreenOn', {
-      'keepOn': keepOn,
-    });
-  } catch (e) {
-    // Fallback: ignore if method not implemented
-  }
-}
 
 /// 悬浮视频播放器模式
 enum FloatingPlayerMode {
@@ -73,6 +62,7 @@ class FloatingVideoPlayer extends StatefulWidget {
     this.errorMessage,
     this.onModeChanged,
     this.playerController,
+    required this.systemUiRuntime,
   });
 
   final VideoPlayerController? controller;
@@ -86,6 +76,7 @@ class FloatingVideoPlayer extends StatefulWidget {
   final String? errorMessage;
   final ValueChanged<FloatingPlayerMode>? onModeChanged;
   final FloatingVideoPlayerController? playerController;
+  final FloatingVideoSystemUiRuntime systemUiRuntime;
 
   static String? shortDisplayTitle(String? title) {
     final trimmed = title?.trim();
@@ -116,6 +107,7 @@ class FloatingVideoPlayer extends StatefulWidget {
     String? errorMessage,
     ValueChanged<FloatingPlayerMode>? onModeChanged,
     FloatingVideoPlayerController? playerController,
+    required FloatingVideoSystemUiRuntime systemUiRuntime,
   }) {
     final overlay = OverlayEntry(
       builder: (context) => FloatingVideoPlayer(
@@ -130,6 +122,7 @@ class FloatingVideoPlayer extends StatefulWidget {
         errorMessage: errorMessage,
         onModeChanged: onModeChanged,
         playerController: playerController,
+        systemUiRuntime: systemUiRuntime,
       ),
     );
     Overlay.of(context).insert(overlay);
@@ -166,7 +159,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
 
   void _enableWakeLock() {
     WakelockPlus.enable();
-    _setKeepScreenOn(true);
+    unawaited(_setKeepScreenOn(true));
   }
 
   void _disableWakeLockIfLast() {
@@ -174,7 +167,15 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
     if (_activeInstanceCount <= 0) {
       _activeInstanceCount = 0;
       WakelockPlus.disable();
-      _setKeepScreenOn(false);
+      unawaited(_setKeepScreenOn(false));
+    }
+  }
+
+  Future<void> _setKeepScreenOn(bool keepOn) async {
+    try {
+      await widget.systemUiRuntime.setKeepScreenOn(keepOn);
+    } catch (_) {
+      // Some platforms do not implement the optional window flag contract.
     }
   }
 
