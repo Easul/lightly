@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/remote_control_protocol.dart' as protocol;
+import '../features/remote_control/domain/remote_control_protocol.dart'
+    as protocol;
 
 typedef RemoteAnnotationCircleCallback =
     void Function({

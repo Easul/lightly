@@ -10,7 +10,7 @@ import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/features/easytier/domain/easytier_network_profile.dart';
 import 'package:lightly/features/easytier/domain/easytier_runtime.dart';
 import 'package:lightly/features/easytier/infrastructure/easytier_profile_service.dart';
-import 'package:lightly/services/remote_control_runtime.dart';
+import 'package:lightly/features/remote_control/domain/remote_control_runtime.dart';
 import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_runtime.dart';
 import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_settings.dart';
 

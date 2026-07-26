@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../models/remote_control_config.dart';
-import 'remote_control_protocol.dart';
+import '../features/remote_control/domain/remote_control_protocol.dart';
 import 'remote_control_status_bridge.dart';
 
 class RemoteControlConnectionHelper {

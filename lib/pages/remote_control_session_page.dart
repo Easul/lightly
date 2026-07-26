@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../services/remote_control_protocol.dart' as protocol;
-import '../services/remote_control_protocol.dart' show GlobalAction;
+import '../features/remote_control/domain/remote_control_protocol.dart'
+    as protocol;
+import '../features/remote_control/domain/remote_control_protocol.dart'
+    show GlobalAction;
 import '../services/remote_control_service.dart';
 import '../services/app_toast.dart';
 import '../services/app_lifecycle_manager.dart';

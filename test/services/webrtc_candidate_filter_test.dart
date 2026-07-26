@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/webrtc_candidate_filter.dart';
+import 'package:lightly/features/remote_control/domain/webrtc_candidate_filter.dart';
 
 void main() {
   const hostCandidate =

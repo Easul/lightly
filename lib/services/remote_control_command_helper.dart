@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'remote_control_protocol.dart';
+import '../features/remote_control/domain/remote_control_protocol.dart';
 
 class RemoteControlCommandHelper {
   const RemoteControlCommandHelper();
