@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../browser/utils/local_network_address_helper.dart';
+import '../core/network/local_network_address_resolver.dart';
 import 'simple_file_manager_request_handler.dart';
 import 'simple_file_manager_runtime.dart';
 import 'simple_file_manager_settings.dart';

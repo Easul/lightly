@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../core/network/local_network_address_resolver.dart';
 import '../services/app_log_service.dart';
 import 'clipboard_storage_service.dart';
-import 'utils/local_network_address_helper.dart';
 
 class ClipboardHttpServerService {
   ClipboardHttpServerService._();

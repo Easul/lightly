@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../core/network/local_network_address_resolver.dart';
 import '../services/app_log_service.dart';
 import 'browser_settings.dart';
 import 'local_http_directory_handler.dart';
 import 'local_http_file_handler.dart';
 import 'local_http_upload_handler.dart';
-import 'utils/local_network_address_helper.dart';
 
 class LocalHttpFileServerService {
   LocalHttpFileServerService._();
