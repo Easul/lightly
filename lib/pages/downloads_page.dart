@@ -16,7 +16,7 @@ import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../features/video/infrastructure/external_api_video_source_resolver.dart';
 import '../features/video/infrastructure/floating_video_platform_gateway.dart';
-import '../browser/services/video_proxy_server.dart';
+import '../features/video/infrastructure/video_proxy_server.dart';
 import '../services/app_toast.dart';
 import 'downloads_page_dialogs.dart';
 import 'downloads_page_sections.dart';

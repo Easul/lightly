@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/services/video_proxy_server.dart';
+import 'package:lightly/features/video/infrastructure/video_proxy_server.dart';
 
 void main() {
   test('forwards requests through the injected proxy resolver', () async {

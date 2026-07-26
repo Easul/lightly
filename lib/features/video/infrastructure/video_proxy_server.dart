@@ -4,7 +4,7 @@ import 'dart:io';
 /// A minimal local HTTP proxy-forwarding server for video streams.
 ///
 /// VideoPlayerController connects to this local server (e.g. http://127.0.0.1:port/proxy?url=...)
-/// and this server forwards the request through the app's configured proxy.
+/// and this server forwards the request through the injected proxy route.
 /// This allows video_player (which uses native ExoPlayer) to play URLs that
 /// require proxy access.
 class VideoProxyServer {
