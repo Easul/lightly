@@ -356,8 +356,9 @@ local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 L
 proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `ProxyConfiguration` 隔离
 `BrowserSettings`。EasyTier 设置页因仍编排 browser/local-sharing/app runtime 而暂留 `lib/pages/`；
 `RemoteControlService` 作为 socket/session owner 暂留 `lib/services/`；两个 remote-control
-页面 owner 因仍编排 app lifecycle、EasyTier、proxy/browser settings 而暂留 `lib/pages/`。
-其跨 feature 依赖收敛后，再与 browser/video 按下列顺序渐进处理。
+页面已通过 app-level `RemoteControlPageCoordinator` 移除对 EasyTier、proxy 与 BrowserSettings
+实现的直接依赖。页面暂留 `lib/pages/`，直到 presentation-facing contract 与 service owner
+注入边界稳定，再与 browser/video 按下列顺序渐进处理。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 

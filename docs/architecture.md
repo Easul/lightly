@@ -174,6 +174,8 @@ flowchart TB
 - `lib/main.dart`：进程 bootstrap、TDLib 初始化、全局错误捕获和依赖注入。
 - `lib/app/app.dart`、`lib/app/routes.dart`：根应用和路由表。
 - `AppServices`：生产实现的 composition root；跨 feature 能力以 port 暴露。
+- `RemoteControlPageCoordinator`：组合 EasyTier/proxy domain ports、BrowserSettings 与 app
+  runtime policy，页面不直接依赖其他 feature infrastructure。
 - `lib/theme/app_theme.dart`：全局视觉令牌和 Material 组件主题。
 - `AppRuntimeCoordinator`：应用级 runtime 策略入口；统一 simple file manager、browser runtimes、
   EasyTier/远控和应用退出清理。

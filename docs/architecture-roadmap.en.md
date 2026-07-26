@@ -396,9 +396,10 @@ protocols, and runtime owners are unchanged. Before moving local sharing, loggin
 inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
 The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
 local-sharing, and app runtime capabilities. `RemoteControlService` remains in `lib/services/` as
-the socket/session owner. The two remote-control page owners remain in `lib/pages/` while they
-orchestrate app lifecycle, EasyTier, proxy, and browser settings; move them only after those
-cross-feature dependencies converge, then continue with browser/video below.
+the socket/session owner. The two remote-control pages now use app-level
+`RemoteControlPageCoordinator` instead of importing EasyTier, proxy, or BrowserSettings
+implementations directly. They remain in `lib/pages/` until the presentation-facing contract and
+service-owner injection boundary stabilize, then continue with browser/video below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

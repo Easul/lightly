@@ -174,12 +174,15 @@ Only consider these after their current behavior is stable and covered by tests/
 - `lib/features/remote_control/presentation/widgets/`
   - Owns independent screen, gesture, session, setup, and disconnect widgets.
 - `lib/pages/remote_control_page.dart`
-  - Page owner that still orchestrates app lifecycle, EasyTier, proxy, and browser settings.
+  - Page owner that consumes cross-feature runtime capabilities through the app coordinator.
 - `lib/pages/remote_control_session_page.dart`
   - Session page lifecycle and user interaction orchestration.
+- `lib/app/remote_control_page_coordinator.dart`
+  - Composes EasyTier/proxy domain ports, BrowserSettings loading, peer projection, and app runtime
+    startup/shutdown for the page.
 
-Keep both page owners in `lib/pages/` until their cross-feature dependencies use app-level
-coordinators or small domain ports.
+Keep both page owners in `lib/pages/` until a presentation-facing contract can be injected without
+making the feature import app composition or the concrete service owner.
 
 ## Directory organization guidance
 

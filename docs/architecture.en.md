@@ -178,6 +178,8 @@ flowchart TB
 - `lib/main.dart`: process bootstrap, TDLib initialization, global error capture, and dependency wiring.
 - `lib/app/app.dart` and `lib/app/routes.dart`: root application and route table.
 - `AppServices`: composition root for production implementations; cross-feature capabilities are exposed as ports.
+- `RemoteControlPageCoordinator`: composes EasyTier/proxy domain ports, BrowserSettings, and app
+  runtime policy so the page does not import another feature's infrastructure.
 - `lib/theme/app_theme.dart`: global visual tokens and Material component theme.
 - `AppRuntimeCoordinator`: application runtime policy entry point for Simple File Manager, browser
   runtimes, EasyTier/remote control, and application shutdown.

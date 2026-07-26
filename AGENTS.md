@@ -492,6 +492,10 @@ must not be used as the current design; fixed UDP/Opus audio has been replaced b
 - Keep video-frame forwarding as a direct typed gateway call with the original `Uint8List`; do not add JSON/base64 conversion, event-bus routing, or extra buffer copies on the screen hot path.
 - `RemoteControlMessageRouter` and command helpers should depend on typed callbacks such as `executeCommand`, not on Flutter `MethodChannel` objects.
 - Tests may mock `RemoteControlPlatformGateway.channelName` to verify the Android contract without bypassing the shared channel name.
+- `RemoteControlPage` must access EasyTier peer/no-tun state and the optional internal proxy through
+  `RemoteControlPageCoordinator`; do not restore direct page imports of EasyTier, proxy, or browser
+  infrastructure. The app-level coordinator composes their domain ports and owns this cross-feature
+  policy.
 
 Remote-control WebRTC voice has several real-world pitfalls that must not be regressed:
 

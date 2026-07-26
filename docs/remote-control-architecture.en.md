@@ -59,8 +59,10 @@ sender, pipeline, watchdog, and socket adapters do not retain sockets. `WebRtcVo
 PeerConnection, tracks, and timers, but `RemoteControlService` still creates and closes it.
 `RemoteControlService` remains in `lib/services/` as the single owner of control/screen sockets and
 session state. Independent screen/session/setup/dialog widgets now live under feature
-presentation. The two page owners remain in `lib/pages/` until their app-lifecycle and
-EasyTier/proxy/browser-settings orchestration dependencies converge.
+presentation. The two pages consume EasyTier/proxy/browser-settings capabilities through app-level
+`RemoteControlPageCoordinator` instead of importing another feature's infrastructure. They remain
+in `lib/pages/` until the presentation-facing contract and service-owner injection boundary
+stabilize.
 
 ## Transport and Ports
 
