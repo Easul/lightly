@@ -10,9 +10,11 @@ import 'package:video_player/video_player.dart';
 import 'package:volume_controller/volume_controller.dart';
 
 import '../browser/browser_settings_service.dart';
+import '../browser/models/browser_download_record.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
+import '../browser/services/browser_native_video_download_runtime.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/services/browser_video_playback_preparation_service.dart';
 import '../features/video/infrastructure/external_api_video_source_resolver.dart';
@@ -22,6 +24,7 @@ import '../services/app_log_service.dart';
 import '../features/video/domain/youtube_long_press_utils.dart';
 import '../services/app_toast.dart';
 import '../features/video/application/native_video_gesture_controller.dart';
+import '../features/video/application/native_video_download_runtime.dart';
 import '../features/video/presentation/widgets/native_video_overlay.dart';
 import '../features/video/presentation/widgets/native_video_player_widgets.dart';
 import '../features/video/presentation/native_video_playback_coordinator.dart';
@@ -154,6 +157,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
   final VideoProxyServer _videoProxyServer = VideoProxyServer();
   late final BrowserVideoPlaybackPreparationService
   _videoPlaybackPreparationService;
+  late final NativeVideoDownloadRuntime _downloadRuntime;
   late final NativeVideoDownloadCoordinator _downloadCoordinator;
   late final NativeVideoPlaybackCoordinator _playbackCoordinator;
   final ValueNotifier<String?> _gestureHintNotifier = ValueNotifier<String?>(
@@ -238,11 +242,14 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
       createChewieController: buildNativeVideoChewieController,
       onDebugLog: _logDebug,
     );
-    _downloadCoordinator = NativeVideoDownloadCoordinator(
+    _downloadRuntime = BrowserNativeVideoDownloadRuntime(
       downloadService: _downloadService,
       downloadStore: _downloadStore,
       proxyService: _proxyService,
       loadSettings: _settingsService.loadSettings,
+    );
+    _downloadCoordinator = NativeVideoDownloadCoordinator(
+      downloadRuntime: _downloadRuntime,
     );
     _initializePlayer();
     _initializeSystemValues();
@@ -401,7 +408,7 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
 
   String _resolveDownloadFileName() {
     return resolveNativeVideoDownloadFileName(
-      downloadService: _downloadService,
+      downloadRuntime: _downloadRuntime,
       resolvedTitle: _resolvedTitle,
       resolvedPlaybackUrl: _resolvedPlaybackUrl,
       originalVideoUrl: widget.videoUrl,
@@ -417,8 +424,20 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
     await _downloadCoordinator.startDownload(
       playbackUrl: playbackUrl,
       fileName: _resolveDownloadFileName(),
-      confirmDownload: (pendingRecord) {
-        return _downloadService.showConfirmDialog(context, pendingRecord);
+      confirmDownload: (prompt) async {
+        final confirmation = await _downloadService.showConfirmDialog(
+          context,
+          BrowserDownloadRecord(
+            url: prompt.url,
+            fileName: prompt.fileName,
+            status: 'pending',
+            savedPath: null,
+            totalBytes: 0,
+            bytesReceived: 0,
+            createdAt: DateTime.now(),
+          ),
+        );
+        return confirmation?.fileName;
       },
       onStatus: _showSnackBar,
     );

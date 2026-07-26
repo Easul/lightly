@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/models/browser_download_record.dart';
 import 'package:lightly/features/proxy/infrastructure/proxy_service.dart';
+import 'package:lightly/features/video/application/native_video_download_runtime.dart';
 import 'package:lightly/browser/services/browser_download_service.dart';
 import 'package:lightly/browser/services/browser_download_store.dart';
+import 'package:lightly/browser/services/browser_native_video_download_runtime.dart';
 import 'package:lightly/pages/native_video_download_coordinator.dart';
 
 void main() {
@@ -13,7 +15,7 @@ void main() {
 
       expect(
         resolveNativeVideoDownloadFileName(
-          downloadService: service,
+          downloadRuntime: _createRuntime(downloadService: service),
           resolvedTitle: 'Example video title',
           resolvedPlaybackUrl: 'https://cdn.example.com/videoplayback?id=1',
           originalVideoUrl: 'https://youtube.com/watch?v=abc123',
@@ -27,7 +29,7 @@ void main() {
 
       expect(
         resolveNativeVideoDownloadFileName(
-          downloadService: service,
+          downloadRuntime: _createRuntime(downloadService: service),
           resolvedTitle: 'Example/video:name.mp4',
           resolvedPlaybackUrl: 'https://cdn.example.com/videoplayback?id=1',
           originalVideoUrl: 'https://youtube.com/watch?v=abc123',
@@ -41,7 +43,7 @@ void main() {
 
       expect(
         resolveNativeVideoDownloadFileName(
-          downloadService: service,
+          downloadRuntime: _createRuntime(downloadService: service),
           resolvedTitle: ' ',
           resolvedPlaybackUrl: 'https://cdn.example.com/video.mp4?token=abc',
           originalVideoUrl: 'https://youtube.com/watch?v=abc123',
@@ -54,10 +56,10 @@ void main() {
       final service = _FakeDownloadService();
       final store = _FakeDownloadStore();
       final coordinator = NativeVideoDownloadCoordinator(
-        downloadService: service,
-        downloadStore: store,
-        proxyService: ProxyService(),
-        loadSettings: () async => BrowserSettings.defaults(),
+        downloadRuntime: _createRuntime(
+          downloadService: service,
+          downloadStore: store,
+        ),
       );
 
       await coordinator.startDownload(
@@ -86,17 +88,16 @@ void main() {
       final store = _FakeDownloadStore();
       final messages = <String>[];
       final coordinator = NativeVideoDownloadCoordinator(
-        downloadService: service,
-        downloadStore: store,
-        proxyService: ProxyService(),
-        loadSettings: () async => BrowserSettings.defaults(),
+        downloadRuntime: _createRuntime(
+          downloadService: service,
+          downloadStore: store,
+        ),
       );
 
       await coordinator.startDownload(
         playbackUrl: 'https://example.com/video.mp4',
         fileName: 'video.mp4',
-        confirmDownload: (_) async =>
-            const DownloadConfirmationResult(fileName: 'video.mp4'),
+        confirmDownload: (_) async => 'video.mp4',
         onStatus: messages.add,
       );
 
@@ -119,17 +120,16 @@ void main() {
       final store = _FakeDownloadStore();
       final messages = <String>[];
       final coordinator = NativeVideoDownloadCoordinator(
-        downloadService: service,
-        downloadStore: store,
-        proxyService: ProxyService(),
-        loadSettings: () async => BrowserSettings.defaults(),
+        downloadRuntime: _createRuntime(
+          downloadService: service,
+          downloadStore: store,
+        ),
       );
 
       await coordinator.startDownload(
         playbackUrl: 'https://example.com/video.mp4',
         fileName: 'video.mp4',
-        confirmDownload: (_) async =>
-            const DownloadConfirmationResult(fileName: 'renamed.mp4'),
+        confirmDownload: (_) async => 'renamed.mp4',
         onStatus: messages.add,
       );
 
@@ -138,6 +138,18 @@ void main() {
       expect(store.inserted, isNotNull);
     });
   });
+}
+
+NativeVideoDownloadRuntime _createRuntime({
+  required BrowserDownloadService downloadService,
+  BrowserDownloadStore? downloadStore,
+}) {
+  return BrowserNativeVideoDownloadRuntime(
+    downloadService: downloadService,
+    downloadStore: downloadStore ?? _FakeDownloadStore(),
+    proxyService: ProxyService(),
+    loadSettings: () async => BrowserSettings.defaults(),
+  );
 }
 
 class _FakeDownloadService extends BrowserDownloadService {

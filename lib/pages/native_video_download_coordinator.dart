@@ -1,11 +1,7 @@
-import '../browser/browser_settings.dart';
-import '../browser/models/browser_download_record.dart';
-import '../features/proxy/infrastructure/proxy_service.dart';
-import '../browser/services/browser_download_service.dart';
-import '../browser/services/browser_download_store.dart';
+import '../features/video/application/native_video_download_runtime.dart';
 
 String resolveNativeVideoDownloadFileName({
-  required BrowserDownloadService downloadService,
+  required NativeVideoDownloadRuntime downloadRuntime,
   required String? resolvedTitle,
   required String? resolvedPlaybackUrl,
   required String originalVideoUrl,
@@ -13,33 +9,24 @@ String resolveNativeVideoDownloadFileName({
   final title = resolvedTitle?.trim();
   if (title != null && title.isNotEmpty) {
     final hasExtension = RegExp(r'\.[A-Za-z0-9]{2,5}$').hasMatch(title);
-    return downloadService.sanitizeFileName(
+    return downloadRuntime.sanitizeFileName(
       hasExtension ? title : '$title.mp4',
     );
   }
-  return downloadService.resolveFileNameFromUrl(
+  return downloadRuntime.resolveFileNameFromUrl(
     resolvedPlaybackUrl ?? originalVideoUrl,
   );
 }
 
 typedef NativeVideoDownloadConfirmation =
-    Future<DownloadConfirmationResult?> Function(BrowserDownloadRecord record);
+    Future<String?> Function(NativeVideoDownloadPrompt prompt);
 
 class NativeVideoDownloadCoordinator {
   const NativeVideoDownloadCoordinator({
-    required BrowserDownloadService downloadService,
-    required BrowserDownloadStore downloadStore,
-    required ProxyService proxyService,
-    required Future<BrowserSettings> Function() loadSettings,
-  }) : _downloadService = downloadService,
-       _downloadStore = downloadStore,
-       _proxyService = proxyService,
-       _loadSettings = loadSettings;
+    required NativeVideoDownloadRuntime downloadRuntime,
+  }) : _downloadRuntime = downloadRuntime;
 
-  final BrowserDownloadService _downloadService;
-  final BrowserDownloadStore _downloadStore;
-  final ProxyService _proxyService;
-  final Future<BrowserSettings> Function() _loadSettings;
+  final NativeVideoDownloadRuntime _downloadRuntime;
 
   Future<void> startDownload({
     required String playbackUrl,
@@ -47,42 +34,24 @@ class NativeVideoDownloadCoordinator {
     required NativeVideoDownloadConfirmation confirmDownload,
     required void Function(String message) onStatus,
   }) async {
-    final pendingRecord = BrowserDownloadRecord(
+    final prompt = NativeVideoDownloadPrompt(
       url: playbackUrl,
       fileName: fileName,
-      status: 'pending',
-      savedPath: null,
-      totalBytes: 0,
-      bytesReceived: 0,
-      createdAt: DateTime.now(),
     );
 
-    final confirmation = await confirmDownload(pendingRecord);
-    if (confirmation == null) {
+    final confirmedFileName = await confirmDownload(prompt);
+    if (confirmedFileName == null) {
       return;
     }
 
-    final preparedRecord = await _downloadService.prepareDownload(
-      playbackUrl,
-      confirmation.fileName,
-    );
-    final savedPath = preparedRecord.savedPath;
-    if (savedPath == null || savedPath.isEmpty) {
-      onStatus('下载失败：无法确定保存路径');
-      return;
-    }
-
-    final record = await _downloadStore.insert(preparedRecord);
-    final settings = await _loadSettings();
-    onStatus('开始下载：${confirmation.fileName}');
-    await _downloadService.startDownload(
+    final result = await _downloadRuntime.startDownload(
       url: playbackUrl,
-      record: record,
-      savedPath: savedPath,
-      proxyService: _proxyService,
-      settings: settings,
-      downloadStore: _downloadStore,
+      fileName: confirmedFileName,
+      onStarted: () => onStatus('开始下载：$confirmedFileName'),
       onStatus: onStatus,
     );
+    if (result == NativeVideoDownloadStartResult.missingSavePath) {
+      onStatus('下载失败：无法确定保存路径');
+    }
   }
 }
