@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/webrtc_stats_summary.dart';
+import 'package:lightly/features/remote_control/infrastructure/webrtc_stats_summary.dart';
 
 void main() {
   const builder = WebRtcStatsSummaryBuilder();

@@ -21,10 +21,10 @@ import '../features/remote_control/domain/remote_control_protocol.dart';
 import '../features/remote_control/domain/remote_control_runtime.dart';
 import '../features/remote_control/domain/screen_frame.dart';
 import '../features/remote_control/infrastructure/screen_capture_manager.dart';
+import '../features/remote_control/infrastructure/webrtc_voice_service.dart';
 import 'remote_control_status_bridge.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
-import 'webrtc_voice_service.dart';
 
 enum RemoteControlMode { controller, receiver }
 

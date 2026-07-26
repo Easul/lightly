@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-import '../features/remote_control/domain/remote_control_protocol.dart';
-import '../features/remote_control/domain/webrtc_candidate_filter.dart';
+import '../domain/remote_control_protocol.dart';
+import '../domain/webrtc_candidate_filter.dart';
 import 'webrtc_stats_summary.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
