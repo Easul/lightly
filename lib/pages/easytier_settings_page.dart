@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../browser/browser_settings.dart';
 import '../browser/browser_settings_service.dart';
-import '../browser/clipboard_http_server_service.dart';
+import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../browser/local_http_file_server_service.dart';
 import '../browser/services/browser_runtime_coordinator.dart';
 import '../models/easytier_config.dart';

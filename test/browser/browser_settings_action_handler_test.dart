@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/clipboard_storage_service.dart';
+import 'package:lightly/features/local_sharing/clipboard/clipboard_storage_service.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_download_store.dart';
 import 'package:lightly/browser/services/browser_favorite_service.dart';

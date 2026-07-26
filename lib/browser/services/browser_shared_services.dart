@@ -1,6 +1,6 @@
 import '../browser_settings_service.dart';
-import '../clipboard_http_server_service.dart';
-import '../clipboard_storage_service.dart';
+import '../../features/local_sharing/clipboard/clipboard_http_server_service.dart';
+import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../local_http_file_server_service.dart';
 import '../proxy_service.dart';
 import '../../services/app_cache_maintenance_service.dart';

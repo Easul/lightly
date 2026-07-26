@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../features/calculator/history_service.dart' as calculator;
-import '../clipboard_storage_service.dart';
+import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
 import 'browser_cookie_origin_service.dart';

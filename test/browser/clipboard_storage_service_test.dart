@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/clipboard_storage_service.dart';
+import 'package:lightly/features/local_sharing/clipboard/clipboard_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

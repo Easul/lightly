@@ -12,7 +12,7 @@ import '../../services/easytier_profile_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../../features/telegram/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';
-import '../clipboard_storage_service.dart';
+import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../models/browser_favorite.dart';
 import '../models/browser_history_entry.dart';
 import 'browser_favorite_service.dart';

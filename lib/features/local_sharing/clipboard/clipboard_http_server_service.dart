@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
-import '../core/logging/runtime_logger.dart';
-import '../core/network/local_network_address_resolver.dart';
+import '../../../core/logging/runtime_logger.dart';
+import '../../../core/network/local_network_address_resolver.dart';
 import 'clipboard_storage_service.dart';
 
 class ClipboardHttpServerService {

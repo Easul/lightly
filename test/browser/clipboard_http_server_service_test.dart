@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/clipboard_http_server_service.dart';
 import 'package:lightly/core/logging/runtime_logger.dart';
+import 'package:lightly/features/local_sharing/clipboard/clipboard_http_server_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

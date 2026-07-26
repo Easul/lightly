@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../browser/clipboard_http_server_service.dart';
+import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 
 class ClipboardServerStatusCard extends StatelessWidget {
   const ClipboardServerStatusCard({

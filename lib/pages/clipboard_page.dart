@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../browser/clipboard_http_server_service.dart';
-import '../browser/clipboard_storage_service.dart';
+import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
+import '../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../browser/services/browser_runtime_coordinator.dart';
 import '../services/app_toast.dart';
 import 'clipboard_page_sections.dart';

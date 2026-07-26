@@ -1,4 +1,3 @@
-import '../browser/clipboard_http_server_service.dart';
 import '../browser/data/app_database_adapter.dart';
 import '../browser/services/proxy_service_local_endpoint_adapter.dart';
 import '../core/logging/runtime_logger.dart';
@@ -6,6 +5,7 @@ import '../core/network/local_proxy_endpoint_provider.dart';
 import '../core/storage/app_database_provider.dart';
 import '../core/storage/shared_downloads_access.dart';
 import '../features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
+import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../services/app_log_service.dart';
 import '../services/app_lifecycle_manager.dart';
 import '../services/shared_downloads_directory_service.dart';
