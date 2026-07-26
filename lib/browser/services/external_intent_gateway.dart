@@ -1,14 +1,12 @@
 import 'package:flutter/services.dart';
 
-import 'browser_platform_gateway.dart';
+import '../../core/platform/platform_channel_names.dart';
 
 typedef NewExternalIntentUrlHandler = Future<void> Function(String? url);
 
 class ExternalIntentGateway {
   ExternalIntentGateway({
-    MethodChannel channel = const MethodChannel(
-      BrowserPlatformGateway.channelName,
-    ),
+    MethodChannel channel = const MethodChannel(PlatformChannelNames.browser),
   }) : _channel = channel;
 
   static final ExternalIntentGateway instance = ExternalIntentGateway();

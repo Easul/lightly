@@ -1,11 +1,13 @@
 import 'package:flutter/services.dart';
 
+import '../../core/platform/platform_channel_names.dart';
+
 class BrowserPlatformGateway {
   BrowserPlatformGateway({
     MethodChannel channel = const MethodChannel(channelName),
   }) : _channel = channel;
 
-  static const String channelName = 'browser_proxy';
+  static const String channelName = PlatformChannelNames.browser;
 
   final MethodChannel _channel;
 

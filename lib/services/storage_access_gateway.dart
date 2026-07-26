@@ -1,12 +1,10 @@
 import 'package:flutter/services.dart';
 
-import '../browser/services/browser_platform_gateway.dart';
+import '../core/platform/platform_channel_names.dart';
 
 class StorageAccessGateway {
   StorageAccessGateway({
-    MethodChannel channel = const MethodChannel(
-      BrowserPlatformGateway.channelName,
-    ),
+    MethodChannel channel = const MethodChannel(PlatformChannelNames.browser),
   }) : _channel = channel;
 
   static final StorageAccessGateway instance = StorageAccessGateway();
