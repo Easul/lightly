@@ -9,7 +9,7 @@ import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
 import 'package:lightly/browser/services/browser_history_service.dart';
 import 'package:lightly/browser/services/browser_suggestion_service.dart';
 import 'package:lightly/browser/services/browser_settings_action_handler.dart';
-import 'package:lightly/calculator/history_service.dart' as calculator;
+import 'package:lightly/features/calculator/history_service.dart' as calculator;
 
 void main() {
   group('BrowserSettingsActionHandler', () {

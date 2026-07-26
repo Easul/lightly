@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
-import '../calculator/calculator_action_sheets.dart';
-import '../calculator/calculator_history_widgets.dart';
-import '../calculator/calculator_input_tab.dart';
-import '../calculator/calculator_text_selection_toolbar.dart';
-import '../calculator/expression_evaluator.dart';
-import '../calculator/calculation_history.dart';
-import '../calculator/history_service.dart';
+import '../features/calculator/calculation_history.dart';
+import '../features/calculator/calculator_action_sheets.dart';
+import '../features/calculator/calculator_history_widgets.dart';
+import '../features/calculator/calculator_input_tab.dart';
+import '../features/calculator/calculator_text_selection_toolbar.dart';
+import '../features/calculator/expression_evaluator.dart';
+import '../features/calculator/history_service.dart';
 
 class CalculatorPage extends StatefulWidget {
   const CalculatorPage({super.key});

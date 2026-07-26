@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../calculator/calculation_history.dart';
+import '../../features/calculator/calculation_history.dart';
 import '../../models/easytier_network_profile.dart';
 import '../../features/telegram/telegram_checkin_models.dart';
 import '../browser_settings.dart';

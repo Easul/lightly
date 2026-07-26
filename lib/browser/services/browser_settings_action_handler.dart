@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-import '../../calculator/history_service.dart' as calculator;
+import '../../features/calculator/history_service.dart' as calculator;
 import '../clipboard_storage_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';

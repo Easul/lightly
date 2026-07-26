@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/calculator/expression_evaluator.dart';
+import 'package:lightly/features/calculator/expression_evaluator.dart';
 
 void main() {
   group('ExpressionEvaluator', () {

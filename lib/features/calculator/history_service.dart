@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:lightly/calculator/calculation_history.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'calculation_history.dart';
 
 class HistoryService {
   static const String _storageKey = 'calculation_history';

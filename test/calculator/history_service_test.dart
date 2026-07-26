@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/calculator/calculation_history.dart';
-import 'package:lightly/calculator/history_service.dart';
+import 'package:lightly/features/calculator/calculation_history.dart';
+import 'package:lightly/features/calculator/history_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
