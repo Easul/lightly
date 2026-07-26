@@ -1,4 +1,4 @@
-import '../features/video/application/native_video_download_runtime.dart';
+import 'native_video_download_runtime.dart';
 
 String resolveNativeVideoDownloadFileName({
   required NativeVideoDownloadRuntime downloadRuntime,
