@@ -6,11 +6,11 @@ import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
 import '../features/remote_control/domain/remote_control_protocol.dart'
     show GlobalAction;
+import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
 import '../features/remote_control/presentation/widgets/remote_control_session_widgets.dart';
 import '../services/remote_control_service.dart';
 import '../services/app_toast.dart';
 import '../services/app_lifecycle_manager.dart';
-import 'remote_control_disconnect_dialog.dart';
 
 class RemoteControlSessionPage extends StatefulWidget {
   final RemoteControlService service;

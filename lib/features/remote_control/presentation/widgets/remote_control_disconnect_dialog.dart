@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/app_toast.dart';
-import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import '../theme/app_theme.dart';
+import '../../../../services/app_toast.dart';
+import '../../../../theme/app_theme.dart';
+import '../../infrastructure/remote_control_platform_gateway.dart';
 
 Future<void> showRemoteDisconnectDialog({
   required BuildContext context,
