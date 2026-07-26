@@ -12,8 +12,8 @@ import '../services/easytier_service.dart';
 import '../services/remote_control_platform_gateway.dart';
 import '../services/remote_control_runtime.dart';
 import '../services/remote_control_service.dart';
-import '../services/simple_file_manager_runtime.dart';
-import '../services/simple_file_manager_service.dart';
+import '../features/local_sharing/simple_file_manager/simple_file_manager_runtime.dart';
+import '../features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
 
 /// Application-level policy for persisted and lifecycle-sensitive runtimes.
 ///

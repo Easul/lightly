@@ -11,8 +11,8 @@ import 'package:lightly/models/easytier_network_profile.dart';
 import 'package:lightly/services/easytier_profile_service.dart';
 import 'package:lightly/services/easytier_runtime.dart';
 import 'package:lightly/services/remote_control_runtime.dart';
-import 'package:lightly/services/simple_file_manager_runtime.dart';
-import 'package:lightly/services/simple_file_manager_settings.dart';
+import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_runtime.dart';
+import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_settings.dart';
 
 void main() {
   test(

@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
 import '../services/shared_downloads_directory_service.dart';
-import '../services/simple_file_manager_service.dart';
+import '../features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
 import '../app/app_runtime_coordinator.dart';
 
 class SimpleFileManagerSettingsPage extends StatefulWidget {

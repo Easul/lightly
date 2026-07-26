@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../core/logging/runtime_logger.dart';
+import '../../../core/logging/runtime_logger.dart';
 import 'simple_file_manager_settings.dart';
 import 'simple_file_manager_web_ui.dart';
 

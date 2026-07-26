@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:lightly/core/logging/runtime_logger.dart';
-import 'package:lightly/services/simple_file_manager_service.dart';
+import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
