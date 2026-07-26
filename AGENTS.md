@@ -746,6 +746,21 @@ looks unrelated to architecture work, but any move of proxy routing logic can si
   change: keep it in a separate commit and re-run the proxy routing tests, do not fold it into an
   import-only move.
 
+## Authenticated WebView Download Compatibility
+
+- Downloads started from WebView pages must preserve the WebView request context when the app's
+  `HttpClient` takes over the transfer: load target-domain cookies from `CookieManager`, forward the
+  callback user agent, and send a sanitized HTTP(S) referrer without user info, query, or fragment.
+- Never write Cookie, Authorization, referrer query values, or other download credentials to logs or
+  persisted download display URLs.
+- File-hosting links can expire or redirect to a login/share page. If a non-HTML filename such as
+  `.apk` ultimately receives `text/html` or XHTML, fail with a clear re-login/expired-link message
+  before opening the output file; do not save the page body under the requested binary filename.
+- Keep intentional `.html`, `.htm`, `.xhtml`, and `.shtml` downloads allowed.
+- Related files: `lib/browser/services/browser_download_request_context_resolver.dart`,
+  `lib/browser/services/browser_download_coordinator.dart`, and
+  `lib/browser/services/browser_download_service.dart`.
+
 ## Selective Browsing Data Clearing
 
 The browser supports clearing different categories of data independently:
