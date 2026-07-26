@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../browser/services/browser_video_playback_preparation_service.dart';
+import '../features/video/application/video_playback_preparer.dart';
 import '../features/video/domain/video_source_resolver.dart';
 
 class NativeVideoPlaybackResult {
@@ -24,7 +24,7 @@ class NativeVideoPlaybackResult {
 
 class NativeVideoPlaybackCoordinator {
   const NativeVideoPlaybackCoordinator({
-    required BrowserVideoPlaybackPreparationService playbackPreparationService,
+    required VideoPlaybackPreparer playbackPreparationService,
     required Future<VideoPlayerController> Function(String playbackUrl)
     createVideoController,
     required Future<void> Function(VideoPlayerController controller)
@@ -42,7 +42,7 @@ class NativeVideoPlaybackCoordinator {
        _createChewieController = createChewieController,
        _onDebugLog = onDebugLog;
 
-  final BrowserVideoPlaybackPreparationService _playbackPreparationService;
+  final VideoPlaybackPreparer _playbackPreparationService;
   final Future<VideoPlayerController> Function(String playbackUrl)
   _createVideoController;
   final Future<void> Function(VideoPlayerController controller)

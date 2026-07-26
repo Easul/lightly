@@ -7,13 +7,13 @@ import 'package:video_player/video_player.dart';
 import '../browser_settings.dart';
 import '../utils/youtube_long_press_utils.dart';
 import '../widgets/floating_video_player.dart';
+import '../../features/video/application/video_playback_preparer.dart';
 import 'browser_download_coordinator.dart';
 import 'browser_video_detection_tracker.dart';
-import 'browser_video_playback_preparation_service.dart';
 
 class BrowserVideoPlayerCoordinator {
   BrowserVideoPlayerCoordinator({
-    required BrowserVideoPlaybackPreparationService playbackPreparationService,
+    required VideoPlaybackPreparer playbackPreparationService,
     required BrowserDownloadCoordinator downloadCoordinator,
     required BrowserVideoDetectionTracker videoDetectionTracker,
     required Future<void> Function() stopProxyServer,
@@ -26,7 +26,7 @@ class BrowserVideoPlayerCoordinator {
        _onShowSnackBar = onShowSnackBar,
        _onDebugLog = onDebugLog;
 
-  final BrowserVideoPlaybackPreparationService _playbackPreparationService;
+  final VideoPlaybackPreparer _playbackPreparationService;
   final BrowserDownloadCoordinator _downloadCoordinator;
   final BrowserVideoDetectionTracker _videoDetectionTracker;
   final Future<void> Function() _stopProxyServer;

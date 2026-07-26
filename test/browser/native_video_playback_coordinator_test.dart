@@ -1,25 +1,20 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/browser_settings.dart';
-import 'package:lightly/browser/services/browser_video_playback_preparation_service.dart';
-import 'package:lightly/features/video/domain/video_source_resolver.dart';
+import 'package:lightly/features/video/application/video_playback_preparer.dart';
 import 'package:lightly/pages/native_video_playback_coordinator.dart';
 import 'package:video_player/video_player.dart';
 
 void main() {
   group('NativeVideoPlaybackCoordinator', () {
     test('initializes controller from prepared playback result', () async {
-      final preparationService = BrowserVideoPlaybackPreparationService(
-        loadSettings: () async => BrowserSettings.defaults(),
-        resolveVideoSource: (_, _) async => const ResolvedVideoSource(
-          videoId: 'abc',
-          streamUrl: 'https://cdn.example.com/video.mp4',
-          title: 'Title',
+      final preparationService = _FakeVideoPlaybackPreparer(
+        const PreparedVideoPlayback(
+          playbackUrl: 'https://cdn.example.com/video.mp4',
+          downloadUrl: 'https://cdn.example.com/video.mp4',
+          displayDownloadUrl: 'https://youtube.com/watch?v=abc',
+          resolvedTitle: 'Title',
         ),
-        ensureProxyServer: (_) async {},
-        buildProxyPlaybackUrl: (url) => url,
-        redactDownloadUrl: (url) => url,
       );
 
       final fakeController = _FakeVideoPlayerController();
@@ -52,6 +47,20 @@ void main() {
       expect(fakeController.initialized, isTrue);
     });
   });
+}
+
+class _FakeVideoPlaybackPreparer implements VideoPlaybackPreparer {
+  const _FakeVideoPlaybackPreparer(this.result);
+
+  final PreparedVideoPlayback result;
+
+  @override
+  Future<PreparedVideoPlayback> prepare({
+    required String requestedUrl,
+    required bool shouldResolveYoutube,
+  }) async {
+    return result;
+  }
 }
 
 class _FakeVideoPlayerController extends Fake implements VideoPlayerController {

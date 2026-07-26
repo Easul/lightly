@@ -1,21 +1,8 @@
 import '../browser_settings.dart';
+import '../../features/video/application/video_playback_preparer.dart';
 import '../../features/video/domain/video_source_resolver.dart';
 
-class PreparedVideoPlayback {
-  const PreparedVideoPlayback({
-    required this.playbackUrl,
-    required this.downloadUrl,
-    required this.displayDownloadUrl,
-    this.resolvedTitle,
-  });
-
-  final String playbackUrl;
-  final String downloadUrl;
-  final String displayDownloadUrl;
-  final String? resolvedTitle;
-}
-
-class BrowserVideoPlaybackPreparationService {
+class BrowserVideoPlaybackPreparationService implements VideoPlaybackPreparer {
   BrowserVideoPlaybackPreparationService({
     required Future<BrowserSettings> Function() loadSettings,
     required Future<ResolvedVideoSource> Function(String, BrowserSettings)
@@ -39,6 +26,7 @@ class BrowserVideoPlaybackPreparationService {
   final String Function(String) _redactDownloadUrl;
   final void Function(String message)? _onDebugLog;
 
+  @override
   Future<PreparedVideoPlayback> prepare({
     required String requestedUrl,
     required bool shouldResolveYoutube,
