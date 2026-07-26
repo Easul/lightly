@@ -12,6 +12,7 @@ import '../application/proxy_runtime_launcher.dart';
 import '../application/proxy_webview_target_resolver.dart';
 import '../domain/proxy_configuration.dart';
 import '../domain/proxy_protocol.dart';
+import '../domain/proxy_runtime.dart';
 import 'proxy_core_service.dart' as proxy_core;
 import 'proxy_latency_probe.dart';
 import 'proxy_platform_gateway.dart';
@@ -19,7 +20,7 @@ import 'proxy_webview_bridge.dart';
 
 const String _localProxyHost = '127.0.0.1';
 
-class ProxyService {
+class ProxyService implements ProxyRuntime {
   ProxyService._internal({
     required proxy_core.ProxyCoreService proxyCoreService,
     required ProxyPlatformGateway proxyPlatformGateway,
@@ -88,8 +89,10 @@ class ProxyService {
   ProxyState _currentState = ProxyState.stopped;
   String? _activeProxyFingerprint;
 
+  @override
   bool get isRunning => _proxyCoreService.isRunning;
 
+  @override
   int? get localProxyPort {
     final parts = _proxyCoreService.listenAddr.split(':');
     if (parts.length < 2) {
@@ -102,10 +105,15 @@ class ProxyService {
 
   Stream<ProxyState> get stateStream => _stateController.stream;
 
+  @override
+  Stream<bool> get runningStream =>
+      stateStream.map((state) => state == ProxyState.started).distinct();
+
   Future<bool> isSupported() async {
     return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   }
 
+  @override
   Future<void> applyProxy(ProxyConfiguration settings) async {
     if (!settings.shouldApplyProxy) {
       await clearProxy();

@@ -264,10 +264,19 @@ class _FakeEasyTierRuntime implements EasyTierRuntime {
   @override
   bool isNoTunMode;
 
+  @override
+  int? get activeNoTunSocksPort => isNoTunMode ? 11080 : null;
+
+  @override
+  String? get currentInstanceName => 'test';
+
   int startVpnCalls = 0;
   int startNoTunCalls = 0;
   int stopCalls = 0;
   EasyTierConfig? lastConfig;
+
+  @override
+  Future<Map<String, dynamic>?> getNetworkInfo() async => null;
 
   @override
   Future<bool> startNoTun(EasyTierConfig config) async {

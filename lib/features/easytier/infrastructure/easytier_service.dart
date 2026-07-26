@@ -37,11 +37,13 @@ class EasyTierService implements EasyTierRuntime {
   bool get isRunning => _isRunning;
   String? get lastError => _lastError;
   String? get configString => _configString;
+  @override
   String? get currentInstanceName => _currentInstanceName;
   String? get lastRawNetworkInfo => _lastRawNetworkInfo;
   bool get usesAndroidVpn => _usesAndroidVpn;
   @override
   bool get isNoTunMode => _isRunning && !_usesAndroidVpn;
+  @override
   int? get activeNoTunSocksPort => isNoTunMode ? _activeNoTunSocksPort : null;
 
   Future<bool> parseConfig(String config) async {
@@ -225,6 +227,7 @@ class EasyTierService implements EasyTierRuntime {
     }
   }
 
+  @override
   Future<Map<String, dynamic>?> getNetworkInfo() async {
     try {
       developer.log('Getting network info', name: 'EasyTier');
