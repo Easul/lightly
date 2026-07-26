@@ -110,6 +110,16 @@ abstract class RemoteControlPlatformRuntime {
   Future<void> stopScreenCapture();
 }
 
+abstract class RemoteControlCapturePlatformRuntime {
+  Future<bool?> startScreenCapture({required int fps, required int bitrate});
+
+  Future<void> stopScreenCapture();
+
+  Future<void> requestKeyFrame();
+
+  Future<void> updateBitrate(int bitrate);
+}
+
 abstract class RemoteControlPermissionRuntime {
   Future<bool> checkAccessibilityPermission();
 

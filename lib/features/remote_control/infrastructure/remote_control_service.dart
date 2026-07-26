@@ -72,9 +72,11 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
   final StreamController<ScreenFrame> _screenFrameController =
       StreamController<ScreenFrame>.broadcast();
 
-  final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager();
   final RemoteControlPlatformGateway _platformGateway =
       RemoteControlPlatformGateway.instance;
+  late final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager(
+    platformRuntime: _platformGateway,
+  );
   final RemoteControlCommandHelper _commandHelper =
       const RemoteControlCommandHelper();
   final RemoteControlCleanupHelper _cleanupHelper =
@@ -197,6 +199,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
       throw StateError('Cannot replace diagnostics during an active session');
     }
     _runtimeLogger = runtimeLogger;
+    _screenCaptureManager.configureRuntimeLogger(runtimeLogger);
     _diagnostics = diagnostics;
     _ensureAudioDiagnosticsLoggingHandler = ensureAudioDiagnosticsLogging;
     _audioDiagnosticsLoggingReady = false;

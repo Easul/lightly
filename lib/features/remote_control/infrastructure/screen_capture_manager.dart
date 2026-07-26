@@ -2,19 +2,22 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
-import '../../../services/app_log_service.dart';
+import '../../../core/logging/runtime_logger.dart';
+import '../domain/remote_control_runtime.dart';
 import '../domain/screen_frame.dart';
-import 'remote_control_platform_gateway.dart';
 
 /// 屏幕捕获管理器
 ///
 /// 管理屏幕捕获的生命周期，处理 H.264 帧的接收和解码
 class ScreenCaptureManager {
-  ScreenCaptureManager({RemoteControlPlatformGateway? platformGateway})
-    : _platformGateway =
-          platformGateway ?? RemoteControlPlatformGateway.instance;
+  ScreenCaptureManager({
+    required RemoteControlCapturePlatformRuntime platformRuntime,
+    RuntimeLogger runtimeLogger = const NoopRuntimeLogger(),
+  }) : _platformRuntime = platformRuntime,
+       _runtimeLogger = runtimeLogger;
 
-  final RemoteControlPlatformGateway _platformGateway;
+  final RemoteControlCapturePlatformRuntime _platformRuntime;
+  RuntimeLogger _runtimeLogger;
 
   final StreamController<ScreenFrame> _frameController =
       StreamController<ScreenFrame>.broadcast();
@@ -38,23 +41,21 @@ class ScreenCaptureManager {
     if (_isCapturing) return true;
 
     try {
-      final result = await _platformGateway.startScreenCapture(
+      final result = await _platformRuntime.startScreenCapture(
         fps: fps,
         bitrate: bitrate,
       );
 
       _isCapturing = result ?? false;
       if (_isCapturing) {
-        recordRuntimeLog(
-          'ScreenCapture',
+        _recordRuntimeLog(
           'Screen capture started',
           metadata: <String, Object?>{'fps': fps, 'bitrate': bitrate},
         );
       }
       return _isCapturing;
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ScreenCapture',
+      _recordRuntimeLog(
         'Failed to start screen capture',
         error: e,
         stackTrace: stackTrace,
@@ -69,19 +70,25 @@ class ScreenCaptureManager {
     if (!_isCapturing) return;
 
     try {
-      await _platformGateway.stopScreenCapture();
+      await _platformRuntime.stopScreenCapture();
       _isCapturing = false;
       _spsData = null;
       _ppsData = null;
-      recordRuntimeLog('ScreenCapture', 'Screen capture stopped');
+      _recordRuntimeLog('Screen capture stopped');
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ScreenCapture',
+      _recordRuntimeLog(
         'Failed to stop screen capture',
         error: e,
         stackTrace: stackTrace,
       );
     }
+  }
+
+  void configureRuntimeLogger(RuntimeLogger runtimeLogger) {
+    if (_isCapturing) {
+      throw StateError('Cannot replace logger while screen capture is active');
+    }
+    _runtimeLogger = runtimeLogger;
   }
 
   /// 处理从原生层接收的屏幕帧
@@ -146,7 +153,7 @@ class ScreenCaptureManager {
   /// 请求关键帧
   Future<void> requestKeyFrame() async {
     try {
-      await _platformGateway.requestKeyFrame();
+      await _platformRuntime.requestKeyFrame();
     } catch (e) {
       developer.log(
         'Failed to request key frame: $e',
@@ -159,7 +166,7 @@ class ScreenCaptureManager {
   /// 更新码率
   Future<void> updateBitrate(int bitrate) async {
     try {
-      await _platformGateway.updateBitrate(bitrate);
+      await _platformRuntime.updateBitrate(bitrate);
     } catch (e) {
       developer.log(
         'Failed to update bitrate: $e',
@@ -167,6 +174,30 @@ class ScreenCaptureManager {
         error: e,
       );
     }
+  }
+
+  void _recordRuntimeLog(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) {
+    developer.log(
+      message,
+      name: 'ScreenCapture',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    unawaited(
+      _runtimeLogger
+          .log(
+            '[ScreenCapture] $message',
+            error: error,
+            stackTrace: stackTrace,
+            metadata: metadata,
+          )
+          .catchError((_) {}),
+    );
   }
 
   void dispose() {

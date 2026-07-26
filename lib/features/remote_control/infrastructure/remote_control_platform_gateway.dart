@@ -5,6 +5,7 @@ import '../domain/remote_control_runtime.dart';
 class RemoteControlPlatformGateway
     implements
         RemoteControlPlatformRuntime,
+        RemoteControlCapturePlatformRuntime,
         RemoteControlPresentationPlatformRuntime {
   RemoteControlPlatformGateway({
     MethodChannel channel = const MethodChannel(channelName),
@@ -80,6 +81,7 @@ class RemoteControlPlatformGateway
     return info.map((key, value) => MapEntry(key.toString(), value));
   }
 
+  @override
   Future<bool?> startScreenCapture({required int fps, required int bitrate}) {
     return _channel.invokeMethod<bool>('startScreenCapture', <String, Object?>{
       'fps': fps,
@@ -92,10 +94,12 @@ class RemoteControlPlatformGateway
     return _channel.invokeMethod<void>('stopScreenCapture');
   }
 
+  @override
   Future<void> requestKeyFrame() {
     return _channel.invokeMethod<void>('requestKeyFrame');
   }
 
+  @override
   Future<void> updateBitrate(int bitrate) {
     return _channel.invokeMethod<void>('updateBitrate', <String, Object?>{
       'bitrate': bitrate,
