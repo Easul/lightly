@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:http/io_client.dart';
 
-import '../browser_settings.dart';
-import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../../features/video/domain/youtube_long_press_utils.dart';
 import '../../features/video/domain/video_source_resolver.dart';
+
+typedef VideoHttpProxyResolver = String Function(Uri uri);
 
 /// Resolves YouTube video URLs via an external API endpoint.
 ///
@@ -15,13 +15,11 @@ import '../../features/video/domain/video_source_resolver.dart';
 class ExternalApiVideoSourceResolver extends VideoSourceResolver {
   ExternalApiVideoSourceResolver({
     required this.apiBaseUrl,
-    required this.proxyService,
-    required this.settings,
+    this.proxyResolver,
   });
 
   final String apiBaseUrl;
-  final ProxyService proxyService;
-  final BrowserSettings settings;
+  final VideoHttpProxyResolver? proxyResolver;
 
   @override
   Future<ResolvedVideoSource> resolve(String url) async {
@@ -32,9 +30,8 @@ class ExternalApiVideoSourceResolver extends VideoSourceResolver {
     }
 
     final httpClient = HttpClient();
-    if (settings.shouldApplyProxy) {
-      httpClient.findProxy = (uri) =>
-          proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
+    if (proxyResolver case final proxyResolver?) {
+      httpClient.findProxy = proxyResolver;
     }
 
     final client = IOClient(httpClient);

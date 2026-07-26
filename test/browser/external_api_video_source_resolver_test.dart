@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/browser_settings.dart';
-import 'package:lightly/features/proxy/infrastructure/proxy_service.dart';
 import 'package:lightly/browser/services/external_api_video_source_resolver.dart';
 
 void main() {
@@ -11,6 +9,7 @@ void main() {
     for (final apiPath in ['', '/parse', '/parse/']) {
       test('accepts parser API path "$apiPath"', () async {
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        Uri? proxyRequestUri;
         addTearDown(server.close);
         server.listen((request) async {
           expect(request.method, 'POST');
@@ -31,8 +30,10 @@ void main() {
 
         final resolver = ExternalApiVideoSourceResolver(
           apiBaseUrl: 'http://${server.address.host}:${server.port}$apiPath',
-          proxyService: ProxyService(),
-          settings: BrowserSettings.defaults(),
+          proxyResolver: (uri) {
+            proxyRequestUri = uri;
+            return 'DIRECT';
+          },
         );
 
         final resolved = await resolver.resolve(
@@ -42,6 +43,7 @@ void main() {
         expect(resolved.videoId, 'bPMCvFYxcxk');
         expect(resolved.title, 'Example video title');
         expect(resolved.streamUrl, 'https://cdn.example.com/videoplayback');
+        expect(proxyRequestUri?.path, '/parse');
       });
     }
   });

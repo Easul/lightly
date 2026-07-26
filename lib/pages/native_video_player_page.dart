@@ -187,8 +187,12 @@ class _NativeVideoPlayerViewState extends State<NativeVideoPlayerView> {
             _videoResolver ??
             ExternalApiVideoSourceResolver(
               apiBaseUrl: settings.normalizedNativeVideoParserApiBaseUrl,
-              proxyService: _proxyService,
-              settings: settings,
+              proxyResolver: settings.shouldApplyProxy
+                  ? (uri) => _proxyService.findProxyForDownload(
+                      settings.proxyConfiguration,
+                      uri,
+                    )
+                  : null,
             );
         return resolver.resolve(url);
       },

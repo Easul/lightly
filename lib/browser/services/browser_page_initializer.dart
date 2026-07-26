@@ -107,8 +107,12 @@ class BrowserPageServices {
           resolveVideoSource: (url, settings) {
             final resolver = ExternalApiVideoSourceResolver(
               apiBaseUrl: settings.normalizedNativeVideoParserApiBaseUrl,
-              proxyService: proxyService,
-              settings: settings,
+              proxyResolver: settings.shouldApplyProxy
+                  ? (uri) => proxyService.findProxyForDownload(
+                      settings.proxyConfiguration,
+                      uri,
+                    )
+                  : null,
             );
             return resolver.resolve(url);
           },

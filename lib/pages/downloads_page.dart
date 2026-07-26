@@ -57,8 +57,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
       resolveVideoSource: (url, settings) {
         final resolver = ExternalApiVideoSourceResolver(
           apiBaseUrl: settings.normalizedNativeVideoParserApiBaseUrl,
-          proxyService: _proxyService,
-          settings: settings,
+          proxyResolver: settings.shouldApplyProxy
+              ? (uri) => _proxyService.findProxyForDownload(
+                  settings.proxyConfiguration,
+                  uri,
+                )
+              : null,
         );
         return resolver.resolve(url);
       },
