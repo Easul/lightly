@@ -306,11 +306,13 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 1. Runtime 策略代码已收口到 app/browser coordinators；Phase 2 仍需真机验证完整退出后无
    VPN/capture 前台服务残留。
-2. AI、Telegram、proxy、EasyTier 与 remote-control 已归入 feature；
+2. AI、Telegram、proxy、EasyTier、remote-control 与 video 的纯策略/基础设施/UI 已归入 feature；
    `RemoteControlService` 仍是唯一 socket/session owner，但实现已迁入 remote-control
    infrastructure，页面通过 presentation/application contract 接收 owner 与跨 feature 策略。
-   仍在 `lib/pages/`、`lib/browser/` 的 browser/video 编排需继续按 domain port 或 app-level
-   coordinator 收敛。
+   video 的生产播放 surface 已统一到浮动播放器，不可达的旧全页播放器已移除；仍在
+   `lib/browser/` 的 `BrowserVideoPlayerCoordinator` 作为 browser media integration facade
+   编排设置快照、下载确认和 Overlay 生命周期，需在 browser owner 收敛时继续按 domain port
+   或 app-level coordinator 收敛。
 3. SharedPreferences 旧 key 已冻结为兼容合同；后续破坏性格式变化仍需逐 feature 提供
    版本化 key 和显式迁移。
 4. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。

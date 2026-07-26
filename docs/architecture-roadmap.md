@@ -354,6 +354,8 @@ Dart
   `lib/features/remote_control/presentation/pages/`
 - `RemoteControlService` 唯一 socket/session owner 与性能诊断实现 →
   `lib/features/remote_control/infrastructure/`
+- video URL/source contracts、解析器、检测策略、floating system-UI gateway 与浮动播放器 UI →
+  `lib/features/video/`
 
 以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和资源所有权均未改变。
 local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
@@ -365,6 +367,10 @@ proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `Proxy
 `RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator`，不再直接依赖
 EasyTier、proxy、BrowserSettings、app lifecycle 或具体 service 实现。应用路由负责注入同一个
 singleton owner，因此页面已迁入 feature presentation；browser/video 仍按下列顺序最后处理。
+video 的生产播放入口已统一为 `BrowserVideoPlayerCoordinator` 管理的浮动播放器；不可达的
+`NativeVideoPlayerPage` 及其专属协调器/widgets 已移除。当前 coordinator 仍编排浏览器设置、
+下载确认与 Overlay 生命周期，所以继续作为 browser media integration facade 留在
+`lib/browser/services/`，待 browser owner 收敛时再通过小端口迁移。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 
