@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/remote_control_recovery_helper.dart';
+import 'package:lightly/features/remote_control/application/remote_control_recovery_helper.dart';
 import 'package:lightly/services/remote_control_screen_health_coordinator.dart';
 import 'package:lightly/services/remote_control_watchdog_controller.dart';
 import 'package:lightly/services/screen_capture_manager.dart';
