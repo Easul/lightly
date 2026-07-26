@@ -14,7 +14,7 @@ import '../browser/services/browser_proxy_node_controller.dart';
 import '../browser/services/browser_proxy_form_mutator.dart';
 import '../browser/services/browser_settings_action_handler.dart';
 import '../browser/services/browser_settings_form_controller.dart';
-import '../browser/services/proxy_latency_probe.dart';
+import '../features/proxy/infrastructure/proxy_latency_probe.dart';
 import '../browser/services/browser_settings_runtime_service.dart';
 import '../browser/services/browser_runtime_coordinator.dart';
 import '../browser/services/browser_shared_services.dart';

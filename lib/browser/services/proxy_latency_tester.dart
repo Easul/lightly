@@ -1,7 +1,7 @@
 import '../../features/proxy/infrastructure/proxy_core_service.dart'
     as proxy_core;
+import '../../features/proxy/infrastructure/proxy_latency_probe.dart';
 import '../browser_settings.dart';
-import 'proxy_latency_probe.dart';
 import 'proxy_runtime_launcher.dart';
 
 class ProxyLatencyTestOperation {
