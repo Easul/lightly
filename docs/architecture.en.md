@@ -320,14 +320,19 @@ activity only registers independent handlers and forwards permission/capture res
 
 1. Runtime policy code is centralized in app/browser coordinators. Phase 2 still needs on-device
    confirmation that full exit leaves no VPN/capture foreground service behind.
-2. AI, Telegram, proxy, EasyTier, and remote control now live under features.
+2. AI, Telegram, proxy, EasyTier, remote control, and video policies/infrastructure/UI now live
+   under features.
    `RemoteControlService` remains the single socket/session owner, but its implementation now lives
    in remote-control infrastructure and pages receive the owner and cross-feature policy through
-   presentation/application contracts. Browser/video orchestration still in `lib/pages/` and
-   `lib/browser/` needs domain ports or app-level coordinators.
+   presentation/application contracts. Production video playback converges on the floating player;
+   `FloatingVideoPlayerCoordinator` is the sole Overlay/controller owner, while playback preparation,
+   local proxying, and the platform gateway live in the video feature. `BrowserVideoPlayerCoordinator`
+   only adapts browser settings snapshots and download confirmation.
 3. Legacy SharedPreferences keys are frozen compatibility contracts; future incompatible format
    changes still require a versioned key and explicit per-feature migration.
-4. Page owners remain large, but splitting them mechanically by line count would damage ownership.
+4. BrowserPage runtime, popup/auth/navigation, and media-integration facades are complete. The page
+   owner remains large, but splitting it mechanically by line count would damage WebView/active-tab
+   ownership.
 
 ## Target Dependency Direction
 

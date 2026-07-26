@@ -315,7 +315,8 @@ Lightly 没有引入全局状态管理框架，主要使用：
    `BrowserVideoPlayerCoordinator` 只适配浏览器设置快照和下载确认。
 3. SharedPreferences 旧 key 已冻结为兼容合同；后续破坏性格式变化仍需逐 feature 提供
    版本化 key 和显式迁移。
-4. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
+4. BrowserPage 的 runtime、popup/auth/navigation 与 media integration facade 已完成；页面级 owner
+   仍较大，但盲目按行数拆分会破坏 WebView/active-tab 资源所有权。
 
 ## 目标依赖方向
 

@@ -22,6 +22,10 @@ This file tracks independently deliverable engineering-quality candidates.
 - The removed Dart VLESS/local mixed proxy is not a valid refactor baseline.
 - The old fixed UDP audio design was replaced by WebRTC; see
   [Remote Control Architecture](remote-control-architecture.en.md).
+- BrowserPage runtime, popup/auth/navigation, and media-integration facades are complete; BrowserPage
+  remains the sole owner of WebView, active-tab, and keep-alive state.
+- Video playback preparation, gestures, floating playback, download integration, and local proxying
+  are converged; the unreachable full-page player has been removed.
 
 ## High Priority: Audit Before Fixing
 
@@ -68,9 +72,10 @@ and native-translation-history source-of-truth rules are explicit.
 
 ### Large-owner convergence
 
-- BrowserPage: extract only stable navigation/popup/runtime facades; retain WebView ownership.
+- BrowserPage: stable facades are complete. Add an immutable view-state projection only when it
+  reduces measured orchestration complexity; retain WebView ownership and avoid callback-heavy
+  helpers created only to reduce line count.
 - RemoteControlService: audio transport remains a high-risk seam requiring strong WebRTC coverage.
-- Native video: initialization, gesture, and download workflows may move as behavior-preserving units.
 
 ## Low Priority: Data-driven Only
 

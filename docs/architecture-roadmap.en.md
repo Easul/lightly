@@ -393,6 +393,8 @@ Completed move-only batches:
   `lib/features/remote_control/presentation/pages/`
 - the `RemoteControlService` single socket/session owner and performance diagnostics implementation →
   `lib/features/remote_control/infrastructure/`
+- video URL/source contracts, parsing, detection policies, the floating system-UI gateway, and
+  floating-player UI → `lib/features/video/`
 
 The move batches only moved modules and updated imports; storage keys, database tables, network
 protocols, and resource ownership are unchanged. Before moving local sharing, logging was inverted to
@@ -405,7 +407,12 @@ performance diagnostics dependencies were inverted. The two remote-control pages
 `RemoteControlPresentationRuntime` and use the app-level `RemoteControlPageCoordinator` through
 `RemoteControlPageRuntime`; they no longer import EasyTier, proxy, BrowserSettings, app lifecycle,
 or concrete service implementations. The application route injects the existing singleton owner,
-so the pages now live under feature presentation. Browser/video still follow the order below.
+so the pages now live under feature presentation. Browser retains its current WebView-owner layout.
+Production video playback now converges on `FloatingVideoPlayerCoordinator`; the unreachable
+`NativeVideoPlayerPage` and its dedicated coordinators/widgets have been removed. The sole
+Overlay/controller owner, playback preparation, local proxy server, and platform gateway live under
+`lib/features/video/`. `BrowserVideoPlayerCoordinator` remains in `lib/browser/services/` only as a
+settings/download media-integration facade.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 
@@ -438,14 +445,19 @@ Move rules:
 
 ## Phase 6: Owner Convergence and Complexity Control
 
+Status: **major boundaries complete (2026-07-26)**
+
 Goal: reduce owner orchestration load without scattering resource ownership.
 
-BrowserPage may further extract:
+BrowserPage has completed:
 
-- browser runtime facade
-- popup/auth/navigation facade
-- media integration facade
-- immutable browser view-state projection
+- browser runtime facade: `BrowserRuntimeCoordinator`
+- popup/auth/navigation facade: `BrowserPageNavigationFacade`
+- media-integration facade: `BrowserVideoPlayerCoordinator`
+
+An immutable browser view-state projection is now only a candidate. It must first demonstrate a
+real reduction in orchestration complexity, must not copy active-tab/WebView mutable state, and must
+not be introduced only to reduce file length.
 
 RemoteControlService may further extract:
 

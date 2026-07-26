@@ -366,7 +366,7 @@ proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `Proxy
 `RemoteControlPresentationRuntime` 接收现有 owner，并通过
 `RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator`，不再直接依赖
 EasyTier、proxy、BrowserSettings、app lifecycle 或具体 service 实现。应用路由负责注入同一个
-singleton owner，因此页面已迁入 feature presentation；browser/video 仍按下列顺序最后处理。
+singleton owner，因此页面已迁入 feature presentation；browser 保留现有 WebView owner 布局。
 video 的生产播放入口已统一为 `FloatingVideoPlayerCoordinator` 管理的浮动播放器；不可达的
 `NativeVideoPlayerPage` 及其专属协调器/widgets 已移除。唯一 Overlay/controller owner、播放
 准备策略、本地转发服务器和平台 gateway 均位于 `lib/features/video/`；
@@ -404,14 +404,18 @@ features/<feature>/
 
 ## Phase 6：Owner 收敛与复杂度控制
 
+状态：**主要边界已完成（2026-07-26）**
+
 目标：减少 owner 的协调负担，而不是拆散资源所有权。
 
-BrowserPage 可以继续抽出：
+BrowserPage 已完成：
 
-- browser runtime facade
-- popup/auth/navigation facade
-- media integration facade
-- immutable browser view state projection
+- browser runtime facade：`BrowserRuntimeCoordinator`
+- popup/auth/navigation facade：`BrowserPageNavigationFacade`
+- media integration facade：`BrowserVideoPlayerCoordinator`
+
+BrowserPage 后续只保留 immutable browser view-state projection 这一候选项；必须先证明它能减少
+真实协调复杂度，不能复制 active tab/WebView mutable state，也不能只为降低文件行数实施。
 
 RemoteControlService 可以继续抽出：
 

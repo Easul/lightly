@@ -21,6 +21,9 @@
 - 旧 Dart VLESS / local mixed proxy 已删除，不能作为后续重构基线。
 - 旧“固定 UDP 音频端口”远控方案已由 WebRTC voice 取代，现状见
   [远程控制架构](remote-control-architecture.md)。
+- BrowserPage 的 runtime、popup/auth/navigation 与 media integration facade 已完成；WebView、
+  active tab 和 keepAlive 仍由 BrowserPage 唯一持有。
+- video 播放准备、手势、浮动播放器、下载衔接与本地转发边界已收口；不可达的旧全页播放器已删除。
 
 ## 高优先级：先审计再修复
 
@@ -64,9 +67,9 @@ schema、敏感级别、备份和清除策略；SharedPreferences 兼容规则�
 
 ### 大 owner 的后续收敛
 
-- BrowserPage：只继续提取稳定的 navigation/popup/runtime facade，不移动 WebView owner。
+- BrowserPage：稳定 facade 已完成；immutable view-state projection 仅在能减少真实协调复杂度时再做，
+  不移动 WebView owner，也不为压缩行数增加 callback-heavy helper。
 - RemoteControlService：audio transport 是剩余高风险 seam，需在 WebRTC 覆盖充分后处理。
-- Native video：初始化、手势和下载 workflow 可按行为不变原则独立提取。
 
 ## 低优先级：必须以数据驱动
 
