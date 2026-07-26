@@ -1,3 +1,4 @@
+import '../features/proxy/domain/proxy_configuration.dart';
 import '../features/proxy/domain/proxy_protocol.dart';
 
 export '../features/proxy/domain/proxy_protocol.dart' show BrowserProxyProtocol;
@@ -200,6 +201,23 @@ class BrowserSettings {
   }
 
   String get proxyProtocol => BrowserProxyProtocol.normalize(proxyScheme);
+
+  ProxyConfiguration get proxyConfiguration => ProxyConfiguration(
+    proxyEnabled: proxyEnabled,
+    proxyHost: proxyHost,
+    proxyPort: proxyPort,
+    proxyProtocol: proxyProtocol,
+    proxyUuid: proxyUuid,
+    proxyTlsEnabled: proxyTlsEnabled,
+    proxyTlsInsecure: proxyTlsInsecure,
+    proxyServerName: proxyServerName,
+    proxyTransportType: proxyTransportType,
+    proxyTransportPath: proxyTransportPath,
+    proxyTransportHost: proxyTransportHost,
+    proxyPacketEncoding: proxyPacketEncoding,
+    proxyBypassDomainList: proxyBypassDomainList,
+    localProxyPort: localProxyPort,
+  );
 
   factory BrowserSettings.defaults() {
     return const BrowserSettings(
@@ -421,63 +439,16 @@ class BrowserSettings {
       .toList(growable: false);
 
   bool shouldBypassProxyForUri(Uri uri) {
-    final host = uri.host.toLowerCase();
-    if (host.isEmpty) {
-      return true;
-    }
-    if (host == 'localhost' ||
-        host == '127.0.0.1' ||
-        host == '::1' ||
-        host.startsWith('127.')) {
-      return true;
-    }
-    for (final pattern in proxyBypassDomainList) {
-      if (host == pattern || host.endsWith('.$pattern')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  String? get _proxyConfigurationError {
-    if (proxyHost.trim().isEmpty) {
-      return 'Proxy host is required';
-    }
-
-    if (proxyPort == null || proxyPort! <= 0) {
-      return 'Proxy port must be a valid number';
-    }
-
-    if (localProxyPort != null &&
-        (localProxyPort! <= 0 || localProxyPort! > 65535)) {
-      return 'Local proxy port must be between 1 and 65535';
-    }
-
-    switch (proxyProtocol) {
-      case BrowserProxyProtocol.http:
-        return null;
-      case BrowserProxyProtocol.vless:
-        return proxyUuid.trim().isEmpty ? 'VLESS UUID is required' : null;
-      case BrowserProxyProtocol.hysteria2:
-        return proxyUuid.trim().isEmpty
-            ? 'Hysteria2 password is required'
-            : null;
-    }
-
-    return null;
+    return proxyConfiguration.shouldBypassProxyForUri(uri);
   }
 
   String? get proxyValidationError {
-    if (!proxyEnabled) {
-      return null;
-    }
-
-    return _proxyConfigurationError;
+    return proxyConfiguration.validationError;
   }
 
-  bool get hasUsableProxy => _proxyConfigurationError == null;
+  bool get hasUsableProxy => proxyConfiguration.hasUsableProxy;
 
-  bool get shouldApplyProxy => proxyEnabled && hasUsableProxy;
+  bool get shouldApplyProxy => proxyConfiguration.shouldApplyProxy;
 
   bool hasSameProxyConfiguration(BrowserSettings other) {
     return proxyEnabled == other.proxyEnabled &&
