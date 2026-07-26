@@ -51,12 +51,13 @@ flowchart LR
 | `RemoteControlPlatformGateway` | typed Dart/Kotlin 通道契约 | 页面状态 |
 | Kotlin capture/decode/accessibility | MediaProjection、MediaCodec、手势/键盘/全局动作 | Dart 会话策略 |
 
-Dart domain contracts、connection/screen/voice application policies、`ScreenCaptureManager`、
-WebRTC infrastructure 与 typed gateway 已位于 `lib/features/remote_control/`。其中
-`ScreenFrame` 只包装原始 `Uint8List`，screen sender/pipeline/watchdog 不持有长期 socket；
-`WebRtcVoiceService` 持有 PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和
-关闭。`RemoteControlService` 继续作为 control/screen socket 与 session state 的唯一 owner，
-直到其跨 feature 依赖经端口收敛。
+Dart config/protocol contracts、connection/screen/voice application policies、socket/status、
+screen capture、WebRTC infrastructure 与 typed gateway 已位于
+`lib/features/remote_control/`。其中 `ScreenFrame` 只包装原始 `Uint8List`，screen
+sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 持有
+PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和关闭。
+`RemoteControlService` 继续留在 `lib/services/`，作为 control/screen socket 与 session state
+的唯一 owner。
 
 ## 传输与端口
 

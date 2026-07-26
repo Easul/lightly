@@ -110,9 +110,11 @@ Only consider these after their current behavior is stable and covered by tests/
 
 - `lib/features/remote_control/domain/remote_control_protocol.dart`
   - Message and command models.
+- `lib/features/remote_control/domain/remote_control_config.dart`
+  - Session options, consecutive port contract, and existing port availability probe.
 - `lib/features/remote_control/application/remote_control_command_helper.dart`
   - Native command execution helper.
-- `lib/services/remote_control_status_bridge.dart`
+- `lib/features/remote_control/infrastructure/remote_control_status_bridge.dart`
   - Status serialization bridge over the typed platform gateway.
 - `lib/features/remote_control/infrastructure/remote_control_platform_gateway.dart`
   - Typed owner of the Dart/Kotlin MethodChannel contract.
@@ -121,13 +123,13 @@ Only consider these after their current behavior is stable and covered by tests/
 
 - `lib/features/remote_control/application/remote_control_connection_flow_coordinator.dart`
   - Controller retry / ready wait / reset timing.
-- `lib/services/remote_control_connection_helper.dart`
+- `lib/features/remote_control/infrastructure/remote_control_connection_helper.dart`
   - Host normalization and port discovery.
-- `lib/services/remote_control_lifecycle_helper.dart`
+- `lib/features/remote_control/infrastructure/remote_control_lifecycle_helper.dart`
   - Controller socket connection setup.
 - `lib/features/remote_control/application/remote_control_receiver_startup_coordinator.dart`
   - Receiver native startup and server socket bind sequencing.
-- `lib/services/remote_control_cleanup_helper.dart`
+- `lib/features/remote_control/application/remote_control_cleanup_helper.dart`
   - Resource cleanup callbacks.
 
 ### Screen stream and health
@@ -180,13 +182,13 @@ lib/pages/browser/
   overlays/
   settings/
 
-lib/services/remote_control/
-  remote_control_service.dart
-  connection/
-  screen/
-  voice/
-  routing/
-  protocol/
+lib/features/remote_control/
+  application/
+  domain/
+  infrastructure/
+
+lib/services/
+  remote_control_service.dart  # socket/session owner
 ```
 
 Rules for any future move:

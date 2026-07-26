@@ -318,9 +318,10 @@ activity only registers independent handlers and forwards permission/capture res
 
 1. Runtime policy code is centralized in app/browser coordinators. Phase 2 still needs on-device
    confirmation that full exit leaves no VPN/capture foreground service behind.
-2. Known general-service ↔ browser dependencies for AI, Telegram, proxy, and EasyTier have been
-   removed. Remaining remote-control/browser/video orchestration in `lib/pages/`, `lib/browser/`,
-   and `lib/services/` still needs domain ports or app-level coordinators.
+2. Non-owner modules for AI, Telegram, proxy, EasyTier, and remote control now live under features;
+   `RemoteControlService` remains in `lib/services/` by resource ownership. Remote-control
+   presentation and browser/video orchestration still in `lib/pages/` and `lib/browser/` need
+   domain ports or app-level coordinators.
 3. Legacy SharedPreferences keys are frozen compatibility contracts; future incompatible format
    changes still require a versioned key and explicit per-feature migration.
 4. Page owners remain large, but splitting them mechanically by line count would damage ownership.
