@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/pages/native_video_player_widgets.dart';
+import 'package:lightly/features/video/presentation/widgets/native_video_player_widgets.dart';
 
 void main() {
   testWidgets('error view exposes close button', (tester) async {

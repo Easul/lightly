@@ -23,9 +23,9 @@ import '../browser/utils/youtube_long_press_utils.dart';
 import '../services/app_toast.dart';
 import '../widgets/native_video/native_video_overlay.dart';
 import '../features/video/application/native_video_gesture_controller.dart';
+import '../features/video/presentation/widgets/native_video_player_widgets.dart';
 import 'native_video_download_coordinator.dart';
 import 'native_video_playback_coordinator.dart';
-import 'native_video_player_widgets.dart';
 
 class NativeVideoPlayerPage extends StatelessWidget {
   const NativeVideoPlayerPage({super.key, required this.videoUrl});
