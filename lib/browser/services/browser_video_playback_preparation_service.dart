@@ -1,5 +1,5 @@
 import '../browser_settings.dart';
-import 'video_source_resolver.dart';
+import '../../features/video/domain/video_source_resolver.dart';
 
 class PreparedVideoPlayback {
   const PreparedVideoPlayback({

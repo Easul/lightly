@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../browser/services/browser_video_playback_preparation_service.dart';
-import '../browser/services/video_source_resolver.dart';
+import '../features/video/domain/video_source_resolver.dart';
 
 class NativeVideoPlaybackResult {
   const NativeVideoPlaybackResult({

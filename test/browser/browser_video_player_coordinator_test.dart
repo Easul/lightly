@@ -7,7 +7,7 @@ import 'package:lightly/browser/services/browser_download_store.dart';
 import 'package:lightly/browser/services/browser_video_detection_tracker.dart';
 import 'package:lightly/browser/services/browser_video_playback_preparation_service.dart';
 import 'package:lightly/browser/services/browser_video_player_coordinator.dart';
-import 'package:lightly/browser/services/video_source_resolver.dart';
+import 'package:lightly/features/video/domain/video_source_resolver.dart';
 
 void main() {
   group('BrowserVideoPlayerCoordinator', () {

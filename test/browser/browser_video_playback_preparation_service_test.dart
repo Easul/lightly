@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/services/browser_video_playback_preparation_service.dart';
-import 'package:lightly/browser/services/video_source_resolver.dart';
+import 'package:lightly/features/video/domain/video_source_resolver.dart';
 
 void main() {
   group('BrowserVideoPlaybackPreparationService', () {
