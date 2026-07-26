@@ -1,5 +1,5 @@
-import '../features/remote_control/domain/remote_control_protocol.dart';
-import '../features/remote_control/domain/webrtc_candidate_filter.dart';
+import '../domain/remote_control_protocol.dart';
+import '../domain/webrtc_candidate_filter.dart';
 
 typedef RemoteVoicePrepare =
     Future<void> Function({

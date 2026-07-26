@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_protocol.dart';
-import 'package:lightly/services/remote_control_voice_coordinator.dart';
+import 'package:lightly/features/remote_control/application/remote_control_voice_coordinator.dart';
 import 'package:lightly/features/remote_control/domain/webrtc_candidate_filter.dart';
 
 void main() {
