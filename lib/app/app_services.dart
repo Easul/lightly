@@ -1,3 +1,4 @@
+import '../browser/clipboard_http_server_service.dart';
 import '../browser/data/app_database_adapter.dart';
 import '../browser/services/proxy_service_local_endpoint_adapter.dart';
 import '../core/logging/runtime_logger.dart';
@@ -30,6 +31,7 @@ class AppServices {
   /// constructor with fakes instead.
   factory AppServices.production() {
     final logService = AppLogService.instance;
+    ClipboardHttpServerService(runtimeLogger: logService);
     return AppServices(
       logService: logService,
       lifecycleManager: AppLifecycleManager(),

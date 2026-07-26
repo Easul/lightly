@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
+import '../core/logging/runtime_logger.dart';
 import '../core/network/local_network_address_resolver.dart';
-import '../services/app_log_service.dart';
 import 'clipboard_storage_service.dart';
 
 class ClipboardHttpServerService {
@@ -11,7 +12,12 @@ class ClipboardHttpServerService {
 
   static final ClipboardHttpServerService _instance =
       ClipboardHttpServerService._();
-  factory ClipboardHttpServerService() => _instance;
+  factory ClipboardHttpServerService({RuntimeLogger? runtimeLogger}) {
+    if (runtimeLogger != null) {
+      _instance._runtimeLogger = runtimeLogger;
+    }
+    return _instance;
+  }
 
   final ClipboardStorageService _storage = ClipboardStorageService();
   final StreamController<ClipboardHttpServerState> _stateController =
@@ -20,6 +26,7 @@ class ClipboardHttpServerService {
   HttpServer? _server;
   int? _configuredPort;
   List<String> _lanUrls = const <String>[];
+  RuntimeLogger? _runtimeLogger;
 
   Stream<ClipboardHttpServerState> get stateStream => _stateController.stream;
   bool get isRunning => _server != null;
@@ -108,17 +115,29 @@ class ClipboardHttpServerService {
       request.response.statusCode = HttpStatus.notFound;
       request.response.write('Not Found');
       await request.response.close();
-    } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ClipboardHttpServer',
+    } catch (error, stackTrace) {
+      developer.log(
         'Request handling failed',
-        error: e,
+        name: 'ClipboardHttpServer',
+        error: error,
         stackTrace: stackTrace,
-        metadata: <String, Object?>{
-          'method': request.method,
-          'path': request.uri.path,
-        },
       );
+      final runtimeLogger = _runtimeLogger;
+      if (runtimeLogger != null) {
+        unawaited(
+          runtimeLogger
+              .log(
+                '[ClipboardHttpServer] Request handling failed',
+                error: error,
+                stackTrace: stackTrace,
+                metadata: <String, Object?>{
+                  'method': request.method,
+                  'path': request.uri.path,
+                },
+              )
+              .catchError((_) {}),
+        );
+      }
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         request.response.write('Internal Server Error');
