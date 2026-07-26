@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-import '../utils/youtube_long_press_utils.dart';
+import '../../features/video/domain/youtube_long_press_utils.dart';
 import '../widgets/browser_long_press_actions_sheet.dart';
 
 class BrowserLongPressRequest {

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../browser_settings.dart';
-import '../utils/youtube_long_press_utils.dart';
+import '../../features/video/domain/youtube_long_press_utils.dart';
 import '../widgets/floating_video_player.dart';
 import '../../features/video/application/video_playback_preparer.dart';
 import 'browser_download_coordinator.dart';

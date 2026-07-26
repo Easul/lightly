@@ -1,4 +1,4 @@
-import '../utils/youtube_long_press_utils.dart';
+import '../../features/video/domain/youtube_long_press_utils.dart';
 import '../../features/video/domain/video_source_resolver.dart';
 
 /// Stub resolver that rejects all YouTube URLs until an external API is configured.

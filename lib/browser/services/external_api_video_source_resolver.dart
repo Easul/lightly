@@ -5,7 +5,7 @@ import 'package:http/io_client.dart';
 
 import '../browser_settings.dart';
 import '../../features/proxy/infrastructure/proxy_service.dart';
-import '../utils/youtube_long_press_utils.dart';
+import '../../features/video/domain/youtube_long_press_utils.dart';
 import '../../features/video/domain/video_source_resolver.dart';
 
 /// Resolves YouTube video URLs via an external API endpoint.
