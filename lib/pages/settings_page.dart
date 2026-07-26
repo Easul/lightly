@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../browser/browser_settings.dart';
-import '../browser/local_http_file_server_service.dart';
+import '../features/local_sharing/local_http/local_http_file_server_service.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/proxy_service.dart';
 import '../browser/services/browser_subscription_service.dart';

@@ -5,9 +5,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
-import '../core/logging/runtime_logger.dart';
-import '../core/network/local_network_address_resolver.dart';
-import '../features/local_sharing/local_http/local_http_server_config.dart';
+import '../../../core/logging/runtime_logger.dart';
+import '../../../core/network/local_network_address_resolver.dart';
+import 'local_http_server_config.dart';
 import 'local_http_directory_handler.dart';
 import 'local_http_file_handler.dart';
 import 'local_http_upload_handler.dart';

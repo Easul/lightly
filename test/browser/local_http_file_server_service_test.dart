@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/local_http_file_server_service.dart';
+import 'package:lightly/features/local_sharing/local_http/local_http_file_server_service.dart';
 import 'package:lightly/features/local_sharing/local_http/local_http_server_config.dart';
 import 'package:path/path.dart' as p;
 
