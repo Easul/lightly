@@ -6,6 +6,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
 import '../features/remote_control/application/remote_control_command_helper.dart';
+import '../features/remote_control/application/remote_control_cleanup_helper.dart';
 import '../features/remote_control/application/remote_control_connection_flow_coordinator.dart';
 import '../features/remote_control/application/remote_control_message_router.dart';
 import '../features/remote_control/application/remote_control_receiver_startup_coordinator.dart';
@@ -14,7 +15,6 @@ import '../features/remote_control/application/remote_control_screen_frame_sende
 import '../features/remote_control/application/remote_control_screen_health_coordinator.dart';
 import '../features/remote_control/application/remote_control_voice_coordinator.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import 'remote_control_cleanup_helper.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart';
