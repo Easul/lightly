@@ -29,10 +29,11 @@ class AppServices {
   /// Wires the current production singletons. Tests may call the default
   /// constructor with fakes instead.
   factory AppServices.production() {
+    final logService = AppLogService.instance;
     return AppServices(
-      logService: AppLogService.instance,
+      logService: logService,
       lifecycleManager: AppLifecycleManager(),
-      simpleFileManager: SimpleFileManagerService(),
+      simpleFileManager: SimpleFileManagerService(runtimeLogger: logService),
       localProxyEndpoint: ProxyServiceLocalEndpointAdapter(),
       appDatabase: AppDatabaseAdapter(),
       sharedDownloadsAccess: SharedDownloadsDirectoryService(),

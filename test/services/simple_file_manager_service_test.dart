@@ -1,23 +1,27 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:lightly/core/logging/runtime_logger.dart';
+import 'package:lightly/services/simple_file_manager_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lightly/services/simple_file_manager_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
   late SimpleFileManagerService service;
+  late _FakeRuntimeLogger runtimeLogger;
 
   setUp(() async {
     HttpOverrides.global = null;
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tempDir = await Directory.systemTemp.createTemp('simple_file_manager_');
-    service = SimpleFileManagerService();
+    runtimeLogger = _FakeRuntimeLogger();
+    service = SimpleFileManagerService(runtimeLogger: runtimeLogger);
     await service.stop();
   });
 
@@ -180,6 +184,34 @@ void main() {
     expect(pageResponse.body, contains("(e.ctrlKey || e.metaKey)"));
     expect(pageResponse.body, contains("e.key.toLowerCase() === 's'"));
   });
+
+  test('records unexpected request failures through RuntimeLogger', () async {
+    final port = await _reservePort();
+    await service.start(
+      settings: SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: tempDir.path,
+        port: port,
+        bindAllInterfaces: false,
+        favoritePaths: const <String>[],
+      ),
+    );
+
+    final response = await http.post(
+      Uri.parse('${service.localUrl}/api/file'),
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: '{',
+    );
+
+    expect(response.statusCode, HttpStatus.internalServerError);
+    expect(runtimeLogger.messages, <String>[
+      '[SimpleFileManager] Request handling failed',
+    ]);
+    expect(runtimeLogger.metadata.single, <String, Object?>{
+      'method': 'POST',
+      'path': '/api/file',
+    });
+  });
 }
 
 Future<int> _reservePort() async {
@@ -187,4 +219,29 @@ Future<int> _reservePort() async {
   final port = socket.port;
   await socket.close();
   return port;
+}
+
+class _FakeRuntimeLogger implements RuntimeLogger {
+  final List<String> messages = <String>[];
+  final List<Map<String, Object?>> metadata = <Map<String, Object?>>[];
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> log(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) async {
+    messages.add(message);
+    this.metadata.add(metadata ?? const <String, Object?>{});
+  }
+
+  @override
+  Future<void> logFlutterError(FlutterErrorDetails details) async {}
+
+  @override
+  Future<void> logUnhandledError(Object error, StackTrace stackTrace) async {}
 }

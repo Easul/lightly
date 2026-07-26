@@ -1,30 +1,36 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import 'app_log_service.dart';
+import '../core/logging/runtime_logger.dart';
 import 'simple_file_manager_settings.dart';
 import 'simple_file_manager_web_ui.dart';
 
 typedef SimpleFileManagerSettingsReader = SimpleFileManagerSettings Function();
 typedef SimpleFileManagerSettingsWriter =
     Future<void> Function(SimpleFileManagerSettings settings);
+typedef SimpleFileManagerRuntimeLoggerReader = RuntimeLogger? Function();
 
 class SimpleFileManagerRequestHandler {
   const SimpleFileManagerRequestHandler({
     required String? Function() rootCanonicalPath,
     required SimpleFileManagerSettingsReader settings,
     required SimpleFileManagerSettingsWriter saveSettings,
+    required SimpleFileManagerRuntimeLoggerReader runtimeLogger,
   }) : _rootCanonicalPath = rootCanonicalPath,
        _settings = settings,
-       _saveSettings = saveSettings;
+       _saveSettings = saveSettings,
+       _runtimeLogger = runtimeLogger;
 
   static const int _maxEditableBytes = 5 * 1024 * 1024;
 
   final String? Function() _rootCanonicalPath;
   final SimpleFileManagerSettingsReader _settings;
   final SimpleFileManagerSettingsWriter _saveSettings;
+  final SimpleFileManagerRuntimeLoggerReader _runtimeLogger;
 
   Future<void> handle(HttpRequest request) async {
     try {
@@ -81,16 +87,28 @@ class SimpleFileManagerRequestHandler {
         error.message,
       );
     } catch (error, stackTrace) {
-      recordRuntimeLog(
-        'SimpleFileManager',
+      developer.log(
         'Request handling failed',
+        name: 'SimpleFileManager',
         error: error,
         stackTrace: stackTrace,
-        metadata: <String, Object?>{
-          'method': request.method,
-          'path': request.uri.path,
-        },
       );
+      final runtimeLogger = _runtimeLogger();
+      if (runtimeLogger != null) {
+        unawaited(
+          runtimeLogger
+              .log(
+                '[SimpleFileManager] Request handling failed',
+                error: error,
+                stackTrace: stackTrace,
+                metadata: <String, Object?>{
+                  'method': request.method,
+                  'path': request.uri.path,
+                },
+              )
+              .catchError((_) {}),
+        );
+      }
       await _writeError(
         request.response,
         HttpStatus.internalServerError,

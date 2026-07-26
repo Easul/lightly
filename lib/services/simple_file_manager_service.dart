@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/logging/runtime_logger.dart';
 import '../core/network/local_network_address_resolver.dart';
 import 'simple_file_manager_request_handler.dart';
 import 'simple_file_manager_runtime.dart';
@@ -19,7 +20,12 @@ class SimpleFileManagerService implements SimpleFileManagerRuntime {
       SimpleFileManagerService._();
   static const String _storageKey = 'simple_file_manager_settings';
 
-  factory SimpleFileManagerService() => _instance;
+  factory SimpleFileManagerService({RuntimeLogger? runtimeLogger}) {
+    if (runtimeLogger != null) {
+      _instance._runtimeLogger = runtimeLogger;
+    }
+    return _instance;
+  }
 
   final StreamController<SimpleFileManagerState> _stateController =
       StreamController<SimpleFileManagerState>.broadcast();
@@ -28,6 +34,7 @@ class SimpleFileManagerService implements SimpleFileManagerRuntime {
         rootCanonicalPath: () => _rootCanonicalPath,
         settings: () => _settings,
         saveSettings: saveSettings,
+        runtimeLogger: () => _runtimeLogger,
       );
 
   HttpServer? _server;
@@ -35,6 +42,7 @@ class SimpleFileManagerService implements SimpleFileManagerRuntime {
   String? _rootCanonicalPath;
   SimpleFileManagerSettings _settings = SimpleFileManagerSettings.defaults();
   List<String> _lanUrls = const <String>[];
+  RuntimeLogger? _runtimeLogger;
 
   Stream<SimpleFileManagerState> get stateStream => _stateController.stream;
   bool get isRunning => _server != null;
