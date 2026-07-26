@@ -10,7 +10,7 @@ import '../../features/video/domain/floating_video_system_ui_runtime.dart';
 import '../../features/video/presentation/widgets/floating_video_player.dart';
 import '../../features/video/application/video_playback_preparer.dart';
 import 'browser_download_coordinator.dart';
-import 'browser_video_detection_tracker.dart';
+import '../../features/video/application/browser_video_detection_tracker.dart';
 
 class BrowserVideoPlayerCoordinator {
   BrowserVideoPlayerCoordinator({

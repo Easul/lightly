@@ -1,4 +1,4 @@
-import '../../features/video/domain/youtube_long_press_utils.dart';
+import '../domain/youtube_long_press_utils.dart';
 
 class BrowserVideoDetectionTracker {
   final Set<String> _promptedUrls = <String>{};

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/services/browser_video_detection_coordinator.dart';
-import 'package:lightly/browser/services/browser_video_detection_tracker.dart';
+import 'package:lightly/features/video/application/browser_video_detection_coordinator.dart';
+import 'package:lightly/features/video/application/browser_video_detection_tracker.dart';
 
 void main() {
   group('BrowserVideoDetectionCoordinator', () {
