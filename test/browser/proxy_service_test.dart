@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/proxy_service.dart';
-import 'package:lightly/services/proxy_core_service.dart' as proxy_core;
+import 'package:lightly/features/proxy/infrastructure/proxy_core_service.dart'
+    as proxy_core;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

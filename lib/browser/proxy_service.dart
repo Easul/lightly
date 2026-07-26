@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../core/logging/runtime_logger.dart';
-import '../services/proxy_core_service.dart' as proxy_core;
+import '../features/proxy/infrastructure/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
 import 'services/browser_platform_gateway.dart';

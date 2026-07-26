@@ -1,4 +1,5 @@
-import '../../services/proxy_core_service.dart' as proxy_core;
+import '../../features/proxy/infrastructure/proxy_core_service.dart'
+    as proxy_core;
 import '../browser_settings.dart';
 
 class ProxyConfigMapper {

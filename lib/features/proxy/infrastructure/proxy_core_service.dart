@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/services.dart';
 
-import '../core/logging/runtime_logger.dart';
+import '../../../core/logging/runtime_logger.dart';
 
 class ProxyCoreService {
   ProxyCoreService({RuntimeLogger? runtimeLogger})

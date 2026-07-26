@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../../services/proxy_core_service.dart' as proxy_core;
+import '../../features/proxy/infrastructure/proxy_core_service.dart'
+    as proxy_core;
 import '../browser_settings.dart';
 import 'proxy_config_mapper.dart';
 

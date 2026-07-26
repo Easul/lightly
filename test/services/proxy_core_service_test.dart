@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/core/logging/runtime_logger.dart';
-import 'package:lightly/services/proxy_core_service.dart';
+import 'package:lightly/features/proxy/infrastructure/proxy_core_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
