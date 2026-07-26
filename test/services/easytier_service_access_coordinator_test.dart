@@ -1,21 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/services/easytier_service_access_coordinator.dart';
 
 void main() {
   group('EasyTierServiceAccessCoordinator', () {
     const coordinator = EasyTierServiceAccessCoordinator();
 
-    test('enableLocalHttpVpnExposure returns updated settings', () {
-      final settings = BrowserSettings.defaults().copyWith(
-        localHttpServerEnabled: true,
-        localHttpBindAllInterfaces: false,
+    test('enableLocalHttpVpnExposure returns an infrastructure-free plan', () {
+      final result = coordinator.enableLocalHttpVpnExposure(
+        canConfigureLocalHttp: true,
       );
-      final result = coordinator.enableLocalHttpVpnExposure(settings);
 
       expect(result, isNotNull);
-      expect(result!.settings.localHttpBindAllInterfaces, isTrue);
+      expect(result!.bindAllInterfaces, isTrue);
       expect(result.message, contains('3001'));
+      expect(
+        coordinator.enableLocalHttpVpnExposure(canConfigureLocalHttp: false),
+        isNull,
+      );
     });
 
     test('startClipboardServiceIfNeeded only changes when stopped', () {
@@ -30,17 +31,14 @@ void main() {
     });
 
     test('buildRestartPlan keeps local http only when enabled', () {
-      final settings = BrowserSettings.defaults().copyWith(
-        localHttpServerEnabled: true,
-      );
       final plan = coordinator.buildRestartPlan(
-        browserSettings: settings,
+        localHttpEnabled: true,
         clipboardRunning: false,
         configuredClipboardPort: null,
         boundClipboardPort: null,
       );
 
-      expect(plan.localHttpSettings, isNotNull);
+      expect(plan.restartLocalHttp, isTrue);
       expect(plan.restartClipboard, isTrue);
       expect(plan.preferredClipboardPort, 12345);
     });

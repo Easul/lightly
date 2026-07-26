@@ -1,12 +1,10 @@
-import '../browser/browser_settings.dart';
-
 class EasyTierLocalHttpExposureResult {
   const EasyTierLocalHttpExposureResult({
-    required this.settings,
+    required this.bindAllInterfaces,
     required this.message,
   });
 
-  final BrowserSettings settings;
+  final bool bindAllInterfaces;
   final String message;
 }
 
@@ -22,12 +20,12 @@ class EasyTierClipboardStartResult {
 
 class EasyTierServiceRestartPlan {
   const EasyTierServiceRestartPlan({
-    this.localHttpSettings,
+    required this.restartLocalHttp,
     required this.restartClipboard,
     required this.preferredClipboardPort,
   });
 
-  final BrowserSettings? localHttpSettings;
+  final bool restartLocalHttp;
   final bool restartClipboard;
   final int preferredClipboardPort;
 }
@@ -35,16 +33,15 @@ class EasyTierServiceRestartPlan {
 class EasyTierServiceAccessCoordinator {
   const EasyTierServiceAccessCoordinator();
 
-  EasyTierLocalHttpExposureResult? enableLocalHttpVpnExposure(
-    BrowserSettings? settings,
-  ) {
-    if (settings == null) {
+  EasyTierLocalHttpExposureResult? enableLocalHttpVpnExposure({
+    required bool canConfigureLocalHttp,
+  }) {
+    if (!canConfigureLocalHttp) {
       return null;
     }
 
-    final updated = settings.copyWith(localHttpBindAllInterfaces: true);
-    return EasyTierLocalHttpExposureResult(
-      settings: updated,
+    return const EasyTierLocalHttpExposureResult(
+      bindAllInterfaces: true,
       message: '3001 服务已切换为 VPN 可访问模式',
     );
   }
@@ -65,21 +62,17 @@ class EasyTierServiceAccessCoordinator {
   }
 
   EasyTierServiceRestartPlan buildRestartPlan({
-    required BrowserSettings? browserSettings,
+    required bool localHttpEnabled,
     required bool clipboardRunning,
     required int? configuredClipboardPort,
     required int? boundClipboardPort,
   }) {
-    final localHttpSettings =
-        browserSettings != null && browserSettings.localHttpServerEnabled
-        ? browserSettings
-        : null;
     final preferredClipboardPort =
         configuredClipboardPort ?? boundClipboardPort ?? 12345;
     final restartClipboard =
         clipboardRunning || preferredClipboardPort == 12345;
     return EasyTierServiceRestartPlan(
-      localHttpSettings: localHttpSettings,
+      restartLocalHttp: localHttpEnabled,
       restartClipboard: restartClipboard,
       preferredClipboardPort: preferredClipboardPort,
     );

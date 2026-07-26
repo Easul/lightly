@@ -142,19 +142,23 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
   }
 
   Future<void> _enableLocalHttpVpnExposure() async {
+    final currentSettings = _browserSettings;
     final result = _serviceAccessCoordinator.enableLocalHttpVpnExposure(
-      _browserSettings,
+      canConfigureLocalHttp: currentSettings != null,
     );
-    if (result == null) {
+    if (result == null || currentSettings == null) {
       return;
     }
-    await _browserSettingsService.saveSettings(result.settings);
+    final updatedSettings = currentSettings.copyWith(
+      localHttpBindAllInterfaces: result.bindAllInterfaces,
+    );
+    await _browserSettingsService.saveSettings(updatedSettings);
     await BrowserRuntimeCoordinator.instance.applyLocalHttpSettings(
-      result.settings,
+      updatedSettings,
     );
     if (!mounted) return;
     setState(() {
-      _browserSettings = result.settings;
+      _browserSettings = updatedSettings;
     });
     ScaffoldMessenger.of(
       context,
@@ -182,14 +186,15 @@ class _EasyTierSettingsPageState extends State<EasyTierSettingsPage> {
 
   Future<void> _restartServicesForEasyTierIp() async {
     final plan = _serviceAccessCoordinator.buildRestartPlan(
-      browserSettings: _browserSettings,
+      localHttpEnabled: _browserSettings?.localHttpServerEnabled ?? false,
       clipboardRunning: _clipboardHttpServerService.isRunning,
       configuredClipboardPort: _clipboardHttpServerService.configuredPort,
       boundClipboardPort: _clipboardHttpServerService.boundPort,
     );
-    if (plan.localHttpSettings != null) {
+    final browserSettings = _browserSettings;
+    if (plan.restartLocalHttp && browserSettings != null) {
       await BrowserRuntimeCoordinator.instance.applyLocalHttpSettings(
-        plan.localHttpSettings!,
+        browserSettings,
       );
     }
 
