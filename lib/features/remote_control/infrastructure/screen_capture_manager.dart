@@ -117,57 +117,6 @@ class ScreenCaptureManager {
     );
   }
 
-  /// 解析 H.264 NAL 单元
-  ///
-  /// 从裸 H.264 流中提取 SPS、PPS 和帧数据
-  static List<Uint8List> parseNalUnits(Uint8List data) {
-    final units = <Uint8List>[];
-    int i = 0;
-
-    while (i < data.length - 4) {
-      // 查找起始码 0x00000001 或 0x000001
-      if (data[i] == 0 && data[i + 1] == 0) {
-        int startCodeLen;
-        if (data[i + 2] == 0 && data[i + 3] == 1) {
-          startCodeLen = 4;
-        } else if (data[i + 2] == 1) {
-          startCodeLen = 3;
-        } else {
-          i++;
-          continue;
-        }
-
-        // 查找下一个起始码
-        int j = i + startCodeLen;
-        while (j < data.length - 3) {
-          if (data[j] == 0 &&
-              data[j + 1] == 0 &&
-              (data[j + 2] == 1 ||
-                  (data[j + 2] == 0 &&
-                      j + 3 < data.length &&
-                      data[j + 3] == 1))) {
-            break;
-          }
-          j++;
-        }
-
-        final nalUnit = Uint8List.fromList(data.sublist(i + startCodeLen, j));
-        units.add(nalUnit);
-        i = j;
-      } else {
-        i++;
-      }
-    }
-
-    return units;
-  }
-
-  /// 获取 NAL 单元类型
-  static int getNalUnitType(Uint8List nalUnit) {
-    if (nalUnit.isEmpty) return -1;
-    return nalUnit[0] & 0x1F;
-  }
-
   /// 构建配置数据
   Uint8List _buildConfigData(Uint8List sps, Uint8List pps) {
     // AVCC 格式：4字节长度前缀 + NAL单元

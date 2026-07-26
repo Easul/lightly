@@ -3,9 +3,9 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../../core/logging/runtime_logger.dart';
+import '../../domain/h264_nal_unit_parser.dart';
 import '../../domain/remote_control_runtime.dart';
 import '../../domain/screen_frame.dart';
-import '../../infrastructure/screen_capture_manager.dart';
 
 class RemoteControlScreenViewer extends StatefulWidget {
   final Stream<ScreenFrame> frameStream;
@@ -400,10 +400,10 @@ class ScreenFrameDecoder {
   }
 
   void _parseConfig(Uint8List data) {
-    final nalUnits = ScreenCaptureManager.parseNalUnits(data);
+    final nalUnits = H264NalUnitParser.parse(data);
 
     for (final unit in nalUnits) {
-      final type = ScreenCaptureManager.getNalUnitType(unit);
+      final type = H264NalUnitParser.typeOf(unit);
 
       if (type == 7) {
         // SPS
