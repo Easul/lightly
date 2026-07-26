@@ -17,9 +17,9 @@ import '../pages/tools_page.dart';
 import '../pages/translation_tool_page.dart';
 import '../pages/ai_chat_page.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
+import '../features/remote_control/infrastructure/remote_control_service.dart';
 import '../services/app_log_service.dart';
 import '../services/app_toast.dart';
-import '../services/remote_control_service.dart';
 import 'remote_control_page_coordinator.dart';
 
 /// Application route table.

@@ -10,7 +10,7 @@ import 'package:lightly/features/remote_control/domain/remote_control_config.dar
 import 'package:lightly/features/remote_control/domain/remote_control_protocol.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_runtime.dart';
 import 'package:lightly/features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import 'package:lightly/services/remote_control_service.dart';
+import 'package:lightly/features/remote_control/infrastructure/remote_control_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

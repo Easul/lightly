@@ -10,11 +10,11 @@ import '../features/easytier/infrastructure/easytier_service.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
 import '../features/proxy/infrastructure/proxy_service_local_endpoint_adapter.dart';
 import '../features/remote_control/infrastructure/remote_control_performance_monitor.dart';
+import '../features/remote_control/infrastructure/remote_control_service.dart';
 import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../features/local_sharing/local_http/local_http_file_server_service.dart';
 import '../services/app_log_service.dart';
 import '../services/app_lifecycle_manager.dart';
-import '../services/remote_control_service.dart';
 import '../services/shared_downloads_directory_service.dart';
 import 'app_runtime_coordinator.dart';
 
