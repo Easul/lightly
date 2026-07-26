@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
-import 'package:lightly/services/easytier_runtime_status_controller.dart';
+import 'package:lightly/features/easytier/application/easytier_runtime_status_controller.dart';
 
 void main() {
   group('EasyTierRuntimeStatusController', () {

@@ -5,7 +5,7 @@ import '../core/network/local_proxy_endpoint_provider.dart';
 import '../core/storage/app_database_provider.dart';
 import '../core/storage/shared_downloads_access.dart';
 import '../features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
-import '../services/easytier_service.dart';
+import '../features/easytier/infrastructure/easytier_service.dart';
 import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../features/local_sharing/local_http/local_http_file_server_service.dart';
 import '../services/app_log_service.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/easytier_platform_gateway.dart';
+import 'package:lightly/features/easytier/infrastructure/easytier_platform_gateway.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

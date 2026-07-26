@@ -1,6 +1,6 @@
-import '../features/easytier/domain/easytier_config.dart';
-import '../features/easytier/domain/easytier_network_profile.dart';
-import 'easytier_profile_service.dart';
+import '../domain/easytier_config.dart';
+import '../domain/easytier_network_profile.dart';
+import '../infrastructure/easytier_profile_service.dart';
 
 class EasyTierProfilesLoadResult {
   const EasyTierProfilesLoadResult({

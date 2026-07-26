@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/services/easytier_network_info_analyzer.dart';
+import 'package:lightly/features/easytier/application/easytier_network_info_analyzer.dart';
 
 void main() {
   group('EasyTierNetworkInfoAnalyzer', () {

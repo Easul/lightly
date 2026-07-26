@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/services/app_lifecycle_manager.dart';
-import 'package:lightly/services/easytier_service.dart';
+import 'package:lightly/features/easytier/infrastructure/easytier_service.dart';
 import 'package:lightly/services/remote_control_platform_gateway.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -8,7 +8,7 @@ import '../../features/calculator/history_service.dart';
 import '../../core/logging/runtime_logger.dart';
 import '../../core/storage/shared_downloads_access.dart';
 import '../../services/app_log_service.dart';
-import '../../services/easytier_profile_service.dart';
+import '../../features/easytier/infrastructure/easytier_profile_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../../features/telegram/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';

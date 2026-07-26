@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/core/logging/runtime_logger.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
-import 'package:lightly/services/easytier_service.dart';
+import 'package:lightly/features/easytier/infrastructure/easytier_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

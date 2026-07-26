@@ -5,10 +5,10 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-import '../core/logging/runtime_logger.dart';
-import '../features/easytier/domain/easytier_config.dart';
+import '../../../core/logging/runtime_logger.dart';
+import '../domain/easytier_config.dart';
+import '../domain/easytier_runtime.dart';
 import 'easytier_platform_gateway.dart';
-import 'easytier_runtime.dart';
 
 class EasyTierService implements EasyTierRuntime {
   static final EasyTierPlatformGateway _platformGateway =

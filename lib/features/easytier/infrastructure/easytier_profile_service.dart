@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../features/easytier/domain/easytier_config.dart';
-import '../features/easytier/domain/easytier_network_profile.dart';
+import '../domain/easytier_config.dart';
+import '../domain/easytier_network_profile.dart';
 
 class EasyTierProfileService {
   static const String _profilesKey = 'easytier_profiles';
