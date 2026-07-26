@@ -28,7 +28,7 @@ import 'browser_video_detection_tracker.dart';
 import 'browser_video_player_coordinator.dart';
 import 'browser_video_playback_preparation_service.dart';
 import 'browser_tab_service.dart';
-import 'external_api_video_source_resolver.dart';
+import '../../features/video/infrastructure/external_api_video_source_resolver.dart';
 import 'video_proxy_server.dart';
 
 class BrowserPageServices {

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/services/external_api_video_source_resolver.dart';
+import 'package:lightly/features/video/infrastructure/external_api_video_source_resolver.dart';
 
 void main() {
   group('ExternalApiVideoSourceResolver', () {

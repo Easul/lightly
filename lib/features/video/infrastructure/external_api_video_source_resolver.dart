@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:http/io_client.dart';
 
-import '../../features/video/domain/youtube_long_press_utils.dart';
-import '../../features/video/domain/video_source_resolver.dart';
+import '../domain/youtube_long_press_utils.dart';
+import '../domain/video_source_resolver.dart';
 
 typedef VideoHttpProxyResolver = String Function(Uri uri);
 

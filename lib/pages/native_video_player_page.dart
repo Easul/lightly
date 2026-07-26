@@ -15,7 +15,7 @@ import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/services/browser_video_playback_preparation_service.dart';
-import '../browser/services/external_api_video_source_resolver.dart';
+import '../features/video/infrastructure/external_api_video_source_resolver.dart';
 import '../browser/services/video_proxy_server.dart';
 import '../features/video/domain/video_source_resolver.dart';
 import '../services/app_log_service.dart';
