@@ -2,11 +2,13 @@ part of 'remote_control_page.dart';
 
 extension _RemoteControlPagePeerActions on _RemoteControlPageState {
   Future<void> _loadPeers({bool showLoading = true}) async {
-    if (_easyTierService.isNoTunMode && !_useReceiverNoTunMode && mounted) {
+    if (_runtimeCoordinator.isEasyTierNoTunMode &&
+        !_useReceiverNoTunMode &&
+        mounted) {
       _updateState(_syncReceiverNoTunModeFromP2p);
     }
 
-    if (!_easyTierService.isRunning) {
+    if (!_runtimeCoordinator.isEasyTierRunning) {
       if (mounted && _peers.isNotEmpty) {
         _updateState(() => _peers = const <Map<String, String>>[]);
       }
@@ -18,12 +20,8 @@ extension _RemoteControlPagePeerActions on _RemoteControlPageState {
     }
 
     try {
-      final networkInfo = await _easyTierService.getNetworkInfo();
-      if (networkInfo != null) {
-        final peers = EasyTierNetworkInfoAnalyzer.buildPeerSummaries(
-          networkInfo,
-          _easyTierService.currentInstanceName ?? 'ruoqing_vpn',
-        ).where((peer) => peer['remoteReachable'] == 'true').toList();
+      final peers = await _runtimeCoordinator.loadReachablePeers();
+      if (peers != null) {
         if (!mounted) return;
         _updateState(() {
           _peers = peers;
@@ -64,8 +62,8 @@ extension _RemoteControlPagePeerActions on _RemoteControlPageState {
     });
     _applyPortConfigToInputs(null);
 
-    final noTunControllerMode = _easyTierService.isNoTunMode;
-    final noTunProxyPort = _easyTierService.activeNoTunSocksPort;
+    final noTunControllerMode = _runtimeCoordinator.isEasyTierNoTunMode;
+    final noTunProxyPort = _runtimeCoordinator.activeNoTunSocksPort;
     if (noTunControllerMode && noTunProxyPort == null) {
       return;
     }
@@ -76,7 +74,7 @@ extension _RemoteControlPagePeerActions on _RemoteControlPageState {
       useInternalProxy: noTunControllerMode || _useInternalProxy,
       proxyPort: noTunControllerMode
           ? noTunProxyPort
-          : _proxyService.localProxyPort,
+          : _runtimeCoordinator.localProxyPort,
     );
     if (!mounted || discoveredPorts == null) {
       return;

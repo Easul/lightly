@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../app/remote_control_page_coordinator.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
 import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
 import '../features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
@@ -11,14 +12,8 @@ import '../services/remote_control_service.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
-import '../services/app_lifecycle_manager.dart';
 import '../services/app_log_service.dart';
-import '../features/easytier/application/easytier_network_info_analyzer.dart';
-import '../features/easytier/infrastructure/easytier_service.dart';
 import '../services/app_toast.dart';
-import '../features/proxy/infrastructure/proxy_service.dart';
-import '../browser/browser_settings_service.dart';
-import '../browser/browser_settings.dart';
 
 part 'remote_control_page_peer_actions.dart';
 part 'remote_control_page_receiver_actions.dart';
@@ -105,9 +100,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();
-  final EasyTierService _easyTierService = EasyTierService();
-  final ProxyService _proxyService = ProxyService();
-  final BrowserSettingsService _settingsService = BrowserSettingsService();
+  final RemoteControlPageCoordinator _runtimeCoordinator =
+      RemoteControlPageCoordinator();
   final RemoteControlPageConnectionHelper _connectionHelper =
       const RemoteControlPageConnectionHelper();
   final RemoteControlPagePortConfigHelper _portConfigHelper =
@@ -123,7 +117,6 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   List<Map<String, String>> _peers = [];
   bool _isLoadingPeers = false;
   bool _useInternalProxy = false;
-  BrowserSettings? _settings;
   bool _isProxyRunning = false;
   bool _isReceiverRunning = false;
   bool _useReceiverNoTunMode = false;
@@ -133,7 +126,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
 
   late StreamSubscription<RemoteControlState> _stateSubscription;
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
-  StreamSubscription<ProxyState>? _proxyStateSubscription;
+  StreamSubscription<bool>? _proxyStateSubscription;
 
   void _updateState(VoidCallback update) {
     setState(update);
@@ -150,7 +143,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _messageSubscription = _service.messageStream.listen(_handleMessage);
     _syncReceiverStateFromService();
     _applyPortConfigToInputs(_portConfig);
-    _loadSettings();
+    _loadRuntimeState();
     _loadPeers();
     _peerRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_loadPeers(showLoading: false));
@@ -175,23 +168,23 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   void _syncReceiverNoTunModeFromP2p() {
     _useReceiverNoTunMode = resolveReceiverNoTunMode(
       receiverNoTunMode: _useReceiverNoTunMode,
-      p2pNoTunMode: _easyTierService.isNoTunMode,
+      p2pNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,
     );
   }
 
-  Future<void> _loadSettings() async {
-    final settings = await _settingsService.loadSettings();
+  Future<void> _loadRuntimeState() async {
+    final state = await _runtimeCoordinator.initialize();
     if (mounted) {
       setState(() {
-        _settings = settings;
-        _isProxyRunning = _proxyService.isRunning;
+        _isProxyRunning = state.isProxyRunning;
       });
     }
-    // 监听代理状态变化
-    _proxyStateSubscription = _proxyService.stateStream.listen((state) {
+    _proxyStateSubscription = _runtimeCoordinator.proxyRunningStream.listen((
+      isRunning,
+    ) {
       if (mounted) {
         setState(() {
-          _isProxyRunning = state == ProxyState.started;
+          _isProxyRunning = isRunning;
         });
       }
     });
@@ -312,9 +305,9 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       _hadConnectedSession = false;
     });
 
-    final noTunControllerMode = _easyTierService.isNoTunMode;
+    final noTunControllerMode = _runtimeCoordinator.isEasyTierNoTunMode;
     final candidatePorts = _buildCandidatePorts();
-    final noTunProxyPort = _easyTierService.activeNoTunSocksPort;
+    final noTunProxyPort = _runtimeCoordinator.activeNoTunSocksPort;
     if (noTunControllerMode && noTunProxyPort == null) {
       if (!mounted) return;
       setState(() {
@@ -328,12 +321,10 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     try {
       proxyPort = noTunControllerMode
           ? noTunProxyPort
-          : await _connectionHelper.ensureInternalProxyReady(
+          : await _runtimeCoordinator.ensureInternalProxyReady(
               useInternalProxy: _useInternalProxy,
-              settings: _settings,
-              proxyService: _proxyService,
             );
-    } on RemoteControlPageConnectionException catch (error) {
+    } on RemoteControlPageRuntimeException catch (error) {
       if (mounted) {
         _showToast(error.message);
       }
@@ -458,7 +449,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   Widget _buildReceiverSection() {
     final effectiveNoTunMode = resolveReceiverNoTunMode(
       receiverNoTunMode: _useReceiverNoTunMode,
-      p2pNoTunMode: _easyTierService.isNoTunMode,
+      p2pNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,
     );
     return RemoteControlReceiverSection(
       portConfig: _portConfig,
@@ -478,8 +469,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   Widget _buildControllerSection() {
     return RemoteControlControllerSection(
       peers: _peers,
-      isEasyTierRunning: _easyTierService.isRunning,
-      isEasyTierNoTunMode: _easyTierService.isNoTunMode,
+      isEasyTierRunning: _runtimeCoordinator.isEasyTierRunning,
+      isEasyTierNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,
       isLoadingPeers: _isLoadingPeers,
       hostController: _hostController,
       controlPortController: _controlPortController,

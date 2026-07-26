@@ -4,7 +4,7 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
   Future<void> _startReceiver() async {
     final effectiveNoTunMode = resolveReceiverNoTunMode(
       receiverNoTunMode: _useReceiverNoTunMode,
-      p2pNoTunMode: _easyTierService.isNoTunMode,
+      p2pNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,
     );
     _updateState(() {
       _isConnecting = true;
@@ -17,8 +17,8 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
       final ports = await _receiverHelper.startReceiverFlow(
         platformGateway: _platformGateway,
         service: _service,
-        ensureVpnForRemoteControl:
-            AppLifecycleManager().ensureVpnForRemoteControl,
+        ensureVpnForRemoteControl: ({bool noTunMode = false}) =>
+            _runtimeCoordinator.ensureReceiverNetwork(noTunMode: noTunMode),
         useNoTunMode: effectiveNoTunMode,
       );
 
@@ -52,7 +52,7 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
       _errorMessage = null;
     });
     try {
-      await AppLifecycleManager().shutdownAllServices();
+      await _runtimeCoordinator.shutdownAll();
       if (!mounted) return;
       _updateState(() {
         _isConnecting = false;
