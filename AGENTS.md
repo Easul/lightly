@@ -496,6 +496,11 @@ must not be used as the current design; fixed UDP/Opus audio has been replaced b
   `RemoteControlPageCoordinator`; do not restore direct page imports of EasyTier, proxy, or browser
   infrastructure. The app-level coordinator composes their domain ports and owns this cross-feature
   policy.
+- Remote-control setup/session pages live under
+  `lib/features/remote_control/presentation/pages/` and receive the existing socket/session owner
+  through `RemoteControlPresentationRuntime`. Keep concrete service, app lifecycle, logger, toast,
+  platform, and coordinator composition in `lib/app/routes.dart`; do not recreate singleton lookups
+  inside the feature pages.
 
 Remote-control WebRTC voice has several real-world pitfalls that must not be regressed:
 
@@ -549,7 +554,7 @@ Recommended verification after touching this path:
 
 ```bash
 ./gradlew :app:compileDebugKotlin
-flutter analyze lib/services/remote_control_service.dart lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart lib/pages/remote_control_session_page.dart
+flutter analyze lib/services/remote_control_service.dart lib/features/remote_control/presentation/widgets/remote_control_screen_viewer.dart lib/features/remote_control/presentation/pages/remote_control_session_page.dart
 ```
 
 Manual smoke test on Redmi:

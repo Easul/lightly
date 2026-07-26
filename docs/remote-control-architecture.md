@@ -57,10 +57,10 @@ screen capture、WebRTC infrastructure 与 typed gateway 已位于
 sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 持有
 PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和关闭。
 `RemoteControlService` 继续留在 `lib/services/`，作为 control/screen socket 与 session state
-的唯一 owner。独立 screen/session/setup/dialog widgets 已位于 feature presentation；两个页面
-通过 app-level `RemoteControlPageCoordinator` 使用 EasyTier/proxy/browser settings 能力，不再
-直接依赖其他 feature 的 infrastructure。页面 owner 仍留在 `lib/pages/`，直到
-presentation-facing contract 与 service owner 注入边界稳定。
+的唯一 owner。独立 widgets 与 setup/session 页面均位于 feature presentation；页面通过
+`RemoteControlPresentationRuntime` 接收同一个 service owner，并通过
+`RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator` 的
+EasyTier/proxy/browser settings 能力。具体实现只在应用路由 composition root 中组装。
 
 ## 传输与端口
 

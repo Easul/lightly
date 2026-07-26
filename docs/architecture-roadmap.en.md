@@ -389,6 +389,8 @@ Completed move-only batches:
   socket/screen/WebRTC infrastructure, and platform gateway → `lib/features/remote_control/`
 - independent remote-control screen/session/setup/dialog widgets →
   `lib/features/remote_control/presentation/widgets/`
+- remote-control setup/session pages and page helpers →
+  `lib/features/remote_control/presentation/pages/`
 
 The move batches only moved modules and updated imports; storage keys, database tables, network
 protocols, and runtime owners are unchanged. Before moving local sharing, logging was inverted to
@@ -396,10 +398,11 @@ protocols, and runtime owners are unchanged. Before moving local sharing, loggin
 inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
 The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
 local-sharing, and app runtime capabilities. `RemoteControlService` remains in `lib/services/` as
-the socket/session owner. The two remote-control pages now use app-level
-`RemoteControlPageCoordinator` instead of importing EasyTier, proxy, or BrowserSettings
-implementations directly. They remain in `lib/pages/` until the presentation-facing contract and
-service-owner injection boundary stabilize, then continue with browser/video below.
+the socket/session owner. The two remote-control pages receive that owner through
+`RemoteControlPresentationRuntime` and use the app-level `RemoteControlPageCoordinator` through
+`RemoteControlPageRuntime`; they no longer import EasyTier, proxy, BrowserSettings, app lifecycle,
+or concrete service implementations. The application route injects the existing singleton owner,
+so the pages now live under feature presentation. Browser/video still follow the order below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

@@ -350,15 +350,18 @@ Dart
   socket/screen/WebRTC infrastructure 与 platform gateway → `lib/features/remote_control/`
 - remote-control 独立 screen/session/setup/dialog widgets →
   `lib/features/remote_control/presentation/widgets/`
+- remote-control setup/session 页面与页面 helper →
+  `lib/features/remote_control/presentation/pages/`
 
 以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和 runtime owner 均未改变。
 local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
 proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `ProxyConfiguration` 隔离
 `BrowserSettings`。EasyTier 设置页因仍编排 browser/local-sharing/app runtime 而暂留 `lib/pages/`；
 `RemoteControlService` 作为 socket/session owner 暂留 `lib/services/`；两个 remote-control
-页面已通过 app-level `RemoteControlPageCoordinator` 移除对 EasyTier、proxy 与 BrowserSettings
-实现的直接依赖。页面暂留 `lib/pages/`，直到 presentation-facing contract 与 service owner
-注入边界稳定，再与 browser/video 按下列顺序渐进处理。
+页面通过 `RemoteControlPresentationRuntime` 接收现有 owner，并通过
+`RemoteControlPageRuntime` 使用 app-level `RemoteControlPageCoordinator`，不再直接依赖
+EasyTier、proxy、BrowserSettings、app lifecycle 或具体 service 实现。应用路由负责注入同一个
+singleton owner，因此页面已迁入 feature presentation；browser/video 仍按下列顺序最后处理。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 
