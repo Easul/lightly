@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
-import '../services/screen_capture_manager.dart';
+import '../features/remote_control/domain/screen_frame.dart';
 import '../theme/app_theme.dart';
 import '../widgets/remote_control_gesture_overlay.dart';
 import '../widgets/remote_control_screen_viewer.dart';

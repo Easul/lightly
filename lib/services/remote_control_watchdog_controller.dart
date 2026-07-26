@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../features/remote_control/application/remote_control_recovery_helper.dart';
-import 'screen_capture_manager.dart';
+import '../features/remote_control/domain/screen_frame.dart';
 
 class RemoteControlWatchdogController {
   final RemoteControlRecoveryHelper _recoveryHelper;

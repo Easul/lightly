@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
+import '../features/remote_control/domain/screen_frame.dart';
 import 'remote_control_screen_pipeline_helper.dart';
-import 'screen_capture_manager.dart';
 
 class RemoteControlScreenFramePipelineResult {
   const RemoteControlScreenFramePipelineResult({

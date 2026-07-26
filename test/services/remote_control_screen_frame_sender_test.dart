@@ -5,8 +5,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/features/remote_control/domain/screen_frame.dart';
 import 'package:lightly/services/remote_control_screen_frame_sender.dart';
-import 'package:lightly/services/screen_capture_manager.dart';
 
 void main() {
   test('sendConfig writes SPS and PPS frames immediately', () {

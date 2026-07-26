@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
+import '../features/remote_control/domain/screen_frame.dart';
 import 'remote_control_watchdog_controller.dart';
-import 'screen_capture_manager.dart';
 
 class RemoteControlScreenHealthCoordinator {
   RemoteControlScreenHealthCoordinator({

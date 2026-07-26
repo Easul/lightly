@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'screen_capture_manager.dart';
+import '../features/remote_control/domain/screen_frame.dart';
 
 class ScreenPipelineParseResult {
   final List<ScreenFrame> parsedFrames;

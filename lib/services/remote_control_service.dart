@@ -15,6 +15,7 @@ import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart';
 import '../features/remote_control/domain/remote_control_runtime.dart';
+import '../features/remote_control/domain/screen_frame.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';
 import 'remote_control_screen_frame_sender.dart';
 import 'remote_control_screen_health_coordinator.dart';

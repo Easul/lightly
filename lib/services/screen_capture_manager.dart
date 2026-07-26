@@ -2,28 +2,9 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
-import 'app_log_service.dart';
+import '../features/remote_control/domain/screen_frame.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-
-/// 屏幕帧类型
-enum ScreenFrameType {
-  config, // SPS/PPS 配置帧
-  keyFrame, // IDR 关键帧
-  deltaFrame, // P/B 参考帧
-}
-
-/// 屏幕帧数据
-class ScreenFrame {
-  final ScreenFrameType type;
-  final Uint8List data;
-  final int timestamp;
-
-  ScreenFrame({
-    required this.type,
-    required this.data,
-    required this.timestamp,
-  });
-}
+import 'app_log_service.dart';
 
 /// 屏幕捕获管理器
 ///
