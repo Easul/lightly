@@ -1,12 +1,12 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/features/proxy/infrastructure/browser_platform_gateway.dart';
+import 'package:lightly/features/proxy/infrastructure/proxy_platform_gateway.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const channel = MethodChannel('browser_platform_gateway_test');
-  final gateway = BrowserPlatformGateway(channel: channel);
+  const channel = MethodChannel('proxy_platform_gateway_test');
+  final gateway = ProxyPlatformGateway(channel: channel);
   final calls = <MethodCall>[];
 
   setUp(() {

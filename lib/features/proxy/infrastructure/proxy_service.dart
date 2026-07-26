@@ -12,9 +12,9 @@ import '../application/proxy_runtime_launcher.dart';
 import '../application/proxy_webview_target_resolver.dart';
 import '../domain/proxy_configuration.dart';
 import '../domain/proxy_protocol.dart';
-import 'browser_platform_gateway.dart';
 import 'proxy_core_service.dart' as proxy_core;
 import 'proxy_latency_probe.dart';
+import 'proxy_platform_gateway.dart';
 import 'proxy_webview_bridge.dart';
 
 const String _localProxyHost = '127.0.0.1';
@@ -22,19 +22,19 @@ const String _localProxyHost = '127.0.0.1';
 class ProxyService {
   ProxyService._internal({
     required proxy_core.ProxyCoreService proxyCoreService,
-    required BrowserPlatformGateway browserPlatformGateway,
+    required ProxyPlatformGateway proxyPlatformGateway,
   }) : _proxyCoreService = proxyCoreService,
-       _browserPlatformGateway = browserPlatformGateway;
+       _proxyPlatformGateway = proxyPlatformGateway;
 
   factory ProxyService({
     proxy_core.ProxyCoreService? proxyCoreService,
     MethodChannel? proxyChannel,
-    BrowserPlatformGateway? browserPlatformGateway,
+    ProxyPlatformGateway? proxyPlatformGateway,
     RuntimeLogger? runtimeLogger,
   }) {
     if (proxyCoreService == null &&
         proxyChannel == null &&
-        browserPlatformGateway == null) {
+        proxyPlatformGateway == null) {
       if (runtimeLogger != null) {
         _sharedInstance._proxyCoreService.runtimeLogger = runtimeLogger;
       }
@@ -42,7 +42,7 @@ class ProxyService {
     }
 
     final resolvedChannel =
-        proxyChannel ?? const MethodChannel(BrowserPlatformGateway.channelName);
+        proxyChannel ?? const MethodChannel(ProxyPlatformGateway.channelName);
     final resolvedProxyCoreService =
         proxyCoreService ??
         proxy_core.ProxyCoreService(runtimeLogger: runtimeLogger);
@@ -51,19 +51,19 @@ class ProxyService {
     }
     return ProxyService._internal(
       proxyCoreService: resolvedProxyCoreService,
-      browserPlatformGateway:
-          browserPlatformGateway ??
-          BrowserPlatformGateway(channel: resolvedChannel),
+      proxyPlatformGateway:
+          proxyPlatformGateway ??
+          ProxyPlatformGateway(channel: resolvedChannel),
     );
   }
 
   static final ProxyService _sharedInstance = ProxyService._internal(
     proxyCoreService: proxy_core.ProxyCoreService(),
-    browserPlatformGateway: BrowserPlatformGateway(),
+    proxyPlatformGateway: ProxyPlatformGateway(),
   );
 
   final proxy_core.ProxyCoreService _proxyCoreService;
-  final BrowserPlatformGateway _browserPlatformGateway;
+  final ProxyPlatformGateway _proxyPlatformGateway;
   final ProxyConfigMapper _configMapper = const ProxyConfigMapper();
   final ProxyDownloadRouteResolver _downloadRouteResolver =
       const ProxyDownloadRouteResolver();
@@ -79,7 +79,7 @@ class ProxyService {
     localProxyHost: _localProxyHost,
   );
   late final ProxyWebViewBridge _webViewBridge = ProxyWebViewBridge(
-    _browserPlatformGateway,
+    _proxyPlatformGateway,
   );
   final ProxyWebViewTargetResolver _webViewTargetResolver =
       const ProxyWebViewTargetResolver();
@@ -312,12 +312,12 @@ class ProxyService {
   }
 
   Future<String> startFloatingButtonMode() async {
-    return _browserPlatformGateway.startProxyFloatingButtonMode();
+    return _proxyPlatformGateway.startProxyFloatingButtonMode();
   }
 
   Future<void> stopFloatingButtonMode() async {
     try {
-      await _browserPlatformGateway.stopProxyFloatingButtonMode();
+      await _proxyPlatformGateway.stopProxyFloatingButtonMode();
     } catch (_) {}
   }
 }

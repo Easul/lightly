@@ -1,9 +1,9 @@
-import 'browser_platform_gateway.dart';
+import 'proxy_platform_gateway.dart';
 
 class ProxyWebViewBridge {
   const ProxyWebViewBridge(this._platformGateway);
 
-  final BrowserPlatformGateway _platformGateway;
+  final ProxyPlatformGateway _platformGateway;
 
   Future<void> setProxy(
     String host,
