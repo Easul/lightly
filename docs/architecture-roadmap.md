@@ -334,7 +334,7 @@ Dart
 
 ## Phase 5：Feature-first 目录迁移
 
-状态：**进行中（2026-07-26）**
+状态：**核心迁移已完成（2026-07-26），browser owner 保留现有路径**
 
 已完成的纯移动批次：
 
@@ -373,15 +373,19 @@ video 的生产播放入口已统一为 `FloatingVideoPlayerCoordinator` 管理�
 `BrowserVideoPlayerCoordinator` 仅作为 settings/download media integration facade 留在
 `lib/browser/services/`。
 
+`lib/browser/` 本身不再仅为满足目录形式而整体搬到 `lib/features/browser/`：它是当前应用壳层
+与 WebView owner 的稳定边界，机械移动大量文件和 import 不会改善依赖方向。只有后续 import graph
+证明存在实际目录级环，且能以独立 move-only 批次解决时，才重新评估该目录迁移。
+
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 
-建议顺序：
+已采用的实施顺序：
 
 1. `ai`、`telegram`、`utilities`：边界小、迁移风险低。
 2. `local_sharing`：统一公共 HTTP/path primitives 后移动。
 3. `proxy`、`easytier`：已有明确 service 和 gateway。
 4. `remote_control`：按 connection/screen/voice/protocol 移动，不改变 owner。
-5. `browser`、`video`：最后移动，因为依赖最多且涉及 WebView keepAlive。
+5. `video` 最后迁移；`browser` 按上述 owner 例外保留现有路径。
 
 每个 feature 的推荐结构：
 

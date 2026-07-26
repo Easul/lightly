@@ -373,7 +373,7 @@ Verification:
 
 ## Phase 5: Feature-first Directory Migration
 
-Status: **in progress (2026-07-26)**
+Status: **core migration complete (2026-07-26); browser owner retains its current path**
 
 Completed move-only batches:
 
@@ -414,15 +414,20 @@ Overlay/controller owner, playback preparation, local proxy server, and platform
 `lib/features/video/`. `BrowserVideoPlayerCoordinator` remains in `lib/browser/services/` only as a
 settings/download media-integration facade.
 
+`lib/browser/` will not be moved wholesale to `lib/features/browser/` only to satisfy directory
+shape. It is the stable app-shell and WebView-owner boundary, and mechanically moving its files and
+imports would not improve dependency direction. Reconsider that move only if a future import graph
+shows a real directory-level cycle that an independent move-only batch can resolve.
+
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 
-Recommended order:
+Execution order used:
 
 1. `ai`, `telegram`, and `utilities`: small boundaries and lower risk.
 2. `local_sharing`: after common HTTP/path primitives exist.
 3. `proxy` and `easytier`: already have clear services and gateways.
 4. `remote_control`: move by connection/screen/voice/protocol without changing the owner.
-5. `browser` and `video`: last, because they have the most dependencies and WebView keep-alive risk.
+5. `video` last; `browser` retains its current path under the owner exception above.
 
 Recommended complex-feature layout:
 
