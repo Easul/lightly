@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/widgets/remote_control_gesture_overlay.dart';
+import 'package:lightly/features/remote_control/presentation/widgets/remote_control_gesture_overlay.dart';
 
 void main() {
   testWidgets('annotation mode emits a circle instead of a gesture', (

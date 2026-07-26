@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
 import '../features/remote_control/domain/screen_frame.dart';
+import '../features/remote_control/presentation/widgets/remote_control_gesture_overlay.dart';
+import '../features/remote_control/presentation/widgets/remote_control_screen_viewer.dart';
 import '../theme/app_theme.dart';
-import '../widgets/remote_control_gesture_overlay.dart';
-import '../widgets/remote_control_screen_viewer.dart';
 
 part 'remote_control_session_tail_widgets.dart';
 part 'remote_control_session_text_sheets.dart';
