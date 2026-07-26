@@ -289,7 +289,7 @@ Android
 └── RemoteControlChannelHandler
 
 Dart
-├── BrowserPlatformGateway
+├── ProxyPlatformGateway
 ├── StorageAccessGateway
 ├── ExternalIntentGateway
 ├── EasyTierPlatformGateway
@@ -383,11 +383,15 @@ Completed move-only batches:
 - `lib/game_2048/` → `lib/features/game_2048/`
 - the shared LAN-address resolver → `lib/core/network/`
 - Simple File Manager, Clipboard, and Local HTTP → `lib/features/local_sharing/`
+- EasyTier domain/application/infrastructure and independent widgets → `lib/features/easytier/`
+- proxy domain/application/infrastructure, runtime owner, and platform gateway → `lib/features/proxy/`
 
-These batches only moved modules and updated imports; storage keys, database tables, network
-protocols, pages, and runtime owners are unchanged. Before moving local sharing, logging was
-inverted to `RuntimeLogger` and Local HTTP input was narrowed to a dedicated config. Proxy,
-EasyTier, remote control, and browser/video remain staged in the order below.
+The move batches only moved modules and updated imports; storage keys, database tables, network
+protocols, and runtime owners are unchanged. Before moving local sharing, logging was inverted to
+`RuntimeLogger` and Local HTTP input was narrowed to a dedicated config. Proxy logging was likewise
+inverted to `RuntimeLogger`, and immutable `ProxyConfiguration` isolates `BrowserSettings`.
+The EasyTier settings page remains in `lib/pages/` because it still orchestrates browser,
+local-sharing, and app runtime capabilities. Remote control and browser/video remain staged below.
 
 Goal: resolve file-discovery problems and directory-level dependency cycles after contracts stabilize.
 

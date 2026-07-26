@@ -82,7 +82,7 @@
   - `lib/browser/services/browser_page_initializer.dart`
   - `lib/browser/services/browser_video_detection_coordinator.dart`
   - `lib/browser/services/browser_video_player_coordinator.dart`
-  - `lib/browser/proxy_service.dart`
+  - `lib/features/proxy/infrastructure/proxy_service.dart`
 
 ### Browser files worth future extraction
 

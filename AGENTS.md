@@ -600,7 +600,7 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - For a targeted diagnostic APK, pass `--dart-define=PROXY_CORE_LOG_LEVEL=info`; do not change the permanent release default to `info`.
 - Info-level proxy logs may include destination IP/domain, ports, byte counts, and connection lifecycle, but must not include proxy credentials, configuration bodies, or packet contents.
 - Native startup logging must report only the listen address, protocol name, and configuration length. Never log the raw proxy JSON because it contains UUIDs/passwords.
-- Related file: `lib/browser/services/proxy_runtime_launcher.dart`.
+- Related file: `lib/features/proxy/application/proxy_runtime_launcher.dart`.
 
 ### Application runtime logging boundaries
 
@@ -609,7 +609,10 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Persist only bounded metadata. Do not write proxy credentials/config bodies, cookie values, URL query strings/fragments, custom-scheme payloads, video stream URLs, clipboard contents, or file contents.
 - Sanitize runtime-log messages, errors, stack traces, and nested metadata centrally before file writes. Platform exceptions must omit native `details`, sensitive metadata keys must be redacted, and URL logging must remove query/fragment data or redact custom-scheme payloads.
 - For errors that can repeat on every frame, persist the first consecutive failure and keep subsequent repeats console-only until a successful operation resets the failure state.
-- Related files: `lib/services/app_log_service.dart`, `lib/services/proxy_core_service.dart`, `lib/services/easytier_service.dart`, `lib/services/remote_control_service.dart`, `lib/widgets/remote_control_screen_viewer.dart`.
+- Related files: `lib/services/app_log_service.dart`,
+  `lib/features/proxy/infrastructure/proxy_core_service.dart`,
+  `lib/features/easytier/infrastructure/easytier_service.dart`,
+  `lib/services/remote_control_service.dart`, `lib/widgets/remote_control_screen_viewer.dart`.
 
 ### Low-risk service and settings boundaries
 

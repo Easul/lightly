@@ -213,6 +213,9 @@ WebView
 `ProxyService` owns configuration, reuse, latency tests, download routing, and WebView proxy
 override. `ProxyCoreService` controls the Kotlin/JNI/Rust runtime through the
 `com.proxy.core/proxy` channel.
+The Dart implementation lives under `lib/features/proxy/` with domain/application/infrastructure
+layers. Browser settings enter the proxy owner as an immutable `ProxyConfiguration` snapshot;
+persisted keys and JSON formats are unchanged.
 
 ### Remote Control
 
@@ -245,6 +248,9 @@ EasyTier page / remote-control flow
 
 A signature-permission-protected ContentProvider shares runtime state with same-signature monitor
 applications.
+EasyTier domain/application/infrastructure code and independent presentation widgets live under
+`lib/features/easytier/`. Settings-page orchestration that crosses browser settings, local HTTP, and
+clipboard remains in `lib/pages/` for now.
 
 ### Local Services
 
@@ -296,7 +302,7 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 
 | Channel | Dart owner | Android owner |
 |---|---|---|
-| `browser_proxy` | `BrowserPlatformGateway`, `StorageAccessGateway`, and `ExternalIntentGateway` | `BrowserPlatformChannelHandler` and grouped handlers |
+| `browser_proxy` | `ProxyPlatformGateway`, `StorageAccessGateway`, and `ExternalIntentGateway` | `BrowserPlatformChannelHandler` and grouped handlers |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
 | `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
 | `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
@@ -312,8 +318,9 @@ activity only registers independent handlers and forwards permission/capture res
 
 1. Runtime policy code is centralized in app/browser coordinators. Phase 2 still needs on-device
    confirmation that full exit leaves no VPN/capture foreground service behind.
-2. `lib/browser/` and `lib/services/` still depend on each other at the directory level. The known
-   AI and Telegram violations now go through `AppDatabaseProvider` and `LocalProxyEndpointProvider`.
+2. Known general-service ↔ browser dependencies for AI, Telegram, proxy, and EasyTier have been
+   removed. Remaining remote-control/browser/video orchestration in `lib/pages/`, `lib/browser/`,
+   and `lib/services/` still needs domain ports or app-level coordinators.
 3. Legacy SharedPreferences keys are frozen compatibility contracts; future incompatible format
    changes still require a versioned key and explicit per-feature migration.
 4. Page owners remain large, but splitting them mechanically by line count would damage ownership.

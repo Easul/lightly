@@ -206,6 +206,8 @@ WebView
 
 `ProxyService` 负责配置、复用、测速、下载路由和 WebView proxy override；
 `ProxyCoreService` 通过 `com.proxy.core/proxy` 通道控制 Kotlin/JNI/Rust runtime。
+Dart 实现位于 `lib/features/proxy/`，按 domain/application/infrastructure 分层；浏览器设置通过
+不可变 `ProxyConfiguration` snapshot 进入 proxy owner，持久化 key 与 JSON 格式未改变。
 
 ### Remote Control
 
@@ -237,6 +239,8 @@ EasyTierPage / RemoteControl flow
 ```
 
 同签名 Monitor 应用通过受签名权限保护的 ContentProvider 读取 EasyTier 运行状态。
+EasyTier 的 domain/application/infrastructure 与独立 presentation widgets 位于
+`lib/features/easytier/`；跨浏览器设置、本地 HTTP 和剪贴板的设置页编排仍暂留 `lib/pages/`。
 
 ### Local Services
 
@@ -284,7 +288,7 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 | Channel | Dart Owner | Android Owner |
 |---|---|---|
-| `browser_proxy` | `BrowserPlatformGateway`、`StorageAccessGateway`、`ExternalIntentGateway` | `BrowserPlatformChannelHandler` 及分组 handler |
+| `browser_proxy` | `ProxyPlatformGateway`、`StorageAccessGateway`、`ExternalIntentGateway` | `BrowserPlatformChannelHandler` 及分组 handler |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
 | `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
 | `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
@@ -300,8 +304,9 @@ Lightly 没有引入全局状态管理框架，主要使用：
 
 1. Runtime 策略代码已收口到 app/browser coordinators；Phase 2 仍需真机验证完整退出后无
    VPN/capture 前台服务残留。
-2. `lib/browser/` 与 `lib/services/` 仍存在目录级双向依赖；AI 和 Telegram 的已知直接依赖已由
-   `AppDatabaseProvider` 与 `LocalProxyEndpointProvider` 消除。
+2. AI、Telegram、proxy 和 EasyTier 已移除已知的通用 service ↔ browser 直接依赖；仍在
+   `lib/pages/`、`lib/browser/`、`lib/services/` 的 remote-control/browser/video 编排需继续按
+   domain port 或 app-level coordinator 收敛。
 3. SharedPreferences 旧 key 已冻结为兼容合同；后续破坏性格式变化仍需逐 feature 提供
    版本化 key 和显式迁移。
 4. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。

@@ -256,7 +256,7 @@ Android
 └── RemoteControlChannelHandler
 
 Dart
-├── BrowserPlatformGateway
+├── ProxyPlatformGateway
 ├── StorageAccessGateway
 ├── ExternalIntentGateway
 ├── EasyTierPlatformGateway
@@ -344,10 +344,14 @@ Dart
 - `lib/game_2048/` → `lib/features/game_2048/`
 - local sharing 公共局域网地址解析器 → `lib/core/network/`
 - Simple File Manager、Clipboard、Local HTTP → `lib/features/local_sharing/`
+- EasyTier domain/application/infrastructure 与独立 widgets → `lib/features/easytier/`
+- proxy domain/application/infrastructure、runtime owner 与 platform gateway → `lib/features/proxy/`
 
-以上批次只移动模块并更新 import；存储 key、数据库表、网络协议、页面和 runtime owner 均未改变。
+以上移动批次只移动模块并更新 import；存储 key、数据库表、网络协议和 runtime owner 均未改变。
 local sharing 移动前已先把日志依赖反转到 `RuntimeLogger`，并将 Local HTTP 输入收窄为独立 config；
-proxy、EasyTier、remote control、browser/video 仍按下列顺序渐进处理。
+proxy 移动前同样将日志反转到 `RuntimeLogger`，并以不可变 `ProxyConfiguration` 隔离
+`BrowserSettings`。EasyTier 设置页因仍编排 browser/local-sharing/app runtime 而暂留 `lib/pages/`；
+remote control、browser/video 继续按下列顺序渐进处理。
 
 目标：在契约稳定后解决文件发现和跨目录双向依赖。
 
