@@ -1010,10 +1010,10 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - The YouTube/native-player parser endpoint is user-configurable via `BrowserSettings.nativeVideoParserApiBaseUrl`.
 - The active production playback surface is the floating player owned by
-  `BrowserVideoPlayerCoordinator`; browser URLs, external video intents, and download-record
-  playback converge on that path. The retired `NativeVideoPlayerPage` was unreachable and has been
-  removed. Do not reintroduce a parallel full-page player owner without an explicit lifecycle and
-  migration plan.
+  `FloatingVideoPlayerCoordinator`; `BrowserVideoPlayerCoordinator` is only the browser settings and
+  download facade. Browser URLs, external video intents, and download-record playback converge on
+  that path. The retired `NativeVideoPlayerPage` was unreachable and has been removed. Do not
+  reintroduce a parallel full-page player owner without an explicit lifecycle and migration plan.
 - Default parser endpoint: `https://parser.example.com`
 - The setting may contain either the parser service root or the full endpoint ending in `/parse`; endpoint construction must avoid producing `/parse/parse`.
 - If the parser input is empty, YouTube links must **not** trigger native-player/floating parse behavior even when the native video player switch is enabled.

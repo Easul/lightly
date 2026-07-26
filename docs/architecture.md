@@ -309,10 +309,10 @@ Lightly 没有引入全局状态管理框架，主要使用：
 2. AI、Telegram、proxy、EasyTier、remote-control 与 video 的纯策略/基础设施/UI 已归入 feature；
    `RemoteControlService` 仍是唯一 socket/session owner，但实现已迁入 remote-control
    infrastructure，页面通过 presentation/application contract 接收 owner 与跨 feature 策略。
-   video 的生产播放 surface 已统一到浮动播放器，不可达的旧全页播放器已移除；仍在
-   `lib/browser/` 的 `BrowserVideoPlayerCoordinator` 作为 browser media integration facade
-   编排设置快照、下载确认和 Overlay 生命周期，需在 browser owner 收敛时继续按 domain port
-   或 app-level coordinator 收敛。
+   video 的生产播放 surface 已统一到浮动播放器，不可达的旧全页播放器已移除；
+   `FloatingVideoPlayerCoordinator` 是唯一 Overlay/controller owner，播放准备、本地转发与
+   platform gateway 也位于 video feature。`lib/browser/` 中的
+   `BrowserVideoPlayerCoordinator` 只适配浏览器设置快照和下载确认。
 3. SharedPreferences 旧 key 已冻结为兼容合同；后续破坏性格式变化仍需逐 feature 提供
    版本化 key 和显式迁移。
 4. 页面级 owner 仍很大，但盲目按行数拆分会破坏资源所有权。
