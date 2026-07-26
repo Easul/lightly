@@ -1,4 +1,5 @@
-import '../browser_settings.dart';
+import '../../features/proxy/domain/proxy_configuration.dart';
+import '../../features/proxy/domain/proxy_protocol.dart';
 
 class ProxyReuseDecision {
   const ProxyReuseDecision({
@@ -13,7 +14,7 @@ class ProxyReuseDecision {
 class ProxyReusePolicy {
   const ProxyReusePolicy();
 
-  String buildFingerprint(BrowserSettings settings) {
+  String buildFingerprint(ProxyConfiguration settings) {
     return [
       settings.proxyProtocol,
       settings.proxyHost.trim(),
@@ -32,7 +33,7 @@ class ProxyReusePolicy {
   }
 
   ProxyReuseDecision evaluate({
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required String? activeFingerprint,
     required bool proxyCoreIsRunning,
     required bool hasResolvedWebViewTarget,

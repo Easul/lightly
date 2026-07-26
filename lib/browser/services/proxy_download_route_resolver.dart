@@ -1,10 +1,11 @@
-import '../browser_settings.dart';
+import '../../features/proxy/domain/proxy_configuration.dart';
+import '../../features/proxy/domain/proxy_protocol.dart';
 
 class ProxyDownloadRouteResolver {
   const ProxyDownloadRouteResolver();
 
   String resolve({
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required Uri uri,
     required String localProxyHost,
     required int? localProxyPort,

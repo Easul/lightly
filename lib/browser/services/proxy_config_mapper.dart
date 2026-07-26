@@ -1,10 +1,10 @@
 import '../../features/proxy/domain/proxy_core_config.dart' as proxy_config;
-import '../browser_settings.dart';
+import '../../features/proxy/domain/proxy_configuration.dart';
 
 class ProxyConfigMapper {
   const ProxyConfigMapper();
 
-  proxy_config.VlessConfig buildRustVlessConfig(BrowserSettings settings) {
+  proxy_config.VlessConfig buildRustVlessConfig(ProxyConfiguration settings) {
     return proxy_config.VlessConfig(
       uuid: settings.proxyUuid.trim(),
       serverAddr: settings.proxyHost.trim(),
@@ -24,7 +24,7 @@ class ProxyConfigMapper {
   }
 
   proxy_config.Hysteria2Config buildRustHysteria2Config(
-    BrowserSettings settings,
+    ProxyConfiguration settings,
   ) {
     return proxy_config.Hysteria2Config(
       serverAddr: settings.proxyHost.trim(),

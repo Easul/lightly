@@ -1,4 +1,5 @@
-import '../browser_settings.dart';
+import '../../features/proxy/domain/proxy_configuration.dart';
+import '../../features/proxy/domain/proxy_protocol.dart';
 
 class ProxyWebViewTarget {
   const ProxyWebViewTarget({
@@ -18,7 +19,7 @@ class ProxyWebViewTargetResolver {
   const ProxyWebViewTargetResolver();
 
   ProxyWebViewTarget? resolve({
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required String localProxyHost,
     required int? localProxyPort,
   }) {

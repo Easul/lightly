@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../../features/proxy/domain/proxy_configuration.dart';
+import '../../features/proxy/domain/proxy_protocol.dart';
 import '../../features/proxy/infrastructure/proxy_core_service.dart'
     as proxy_core;
-import '../browser_settings.dart';
 import 'proxy_config_mapper.dart';
 
 const String _releaseProxyLogLevel = String.fromEnvironment(
@@ -22,7 +23,7 @@ class ProxyRuntimeLauncher {
 
   Future<int> startProxyCore({
     required proxy_core.ProxyCoreService proxyCoreService,
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required String listenAddr,
     String logLevel = kReleaseMode ? _releaseProxyLogLevel : 'debug',
   }) {

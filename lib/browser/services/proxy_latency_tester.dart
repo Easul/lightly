@@ -1,7 +1,8 @@
+import '../../features/proxy/domain/proxy_configuration.dart';
+import '../../features/proxy/domain/proxy_protocol.dart';
 import '../../features/proxy/infrastructure/proxy_core_service.dart'
     as proxy_core;
 import '../../features/proxy/infrastructure/proxy_latency_probe.dart';
-import '../browser_settings.dart';
 import 'proxy_runtime_launcher.dart';
 
 class ProxyLatencyTestOperation {
@@ -35,7 +36,7 @@ class ProxyLatencyTester {
   final String localProxyHost;
 
   ProxyLatencyTestOperation startNodeLatencyTest({
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required proxy_core.ProxyCoreService proxyCoreService,
     required int? currentLocalProxyPort,
     Duration timeout = const Duration(seconds: 10),
@@ -56,7 +57,7 @@ class ProxyLatencyTester {
   }
 
   Future<Duration?> testNodeLatency({
-    required BrowserSettings settings,
+    required ProxyConfiguration settings,
     required proxy_core.ProxyCoreService proxyCoreService,
     required int? currentLocalProxyPort,
     Duration timeout = const Duration(seconds: 10),
