@@ -469,9 +469,7 @@ class BrowserSettings {
       return true;
     }
     for (final pattern in proxyBypassDomainList) {
-      if (host == pattern ||
-          host.endsWith('.$pattern') ||
-          host.contains(pattern)) {
+      if (host == pattern || host.endsWith('.$pattern')) {
         return true;
       }
     }

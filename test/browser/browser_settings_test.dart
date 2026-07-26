@@ -302,6 +302,27 @@ void main() {
       );
     });
 
+    test('matches bypass domains only on host boundaries', () {
+      final settings = BrowserSettings.defaults();
+
+      expect(
+        settings.shouldBypassProxyForUri(
+          Uri.parse('https://accounts.google.com/login'),
+        ),
+        isTrue,
+      );
+      expect(
+        settings.shouldBypassProxyForUri(
+          Uri.parse('https://redirect.googlevideo.com/videoplayback'),
+        ),
+        isFalse,
+      );
+      expect(
+        settings.shouldBypassProxyForUri(Uri.parse('https://notgoogle.com/')),
+        isFalse,
+      );
+    });
+
     test('bypasses proxy for hax auth and cloudflare challenge domains', () {
       final settings = BrowserSettings.defaults();
 
