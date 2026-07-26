@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../../../../services/app_log_service.dart';
+import '../../../../core/logging/runtime_logger.dart';
+import '../../domain/remote_control_runtime.dart';
 import '../../domain/screen_frame.dart';
-import '../../infrastructure/remote_control_platform_gateway.dart';
 import '../../infrastructure/screen_capture_manager.dart';
 
 class RemoteControlScreenViewer extends StatefulWidget {
@@ -15,7 +15,8 @@ class RemoteControlScreenViewer extends StatefulWidget {
   final Uint8List? Function()? latestSpsProvider;
   final Uint8List? Function()? latestPpsProvider;
   final Future<void> Function()? onViewerReady;
-  final RemoteControlPlatformGateway? platformGateway;
+  final RemoteControlScreenPlatformRuntime platformRuntime;
+  final RuntimeLogger runtimeLogger;
 
   const RemoteControlScreenViewer({
     super.key,
@@ -26,7 +27,8 @@ class RemoteControlScreenViewer extends StatefulWidget {
     this.latestSpsProvider,
     this.latestPpsProvider,
     this.onViewerReady,
-    this.platformGateway,
+    required this.platformRuntime,
+    required this.runtimeLogger,
   });
 
   @override
@@ -35,8 +37,6 @@ class RemoteControlScreenViewer extends StatefulWidget {
 }
 
 class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
-  late final RemoteControlPlatformGateway _platformGateway;
-
   late StreamSubscription<ScreenFrame> _frameSubscription;
   int? _textureId;
   bool _isInitialized = false;
@@ -56,8 +56,6 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
   @override
   void initState() {
     super.initState();
-    _platformGateway =
-        widget.platformGateway ?? RemoteControlPlatformGateway.instance;
     _frameSubscription = widget.frameStream.listen(_handleFrame);
     _initTexture();
   }
@@ -72,7 +70,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
 
   Future<void> _initTexture() async {
     try {
-      final textureId = await _platformGateway.createScreenTexture(
+      final textureId = await widget.platformRuntime.createScreenTexture(
         width: widget.remoteScreenSize.width.round(),
         height: widget.remoteScreenSize.height.round(),
       );
@@ -91,8 +89,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
         );
       }
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ScreenViewer',
+      _recordRuntimeLog(
         'Failed to create screen texture',
         error: e,
         stackTrace: stackTrace,
@@ -153,10 +150,9 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
     if (_textureId == null) return;
 
     try {
-      await _platformGateway.disposeScreenTexture(_textureId!);
+      await widget.platformRuntime.disposeScreenTexture(_textureId!);
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ScreenViewer',
+      _recordRuntimeLog(
         'Failed to dispose screen texture',
         error: e,
         stackTrace: stackTrace,
@@ -288,7 +284,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
     if (_textureId == null) return;
 
     try {
-      await _platformGateway.pushScreenFrame(
+      await widget.platformRuntime.pushScreenFrame(
         textureId: _textureId!,
         data: frame.data,
         type: frame.type.index,
@@ -304,8 +300,7 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
         );
       } else {
         _hasLoggedFramePushFailure = true;
-        recordRuntimeLog(
-          'ScreenViewer',
+        _recordRuntimeLog(
           'Failed to push screen frame',
           error: e,
           stackTrace: stackTrace,
@@ -316,6 +311,30 @@ class _RemoteControlScreenViewerState extends State<RemoteControlScreenViewer> {
         );
       }
     }
+  }
+
+  void _recordRuntimeLog(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) {
+    developer.log(
+      message,
+      name: 'ScreenViewer',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    unawaited(
+      widget.runtimeLogger
+          .log(
+            '[ScreenViewer] $message',
+            error: error,
+            stackTrace: stackTrace,
+            metadata: metadata,
+          )
+          .catchError((_) {}),
+    );
   }
 
   @override

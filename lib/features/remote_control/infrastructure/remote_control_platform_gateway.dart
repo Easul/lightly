@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import '../domain/remote_control_runtime.dart';
 
 class RemoteControlPlatformGateway
-    implements RemoteControlPlatformRuntime, RemoteControlPermissionRuntime {
+    implements
+        RemoteControlPlatformRuntime,
+        RemoteControlPresentationPlatformRuntime {
   RemoteControlPlatformGateway({
     MethodChannel channel = const MethodChannel(channelName),
   }) : _channel = channel;
@@ -49,6 +51,7 @@ class RemoteControlPlatformGateway
     });
   }
 
+  @override
   Future<bool?> showDisconnectOverlay(String message) {
     return _channel.invokeMethod<bool>(
       'showDisconnectOverlay',
@@ -99,6 +102,7 @@ class RemoteControlPlatformGateway
     });
   }
 
+  @override
   Future<int?> createScreenTexture({required int width, required int height}) {
     return _channel.invokeMethod<int>('createScreenTexture', <String, Object?>{
       'width': width,
@@ -106,6 +110,7 @@ class RemoteControlPlatformGateway
     });
   }
 
+  @override
   Future<void> disposeScreenTexture(int textureId) {
     return _channel.invokeMethod<void>(
       'disposeScreenTexture',
@@ -113,6 +118,7 @@ class RemoteControlPlatformGateway
     );
   }
 
+  @override
   Future<void> pushScreenFrame({
     required int textureId,
     required Uint8List data,

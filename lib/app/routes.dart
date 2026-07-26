@@ -46,7 +46,7 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
     '/remote-control': (context) => RemoteControlPage(
       service: RemoteControlService(),
       runtimeCoordinator: RemoteControlPageCoordinator(),
-      permissionRuntime: RemoteControlPlatformGateway.instance,
+      platformRuntime: RemoteControlPlatformGateway.instance,
       runtimeLogger: AppLogService.instance,
       showMessage: AppToast.show,
       navigatorKey: AppToast.navigatorKey,

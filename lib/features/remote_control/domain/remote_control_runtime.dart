@@ -115,3 +115,26 @@ abstract class RemoteControlPermissionRuntime {
 
   Future<void> openAccessibilitySettings();
 }
+
+abstract class RemoteControlOverlayRuntime {
+  Future<bool?> showDisconnectOverlay(String message);
+}
+
+abstract class RemoteControlScreenPlatformRuntime {
+  Future<int?> createScreenTexture({required int width, required int height});
+
+  Future<void> disposeScreenTexture(int textureId);
+
+  Future<void> pushScreenFrame({
+    required int textureId,
+    required Uint8List data,
+    required int type,
+    required int timestamp,
+  });
+}
+
+abstract class RemoteControlPresentationPlatformRuntime
+    implements
+        RemoteControlPermissionRuntime,
+        RemoteControlOverlayRuntime,
+        RemoteControlScreenPlatformRuntime {}

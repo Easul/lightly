@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/logging/runtime_logger.dart';
 import '../../../../theme/app_theme.dart';
 import '../../domain/remote_control_protocol.dart' as protocol;
+import '../../domain/remote_control_runtime.dart';
 import '../../domain/screen_frame.dart';
 import 'remote_control_gesture_overlay.dart';
 import 'remote_control_screen_viewer.dart';
@@ -97,6 +99,8 @@ class RemoteSessionViewport extends StatelessWidget {
     required this.onGesture,
     required this.onAnnotationCircle,
     required this.onInteraction,
+    required this.platformRuntime,
+    required this.runtimeLogger,
   });
 
   final Stream<ScreenFrame> frameStream;
@@ -113,6 +117,8 @@ class RemoteSessionViewport extends StatelessWidget {
   final ValueChanged<protocol.GestureCommand> onGesture;
   final RemoteAnnotationCircleCallback onAnnotationCircle;
   final VoidCallback onInteraction;
+  final RemoteControlScreenPlatformRuntime platformRuntime;
+  final RuntimeLogger runtimeLogger;
 
   @override
   Widget build(BuildContext context) {
@@ -143,6 +149,8 @@ class RemoteSessionViewport extends StatelessWidget {
                 initialPps: initialPps,
                 latestSpsProvider: latestSpsProvider,
                 latestPpsProvider: latestPpsProvider,
+                platformRuntime: platformRuntime,
+                runtimeLogger: runtimeLogger,
               ),
               RemoteControlGestureOverlay(
                 displayScreenSize: remoteCaptureSize,

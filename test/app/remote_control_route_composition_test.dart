@@ -30,10 +30,7 @@ void main() {
     expect(page, isNotNull);
     expect(page!.service, same(RemoteControlService()));
     expect(page!.runtimeCoordinator, isA<RemoteControlPageCoordinator>());
-    expect(
-      page!.permissionRuntime,
-      same(RemoteControlPlatformGateway.instance),
-    );
+    expect(page!.platformRuntime, same(RemoteControlPlatformGateway.instance));
     expect(page!.runtimeLogger, same(AppLogService.instance));
     expect(page!.navigatorKey, same(AppToast.navigatorKey));
   });

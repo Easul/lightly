@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/logging/runtime_logger.dart';
 import '../../domain/remote_control_protocol.dart' as protocol;
 import '../../domain/remote_control_protocol.dart' show GlobalAction;
 import '../../domain/remote_control_runtime.dart';
@@ -14,6 +15,8 @@ class RemoteControlSessionPage extends StatefulWidget {
   final Future<void> Function() shutdownAll;
   final Future<void> Function(String message) showMessage;
   final GlobalKey<NavigatorState> navigatorKey;
+  final RemoteControlPresentationPlatformRuntime platformRuntime;
+  final RuntimeLogger runtimeLogger;
 
   const RemoteControlSessionPage({
     super.key,
@@ -22,6 +25,8 @@ class RemoteControlSessionPage extends StatefulWidget {
     required this.shutdownAll,
     required this.showMessage,
     required this.navigatorKey,
+    required this.platformRuntime,
+    required this.runtimeLogger,
   });
 
   @override
@@ -100,6 +105,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
     _disconnectDialogVisible = true;
     await showRemoteDisconnectDialog(
       context: context,
+      navigatorKey: widget.navigatorKey,
+      overlayRuntime: widget.platformRuntime,
       message: state == RemoteControlState.error
           ? '与 ${widget.remoteHost} 的连接异常中断，请检查网络或对端状态。'
           : '对方已断开远程连接。',
@@ -341,6 +348,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                     shutdownAll: widget.shutdownAll,
                     showMessage: widget.showMessage,
                     navigatorKey: widget.navigatorKey,
+                    platformRuntime: widget.platformRuntime,
+                    runtimeLogger: widget.runtimeLogger,
                   ),
                 ),
               );
@@ -505,6 +514,8 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
               onGesture: _handleGesture,
               onAnnotationCircle: _handleAnnotationCircle,
               onInteraction: _handleRemoteSurfaceInteraction,
+              platformRuntime: widget.platformRuntime,
+              runtimeLogger: widget.runtimeLogger,
             ),
             if (_isControlsVisible || _isActionPopupVisible)
               Positioned(

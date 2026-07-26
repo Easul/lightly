@@ -20,7 +20,7 @@ class RemoteControlPage extends StatefulWidget {
     super.key,
     required this.service,
     required this.runtimeCoordinator,
-    required this.permissionRuntime,
+    required this.platformRuntime,
     required this.runtimeLogger,
     required this.showMessage,
     required this.navigatorKey,
@@ -28,7 +28,7 @@ class RemoteControlPage extends StatefulWidget {
 
   final RemoteControlPresentationRuntime service;
   final RemoteControlPageRuntime runtimeCoordinator;
-  final RemoteControlPermissionRuntime permissionRuntime;
+  final RemoteControlPresentationPlatformRuntime platformRuntime;
   final RuntimeLogger runtimeLogger;
   final Future<void> Function(String message) showMessage;
   final GlobalKey<NavigatorState> navigatorKey;
@@ -251,6 +251,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
     _disconnectDialogVisible = true;
     await showRemoteDisconnectDialog(
       context: context,
+      navigatorKey: widget.navigatorKey,
+      overlayRuntime: widget.platformRuntime,
       message: state == RemoteControlState.error
           ? '对方连接异常中断，请检查网络或对端状态。'
           : '对方已断开远程连接。',
@@ -384,6 +386,8 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
               shutdownAll: _runtimeCoordinator.shutdownAll,
               showMessage: widget.showMessage,
               navigatorKey: widget.navigatorKey,
+              platformRuntime: widget.platformRuntime,
+              runtimeLogger: widget.runtimeLogger,
             ),
           ),
         );
