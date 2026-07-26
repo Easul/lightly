@@ -2004,6 +2004,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
             url: url,
             settings: _settings,
             onStatus: _showSnackBar,
+            referrerUrl: _currentUrl,
           );
         },
         onOpenOriginalVideo: (url) async {
@@ -2219,6 +2220,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       request: request,
       settings: _settings,
       onStatus: _showSnackBar,
+      referrerUrl: _currentUrl,
     );
   }
 

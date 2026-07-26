@@ -9,6 +9,7 @@ import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
 import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../../widgets/shared_download_access_dialog.dart';
+import 'browser_download_request_context_resolver.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
 
@@ -17,13 +18,17 @@ class BrowserDownloadCoordinator {
     required BrowserDownloadService downloadService,
     required BrowserDownloadStore downloadStore,
     required ProxyService proxyService,
+    BrowserDownloadRequestContextResolver? requestContextResolver,
   }) : _downloadService = downloadService,
        _downloadStore = downloadStore,
-       _proxyService = proxyService;
+       _proxyService = proxyService,
+       _requestContextResolver =
+           requestContextResolver ?? BrowserDownloadRequestContextResolver();
 
   final BrowserDownloadService _downloadService;
   final BrowserDownloadStore _downloadStore;
   final ProxyService _proxyService;
+  final BrowserDownloadRequestContextResolver _requestContextResolver;
 
   static String? normalizeFloatingDownloadTitle(String rawTitle) {
     final trimmedTitle = rawTitle.trim();
@@ -66,6 +71,8 @@ class BrowserDownloadCoordinator {
     OverlayEntry? dialogAnchorOverlay,
     String? displayUrl,
     String? suggestedFileName,
+    String? referrerUrl,
+    String? userAgent,
   }) async {
     final actualDisplayUrl = displayUrl ?? redactDownloadUrl(url);
     final fileName =
@@ -116,6 +123,11 @@ class BrowserDownloadCoordinator {
     final record = await _downloadStore.insert(
       preparedRecord.copyWith(url: actualDisplayUrl),
     );
+    final requestHeaders = await _requestContextResolver.resolve(
+      url: WebUri(url),
+      userAgent: userAgent,
+      referrerUrl: referrerUrl,
+    );
     onStatus('开始下载：$confirmedFileName');
     unawaited(
       _downloadService.startDownload(
@@ -126,6 +138,7 @@ class BrowserDownloadCoordinator {
         settings: settings,
         downloadStore: _downloadStore,
         onStatus: onStatus,
+        requestHeaders: requestHeaders,
       ),
     );
   }
@@ -135,6 +148,7 @@ class BrowserDownloadCoordinator {
     required DownloadStartRequest request,
     required BrowserSettings settings,
     required void Function(String) onStatus,
+    String? referrerUrl,
   }) async {
     final downloadUrl = request.url.toString().trim();
     if (downloadUrl.isEmpty) {
@@ -191,6 +205,11 @@ class BrowserDownloadCoordinator {
     }
 
     final record = await _downloadStore.insert(persistedRecord);
+    final requestHeaders = await _requestContextResolver.resolve(
+      url: request.url,
+      userAgent: request.userAgent,
+      referrerUrl: referrerUrl,
+    );
     onStatus('开始下载：$confirmedFileName');
     unawaited(
       _downloadService.startDownload(
@@ -201,6 +220,7 @@ class BrowserDownloadCoordinator {
         settings: settings,
         downloadStore: _downloadStore,
         onStatus: onStatus,
+        requestHeaders: requestHeaders,
       ),
     );
   }

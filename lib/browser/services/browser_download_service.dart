@@ -23,6 +23,12 @@ class _DownloadCancelledException implements Exception {
   const _DownloadCancelledException();
 }
 
+class _DownloadRejectedException implements Exception {
+  const _DownloadRejectedException(this.message);
+
+  final String message;
+}
+
 class _ActiveDownloadSession {
   _ActiveDownloadSession({required this.client});
 
@@ -228,6 +234,7 @@ class BrowserDownloadService {
     required BrowserSettings settings,
     required BrowserDownloadStore downloadStore,
     required void Function(String) onStatus,
+    Map<String, String> requestHeaders = const <String, String>{},
   }) async {
     final client = HttpClient();
     client.findProxy = (uri) =>
@@ -260,6 +267,13 @@ class BrowserDownloadService {
       }
 
       final httpRequest = await client.getUrl(Uri.parse(url));
+      for (final header in requestHeaders.entries) {
+        final value = header.value.trim();
+        if (value.isNotEmpty &&
+            header.key.toLowerCase() != HttpHeaders.rangeHeader) {
+          httpRequest.headers.set(header.key, value);
+        }
+      }
       if (resumedFromBytes > 0) {
         httpRequest.headers.set(
           HttpHeaders.rangeHeader,
@@ -273,6 +287,13 @@ class BrowserDownloadService {
           'Download failed with status ${response.statusCode}',
           uri: Uri.parse(url),
         );
+      }
+
+      if (isUnexpectedHtmlResponse(
+        fileName: record.fileName,
+        mimeType: response.headers.contentType?.mimeType,
+      )) {
+        throw const _DownloadRejectedException('下载失败：服务器返回的是网页，链接可能已失效或需要重新登录');
       }
 
       var writeMode = FileMode.write;
@@ -339,6 +360,10 @@ class BrowserDownloadService {
       onStatus('下载完成：${record.fileName}');
     } on _DownloadCancelledException {
       return;
+    } on _DownloadRejectedException catch (error) {
+      currentRecord = currentRecord.copyWith(status: 'failed');
+      await downloadStore.update(currentRecord);
+      onStatus(error.message);
     } catch (_) {
       currentRecord = currentRecord.copyWith(status: 'failed');
       await downloadStore.update(currentRecord);
@@ -348,6 +373,23 @@ class BrowserDownloadService {
       session.complete();
       client.close(force: true);
     }
+  }
+
+  static bool isUnexpectedHtmlResponse({
+    required String fileName,
+    required String? mimeType,
+  }) {
+    final normalizedMimeType = mimeType?.trim().toLowerCase();
+    if (normalizedMimeType != ContentType.html.mimeType &&
+        normalizedMimeType != 'application/xhtml+xml') {
+      return false;
+    }
+
+    final extension = p.extension(fileName).toLowerCase();
+    return extension != '.html' &&
+        extension != '.htm' &&
+        extension != '.xhtml' &&
+        extension != '.shtml';
   }
 
   Future<String?> getSystemDownloadPath() async {
