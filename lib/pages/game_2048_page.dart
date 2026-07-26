@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../game_2048/game_2048_engine.dart';
-import '../game_2048/game_2048_widgets.dart';
+import '../features/game_2048/game_2048_engine.dart';
+import '../features/game_2048/game_2048_widgets.dart';
 
 class Game2048Page extends StatefulWidget {
   const Game2048Page({super.key});

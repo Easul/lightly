@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/game_2048/game_2048_engine.dart';
+import 'package:lightly/features/game_2048/game_2048_engine.dart';
 
 void main() {
   group('Game2048Engine', () {
