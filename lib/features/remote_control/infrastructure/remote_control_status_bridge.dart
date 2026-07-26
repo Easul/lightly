@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../features/remote_control/domain/remote_control_config.dart';
-import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import '../features/remote_control/domain/remote_control_protocol.dart';
+import '../domain/remote_control_config.dart';
+import '../domain/remote_control_protocol.dart';
+import 'remote_control_platform_gateway.dart';
 
 class RemoteControlStatusBridge {
   const RemoteControlStatusBridge();

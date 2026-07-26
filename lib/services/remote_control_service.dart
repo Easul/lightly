@@ -15,14 +15,14 @@ import '../features/remote_control/application/remote_control_screen_frame_sende
 import '../features/remote_control/application/remote_control_screen_health_coordinator.dart';
 import '../features/remote_control/application/remote_control_voice_coordinator.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
-import 'remote_control_connection_helper.dart';
+import '../features/remote_control/infrastructure/remote_control_connection_helper.dart';
+import '../features/remote_control/infrastructure/remote_control_status_bridge.dart';
 import 'remote_control_lifecycle_helper.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart';
 import '../features/remote_control/domain/remote_control_runtime.dart';
 import '../features/remote_control/domain/screen_frame.dart';
 import '../features/remote_control/infrastructure/screen_capture_manager.dart';
 import '../features/remote_control/infrastructure/webrtc_voice_service.dart';
-import 'remote_control_status_bridge.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
 
