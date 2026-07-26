@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
 
-import '../features/remote_control/application/remote_control_diagnostics.dart';
+import '../application/remote_control_diagnostics.dart';
 
 /// 网络延迟统计点
 class LatencyPoint {
