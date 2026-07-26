@@ -12,8 +12,6 @@ import '../browser/models/browser_tab_session.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_download_coordinator.dart';
 import '../browser/services/browser_cookie_origin_service.dart';
-import '../browser/services/browser_external_app_handler.dart';
-import '../browser/services/browser_external_url_launcher_service.dart';
 import '../browser/services/browser_favorite_status_controller.dart';
 import '../browser/services/browser_favorite_service.dart';
 import '../browser/services/browser_favorite_status_tracker.dart';
@@ -23,10 +21,9 @@ import '../browser/services/browser_force_refresh_coordinator.dart';
 import '../browser/services/browser_history_recorder.dart';
 import '../browser/services/browser_imported_document_service.dart';
 import '../browser/services/browser_long_press_handler.dart';
-import '../browser/services/browser_navigation_controller.dart';
+import '../browser/services/browser_page_navigation_facade.dart';
 import '../browser/services/browser_page_initializer.dart';
 import '../browser/services/browser_popup_window_handler.dart';
-import '../browser/services/browser_popup_raw_url_resolver.dart';
 import '../browser/services/browser_auth_dialog_service.dart';
 import '../browser/services/browser_shared_services.dart';
 import '../browser/services/browser_suggestion_service.dart';
@@ -110,10 +107,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       const BrowserWebViewScriptService();
   final BrowserWebViewStateReader _webViewStateReader =
       const BrowserWebViewStateReader();
-  final BrowserNavigationController _navigationController =
-      const BrowserNavigationController();
-  final BrowserPopupRawUrlResolver _popupRawUrlResolver =
-      BrowserPopupRawUrlResolver();
   final BrowserPageRouteHandler _routeHandler = const BrowserPageRouteHandler();
   final BrowserSiteDataManager _siteDataManager =
       const BrowserSiteDataManager();
@@ -146,12 +139,10 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   ProxyService get _proxyService => _services.proxyService;
   BrowserImportedDocumentService get _importedDocumentService =>
       _services.importedDocumentService;
-  BrowserExternalUrlLauncherService get _externalUrlLauncher =>
-      _services.externalUrlLauncher;
   BrowserDownloadCoordinator get _downloadCoordinator =>
       _services.downloadCoordinator;
-  BrowserExternalAppHandler get _externalAppHandler =>
-      _services.externalAppHandler;
+  BrowserPageNavigationFacade get _navigationFacade =>
+      _services.navigationFacade;
   BrowserFavoriteStatusTracker get _favoriteStatusTracker =>
       _services.favoriteStatusTracker;
   BrowserFullscreenManager get _fullscreenManager =>
@@ -160,8 +151,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   BrowserCookieOriginService get _cookieOriginService =>
       _services.cookieOriginService;
   BrowserLongPressHandler get _longPressHandler => _services.longPressHandler;
-  BrowserPopupWindowHandler get _popupWindowHandler =>
-      _services.popupWindowHandler;
   BrowserTabCoordinator get _tabCoordinator => _services.tabCoordinator;
   BrowserVideoDetectionCoordinator get _videoDetectionCoordinator =>
       _services.videoDetectionCoordinator;
@@ -575,7 +564,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         keepAlive: activeTab?.keepAlive,
         isLoading: _isLoading,
         progressListenable: _progressNotifier,
-        onRawPopupUrlCaptured: _popupRawUrlResolver.recordCapturedUrl,
+        onRawPopupUrlCaptured: _navigationFacade.recordCapturedPopupUrl,
         onWebViewCreated: (controller) {
           if (!_isActiveTabId(hostedTabId)) {
             return;
@@ -1587,20 +1576,17 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     CreateWindowAction createWindowAction,
   ) async {
     final fallbackUrl = createWindowAction.request.url?.rawValue ?? '';
-    final requestedUrl = await _popupRawUrlResolver.resolve(
+    final decision = await _navigationFacade.resolvePopupWindow(
       fallbackUrl: fallbackUrl,
-      evaluateJavascript: (source) => controller.evaluateJavascript(
-        source: source,
-        contentWorld: ContentWorld.PAGE,
-      ),
-    );
-    final decision = _popupWindowHandler.decide(
-      requestedUrl: requestedUrl,
       sourceUrl:
           createWindowAction.sourceFrame?.request?.url?.toString() ??
           _currentUrl,
       hasGesture: createWindowAction.hasGesture == true,
       openNewWindowInTab: _settings.openNewWindowInTab,
+      evaluateJavascript: (source) => controller.evaluateJavascript(
+        source: source,
+        contentWorld: ContentWorld.PAGE,
+      ),
     );
 
     switch (decision.action) {
@@ -1626,7 +1612,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
         return true;
       case BrowserPopupWindowAction.showPopup:
         await _runTrackedOverlayAction(() async {
-          await _popupWindowHandler.showPopupWindow(
+          await _navigationFacade.showPopupWindow(
             context: context,
             windowId: createWindowAction.windowId,
             initialUrl: decision.initialUrl,
@@ -1650,11 +1636,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    final statusMessage = await _externalAppHandler.handleBlockedByResponse(
+    final statusMessage = await _navigationFacade.handleBlockedByResponse(
       context,
       requestedUrl,
-      shouldSuppressPopupUrl: _shouldSuppressPopupUrl,
-      launchExternalUrl: _externalUrlLauncher.launch,
     );
     _setStatusMessage(
       _statusCoordinator.nextExternalStatus(
@@ -1668,10 +1652,9 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    final statusMessage = await _externalAppHandler.confirmAndLaunchExternalUrl(
+    final statusMessage = await _navigationFacade.confirmAndLaunchExternalUrl(
       context,
       requestedUrl,
-      launchExternalUrl: _externalUrlLauncher.launch,
     );
     _setStatusMessage(
       _statusCoordinator.nextExternalStatus(
@@ -1685,7 +1668,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     Uri? requestedUrl,
   ) async {
-    await _navigationController.handleVisitedHistoryUpdate(
+    await _navigationFacade.handleVisitedHistoryUpdate(
       requestedUrl: requestedUrl,
       shouldHandle:
           requestedUrl != null &&
@@ -1980,10 +1963,6 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     return BrowserPopupFilter.isWebScheme(scheme);
   }
 
-  bool _shouldSuppressPopupUrl(String? url) {
-    return BrowserPopupFilter.shouldSuppressPopupUrl(url);
-  }
-
   Future<void> _handleLongPressHitTestResult(
     InAppWebViewController controller,
     InAppWebViewHitTestResult result,
@@ -2044,9 +2023,8 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     InAppWebViewController controller,
     NavigationAction navigationAction,
   ) async {
-    return _navigationController.handleNavigationRequest(
+    return _navigationFacade.handleNavigationRequest(
       requestedUrl: navigationAction.request.url,
-      isExternalDialogShowing: _externalAppHandler.isShowingExternalAppDialog,
       syncUrl: _syncUrlIfNeeded,
       confirmExternalUrl: _confirmAndLaunchExternalUrl,
     );

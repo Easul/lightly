@@ -8,8 +8,6 @@ import 'browser_download_coordinator.dart';
 import 'browser_cookie_origin_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
-import 'browser_external_app_handler.dart';
-import 'browser_external_url_launcher_service.dart';
 import 'browser_favorite_service.dart';
 import 'browser_favorites_coordinator.dart';
 import 'browser_favorite_status_tracker.dart';
@@ -18,7 +16,7 @@ import 'browser_history_recorder.dart';
 import 'browser_history_service.dart';
 import 'browser_imported_document_service.dart';
 import 'browser_long_press_handler.dart';
-import 'browser_popup_window_handler.dart';
+import 'browser_page_navigation_facade.dart';
 import 'browser_runtime_coordinator.dart';
 import 'browser_shared_services.dart';
 import 'browser_suggestion_service.dart';
@@ -42,17 +40,15 @@ class BrowserPageServices {
     required this.cookieOriginService,
     required this.downloadService,
     required this.downloadStore,
-    required this.externalUrlLauncher,
     required this.favoriteService,
     required this.importedDocumentService,
     required this.videoProxyServer,
     required this.downloadCoordinator,
-    required this.externalAppHandler,
+    required this.navigationFacade,
     required this.favoriteStatusTracker,
     required this.fullscreenManager,
     required this.historyRecorder,
     required this.longPressHandler,
-    required this.popupWindowHandler,
     required this.tabCoordinator,
     required this.videoDetectionCoordinator,
     required this.videoPlaybackPreparationService,
@@ -95,8 +91,9 @@ class BrowserPageServices {
       historyService: historyService,
     );
     final longPressHandler = BrowserLongPressHandler();
-    final popupWindowHandler = BrowserPopupWindowHandler();
-    final externalAppHandler = BrowserExternalAppHandler();
+    final navigationFacade = BrowserPageNavigationFacade(
+      externalUrlLauncher: externalUrlLauncher,
+    );
     final downloadCoordinator = BrowserDownloadCoordinator(
       downloadService: downloadService,
       downloadStore: downloadStore,
@@ -148,17 +145,15 @@ class BrowserPageServices {
       cookieOriginService: cookieOriginService,
       downloadService: downloadService,
       downloadStore: downloadStore,
-      externalUrlLauncher: externalUrlLauncher,
       favoriteService: favoriteService,
       importedDocumentService: importedDocumentService,
       videoProxyServer: videoProxyServer,
       downloadCoordinator: downloadCoordinator,
-      externalAppHandler: externalAppHandler,
+      navigationFacade: navigationFacade,
       favoriteStatusTracker: favoriteStatusTracker,
       fullscreenManager: fullscreenManager,
       historyRecorder: historyRecorder,
       longPressHandler: longPressHandler,
-      popupWindowHandler: popupWindowHandler,
       tabCoordinator: tabCoordinator,
       videoDetectionCoordinator: videoDetectionCoordinator,
       videoPlaybackPreparationService: videoPlaybackPreparationService,
@@ -177,17 +172,15 @@ class BrowserPageServices {
   final BrowserCookieOriginService cookieOriginService;
   final BrowserDownloadService downloadService;
   final BrowserDownloadStore downloadStore;
-  final BrowserExternalUrlLauncherService externalUrlLauncher;
   final BrowserFavoriteService favoriteService;
   final BrowserImportedDocumentService importedDocumentService;
   final VideoProxyServer videoProxyServer;
   final BrowserDownloadCoordinator downloadCoordinator;
-  final BrowserExternalAppHandler externalAppHandler;
+  final BrowserPageNavigationFacade navigationFacade;
   final BrowserFavoriteStatusTracker favoriteStatusTracker;
   final BrowserFullscreenManager fullscreenManager;
   final BrowserHistoryRecorder historyRecorder;
   final BrowserLongPressHandler longPressHandler;
-  final BrowserPopupWindowHandler popupWindowHandler;
   final BrowserTabCoordinator tabCoordinator;
   final BrowserVideoDetectionCoordinator videoDetectionCoordinator;
   final BrowserVideoPlaybackPreparationService videoPlaybackPreparationService;
