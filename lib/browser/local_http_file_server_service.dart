@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../core/logging/runtime_logger.dart';
 import '../core/network/local_network_address_resolver.dart';
-import '../services/app_log_service.dart';
-import 'browser_settings.dart';
+import '../features/local_sharing/local_http/local_http_server_config.dart';
 import 'local_http_directory_handler.dart';
 import 'local_http_file_handler.dart';
 import 'local_http_upload_handler.dart';
@@ -17,7 +18,12 @@ class LocalHttpFileServerService {
   static final LocalHttpFileServerService _instance =
       LocalHttpFileServerService._();
 
-  factory LocalHttpFileServerService() => _instance;
+  factory LocalHttpFileServerService({RuntimeLogger? runtimeLogger}) {
+    if (runtimeLogger != null) {
+      _instance._runtimeLogger = runtimeLogger;
+    }
+    return _instance;
+  }
 
   final StreamController<LocalHttpFileServerState> _stateController =
       StreamController<LocalHttpFileServerState>.broadcast();
@@ -29,6 +35,7 @@ class LocalHttpFileServerService {
   String? _uploadKey;
   bool _bindAllInterfaces = false;
   List<String> _lanUrls = const <String>[];
+  RuntimeLogger? _runtimeLogger;
   final LocalHttpFileHandler _fileHandler = const LocalHttpFileHandler();
   final LocalHttpDirectoryHandler _directoryHandler =
       const LocalHttpDirectoryHandler();
@@ -63,7 +70,7 @@ class LocalHttpFileServerService {
 
   void _logUploadEvent(String message, {Object? error}) {
     if (error != null) {
-      recordRuntimeLog('LocalHttpFileServer', message, error: error);
+      _recordRuntimeLog(message, error: error);
       return;
     }
     if (kDebugMode) {
@@ -71,20 +78,20 @@ class LocalHttpFileServerService {
     }
   }
 
-  Future<void> applySettings(BrowserSettings settings) async {
-    if (!settings.localHttpServerEnabled) {
+  Future<void> applySettings(LocalHttpServerConfig config) async {
+    if (!config.enabled) {
       await stop();
       return;
     }
-    final validationError = settings.localHttpServerValidationError;
+    final validationError = config.validationError;
     if (validationError != null) {
       throw ArgumentError(validationError);
     }
     await startWithKey(
-      rootPath: settings.localHttpRootPath.trim(),
-      preferredPort: settings.localHttpServerPort,
-      bindAllInterfaces: settings.localHttpBindAllInterfaces,
-      uploadKey: settings.localHttpUploadKey,
+      rootPath: config.rootPath.trim(),
+      preferredPort: config.port,
+      bindAllInterfaces: config.bindAllInterfaces,
+      uploadKey: config.uploadKey,
     );
   }
 
@@ -227,8 +234,7 @@ class LocalHttpFileServerService {
           return;
       }
     } on FileSystemException catch (e) {
-      recordRuntimeLog(
-        'LocalHttpFileServer',
+      _recordRuntimeLog(
         'File system request failed',
         error: e,
         metadata: <String, Object?>{
@@ -242,8 +248,7 @@ class LocalHttpFileServerService {
         'File system error: ${e.message}',
       );
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'LocalHttpFileServer',
+      _recordRuntimeLog(
         'Request handling failed',
         error: e,
         stackTrace: stackTrace,
@@ -310,6 +315,34 @@ class LocalHttpFileServerService {
       return HttpStatus.forbidden;
     }
     return HttpStatus.notFound;
+  }
+
+  void _recordRuntimeLog(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) {
+    developer.log(
+      message,
+      name: 'LocalHttpFileServer',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    final runtimeLogger = _runtimeLogger;
+    if (runtimeLogger == null) {
+      return;
+    }
+    unawaited(
+      runtimeLogger
+          .log(
+            '[LocalHttpFileServer] $message',
+            error: error,
+            stackTrace: stackTrace,
+            metadata: metadata,
+          )
+          .catchError((_) {}),
+    );
   }
 
   void _emit(LocalHttpFileServerState state) {

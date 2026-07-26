@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../features/local_sharing/local_http/local_http_server_config.dart';
 import '../browser_settings.dart';
 import 'browser_shared_services.dart';
 
@@ -75,7 +76,16 @@ class BrowserRuntimeCoordinator implements BrowserRuntimePolicy {
       applyProxy: services.proxyService.applyProxy,
       clearProxy: services.proxyService.clearProxy,
       describeProxyError: services.proxyService.describeError,
-      applyLocalHttpSettings: services.localHttpFileServerService.applySettings,
+      applyLocalHttpSettings: (settings) =>
+          services.localHttpFileServerService.applySettings(
+            LocalHttpServerConfig(
+              enabled: settings.localHttpServerEnabled,
+              rootPath: settings.localHttpRootPath,
+              port: settings.localHttpServerPort,
+              bindAllInterfaces: settings.localHttpBindAllInterfaces,
+              uploadKey: settings.localHttpUploadKey,
+            ),
+          ),
       stopLocalHttp: services.localHttpFileServerService.stop,
       loadClipboardEnabled: services.clipboardStorage.loadServerEnabled,
       loadClipboardPort: services.clipboardStorage.loadServerPort,
