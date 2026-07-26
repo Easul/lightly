@@ -1,4 +1,4 @@
-import '../models/easytier_config.dart';
+import '../features/easytier/domain/easytier_config.dart';
 
 abstract class EasyTierRuntime {
   bool get isRunning;

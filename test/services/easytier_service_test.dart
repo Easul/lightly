@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/easytier_config.dart';
+import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/services/easytier_service.dart';
 
 void main() {

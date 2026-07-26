@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/easytier_config.dart';
-import 'package:lightly/models/easytier_network_profile.dart';
+import 'package:lightly/features/easytier/domain/easytier_config.dart';
+import 'package:lightly/features/easytier/domain/easytier_network_profile.dart';
 import 'package:lightly/services/easytier_profile_coordinator.dart';
 import 'package:lightly/services/easytier_profile_service.dart';
 

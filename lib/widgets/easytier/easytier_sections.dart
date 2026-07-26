@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/easytier_config.dart';
+import '../../features/easytier/domain/easytier_config.dart';
 
 class EasyTierStatusCard extends StatelessWidget {
   const EasyTierStatusCard({

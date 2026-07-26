@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../models/easytier_config.dart';
-import '../models/easytier_network_profile.dart';
+import '../features/easytier/domain/easytier_config.dart';
+import '../features/easytier/domain/easytier_network_profile.dart';
 import '../widgets/easytier/easytier_sections.dart';
 
 class EasyTierSettingsBody extends StatelessWidget {

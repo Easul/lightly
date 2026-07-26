@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/easytier_config.dart';
+import 'package:lightly/features/easytier/domain/easytier_config.dart';
 
 void main() {
   group('EasyTierConfig', () {

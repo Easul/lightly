@@ -1,5 +1,5 @@
-import '../models/easytier_config.dart';
-import '../models/easytier_network_profile.dart';
+import '../features/easytier/domain/easytier_config.dart';
+import '../features/easytier/domain/easytier_network_profile.dart';
 import 'easytier_profile_service.dart';
 
 class EasyTierProfilesLoadResult {

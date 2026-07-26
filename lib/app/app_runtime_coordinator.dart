@@ -3,8 +3,8 @@ import 'package:flutter/widgets.dart';
 
 import '../browser/services/browser_runtime_coordinator.dart';
 import '../core/logging/runtime_logger.dart';
-import '../models/easytier_network_profile.dart';
-import '../models/easytier_config.dart';
+import '../features/easytier/domain/easytier_config.dart';
+import '../features/easytier/domain/easytier_network_profile.dart';
 import '../services/app_log_service.dart';
 import '../services/easytier_profile_service.dart';
 import '../services/easytier_runtime.dart';

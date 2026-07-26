@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/services.dart';
-import '../models/easytier_config.dart';
+import '../features/easytier/domain/easytier_config.dart';
 import 'app_log_service.dart';
 import 'easytier_platform_gateway.dart';
 import 'easytier_runtime.dart';

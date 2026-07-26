@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/easytier_config.dart';
+import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/widgets/easytier/easytier_sections.dart';
 
 void main() {
