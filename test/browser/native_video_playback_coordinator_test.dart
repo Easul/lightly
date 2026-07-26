@@ -2,7 +2,7 @@ import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/video/application/video_playback_preparer.dart';
-import 'package:lightly/pages/native_video_playback_coordinator.dart';
+import 'package:lightly/features/video/presentation/native_video_playback_coordinator.dart';
 import 'package:video_player/video_player.dart';
 
 void main() {

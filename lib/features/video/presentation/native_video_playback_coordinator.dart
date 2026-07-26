@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../features/video/application/video_playback_preparer.dart';
-import '../features/video/domain/video_source_resolver.dart';
+import '../application/video_playback_preparer.dart';
+import '../domain/video_source_resolver.dart';
 
 class NativeVideoPlaybackResult {
   const NativeVideoPlaybackResult({
