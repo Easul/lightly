@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+
 import 'package:flutter/services.dart';
+
+import '../core/logging/runtime_logger.dart';
 import '../features/easytier/domain/easytier_config.dart';
-import 'app_log_service.dart';
 import 'easytier_platform_gateway.dart';
 import 'easytier_runtime.dart';
 
@@ -14,7 +16,12 @@ class EasyTierService implements EasyTierRuntime {
   static const int noTunSocksPort = 11080;
 
   static final EasyTierService _instance = EasyTierService._internal();
-  factory EasyTierService() => _instance;
+  factory EasyTierService({RuntimeLogger? runtimeLogger}) {
+    if (runtimeLogger != null) {
+      _instance._runtimeLogger = runtimeLogger;
+    }
+    return _instance;
+  }
   EasyTierService._internal();
 
   bool _isRunning = false;
@@ -24,6 +31,7 @@ class EasyTierService implements EasyTierRuntime {
   String? _lastRawNetworkInfo;
   bool _usesAndroidVpn = true;
   int? _activeNoTunSocksPort;
+  RuntimeLogger? _runtimeLogger;
 
   @override
   bool get isRunning => _isRunning;
@@ -44,8 +52,7 @@ class EasyTierService implements EasyTierRuntime {
       return result;
     } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Configuration parsing failed',
         error: e,
         stackTrace: stackTrace,
@@ -65,8 +72,7 @@ class EasyTierService implements EasyTierRuntime {
       );
       return hasPermission;
     } on PlatformException catch (e, stackTrace) {
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'VPN permission check failed',
         error: e,
         stackTrace: stackTrace,
@@ -136,8 +142,7 @@ class EasyTierService implements EasyTierRuntime {
       final configString = config.toToml();
       _configString = configString;
 
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Starting network instance',
         metadata: <String, Object?>{
           'instanceName': config.instanceName,
@@ -157,8 +162,7 @@ class EasyTierService implements EasyTierRuntime {
         _usesAndroidVpn = useAndroidVpn;
         _activeNoTunSocksPort = useAndroidVpn ? null : config.socks5Port;
         _lastError = null;
-        recordRuntimeLog(
-          'EasyTier',
+        _recordRuntimeLog(
           'Network instance started',
           metadata: <String, Object?>{
             'instanceName': config.instanceName,
@@ -172,8 +176,7 @@ class EasyTierService implements EasyTierRuntime {
         if (!useAndroidVpn) {
           _activeNoTunSocksPort = null;
         }
-        recordRuntimeLog(
-          'EasyTier',
+        _recordRuntimeLog(
           'Network instance start returned failure',
           error: _lastError,
           metadata: <String, Object?>{
@@ -187,8 +190,7 @@ class EasyTierService implements EasyTierRuntime {
       _isRunning = false;
       _activeNoTunSocksPort = null;
       _lastError = e.message;
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Network instance start threw an exception',
         error: e,
         stackTrace: stackTrace,
@@ -205,17 +207,16 @@ class EasyTierService implements EasyTierRuntime {
   @override
   Future<void> stopVpn() async {
     try {
-      recordRuntimeLog('EasyTier', 'Stopping network instance');
+      _recordRuntimeLog('Stopping network instance');
       await _platformGateway.stopVpn();
       _isRunning = false;
       _currentInstanceName = null;
       _usesAndroidVpn = true;
       _activeNoTunSocksPort = null;
-      recordRuntimeLog('EasyTier', 'Network instance stopped');
+      _recordRuntimeLog('Network instance stopped');
     } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Network instance stop failed',
         error: e,
         stackTrace: stackTrace,
@@ -259,8 +260,7 @@ class EasyTierService implements EasyTierRuntime {
     } on PlatformException catch (e, stackTrace) {
       _lastError = e.message;
       _lastRawNetworkInfo = null;
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Network information request failed',
         error: e,
         stackTrace: stackTrace,
@@ -268,8 +268,7 @@ class EasyTierService implements EasyTierRuntime {
       );
       return null;
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'EasyTier',
+      _recordRuntimeLog(
         'Unexpected network information error',
         error: e,
         stackTrace: stackTrace,
@@ -287,5 +286,33 @@ class EasyTierService implements EasyTierRuntime {
     } on PlatformException catch (e) {
       return e.message;
     }
+  }
+
+  void _recordRuntimeLog(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) {
+    developer.log(
+      message,
+      name: 'EasyTier',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    final runtimeLogger = _runtimeLogger;
+    if (runtimeLogger == null) {
+      return;
+    }
+    unawaited(
+      runtimeLogger
+          .log(
+            '[EasyTier] $message',
+            error: error,
+            stackTrace: stackTrace,
+            metadata: metadata,
+          )
+          .catchError((_) {}),
+    );
   }
 }

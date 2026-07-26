@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/core/logging/runtime_logger.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/services/easytier_service.dart';
 
@@ -14,6 +16,7 @@ void main() {
   });
 
   test('startNoTun starts EasyTier instance without Android VPN', () async {
+    final runtimeLogger = _FakeRuntimeLogger();
     Map<dynamic, dynamic>? arguments;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -24,16 +27,17 @@ void main() {
           return null;
         });
 
-    final success = await EasyTierService().startNoTun(
-      EasyTierConfig(
-        instanceName: 'receiver',
-        networkName: 'network',
-        portForwards: const <String>['tcp://0.0.0.0:18080/127.0.0.1:18080'],
-        portMappings: const <EasyTierPortMapping>[
-          EasyTierPortMapping(port: 18080),
-        ],
-      ),
-    );
+    final success = await EasyTierService(runtimeLogger: runtimeLogger)
+        .startNoTun(
+          EasyTierConfig(
+            instanceName: 'receiver',
+            networkName: 'network',
+            portForwards: const <String>['tcp://0.0.0.0:18080/127.0.0.1:18080'],
+            portMappings: const <EasyTierPortMapping>[
+              EasyTierPortMapping(port: 18080),
+            ],
+          ),
+        );
 
     expect(success, isTrue);
     expect(arguments?['useAndroidVpn'], isFalse);
@@ -69,6 +73,14 @@ void main() {
     expect(EasyTierService().isNoTunMode, isTrue);
     expect(EasyTierService().usesAndroidVpn, isFalse);
     expect(EasyTierService().activeNoTunSocksPort, activeSocksPort);
+    expect(
+      runtimeLogger.messages,
+      contains('[EasyTier] Starting network instance'),
+    );
+    expect(
+      runtimeLogger.messages,
+      contains('[EasyTier] Network instance started'),
+    );
   });
 
   test('startNoTun preserves custom SOCKS port', () async {
@@ -120,4 +132,27 @@ void main() {
     expect(EasyTierService().isNoTunMode, isFalse);
     expect(EasyTierService().usesAndroidVpn, isTrue);
   });
+}
+
+class _FakeRuntimeLogger implements RuntimeLogger {
+  final List<String> messages = <String>[];
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> log(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) async {
+    messages.add(message);
+  }
+
+  @override
+  Future<void> logFlutterError(FlutterErrorDetails details) async {}
+
+  @override
+  Future<void> logUnhandledError(Object error, StackTrace stackTrace) async {}
 }
