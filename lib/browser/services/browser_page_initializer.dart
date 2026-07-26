@@ -119,8 +119,10 @@ class BrowserPageServices {
           },
           ensureProxyServer: (settings) {
             return videoProxyServer.start(
-              proxyService: proxyService,
-              settings: settings,
+              proxyResolver: (uri) => proxyService.findProxyForDownload(
+                settings.proxyConfiguration,
+                uri,
+              ),
             );
           },
           buildProxyPlaybackUrl: videoProxyServer.buildProxyUrl,

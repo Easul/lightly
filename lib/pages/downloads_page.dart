@@ -69,8 +69,10 @@ class _DownloadsPageState extends State<DownloadsPage> {
       },
       ensureProxyServer: (settings) {
         return _videoProxyServer.start(
-          proxyService: _proxyService,
-          settings: settings,
+          proxyResolver: (uri) => _proxyService.findProxyForDownload(
+            settings.proxyConfiguration,
+            uri,
+          ),
         );
       },
       buildProxyPlaybackUrl: _videoProxyServer.buildProxyUrl,

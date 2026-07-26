@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../browser_settings.dart';
-import '../../features/proxy/infrastructure/proxy_service.dart';
-
 /// A minimal local HTTP proxy-forwarding server for video streams.
 ///
 /// VideoPlayerController connects to this local server (e.g. http://127.0.0.1:port/proxy?url=...)
@@ -20,8 +17,7 @@ class VideoProxyServer {
 
   /// Starts the local forwarding server on an available port.
   Future<void> start({
-    required ProxyService proxyService,
-    required BrowserSettings settings,
+    required String Function(Uri uri) proxyResolver,
     int preferredPort = 0,
   }) async {
     if (_server != null) {
@@ -37,7 +33,7 @@ class VideoProxyServer {
 
     server.listen((request) async {
       try {
-        await _handleRequest(request, proxyService, settings);
+        await _handleRequest(request, proxyResolver);
       } catch (e) {
         request.response
           ..statusCode = HttpStatus.internalServerError
@@ -65,8 +61,7 @@ class VideoProxyServer {
 
   Future<void> _handleRequest(
     HttpRequest request,
-    ProxyService proxyService,
-    BrowserSettings settings,
+    String Function(Uri uri) proxyResolver,
   ) async {
     if (request.uri.path != '/proxy') {
       request.response
@@ -88,8 +83,7 @@ class VideoProxyServer {
     final targetUri = Uri.parse(targetUrl);
 
     final client = HttpClient();
-    client.findProxy = (uri) =>
-        proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
+    client.findProxy = proxyResolver;
 
     try {
       final proxyRequest = await client.openUrl(request.method, targetUri);
