@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../../features/video/domain/floating_video_system_ui_runtime.dart';
+import '../../domain/floating_video_system_ui_runtime.dart';
 import 'floating_video_player_widget.dart';
 
 /// 悬浮视频播放器模式
