@@ -518,7 +518,7 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 Recommended verification after touching WebRTC voice:
 
 ```bash
-flutter analyze lib/services/webrtc_voice_service.dart lib/services/remote_control_voice_coordinator.dart lib/services/remote_control_service.dart
+flutter analyze lib/features/remote_control/infrastructure/webrtc_voice_service.dart lib/features/remote_control/application/remote_control_voice_coordinator.dart lib/services/remote_control_service.dart
 flutter test test/services/webrtc_candidate_filter_test.dart test/services/remote_control_voice_coordinator_test.dart test/services/
 ```
 

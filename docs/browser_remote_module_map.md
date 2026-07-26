@@ -156,13 +156,13 @@ Only consider these after their current behavior is stable and covered by tests/
 
 ### Voice / WebRTC
 
-- `lib/services/remote_control_voice_coordinator.dart`
+- `lib/features/remote_control/application/remote_control_voice_coordinator.dart`
   - Remote voice session orchestration and microphone status flow.
-- `lib/services/webrtc_voice_service.dart`
+- `lib/features/remote_control/infrastructure/webrtc_voice_service.dart`
   - PeerConnection, audio routing, local/remote tracks, EasyTier-aware candidates and stats.
 - `lib/features/remote_control/domain/webrtc_candidate_filter.dart`
   - Candidate classification and overlay host rewrite.
-- `lib/services/webrtc_stats_summary.dart`
+- `lib/features/remote_control/infrastructure/webrtc_stats_summary.dart`
   - Stats formatting.
 
 `webrtc_voice_service.dart` is still medium-large, but it was recently fixed for EasyTier voice and receiver-side gain. Avoid splitting it until LAN/EasyTier two-way voice has stayed stable for at least one testing cycle.

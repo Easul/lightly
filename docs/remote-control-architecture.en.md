@@ -52,11 +52,12 @@ flowchart LR
 | `RemoteControlPlatformGateway` | Typed Dart/Kotlin contract | Page state |
 | Kotlin capture/decode/accessibility | MediaProjection, MediaCodec, input/system actions | Dart session policy |
 
-Dart domain contracts, connection/screen application policies, `ScreenCaptureManager`, and the
-typed gateway now live under `lib/features/remote_control/`. `ScreenFrame` only wraps the original
-`Uint8List`, while the screen sender, pipeline, and watchdog do not own long-lived sockets.
-`RemoteControlService` remains in `lib/services/` as the single owner of control/screen sockets and
-session state until its cross-feature dependencies are ported.
+Dart domain contracts, connection/screen/voice application policies, `ScreenCaptureManager`,
+WebRTC infrastructure, and the typed gateway now live under `lib/features/remote_control/`.
+`ScreenFrame` only wraps the original `Uint8List`, while the screen sender, pipeline, and watchdog
+do not own long-lived sockets. `WebRtcVoiceService` owns its PeerConnection, tracks, and timers, but
+`RemoteControlService` still creates and closes it. `RemoteControlService` remains the single owner
+of control/screen sockets and session state until its cross-feature dependencies are ported.
 
 ## Transport and Ports
 
