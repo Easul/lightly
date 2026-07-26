@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/proxy_service.dart';
+import 'package:lightly/features/proxy/domain/proxy_core_config.dart'
+    as proxy_config;
 import 'package:lightly/features/proxy/infrastructure/proxy_core_service.dart'
     as proxy_core;
 
@@ -323,8 +325,8 @@ void main() {
 }
 
 class _FakeProxyCoreService extends proxy_core.ProxyCoreService {
-  proxy_core.VlessConfig? lastConfig;
-  proxy_core.Hysteria2Config? lastHysteria2Config;
+  proxy_config.VlessConfig? lastConfig;
+  proxy_config.Hysteria2Config? lastHysteria2Config;
   String? lastListenAddr;
   bool _running = false;
   int startCount = 0;
@@ -344,8 +346,8 @@ class _FakeProxyCoreService extends proxy_core.ProxyCoreService {
   @override
   Future<int> start({
     String listenAddr = '127.0.0.1:23333',
-    proxy_core.VlessConfig? vlessConfig,
-    proxy_core.Hysteria2Config? hysteria2Config,
+    proxy_config.VlessConfig? vlessConfig,
+    proxy_config.Hysteria2Config? hysteria2Config,
   }) async {
     lastConfig = vlessConfig;
     lastHysteria2Config = hysteria2Config;
@@ -359,7 +361,7 @@ class _FakeProxyCoreService extends proxy_core.ProxyCoreService {
   Future<int> startWithHysteria2({
     String logLevel = 'info',
     String listenAddr = '127.0.0.1:23333',
-    required proxy_core.Hysteria2Config hysteria2Config,
+    required proxy_config.Hysteria2Config hysteria2Config,
   }) async {
     lastHysteria2Config = hysteria2Config;
     lastListenAddr = listenAddr;
@@ -372,7 +374,7 @@ class _FakeProxyCoreService extends proxy_core.ProxyCoreService {
   Future<int> startWithVless({
     String logLevel = 'info',
     String listenAddr = '127.0.0.1:23333',
-    required proxy_core.VlessConfig vlessConfig,
+    required proxy_config.VlessConfig vlessConfig,
   }) async {
     lastConfig = vlessConfig;
     lastListenAddr = listenAddr;
