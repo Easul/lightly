@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/core/logging/runtime_logger.dart';
+import 'package:lightly/features/remote_control/application/remote_control_diagnostics.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_config.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_protocol.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_runtime.dart';
@@ -64,6 +66,37 @@ void main() {
     expect(service.state, RemoteControlState.idle);
   });
 
+  test('uses diagnostics and logger injected by app composition', () async {
+    final service = RemoteControlService();
+    final diagnostics = _RecordingRemoteControlDiagnostics();
+    final logger = _RecordingRuntimeLogger();
+    service.configureDiagnostics(
+      runtimeLogger: logger,
+      diagnostics: diagnostics,
+      ensureAudioDiagnosticsLogging: (_) async {},
+    );
+    final ports = await RemoteControlPortConfig.detectAvailable();
+
+    await service.startReceiver(
+      config: RemoteControlConfig(
+        ports: ports,
+        enableScreen: false,
+        enableVoice: false,
+      ),
+    );
+    await service.disconnect();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(diagnostics.stopCount, 1);
+    expect(
+      logger.messages,
+      contains(
+        '[RemoteControl] Receiver started on ports '
+        '${ports.controlPort}/${ports.screenPort}',
+      ),
+    );
+  });
+
   test(
     'proxy discovery preserves status bytes received with socks response',
     () async {
@@ -114,4 +147,27 @@ void main() {
       }
     },
   );
+}
+
+class _RecordingRemoteControlDiagnostics extends NoopRemoteControlDiagnostics {
+  int stopCount = 0;
+
+  @override
+  void stopMonitoring() {
+    stopCount++;
+  }
+}
+
+class _RecordingRuntimeLogger extends NoopRuntimeLogger {
+  final List<String> messages = <String>[];
+
+  @override
+  Future<void> log(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) async {
+    messages.add(message);
+  }
 }

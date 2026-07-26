@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import '../core/logging/runtime_logger.dart';
+import '../features/remote_control/application/remote_control_diagnostics.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
 import '../features/remote_control/application/remote_control_command_helper.dart';
 import '../features/remote_control/application/remote_control_cleanup_helper.dart';
@@ -22,8 +24,6 @@ import '../features/remote_control/domain/remote_control_runtime.dart';
 import '../features/remote_control/domain/screen_frame.dart';
 import '../features/remote_control/infrastructure/screen_capture_manager.dart';
 import '../features/remote_control/infrastructure/webrtc_voice_service.dart';
-import 'app_log_service.dart';
-import 'performance_monitor_service.dart';
 
 class RemoteControlService implements RemoteControlPresentationRuntime {
   static const String _easyTierOverlayPrefix = '10.126.';
@@ -46,6 +46,11 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
       isPrepared: () => _voiceService.isPrepared,
     );
   }
+
+  RuntimeLogger _runtimeLogger = const NoopRuntimeLogger();
+  RemoteControlDiagnostics _diagnostics = const NoopRemoteControlDiagnostics();
+  Future<void> Function(RemoteControlMode mode)?
+  _ensureAudioDiagnosticsLoggingHandler;
 
   RemoteControlMode _mode = RemoteControlMode.controller;
   RemoteControlState _state = RemoteControlState.idle;
@@ -70,8 +75,6 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
   final ScreenCaptureManager _screenCaptureManager = ScreenCaptureManager();
   final RemoteControlPlatformGateway _platformGateway =
       RemoteControlPlatformGateway.instance;
-  final PerformanceMonitorService _performanceMonitor =
-      PerformanceMonitorService();
   final RemoteControlCommandHelper _commandHelper =
       const RemoteControlCommandHelper();
   final RemoteControlCleanupHelper _cleanupHelper =
@@ -182,26 +185,38 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
 
   int _nextMessageId() => ++_messageIdCounter;
 
+  void configureDiagnostics({
+    required RuntimeLogger runtimeLogger,
+    required RemoteControlDiagnostics diagnostics,
+    required Future<void> Function(RemoteControlMode mode)
+    ensureAudioDiagnosticsLogging,
+  }) {
+    if (_state == RemoteControlState.connecting ||
+        _state == RemoteControlState.connected ||
+        isReceiverHostRunning) {
+      throw StateError('Cannot replace diagnostics during an active session');
+    }
+    _runtimeLogger = runtimeLogger;
+    _diagnostics = diagnostics;
+    _ensureAudioDiagnosticsLoggingHandler = ensureAudioDiagnosticsLogging;
+    _audioDiagnosticsLoggingReady = false;
+  }
+
   void _logMessage(String message, {Object? error}) {
-    recordRuntimeLog('RemoteControl', message, error: error);
+    developer.log(message, name: 'RemoteControl', error: error);
+    unawaited(
+      _runtimeLogger
+          .log('[RemoteControl] $message', error: error)
+          .catchError((_) {}),
+    );
   }
 
   Future<void> _ensureAudioDiagnosticsLogging() async {
     if (_audioDiagnosticsLoggingReady) {
       return;
     }
-    if (kProfileMode && !AppLogService.instance.isEnabled) {
-      await AppLogService.instance.setEnabled(true);
-    }
     _audioDiagnosticsLoggingReady = true;
-    await AppLogService.instance.log(
-      '[RemoteControl] audio diagnostics logging ready',
-      metadata: <String, Object?>{
-        'mode': _mode.name,
-        'profile': kProfileMode,
-        'logPath': AppLogService.instance.logPath,
-      },
-    );
+    await _ensureAudioDiagnosticsLoggingHandler?.call(_mode);
   }
 
   void _markConnectionReady() {
@@ -358,12 +373,12 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
     _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
 
     // 记录设备发现路径
-    _performanceMonitor.recordDiscoveryPath(
+    _diagnostics.recordDiscoveryPath(
       selectedHost: host,
       availableHosts: availableHosts.isNotEmpty ? availableHosts : [host],
       selectionDelayMs: discoveryDelayMs,
     );
-    _performanceMonitor.startMonitoring();
+    _diagnostics.startMonitoring();
 
     _updateState(RemoteControlState.connecting);
 
@@ -911,7 +926,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
         log: (message) => developer.log(message, name: 'RemoteControl'),
         onBitrateAdjustDue: _adjustBitrateIfNeeded,
       );
-      _performanceMonitor.recordVideoFrame(
+      _diagnostics.recordVideoFrame(
         frameSize: frame.data.length,
         isKeyFrame: frame.type == ScreenFrameType.keyFrame,
       );
@@ -1285,7 +1300,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
   @override
   Future<void> disconnect() async {
     _disconnectRequested = true;
-    _performanceMonitor.stopMonitoring();
+    _diagnostics.stopMonitoring();
     _stopScreenFrameWatchdog();
     _stopHeartbeat();
     _cancelReceiverAutoShutdown();
@@ -1321,16 +1336,16 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
 
   /// 导出性能监控日志
   String exportPerformanceLogs() {
-    return _performanceMonitor.exportLogs();
+    return _diagnostics.exportLogs();
   }
 
   /// 获取当前性能统计
   Map<String, dynamic> getCurrentPerformanceStats() {
-    return _performanceMonitor.getCurrentStats();
+    return _diagnostics.getCurrentStats();
   }
 
   void dispose() {
-    _performanceMonitor.stopMonitoring();
+    _diagnostics.stopMonitoring();
     disconnect();
     _stateController.close();
     _messageController.close();

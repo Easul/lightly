@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
 
+import '../features/remote_control/application/remote_control_diagnostics.dart';
+
 /// 网络延迟统计点
 class LatencyPoint {
   final DateTime timestamp;
@@ -79,7 +81,7 @@ class DiscoveryPath {
 /// - 网络延迟
 /// - 音频抖动缓冲区延迟
 /// - 设备发现路径
-class PerformanceMonitorService {
+class PerformanceMonitorService implements RemoteControlDiagnostics {
   static final PerformanceMonitorService _instance =
       PerformanceMonitorService._internal();
   factory PerformanceMonitorService() => _instance;
@@ -125,6 +127,7 @@ class PerformanceMonitorService {
   Stream<Map<String, dynamic>> get statsStream => _statsController.stream;
 
   /// 启动监控
+  @override
   void startMonitoring() {
     if (_isMonitoring) return;
     _resetSessionState();
@@ -152,6 +155,7 @@ class PerformanceMonitorService {
   }
 
   /// 停止监控
+  @override
   void stopMonitoring() {
     _isMonitoring = false;
     _reportTimer?.cancel();
@@ -159,6 +163,7 @@ class PerformanceMonitorService {
   }
 
   /// 记录设备发现路径
+  @override
   void recordDiscoveryPath({
     required String selectedHost,
     required List<String> availableHosts,
@@ -190,6 +195,7 @@ class PerformanceMonitorService {
   }
 
   /// 记录视频帧信息
+  @override
   void recordVideoFrame({
     required int frameSize,
     required bool isKeyFrame,
@@ -294,6 +300,7 @@ class PerformanceMonitorService {
   }
 
   /// 获取当前统计
+  @override
   Map<String, dynamic> getCurrentStats() {
     final now = DateTime.now();
 
@@ -392,6 +399,7 @@ class PerformanceMonitorService {
   }
 
   /// 导出完整日志
+  @override
   String exportLogs() {
     final buffer = StringBuffer();
     buffer.writeln('=== 性能监控日志导出 ===');

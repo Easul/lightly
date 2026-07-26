@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kProfileMode;
+
 import '../browser/data/app_database_adapter.dart';
 import '../core/logging/runtime_logger.dart';
 import '../core/network/local_proxy_endpoint_provider.dart';
@@ -11,6 +13,8 @@ import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../features/local_sharing/local_http/local_http_file_server_service.dart';
 import '../services/app_log_service.dart';
 import '../services/app_lifecycle_manager.dart';
+import '../services/performance_monitor_service.dart';
+import '../services/remote_control_service.dart';
 import '../services/shared_downloads_directory_service.dart';
 import 'app_runtime_coordinator.dart';
 
@@ -34,6 +38,23 @@ class AppServices {
   /// constructor with fakes instead.
   factory AppServices.production() {
     final logService = AppLogService.instance;
+    RemoteControlService().configureDiagnostics(
+      runtimeLogger: logService,
+      diagnostics: PerformanceMonitorService(),
+      ensureAudioDiagnosticsLogging: (mode) async {
+        if (kProfileMode && !logService.isEnabled) {
+          await logService.setEnabled(true);
+        }
+        await logService.log(
+          '[RemoteControl] audio diagnostics logging ready',
+          metadata: <String, Object?>{
+            'mode': mode.name,
+            'profile': kProfileMode,
+            'logPath': logService.logPath,
+          },
+        );
+      },
+    );
     ClipboardHttpServerService(runtimeLogger: logService);
     LocalHttpFileServerService(runtimeLogger: logService);
     EasyTierService(runtimeLogger: logService);

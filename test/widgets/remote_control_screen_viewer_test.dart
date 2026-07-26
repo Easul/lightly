@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/core/logging/runtime_logger.dart';
@@ -25,7 +24,7 @@ void main() {
           initialSps: Uint8List.fromList(<int>[0, 0, 0, 1, 0x67]),
           initialPps: Uint8List.fromList(<int>[0, 0, 0, 1, 0x68]),
           platformRuntime: platformRuntime,
-          runtimeLogger: const _NoopRuntimeLogger(),
+          runtimeLogger: const NoopRuntimeLogger(),
         ),
       ),
     );
@@ -84,25 +83,4 @@ class _RecordingScreenPlatformRuntime
     pushedFrames.add(data);
     pushedTimestamps.add(timestamp);
   }
-}
-
-class _NoopRuntimeLogger implements RuntimeLogger {
-  const _NoopRuntimeLogger();
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<void> log(
-    String message, {
-    Object? error,
-    StackTrace? stackTrace,
-    Map<String, Object?>? metadata,
-  }) async {}
-
-  @override
-  Future<void> logFlutterError(FlutterErrorDetails details) async {}
-
-  @override
-  Future<void> logUnhandledError(Object error, StackTrace stackTrace) async {}
 }
