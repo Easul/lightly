@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart';
 

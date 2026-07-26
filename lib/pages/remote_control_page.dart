@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 import 'remote_control_session_page.dart';
 import 'remote_control_page_connection_helper.dart';
 import 'remote_control_page_port_config_helper.dart';

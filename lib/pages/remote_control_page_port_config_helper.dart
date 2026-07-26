@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 
 class RemoteControlPagePortConfigHelper {
   const RemoteControlPagePortConfigHelper();

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/remote_control_config.dart';
+import 'package:lightly/features/remote_control/domain/remote_control_config.dart';
 import 'package:lightly/pages/remote_control_page.dart';
 import 'package:lightly/services/remote_control_service.dart';
 

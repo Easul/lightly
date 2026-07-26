@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:ui' show Size;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 import '../features/remote_control/application/remote_control_command_helper.dart';
 import '../features/remote_control/application/remote_control_connection_flow_coordinator.dart';
 import '../features/remote_control/application/remote_control_message_router.dart';

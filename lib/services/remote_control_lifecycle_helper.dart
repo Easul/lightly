@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 
 class RemoteControlControllerConnectionResult {
   final Socket controlSocket;

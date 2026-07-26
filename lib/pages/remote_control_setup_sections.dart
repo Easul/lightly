@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 import '../services/remote_control_service.dart';
 
 part 'remote_control_setup_mode_section.dart';

@@ -1,6 +1,6 @@
 import '../browser/browser_settings.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
-import '../models/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_config.dart';
 import '../services/remote_control_service.dart';
 
 class RemoteControlPageConnectionException implements Exception {

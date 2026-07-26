@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/models/remote_control_config.dart';
+import 'package:lightly/features/remote_control/domain/remote_control_config.dart';
 import 'package:lightly/features/remote_control/domain/remote_control_protocol.dart';
 import 'package:lightly/features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import 'package:lightly/services/remote_control_service.dart';
