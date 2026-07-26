@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../features/remote_control/domain/screen_frame.dart';
+import '../domain/screen_frame.dart';
 import 'remote_control_watchdog_controller.dart';
 
 class RemoteControlScreenHealthCoordinator {

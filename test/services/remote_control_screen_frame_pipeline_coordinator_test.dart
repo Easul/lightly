@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lightly/features/remote_control/application/remote_control_screen_frame_pipeline_coordinator.dart';
 import 'package:lightly/features/remote_control/domain/screen_frame.dart';
-import 'package:lightly/services/remote_control_screen_frame_pipeline_coordinator.dart';
 
 void main() {
   group('RemoteControlScreenFramePipelineCoordinator', () {
