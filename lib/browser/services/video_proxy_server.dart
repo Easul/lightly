@@ -89,7 +89,7 @@ class VideoProxyServer {
 
     final client = HttpClient();
     client.findProxy = (uri) =>
-        proxyService.findProxyForDownload(settings, uri);
+        proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
 
     try {
       final proxyRequest = await client.openUrl(request.method, targetUri);

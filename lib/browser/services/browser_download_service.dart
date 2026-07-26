@@ -231,7 +231,7 @@ class BrowserDownloadService {
   }) async {
     final client = HttpClient();
     client.findProxy = (uri) =>
-        proxyService.findProxyForDownload(settings, uri);
+        proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
     final id = record.id;
     if (id == null) {
       throw ArgumentError.value(

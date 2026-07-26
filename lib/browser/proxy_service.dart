@@ -11,10 +11,10 @@ import '../features/proxy/application/proxy_reuse_policy.dart';
 import '../features/proxy/application/proxy_runtime_launcher.dart';
 import '../features/proxy/application/proxy_webview_target_resolver.dart';
 import '../features/proxy/domain/proxy_configuration.dart';
+import '../features/proxy/domain/proxy_protocol.dart';
 import '../features/proxy/infrastructure/proxy_core_service.dart' as proxy_core;
 import '../features/proxy/infrastructure/proxy_latency_probe.dart';
 
-import 'browser_settings.dart';
 import 'services/browser_platform_gateway.dart';
 import 'services/proxy_webview_bridge.dart';
 
@@ -107,18 +107,14 @@ class ProxyService {
     return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   }
 
-  Future<void> applyProxy(BrowserSettings settings) async {
-    return applyProxyConfiguration(settings.proxyConfiguration);
-  }
-
-  Future<void> applyProxyConfiguration(ProxyConfiguration settings) async {
+  Future<void> applyProxy(ProxyConfiguration settings) async {
     if (!settings.shouldApplyProxy) {
       await clearProxy();
       return;
     }
 
     final applyContext = _buildApplyContext(settings);
-    if (await _tryReuseExistingProxy(settings, applyContext)) {
+    if (await _tryReuseExistingProxy(applyContext)) {
       return;
     }
 
@@ -158,10 +154,7 @@ class ProxyService {
     );
   }
 
-  Future<bool> _tryReuseExistingProxy(
-    ProxyConfiguration settings,
-    _ProxyApplyContext applyContext,
-  ) async {
+  Future<bool> _tryReuseExistingProxy(_ProxyApplyContext applyContext) async {
     if (!applyContext.reuseDecision.shouldReuse ||
         applyContext.target == null) {
       return false;
@@ -282,14 +275,7 @@ class ProxyService {
     return _errorFormatter.describe(error);
   }
 
-  String findProxyForDownload(BrowserSettings settings, Uri uri) {
-    return findProxyForDownloadConfiguration(settings.proxyConfiguration, uri);
-  }
-
-  String findProxyForDownloadConfiguration(
-    ProxyConfiguration settings,
-    Uri uri,
-  ) {
+  String findProxyForDownload(ProxyConfiguration settings, Uri uri) {
     return _downloadRouteResolver.resolve(
       settings: settings,
       uri: uri,
@@ -299,18 +285,6 @@ class ProxyService {
   }
 
   Future<Duration?> testNodeLatency(
-    BrowserSettings settings, {
-    Duration timeout = const Duration(seconds: 10),
-    String testUrl = 'https://www.gstatic.com/generate_204',
-  }) async {
-    return testNodeLatencyConfiguration(
-      settings.proxyConfiguration,
-      timeout: timeout,
-      testUrl: testUrl,
-    );
-  }
-
-  Future<Duration?> testNodeLatencyConfiguration(
     ProxyConfiguration settings, {
     Duration timeout = const Duration(seconds: 10),
     String testUrl = 'https://www.gstatic.com/generate_204',
@@ -325,18 +299,6 @@ class ProxyService {
   }
 
   ProxyLatencyTestOperation startNodeLatencyTest(
-    BrowserSettings settings, {
-    Duration timeout = const Duration(seconds: 10),
-    String testUrl = 'https://www.gstatic.com/generate_204',
-  }) {
-    return startNodeLatencyTestConfiguration(
-      settings.proxyConfiguration,
-      timeout: timeout,
-      testUrl: testUrl,
-    );
-  }
-
-  ProxyLatencyTestOperation startNodeLatencyTestConfiguration(
     ProxyConfiguration settings, {
     Duration timeout = const Duration(seconds: 10),
     String testUrl = 'https://www.gstatic.com/generate_204',

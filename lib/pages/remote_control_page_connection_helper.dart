@@ -29,7 +29,7 @@ class RemoteControlPageConnectionHelper {
     }
 
     if (!proxyService.isRunning) {
-      await proxyService.applyProxy(settings);
+      await proxyService.applyProxy(settings.proxyConfiguration);
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
 

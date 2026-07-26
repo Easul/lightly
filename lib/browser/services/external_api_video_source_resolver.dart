@@ -34,7 +34,7 @@ class ExternalApiVideoSourceResolver extends VideoSourceResolver {
     final httpClient = HttpClient();
     if (settings.shouldApplyProxy) {
       httpClient.findProxy = (uri) =>
-          proxyService.findProxyForDownload(settings, uri);
+          proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
     }
 
     final client = IOClient(httpClient);

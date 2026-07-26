@@ -51,7 +51,7 @@ void main() {
         proxyTransportHost: 'vc.example.com',
       );
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
 
       expect(fakeProxyCore.lastConfig, isNotNull);
       expect(fakeProxyCore.lastConfig!.security, 'tls');
@@ -82,7 +82,7 @@ void main() {
         proxyTransportHost: 'edge.example.com',
       );
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
 
       expect(fakeProxyCore.lastConfig, isNotNull);
       expect(fakeProxyCore.lastConfig!.security, 'none');
@@ -108,10 +108,10 @@ void main() {
         proxyTransportPath: '/',
       );
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
       final firstStartCount = fakeProxyCore.startCount;
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
 
       expect(fakeProxyCore.startCount, firstStartCount);
       expect(fakeProxyCore.stopCount, 0);
@@ -133,8 +133,8 @@ void main() {
         proxyTlsEnabled: true,
       );
 
-      await service.applyProxy(settings);
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
+      await service.applyProxy(settings.proxyConfiguration);
 
       final setProxyCalls = methodCalls.where(
         (call) => call.method == 'setProxy',
@@ -159,8 +159,8 @@ void main() {
           proxyPort: 8080,
         );
 
-        await service.applyProxy(settings);
-        await service.applyProxy(settings);
+        await service.applyProxy(settings.proxyConfiguration);
+        await service.applyProxy(settings.proxyConfiguration);
 
         final setProxyCalls = methodCalls.where(
           (call) => call.method == 'setProxy',
@@ -190,7 +190,7 @@ void main() {
         proxyPacketEncoding: 'xudp',
       );
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
 
       expect(fakeProxyCore.lastConfig, isNotNull);
       expect(fakeProxyCore.lastConfig!.host, 'edge.example.com');
@@ -231,7 +231,7 @@ void main() {
         localProxyPort: 19091,
       );
 
-      await service.applyProxy(settings);
+      await service.applyProxy(settings.proxyConfiguration);
 
       expect(fakeProxyCore.lastHysteria2Config, isNotNull);
       expect(fakeProxyCore.lastHysteria2Config!.serverAddr, 'hy2.example.com');
@@ -249,7 +249,7 @@ void main() {
       final settings = BrowserSettings.defaults().copyWith(proxyEnabled: false);
 
       final result = service.findProxyForDownload(
-        settings,
+        settings.proxyConfiguration,
         Uri.parse('https://example.com/file.apk'),
       );
 
@@ -266,7 +266,7 @@ void main() {
       );
 
       final result = service.findProxyForDownload(
-        settings,
+        settings.proxyConfiguration,
         Uri.parse('https://accounts.google.com/o/oauth2/v2/auth'),
       );
 
@@ -285,7 +285,7 @@ void main() {
         );
 
         final result = service.findProxyForDownload(
-          settings,
+          settings.proxyConfiguration,
           Uri.parse('https://example.com/file.apk'),
         );
 
@@ -311,10 +311,10 @@ void main() {
           localProxyPort: 19090,
         );
 
-        await service.applyProxy(settings);
+        await service.applyProxy(settings.proxyConfiguration);
 
         final result = service.findProxyForDownload(
-          settings,
+          settings.proxyConfiguration,
           Uri.parse('https://example.com/file.apk'),
         );
 

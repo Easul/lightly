@@ -288,7 +288,9 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      final operation = _proxyService.startNodeLatencyTest(settings);
+      final operation = _proxyService.startNodeLatencyTest(
+        settings.proxyConfiguration,
+      );
       _cancelNodeSpeedTest = operation.cancel;
       final latency = await operation.result;
       if (!mounted) {

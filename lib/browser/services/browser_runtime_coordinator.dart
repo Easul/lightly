@@ -73,7 +73,8 @@ class BrowserRuntimeCoordinator implements BrowserRuntimePolicy {
     return BrowserRuntimeCoordinator(
       loadSettings: services.settingsService.loadSettings,
       isProxySupported: services.proxyService.isSupported,
-      applyProxy: services.proxyService.applyProxy,
+      applyProxy: (settings) =>
+          services.proxyService.applyProxy(settings.proxyConfiguration),
       clearProxy: services.proxyService.clearProxy,
       describeProxyError: services.proxyService.describeError,
       applyLocalHttpSettings: (settings) =>
