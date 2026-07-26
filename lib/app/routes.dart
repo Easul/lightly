@@ -10,7 +10,7 @@ import '../pages/about_version_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/browser_history_page.dart';
 import '../pages/easytier_settings_page.dart';
-import '../pages/remote_control_page.dart';
+import '../features/remote_control/presentation/pages/remote_control_page.dart';
 import '../pages/simple_file_manager_settings_page.dart';
 import '../pages/telegram_checkin_page.dart';
 import '../pages/tools_page.dart';

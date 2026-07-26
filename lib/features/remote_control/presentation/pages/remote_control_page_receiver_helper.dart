@@ -1,5 +1,5 @@
-import '../features/remote_control/domain/remote_control_config.dart';
-import '../features/remote_control/domain/remote_control_runtime.dart';
+import '../../domain/remote_control_config.dart';
+import '../../domain/remote_control_runtime.dart';
 
 class RemoteControlPageReceiverStartException implements Exception {
   const RemoteControlPageReceiverStartException(this.message);

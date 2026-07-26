@@ -2,13 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../features/remote_control/domain/remote_control_protocol.dart'
-    as protocol;
-import '../features/remote_control/domain/remote_control_protocol.dart'
-    show GlobalAction;
-import '../features/remote_control/domain/remote_control_runtime.dart';
-import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
-import '../features/remote_control/presentation/widgets/remote_control_session_widgets.dart';
+import '../../domain/remote_control_protocol.dart' as protocol;
+import '../../domain/remote_control_protocol.dart' show GlobalAction;
+import '../../domain/remote_control_runtime.dart';
+import '../widgets/remote_control_disconnect_dialog.dart';
+import '../widgets/remote_control_session_widgets.dart';
 
 class RemoteControlSessionPage extends StatefulWidget {
   final RemoteControlPresentationRuntime service;

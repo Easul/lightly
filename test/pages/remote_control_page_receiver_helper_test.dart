@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/pages/remote_control_page_receiver_helper.dart';
+import 'package:lightly/features/remote_control/presentation/pages/remote_control_page_receiver_helper.dart';
 import 'package:lightly/features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import 'package:lightly/services/remote_control_service.dart';
 

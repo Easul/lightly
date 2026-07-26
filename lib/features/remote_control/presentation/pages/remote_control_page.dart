@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../core/logging/runtime_logger.dart';
-import '../features/remote_control/application/remote_control_page_runtime.dart';
-import '../features/remote_control/domain/remote_control_config.dart';
-import '../features/remote_control/domain/remote_control_runtime.dart';
-import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
-import '../features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
+import '../../../../core/logging/runtime_logger.dart';
+import '../../application/remote_control_page_runtime.dart';
+import '../../domain/remote_control_config.dart';
+import '../../domain/remote_control_runtime.dart';
+import '../widgets/remote_control_disconnect_dialog.dart';
+import '../widgets/remote_control_setup_sections.dart';
 import 'remote_control_session_page.dart';
 import 'remote_control_page_connection_helper.dart';
 import 'remote_control_page_port_config_helper.dart';
 import 'remote_control_page_receiver_helper.dart';
-import '../features/remote_control/domain/remote_control_protocol.dart'
-    as protocol;
+import '../../domain/remote_control_protocol.dart' as protocol;
 
 part 'remote_control_page_peer_actions.dart';
 part 'remote_control_page_receiver_actions.dart';
