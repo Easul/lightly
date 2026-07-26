@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-import '../features/remote_control/domain/remote_control_runtime.dart';
+import '../domain/remote_control_runtime.dart';
 
 class RemoteControlPlatformGateway implements RemoteControlPlatformRuntime {
   RemoteControlPlatformGateway({

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/app_toast.dart';
-import '../services/remote_control_platform_gateway.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../theme/app_theme.dart';
 
 Future<void> showRemoteDisconnectDialog({

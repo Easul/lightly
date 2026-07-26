@@ -9,10 +9,10 @@ import '../features/remote_control/application/remote_control_command_helper.dar
 import '../features/remote_control/application/remote_control_connection_flow_coordinator.dart';
 import '../features/remote_control/application/remote_control_message_router.dart';
 import '../features/remote_control/application/remote_control_receiver_startup_coordinator.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import 'remote_control_cleanup_helper.dart';
 import 'remote_control_connection_helper.dart';
 import 'remote_control_lifecycle_helper.dart';
-import 'remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart';
 import '../features/remote_control/domain/remote_control_runtime.dart';
 import 'remote_control_screen_frame_pipeline_coordinator.dart';

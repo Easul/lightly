@@ -8,7 +8,7 @@ import 'remote_control_page_receiver_helper.dart';
 import 'remote_control_disconnect_dialog.dart';
 import 'remote_control_setup_sections.dart';
 import '../services/remote_control_service.dart';
-import '../services/remote_control_platform_gateway.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
 import '../services/app_lifecycle_manager.dart';

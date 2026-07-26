@@ -1,5 +1,5 @@
 import '../models/remote_control_config.dart';
-import '../services/remote_control_platform_gateway.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../services/remote_control_service.dart';
 
 class RemoteControlPageReceiverStartException implements Exception {

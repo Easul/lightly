@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'app_log_service.dart';
-import 'remote_control_platform_gateway.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 
 /// 屏幕帧类型
 enum ScreenFrameType {
