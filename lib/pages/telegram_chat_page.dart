@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/app_toast.dart';
-import '../telegram_checkin/telegram_checkin_models.dart';
-import '../telegram_checkin/telegram_tdlib_service.dart';
+import '../features/telegram/telegram_checkin_models.dart';
+import '../features/telegram/telegram_tdlib_service.dart';
 
 class TelegramChatPage extends StatefulWidget {
   const TelegramChatPage({super.key, required this.chat});

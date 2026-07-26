@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../pages/telegram_chat_page.dart';
 import '../services/app_toast.dart';
-import '../telegram_checkin/telegram_checkin_models.dart';
-import '../telegram_checkin/telegram_tdlib_service.dart';
+import '../features/telegram/telegram_checkin_models.dart';
+import '../features/telegram/telegram_tdlib_service.dart';
 
 class TelegramChatsPane extends StatefulWidget {
   const TelegramChatsPane({super.key});

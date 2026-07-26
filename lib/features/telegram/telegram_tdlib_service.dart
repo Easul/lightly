@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:tdlib/td_api.dart' as td;
 import 'package:tdlib/tdlib.dart';
 
-import '../core/network/local_proxy_endpoint_provider.dart';
+import '../../core/network/local_proxy_endpoint_provider.dart';
 import 'telegram_checkin_models.dart';
 
 enum TelegramAuthStep {

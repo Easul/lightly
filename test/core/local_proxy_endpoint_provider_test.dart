@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:lightly/browser/services/proxy_service_local_endpoint_adapter.dart';
 import 'package:lightly/core/network/local_proxy_endpoint_provider.dart';
-import 'package:lightly/telegram_checkin/telegram_tdlib_service.dart';
+import 'package:lightly/features/telegram/telegram_tdlib_service.dart';
 
 /// Test double standing in for the proxy implementation.
 class _FakeProxyEndpointProvider implements LocalProxyEndpointProvider {

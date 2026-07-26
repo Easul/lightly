@@ -4,7 +4,7 @@ import 'package:lightly/browser/models/browser_favorite.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
-import 'package:lightly/telegram_checkin/telegram_checkin_models.dart';
+import 'package:lightly/features/telegram/telegram_checkin_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

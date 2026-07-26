@@ -10,7 +10,7 @@ import '../../core/storage/shared_downloads_access.dart';
 import '../../services/app_log_service.dart';
 import '../../services/easytier_profile_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
-import '../../telegram_checkin/telegram_checkin_store.dart';
+import '../../features/telegram/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';
 import '../clipboard_storage_service.dart';
 import '../models/browser_favorite.dart';

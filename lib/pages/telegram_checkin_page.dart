@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/app_toast.dart';
-import '../telegram_checkin/telegram_checkin_models.dart';
-import '../telegram_checkin/telegram_checkin_store.dart';
-import '../telegram_checkin/telegram_tdlib_service.dart';
+import '../features/telegram/telegram_checkin_models.dart';
+import '../features/telegram/telegram_checkin_store.dart';
+import '../features/telegram/telegram_tdlib_service.dart';
 import '../widgets/telegram_chats_pane.dart';
 
 class TelegramCheckinPage extends StatefulWidget {

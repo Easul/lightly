@@ -8,7 +8,7 @@ import 'package:tdlib/tdlib.dart';
 import 'app/app.dart';
 import 'app/app_services.dart';
 import 'features/ai/ai_history_database.dart';
-import 'telegram_checkin/telegram_tdlib_service.dart';
+import 'features/telegram/telegram_tdlib_service.dart';
 
 // Re-export so existing `package:lightly/main.dart` importers (e.g. tests)
 // keep resolving `MyApp` after it moved to `lib/app/app.dart`.
