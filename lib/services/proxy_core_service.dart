@@ -1,16 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
+
 import 'package:flutter/services.dart';
 
-import 'app_log_service.dart';
+import '../core/logging/runtime_logger.dart';
 
 class ProxyCoreService {
+  ProxyCoreService({RuntimeLogger? runtimeLogger})
+    : _runtimeLogger = runtimeLogger;
+
   static const MethodChannel _channel = MethodChannel('com.proxy.core/proxy');
 
   bool _isRunning = false;
   String _listenAddr = '127.0.0.1:23333';
+  RuntimeLogger? _runtimeLogger;
 
   bool get isRunning => _isRunning;
   String get listenAddr => _listenAddr;
+
+  set runtimeLogger(RuntimeLogger? value) {
+    _runtimeLogger = value;
+  }
 
   Future<int> init({String logLevel = 'info'}) async {
     try {
@@ -19,8 +30,7 @@ class ProxyCoreService {
       });
       return result ?? -1;
     } on PlatformException catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ProxyCore',
+      _recordRuntimeLog(
         'Native proxy initialization failed',
         error: e,
         stackTrace: stackTrace,
@@ -54,8 +64,7 @@ class ProxyCoreService {
 
       return result ?? -1;
     } on PlatformException catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ProxyCore',
+      _recordRuntimeLog(
         'Native proxy start failed',
         error: e,
         stackTrace: stackTrace,
@@ -81,8 +90,7 @@ class ProxyCoreService {
       }
       return result ?? -1;
     } on PlatformException catch (e, stackTrace) {
-      recordRuntimeLog(
-        'ProxyCore',
+      _recordRuntimeLog(
         'Native proxy stop failed',
         error: e,
         stackTrace: stackTrace,
@@ -118,6 +126,34 @@ class ProxyCoreService {
 
   Future<void> dispose() async {
     await stop();
+  }
+
+  void _recordRuntimeLog(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    Map<String, Object?>? metadata,
+  }) {
+    developer.log(
+      message,
+      name: 'ProxyCore',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    final runtimeLogger = _runtimeLogger;
+    if (runtimeLogger == null) {
+      return;
+    }
+    unawaited(
+      runtimeLogger
+          .log(
+            '[ProxyCore] $message',
+            error: error,
+            stackTrace: stackTrace,
+            metadata: metadata,
+          )
+          .catchError((_) {}),
+    );
   }
 }
 

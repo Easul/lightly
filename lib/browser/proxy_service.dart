@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../core/logging/runtime_logger.dart';
 import '../services/proxy_core_service.dart' as proxy_core;
 
 import 'browser_settings.dart';
@@ -29,17 +30,27 @@ class ProxyService {
     proxy_core.ProxyCoreService? proxyCoreService,
     MethodChannel? proxyChannel,
     BrowserPlatformGateway? browserPlatformGateway,
+    RuntimeLogger? runtimeLogger,
   }) {
     if (proxyCoreService == null &&
         proxyChannel == null &&
         browserPlatformGateway == null) {
+      if (runtimeLogger != null) {
+        _sharedInstance._proxyCoreService.runtimeLogger = runtimeLogger;
+      }
       return _sharedInstance;
     }
 
     final resolvedChannel =
         proxyChannel ?? const MethodChannel(BrowserPlatformGateway.channelName);
+    final resolvedProxyCoreService =
+        proxyCoreService ??
+        proxy_core.ProxyCoreService(runtimeLogger: runtimeLogger);
+    if (runtimeLogger != null) {
+      resolvedProxyCoreService.runtimeLogger = runtimeLogger;
+    }
     return ProxyService._internal(
-      proxyCoreService: proxyCoreService ?? proxy_core.ProxyCoreService(),
+      proxyCoreService: resolvedProxyCoreService,
       browserPlatformGateway:
           browserPlatformGateway ??
           BrowserPlatformGateway(channel: resolvedChannel),

@@ -1,4 +1,5 @@
 import '../browser/data/app_database_adapter.dart';
+import '../browser/proxy_service.dart';
 import '../browser/services/proxy_service_local_endpoint_adapter.dart';
 import '../core/logging/runtime_logger.dart';
 import '../core/network/local_proxy_endpoint_provider.dart';
@@ -36,6 +37,7 @@ class AppServices {
     ClipboardHttpServerService(runtimeLogger: logService);
     LocalHttpFileServerService(runtimeLogger: logService);
     EasyTierService(runtimeLogger: logService);
+    ProxyService(runtimeLogger: logService);
     return AppServices(
       logService: logService,
       lifecycleManager: AppLifecycleManager(),
