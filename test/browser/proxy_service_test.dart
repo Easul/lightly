@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
-import 'package:lightly/browser/proxy_service.dart';
 import 'package:lightly/features/proxy/domain/proxy_core_config.dart'
     as proxy_config;
 import 'package:lightly/features/proxy/infrastructure/proxy_core_service.dart'
     as proxy_core;
+import 'package:lightly/features/proxy/infrastructure/proxy_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

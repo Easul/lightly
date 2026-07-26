@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/services/browser_platform_gateway.dart';
+import 'package:lightly/features/proxy/infrastructure/browser_platform_gateway.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

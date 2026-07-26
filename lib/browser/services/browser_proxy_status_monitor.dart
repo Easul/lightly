@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../features/local_sharing/local_http/local_http_file_server_service.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 
 class BrowserProxyStatusMonitor {
   BrowserProxyStatusMonitor({

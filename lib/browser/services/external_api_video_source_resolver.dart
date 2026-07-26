@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:http/io_client.dart';
 
 import '../browser_settings.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../utils/youtube_long_press_utils.dart';
 import 'video_source_resolver.dart';
 

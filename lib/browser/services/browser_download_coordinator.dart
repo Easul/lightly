@@ -7,7 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../../widgets/shared_download_access_dialog.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../browser/browser_settings.dart';
 import '../features/local_sharing/local_http/local_http_file_server_service.dart';
 import '../browser/browser_settings_service.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_subscription_service.dart';
 import '../browser/services/browser_node_link_parser.dart';
 import '../browser/services/browser_proxy_status_monitor.dart';

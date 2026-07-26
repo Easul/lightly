@@ -1,5 +1,5 @@
 import '../browser/browser_settings.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../models/remote_control_config.dart';
 import '../services/remote_control_service.dart';
 

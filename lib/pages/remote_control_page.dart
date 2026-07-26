@@ -15,7 +15,7 @@ import '../services/app_log_service.dart';
 import '../features/easytier/application/easytier_network_info_analyzer.dart';
 import '../features/easytier/infrastructure/easytier_service.dart';
 import '../services/app_toast.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/browser_settings.dart';
 

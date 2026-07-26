@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/models/browser_download_record.dart';
-import 'package:lightly/browser/proxy_service.dart';
+import 'package:lightly/features/proxy/infrastructure/proxy_service.dart';
 import 'package:lightly/browser/services/browser_download_service.dart';
 import 'package:lightly/browser/services/browser_download_store.dart';
 import 'package:lightly/pages/native_video_download_coordinator.dart';

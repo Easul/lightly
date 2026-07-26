@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/local_sharing/local_http/local_http_file_server_service.dart';
-import 'package:lightly/browser/proxy_service.dart';
+import 'package:lightly/features/proxy/infrastructure/proxy_service.dart';
 import 'package:lightly/browser/services/browser_proxy_status_monitor.dart';
 
 void main() {

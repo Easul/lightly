@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../browser_settings.dart';
 import '../browser_settings_service.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../../services/app_cache_maintenance_service.dart';
 import 'browser_download_coordinator.dart';
 import 'browser_cookie_origin_service.dart';

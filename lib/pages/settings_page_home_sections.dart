@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../browser/browser_settings.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_settings_form_controller.dart';
 import '../browser/widgets/settings/proxy_settings_section.dart';
 import '../browser/widgets/settings/settings_section_widgets.dart';

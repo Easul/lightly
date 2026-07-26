@@ -2,21 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import '../core/logging/runtime_logger.dart';
-import '../features/proxy/application/proxy_config_mapper.dart';
-import '../features/proxy/application/proxy_download_route_resolver.dart';
-import '../features/proxy/application/proxy_error_formatter.dart';
-import '../features/proxy/application/proxy_latency_tester.dart';
-import '../features/proxy/application/proxy_reuse_policy.dart';
-import '../features/proxy/application/proxy_runtime_launcher.dart';
-import '../features/proxy/application/proxy_webview_target_resolver.dart';
-import '../features/proxy/domain/proxy_configuration.dart';
-import '../features/proxy/domain/proxy_protocol.dart';
-import '../features/proxy/infrastructure/proxy_core_service.dart' as proxy_core;
-import '../features/proxy/infrastructure/proxy_latency_probe.dart';
-
-import 'services/browser_platform_gateway.dart';
-import 'services/proxy_webview_bridge.dart';
+import '../../../core/logging/runtime_logger.dart';
+import '../application/proxy_config_mapper.dart';
+import '../application/proxy_download_route_resolver.dart';
+import '../application/proxy_error_formatter.dart';
+import '../application/proxy_latency_tester.dart';
+import '../application/proxy_reuse_policy.dart';
+import '../application/proxy_runtime_launcher.dart';
+import '../application/proxy_webview_target_resolver.dart';
+import '../domain/proxy_configuration.dart';
+import '../domain/proxy_protocol.dart';
+import 'browser_platform_gateway.dart';
+import 'proxy_core_service.dart' as proxy_core;
+import 'proxy_latency_probe.dart';
+import 'proxy_webview_bridge.dart';
 
 const String _localProxyHost = '127.0.0.1';
 

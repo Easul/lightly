@@ -1,5 +1,5 @@
-import '../../core/network/local_proxy_endpoint_provider.dart';
-import '../proxy_service.dart';
+import '../../../core/network/local_proxy_endpoint_provider.dart';
+import 'proxy_service.dart';
 
 /// Adapts [ProxyService] to the [LocalProxyEndpointProvider] port.
 ///

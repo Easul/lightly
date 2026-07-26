@@ -1,6 +1,6 @@
 import '../browser/browser_settings.dart';
 import '../browser/models/browser_download_record.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';
 

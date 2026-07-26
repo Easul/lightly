@@ -10,7 +10,7 @@ import '../../services/media_scanner_service.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 import 'browser_download_store.dart';
 
 class DownloadConfirmationResult {

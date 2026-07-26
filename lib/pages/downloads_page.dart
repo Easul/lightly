@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 
 import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_download_record.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_download_coordinator.dart';
 import '../browser/services/browser_download_service.dart';
 import '../browser/services/browser_download_store.dart';

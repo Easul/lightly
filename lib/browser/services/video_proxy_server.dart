@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../browser_settings.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 
 /// A minimal local HTTP proxy-forwarding server for video streams.
 ///

@@ -9,7 +9,7 @@ import '../theme/app_theme.dart';
 import '../browser/browser_settings.dart';
 import '../browser/browser_settings_service.dart';
 import '../browser/models/browser_tab_session.dart';
-import '../browser/proxy_service.dart';
+import '../features/proxy/infrastructure/proxy_service.dart';
 import '../browser/services/browser_download_coordinator.dart';
 import '../browser/services/browser_cookie_origin_service.dart';
 import '../browser/services/browser_external_app_handler.dart';

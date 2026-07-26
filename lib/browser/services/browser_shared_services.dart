@@ -2,7 +2,7 @@ import '../browser_settings_service.dart';
 import '../../features/local_sharing/clipboard/clipboard_http_server_service.dart';
 import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../../features/local_sharing/local_http/local_http_file_server_service.dart';
-import '../proxy_service.dart';
+import '../../features/proxy/infrastructure/proxy_service.dart';
 import '../../services/app_cache_maintenance_service.dart';
 import 'browser_download_service.dart';
 import 'browser_download_store.dart';
