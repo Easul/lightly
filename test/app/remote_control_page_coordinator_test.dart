@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/app/remote_control_page_coordinator.dart';
+import 'package:lightly/features/remote_control/application/remote_control_page_runtime.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/features/easytier/domain/easytier_runtime.dart';
 import 'package:lightly/features/proxy/domain/proxy_configuration.dart';

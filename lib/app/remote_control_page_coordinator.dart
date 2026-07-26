@@ -2,18 +2,13 @@ import '../browser/browser_settings_service.dart';
 import '../features/easytier/application/easytier_network_info_analyzer.dart';
 import '../features/easytier/domain/easytier_runtime.dart';
 import '../features/easytier/infrastructure/easytier_service.dart';
+import '../features/remote_control/application/remote_control_page_runtime.dart';
 import '../features/proxy/domain/proxy_configuration.dart';
 import '../features/proxy/domain/proxy_runtime.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
 import 'app_runtime_coordinator.dart';
 
-class RemoteControlPageRuntimeState {
-  const RemoteControlPageRuntimeState({required this.isProxyRunning});
-
-  final bool isProxyRunning;
-}
-
-class RemoteControlPageCoordinator {
+class RemoteControlPageCoordinator implements RemoteControlPageRuntime {
   RemoteControlPageCoordinator({
     EasyTierRuntime? easyTier,
     ProxyRuntime? proxy,
@@ -37,17 +32,24 @@ class RemoteControlPageCoordinator {
 
   ProxyConfiguration? _proxyConfiguration;
 
+  @override
   bool get isEasyTierRunning => _easyTier.isRunning;
+  @override
   bool get isEasyTierNoTunMode => _easyTier.isNoTunMode;
+  @override
   int? get activeNoTunSocksPort => _easyTier.activeNoTunSocksPort;
+  @override
   int? get localProxyPort => _proxy.localProxyPort;
+  @override
   Stream<bool> get proxyRunningStream => _proxy.runningStream;
 
+  @override
   Future<RemoteControlPageRuntimeState> initialize() async {
     _proxyConfiguration = await _loadProxyConfiguration();
     return RemoteControlPageRuntimeState(isProxyRunning: _proxy.isRunning);
   }
 
+  @override
   Future<int?> ensureInternalProxyReady({
     required bool useInternalProxy,
   }) async {
@@ -67,6 +69,7 @@ class RemoteControlPageCoordinator {
     return _proxy.localProxyPort;
   }
 
+  @override
   Future<List<Map<String, String>>?> loadReachablePeers() async {
     if (!_easyTier.isRunning) {
       return const <Map<String, String>>[];
@@ -81,23 +84,16 @@ class RemoteControlPageCoordinator {
     ).where((peer) => peer['remoteReachable'] == 'true').toList();
   }
 
+  @override
   Future<bool> ensureReceiverNetwork({required bool noTunMode}) {
     return _ensureEasyTier(noTunMode: noTunMode);
   }
 
+  @override
   Future<void> shutdownAll() => _shutdownAll();
 
   static Future<ProxyConfiguration?> _loadProductionProxyConfiguration() async {
     final settings = await BrowserSettingsService().loadSettings();
     return settings.shouldApplyProxy ? settings.proxyConfiguration : null;
   }
-}
-
-class RemoteControlPageRuntimeException implements Exception {
-  const RemoteControlPageRuntimeException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }

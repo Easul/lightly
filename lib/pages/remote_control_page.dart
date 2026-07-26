@@ -1,25 +1,38 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../app/remote_control_page_coordinator.dart';
+import '../core/logging/runtime_logger.dart';
+import '../features/remote_control/application/remote_control_page_runtime.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
+import '../features/remote_control/domain/remote_control_runtime.dart';
 import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
 import '../features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
 import 'remote_control_session_page.dart';
 import 'remote_control_page_connection_helper.dart';
 import 'remote_control_page_port_config_helper.dart';
 import 'remote_control_page_receiver_helper.dart';
-import '../services/remote_control_service.dart';
-import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
-import '../services/app_log_service.dart';
-import '../services/app_toast.dart';
 
 part 'remote_control_page_peer_actions.dart';
 part 'remote_control_page_receiver_actions.dart';
 
 class RemoteControlPage extends StatefulWidget {
-  const RemoteControlPage({super.key});
+  const RemoteControlPage({
+    super.key,
+    required this.service,
+    required this.runtimeCoordinator,
+    required this.permissionRuntime,
+    required this.runtimeLogger,
+    required this.showMessage,
+    required this.navigatorKey,
+  });
+
+  final RemoteControlPresentationRuntime service;
+  final RemoteControlPageRuntime runtimeCoordinator;
+  final RemoteControlPermissionRuntime permissionRuntime;
+  final RuntimeLogger runtimeLogger;
+  final Future<void> Function(String message) showMessage;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   State<RemoteControlPage> createState() => _RemoteControlPageState();
@@ -71,7 +84,7 @@ class RemoteControlPageStateSnapshot {
 
   factory RemoteControlPageStateSnapshot.fromService({
     required RemoteControlMode currentSelectedMode,
-    required RemoteControlService service,
+    required RemoteControlPresentationRuntime service,
   }) {
     return RemoteControlPageStateSnapshot.fromValues(
       currentSelectedMode: currentSelectedMode,
@@ -94,14 +107,9 @@ bool resolveReceiverNoTunMode({
 }
 
 class _RemoteControlPageState extends State<RemoteControlPage> {
-  final RemoteControlService _service = RemoteControlService();
-  final RemoteControlPlatformGateway _platformGateway =
-      RemoteControlPlatformGateway.instance;
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _controlPortController = TextEditingController();
   final TextEditingController _screenPortController = TextEditingController();
-  final RemoteControlPageCoordinator _runtimeCoordinator =
-      RemoteControlPageCoordinator();
   final RemoteControlPageConnectionHelper _connectionHelper =
       const RemoteControlPageConnectionHelper();
   final RemoteControlPagePortConfigHelper _portConfigHelper =
@@ -128,12 +136,15 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
   late StreamSubscription<protocol.ControlMessage> _messageSubscription;
   StreamSubscription<bool>? _proxyStateSubscription;
 
+  RemoteControlPresentationRuntime get _service => widget.service;
+  RemoteControlPageRuntime get _runtimeCoordinator => widget.runtimeCoordinator;
+
   void _updateState(VoidCallback update) {
     setState(update);
   }
 
   void _showToast(String message) {
-    unawaited(AppToast.show(message));
+    unawaited(widget.showMessage(message));
   }
 
   @override
@@ -368,8 +379,13 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                RemoteControlSessionPage(service: _service, remoteHost: host),
+            builder: (context) => RemoteControlSessionPage(
+              service: _service,
+              remoteHost: host,
+              shutdownAll: _runtimeCoordinator.shutdownAll,
+              showMessage: widget.showMessage,
+              navigatorKey: widget.navigatorKey,
+            ),
           ),
         );
         return;

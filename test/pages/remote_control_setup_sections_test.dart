@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/remote_control/presentation/widgets/remote_control_setup_sections.dart';
-import 'package:lightly/services/remote_control_service.dart';
+import 'package:lightly/features/remote_control/domain/remote_control_runtime.dart';
 
 void main() {
   testWidgets('receiver no-tun switch shows voice disabled hint', (

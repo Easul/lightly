@@ -2,7 +2,8 @@ import 'package:flutter/services.dart';
 
 import '../domain/remote_control_runtime.dart';
 
-class RemoteControlPlatformGateway implements RemoteControlPlatformRuntime {
+class RemoteControlPlatformGateway
+    implements RemoteControlPlatformRuntime, RemoteControlPermissionRuntime {
   RemoteControlPlatformGateway({
     MethodChannel channel = const MethodChannel(channelName),
   }) : _channel = channel;
@@ -55,11 +56,13 @@ class RemoteControlPlatformGateway implements RemoteControlPlatformRuntime {
     );
   }
 
+  @override
   Future<bool> checkAccessibilityPermission() async {
     return await _channel.invokeMethod<bool>('checkAccessibilityPermission') ??
         false;
   }
 
+  @override
   Future<void> openAccessibilitySettings() {
     return _channel.invokeMethod<void>('openAccessibilitySettings');
   }

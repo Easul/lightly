@@ -36,11 +36,12 @@ extension _RemoteControlPagePeerActions on _RemoteControlPageState {
         }
       }
     } catch (e, stackTrace) {
-      recordRuntimeLog(
-        'RemoteControl',
-        'Failed to load EasyTier peers',
-        error: e,
-        stackTrace: stackTrace,
+      unawaited(
+        widget.runtimeLogger.log(
+          '[RemoteControl] Failed to load EasyTier peers',
+          error: e,
+          stackTrace: stackTrace,
+        ),
       );
       if (!mounted) return;
       if (showLoading) {

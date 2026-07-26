@@ -1,11 +1,11 @@
 import '../features/remote_control/domain/remote_control_config.dart';
-import '../services/remote_control_service.dart';
+import '../features/remote_control/domain/remote_control_runtime.dart';
 
 class RemoteControlPageConnectionHelper {
   const RemoteControlPageConnectionHelper();
 
   Future<RemoteControlPortConfig?> discoverReceiverPorts({
-    required RemoteControlService service,
+    required RemoteControlPresentationRuntime service,
     required String host,
     required bool useInternalProxy,
     required int? proxyPort,

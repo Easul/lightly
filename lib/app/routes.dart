@@ -16,6 +16,11 @@ import '../pages/telegram_checkin_page.dart';
 import '../pages/tools_page.dart';
 import '../pages/translation_tool_page.dart';
 import '../pages/ai_chat_page.dart';
+import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
+import '../services/app_log_service.dart';
+import '../services/app_toast.dart';
+import '../services/remote_control_service.dart';
+import 'remote_control_page_coordinator.dart';
 
 /// Application route table.
 ///
@@ -33,13 +38,19 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
     '/data-management': (context) => const DataManagementPage(),
     '/about-version': (context) => const AboutVersionPage(),
     '/settings': (context) => const SettingsPage(),
-    '/local-http-settings': (context) => const SettingsPage(
-      initialSection: SettingsInitialSection.localHttp,
-    ),
+    '/local-http-settings': (context) =>
+        const SettingsPage(initialSection: SettingsInitialSection.localHttp),
     '/browser-history': (context) => const BrowserHistoryPage(),
     '/simple-file-manager': (context) => const SimpleFileManagerSettingsPage(),
     '/easytier': (context) => const EasyTierSettingsPage(),
-    '/remote-control': (context) => const RemoteControlPage(),
+    '/remote-control': (context) => RemoteControlPage(
+      service: RemoteControlService(),
+      runtimeCoordinator: RemoteControlPageCoordinator(),
+      permissionRuntime: RemoteControlPlatformGateway.instance,
+      runtimeLogger: AppLogService.instance,
+      showMessage: AppToast.show,
+      navigatorKey: AppToast.navigatorKey,
+    ),
     '/telegram-checkin': (context) => const TelegramCheckinPage(),
     '/translation-tool': (context) => const TranslationToolPage(),
     '/ai-chat': (context) => const AiChatPage(),

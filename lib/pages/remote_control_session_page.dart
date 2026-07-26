@@ -6,20 +6,24 @@ import '../features/remote_control/domain/remote_control_protocol.dart'
     as protocol;
 import '../features/remote_control/domain/remote_control_protocol.dart'
     show GlobalAction;
+import '../features/remote_control/domain/remote_control_runtime.dart';
 import '../features/remote_control/presentation/widgets/remote_control_disconnect_dialog.dart';
 import '../features/remote_control/presentation/widgets/remote_control_session_widgets.dart';
-import '../services/remote_control_service.dart';
-import '../services/app_toast.dart';
-import '../services/app_lifecycle_manager.dart';
 
 class RemoteControlSessionPage extends StatefulWidget {
-  final RemoteControlService service;
+  final RemoteControlPresentationRuntime service;
   final String remoteHost;
+  final Future<void> Function() shutdownAll;
+  final Future<void> Function(String message) showMessage;
+  final GlobalKey<NavigatorState> navigatorKey;
 
   const RemoteControlSessionPage({
     super.key,
     required this.service,
     required this.remoteHost,
+    required this.shutdownAll,
+    required this.showMessage,
+    required this.navigatorKey,
   });
 
   @override
@@ -51,14 +55,16 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
   bool _disconnectDialogVisible = false;
 
   void _showToast(String message) {
-    unawaited(AppToast.show(message));
+    unawaited(widget.showMessage(message));
   }
 
   @override
   void initState() {
     super.initState();
-    _remoteScreenSize =
-        widget.service.latestRemoteScreenSize ?? _remoteScreenSize;
+    final remoteDimensions = widget.service.latestRemoteScreenDimensions;
+    if (remoteDimensions != null) {
+      _remoteScreenSize = Size(remoteDimensions.width, remoteDimensions.height);
+    }
     _remoteCaptureSize = _remoteScreenSize;
     _isAudioEnabled = widget.service.isLocalAudioEnabled;
     _isVoiceEnabled = widget.service.isVoiceEnabled;
@@ -197,7 +203,7 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       await widget.service.requestReceiverShutdown();
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
-    await AppLifecycleManager().shutdownAllServices();
+    await widget.shutdownAll();
     if (mounted) Navigator.pop(context);
   }
 
@@ -294,10 +300,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
       return;
     }
     final overlayState =
-        AppToast.navigatorKey.currentState?.overlay ??
+        widget.navigatorKey.currentState?.overlay ??
         Overlay.of(context, rootOverlay: true);
-    final navigator =
-        AppToast.navigatorKey.currentState ?? Navigator.of(context);
+    final navigator = widget.navigatorKey.currentState ?? Navigator.of(context);
     final dotSize = 58.0;
     final bottomPadding = MediaQuery.viewPaddingOf(context).bottom + 20;
     var dotOffset =
@@ -335,6 +340,9 @@ class _RemoteControlSessionPageState extends State<RemoteControlSessionPage> {
                   builder: (_) => RemoteControlSessionPage(
                     service: widget.service,
                     remoteHost: widget.remoteHost,
+                    shutdownAll: widget.shutdownAll,
+                    showMessage: widget.showMessage,
+                    navigatorKey: widget.navigatorKey,
                   ),
                 ),
               );

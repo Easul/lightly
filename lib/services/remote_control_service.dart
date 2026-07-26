@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show Size;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import '../features/remote_control/domain/remote_control_config.dart';
@@ -26,11 +25,7 @@ import '../features/remote_control/infrastructure/webrtc_voice_service.dart';
 import 'app_log_service.dart';
 import 'performance_monitor_service.dart';
 
-enum RemoteControlMode { controller, receiver }
-
-enum RemoteControlState { idle, connecting, connected, disconnected, error }
-
-class RemoteControlService implements RemoteControlRuntime {
+class RemoteControlService implements RemoteControlPresentationRuntime {
   static const String _easyTierOverlayPrefix = '10.126.';
   static final RemoteControlService _instance =
       RemoteControlService._internal();
@@ -139,35 +134,50 @@ class RemoteControlService implements RemoteControlRuntime {
   static const int _maxBitrate = 8000000;
   static const int _minBitrate = 500000;
 
+  @override
   Stream<RemoteControlState> get stateStream => _stateController.stream;
+  @override
   Stream<ControlMessage> get messageStream => _messageController.stream;
+  @override
   Stream<ScreenFrame> get screenFrameStream => _screenFrameController.stream;
   ScreenCaptureManager get screenCaptureManager => _screenCaptureManager;
+  @override
   bool get isLocalAudioEnabled => _voiceService.isLocalAudioEnabled;
+  @override
   bool get isVoiceEnabled => _config?.enableVoice ?? true;
+  @override
   bool get isRemoteMicrophoneEnabled =>
       _voiceCoordinator.remoteMicrophoneEnabled;
 
+  @override
   RemoteControlState get state => _state;
+  @override
   RemoteControlMode get mode => _mode;
+  @override
   RemoteControlConfig? get config => _config;
   bool get isConnected => _state == RemoteControlState.connected;
+  @override
   bool get isLocalDisconnectRequested => _disconnectRequested;
+  @override
   bool get isReceiverHostRunning =>
       _mode == RemoteControlMode.receiver && _controlServer != null;
+  @override
   bool get isReceiverNoTunMode =>
       _mode == RemoteControlMode.receiver && _config?.enableVoice == false;
+  @override
   Uint8List? get latestScreenSps =>
       _screenFramePipeline.latestSps ?? _screenCaptureManager.spsData;
+  @override
   Uint8List? get latestScreenPps =>
       _screenFramePipeline.latestPps ?? _screenCaptureManager.ppsData;
-  Size? get latestRemoteScreenSize {
+  @override
+  RemoteScreenDimensions? get latestRemoteScreenDimensions {
     final width = (_latestRemoteScreenInfo?['width'] as num?)?.toDouble();
     final height = (_latestRemoteScreenInfo?['height'] as num?)?.toDouble();
     if (width == null || height == null || width <= 0 || height <= 0) {
       return null;
     }
-    return Size(width, height);
+    return RemoteScreenDimensions(width: width, height: height);
   }
 
   int _nextMessageId() => ++_messageIdCounter;
@@ -278,6 +288,7 @@ class RemoteControlService implements RemoteControlRuntime {
     _screenFrameSender.sendConfig(sps, pps);
   }
 
+  @override
   Future<RemoteControlPortConfig> startReceiver({
     RemoteControlConfig? config,
   }) async {
@@ -325,6 +336,7 @@ class RemoteControlService implements RemoteControlRuntime {
     }
   }
 
+  @override
   Future<void> connectToReceiver(
     String host,
     RemoteControlPortConfig ports, {
@@ -422,6 +434,7 @@ class RemoteControlService implements RemoteControlRuntime {
     );
   }
 
+  @override
   Future<RemoteControlPortConfig?> discoverReceiverPorts(
     String host, {
     bool useProxy = false,
@@ -502,18 +515,21 @@ class RemoteControlService implements RemoteControlRuntime {
     _screenServer = null;
   }
 
+  @override
   Future<void> sendGesture(GestureCommand command) async {
     if (_controllerControlSocket == null) return;
     final data = utf8.encode('${RemoteControlCodec.encode(command)}\n');
     _controllerControlSocket!.add(data);
   }
 
+  @override
   Future<void> sendKeyboard(KeyboardCommand command) async {
     if (_controllerControlSocket == null) return;
     final data = utf8.encode('${RemoteControlCodec.encode(command)}\n');
     _controllerControlSocket!.add(data);
   }
 
+  @override
   Future<void> sendOverlayText(String text) async {
     final normalized = text.trim();
     if (normalized.isEmpty || _controllerControlSocket == null) return;
@@ -523,6 +539,7 @@ class RemoteControlService implements RemoteControlRuntime {
     );
   }
 
+  @override
   Future<void> sendAnnotationCircle({
     required double centerX,
     required double centerY,
@@ -561,6 +578,7 @@ class RemoteControlService implements RemoteControlRuntime {
     }
   }
 
+  @override
   Future<void> wakeReceiverScreen() async {
     if (_controllerControlSocket == null) return;
     final message = StatusMessage.wakeScreen();
@@ -569,6 +587,7 @@ class RemoteControlService implements RemoteControlRuntime {
     );
   }
 
+  @override
   Future<void> requestReceiverShutdown() async {
     if (_controllerControlSocket == null) return;
     final message = StatusMessage.shutdownReceiver();
@@ -578,6 +597,7 @@ class RemoteControlService implements RemoteControlRuntime {
     await _controllerControlSocket!.flush();
   }
 
+  @override
   Future<void> setReceiverMicrophoneEnabled(bool enabled) async {
     if (!isVoiceEnabled || _controllerControlSocket == null) return;
     final message = StatusMessage.receiverMicrophone(enabled: enabled);
@@ -586,6 +606,7 @@ class RemoteControlService implements RemoteControlRuntime {
     );
   }
 
+  @override
   Future<void> sendGlobalAction(GlobalAction action) async {
     final json = {
       'type': 'global',
@@ -598,6 +619,7 @@ class RemoteControlService implements RemoteControlRuntime {
     _controllerControlSocket!.add(data);
   }
 
+  @override
   Future<bool> startScreenCapture({int fps = 12, int bitrate = 2500000}) async {
     try {
       final result = await _platformGateway.startScreenCapture(
@@ -651,6 +673,7 @@ class RemoteControlService implements RemoteControlRuntime {
     }
   }
 
+  @override
   Future<void> refreshLatestRemoteFrame() async {
     if (_mode == RemoteControlMode.controller &&
         _controllerControlSocket != null &&
@@ -732,6 +755,7 @@ class RemoteControlService implements RemoteControlRuntime {
     }
   }
 
+  @override
   Future<bool> startAudioCapture({
     int sampleRate = 16000,
     int channels = 1,
@@ -745,6 +769,7 @@ class RemoteControlService implements RemoteControlRuntime {
     );
   }
 
+  @override
   Future<void> stopAudioCapture() async {
     await _voiceCoordinator.stopAudioCapture();
   }
@@ -1222,6 +1247,7 @@ class RemoteControlService implements RemoteControlRuntime {
     _receiverAutoShutdownTimer = null;
   }
 
+  @override
   Future<void> shutdownReceiverHostResources() async {
     _cancelReceiverAutoShutdown();
     final handler = _receiverHostShutdownHandler;

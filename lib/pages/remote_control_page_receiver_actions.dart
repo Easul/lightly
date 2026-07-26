@@ -15,7 +15,7 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
 
     try {
       final ports = await _receiverHelper.startReceiverFlow(
-        platformGateway: _platformGateway,
+        permissionRuntime: widget.permissionRuntime,
         service: _service,
         ensureVpnForRemoteControl: ({bool noTunMode = false}) =>
             _runtimeCoordinator.ensureReceiverNetwork(noTunMode: noTunMode),

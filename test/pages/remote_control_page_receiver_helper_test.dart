@@ -45,7 +45,7 @@ void main() {
     bool? capturedNoTunMode;
     final ports = await const RemoteControlPageReceiverHelper()
         .startReceiverFlow(
-          platformGateway: RemoteControlPlatformGateway(channel: channel),
+          permissionRuntime: RemoteControlPlatformGateway(channel: channel),
           service: RemoteControlService(),
           useNoTunMode: true,
           ensureVpnForRemoteControl: ({bool noTunMode = false}) async {
