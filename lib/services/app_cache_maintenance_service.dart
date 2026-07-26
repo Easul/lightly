@@ -6,8 +6,6 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../browser/browser_settings.dart';
-
 class AppCacheCleanupResult {
   const AppCacheCleanupResult({
     required this.clearedEntries,
@@ -91,12 +89,14 @@ class AppCacheMaintenanceService {
     );
   }
 
-  Future<bool> maybeAutoClear(BrowserSettings settings) async {
-    if (!settings.appCacheAutoClearEnabled) {
+  Future<bool> maybeAutoClear({
+    required bool enabled,
+    required Duration interval,
+  }) async {
+    if (!enabled) {
       return false;
     }
 
-    final interval = Duration(hours: settings.appCacheAutoClearIntervalHours);
     final lastCleanupAt = await loadLastCleanupAt();
     final now = DateTime.now();
     if (lastCleanupAt != null && now.difference(lastCleanupAt) < interval) {

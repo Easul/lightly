@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/services/app_cache_maintenance_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,13 +66,14 @@ void main() {
     test('maybeAutoClear respects configured interval', () async {
       final service = buildService();
       await seedCacheFiles();
-      final settings = BrowserSettings.defaults().copyWith(
-        appCacheAutoClearEnabled: true,
-        appCacheAutoClearIntervalHours: 24,
+      final firstRun = await service.maybeAutoClear(
+        enabled: true,
+        interval: const Duration(hours: 24),
       );
-
-      final firstRun = await service.maybeAutoClear(settings);
-      final secondRun = await service.maybeAutoClear(settings);
+      final secondRun = await service.maybeAutoClear(
+        enabled: true,
+        interval: const Duration(hours: 24),
+      );
 
       expect(firstRun, isTrue);
       expect(secondRun, isFalse);

@@ -260,7 +260,10 @@ class BrowserPageInitializer {
 
     final settings = await settingsFuture;
     try {
-      await _appCacheMaintenanceService.maybeAutoClear(settings);
+      await _appCacheMaintenanceService.maybeAutoClear(
+        enabled: settings.appCacheAutoClearEnabled,
+        interval: Duration(hours: settings.appCacheAutoClearIntervalHours),
+      );
     } catch (_) {}
     final appliedSettingsFuture = applySettingsRuntimeChanges(
       settings: settings,
