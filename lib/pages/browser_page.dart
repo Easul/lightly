@@ -170,6 +170,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final ValueNotifier<String> _statusMessageNotifier = ValueNotifier<String>(
     '',
   );
+  final ValueNotifier<bool> _overlayFreezeNotifier = ValueNotifier<bool>(false);
   late final BrowserFavoriteStatusController _favoriteStatusController;
 
   InAppWebViewController? _webViewController;
@@ -229,6 +230,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       isMounted: () => mounted,
       syncNotifiers: _syncNotifiers,
       rebuild: () => setState(() {}),
+      refreshOverlayState: _refreshOverlayFreezeState,
       pauseWebView: ({required trimKeepAlives}) {
         _pauseWebViewForOverlay(trimKeepAlives: trimKeepAlives);
       },
@@ -387,6 +389,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   bool get _shouldFreezeWebViewForOverlay =>
       _overlayStateManager.shouldFreezeWebView;
 
+  void _refreshOverlayFreezeState() {
+    final shouldFreeze = _shouldFreezeWebViewForOverlay;
+    if (_overlayFreezeNotifier.value != shouldFreeze) {
+      _overlayFreezeNotifier.value = shouldFreeze;
+    }
+  }
+
   /// Calls setState only if the overlay is closed (critical period avoidance).
   /// State data is always updated; only the rebuild is deferred.
   void _setStateIfVisible(VoidCallback fn) {
@@ -516,6 +525,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     _isSecureNotifier.dispose();
     _tabCountNotifier.dispose();
     _statusMessageNotifier.dispose();
+    _overlayFreezeNotifier.dispose();
     _navigationRefreshCoordinator.cancel();
     _overlayLoadFreezeCoordinator.cancel();
     _overlayStateManager.dispose();
@@ -531,7 +541,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     final isFavoritesPage = _isFavoritesPage(_currentUrl);
     return BrowserPageBodySection(
       isFavoritesPage: isFavoritesPage,
-      freezeWebViewForOverlay: _shouldFreezeWebViewForOverlay,
+      freezeWebViewForOverlay: _overlayFreezeNotifier,
       // Only construct the favorites page widget when it's actually visible.
       // When the WebView is active, creating BrowserFavoritesPage is wasted
       // work that rebuilds a complex widget tree that won't even be rendered.

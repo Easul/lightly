@@ -14,24 +14,29 @@ void main() {
       harness.manager.dispose();
     });
 
-    test('opens first overlay by pausing and rebuilding once', () {
-      harness.manager.handleOverlayOpened();
+    test(
+      'opens first overlay by pausing and refreshing only overlay state',
+      () {
+        harness.manager.handleOverlayOpened();
 
-      expect(harness.pauseCount, 1);
-      expect(harness.lastTrimKeepAlives, isTrue);
-      expect(harness.rebuildCount, 1);
-      expect(harness.manager.shouldSkipRebuild, isTrue);
-      expect(harness.manager.shouldFreezeWebView, isTrue);
-      expect(harness.manager.hasOpenOverlay, isTrue);
-      expect(harness.manager.shouldResumeControllerOnAttach, isFalse);
-    });
+        expect(harness.pauseCount, 1);
+        expect(harness.lastTrimKeepAlives, isTrue);
+        expect(harness.overlayRefreshCount, 1);
+        expect(harness.rebuildCount, 0);
+        expect(harness.manager.shouldSkipRebuild, isTrue);
+        expect(harness.manager.shouldFreezeWebView, isTrue);
+        expect(harness.manager.hasOpenOverlay, isTrue);
+        expect(harness.manager.shouldResumeControllerOnAttach, isFalse);
+      },
+    );
 
     test('does not pause again for nested overlays', () {
       harness.manager.handleOverlayOpened();
       harness.manager.handleOverlayOpened(trimKeepAlives: false);
 
       expect(harness.pauseCount, 1);
-      expect(harness.rebuildCount, 2);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
       expect(harness.manager.shouldSkipRebuild, isTrue);
     });
 
@@ -44,7 +49,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
       expect(harness.resumeCount, 1);
-      expect(harness.rebuildCount, 3);
+      expect(harness.overlayRefreshCount, 2);
+      expect(harness.rebuildCount, 0);
       expect(harness.manager.shouldSkipRebuild, isFalse);
       expect(harness.manager.shouldFreezeWebView, isFalse);
       expect(harness.manager.hasOpenOverlay, isFalse);
@@ -60,7 +66,8 @@ void main() {
 
       expect(harness.syncCount, 1);
       expect(harness.resumeCount, 1);
-      expect(harness.rebuildCount, 4);
+      expect(harness.overlayRefreshCount, 2);
+      expect(harness.rebuildCount, 1);
     });
 
     test('recovers pending overlay state when app resumes', () {
@@ -71,6 +78,8 @@ void main() {
 
       expect(harness.resumeCount, 1);
       expect(harness.syncCount, 1);
+      expect(harness.overlayRefreshCount, 2);
+      expect(harness.rebuildCount, 1);
       expect(harness.manager.shouldSkipRebuild, isFalse);
       expect(harness.manager.shouldFreezeWebView, isFalse);
     });
@@ -84,7 +93,8 @@ void main() {
 
       expect(harness.resumeCount, 0);
       expect(harness.syncCount, 0);
-      expect(harness.rebuildCount, 1);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
     });
 
     test(
@@ -97,7 +107,8 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 350));
 
         expect(harness.resumeCount, 0);
-        expect(harness.rebuildCount, 2);
+        expect(harness.overlayRefreshCount, 1);
+        expect(harness.rebuildCount, 0);
       },
     );
 
@@ -109,7 +120,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
       expect(harness.resumeCount, 0);
-      expect(harness.rebuildCount, 1);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
       expect(harness.manager.shouldFreezeWebView, isTrue);
     });
   });
@@ -122,6 +134,7 @@ class _OverlayHarness {
       isMounted: () => mounted,
       syncNotifiers: () => syncCount++,
       rebuild: () => rebuildCount++,
+      refreshOverlayState: () => overlayRefreshCount++,
       pauseWebView: ({required trimKeepAlives}) {
         pauseCount++;
         lastTrimKeepAlives = trimKeepAlives;
@@ -135,6 +148,7 @@ class _OverlayHarness {
   int pauseCount = 0;
   int resumeCount = 0;
   int rebuildCount = 0;
+  int overlayRefreshCount = 0;
   int syncCount = 0;
   bool? lastTrimKeepAlives;
 }

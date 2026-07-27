@@ -60,7 +60,8 @@ void main() {
       expect(presenterCalled, isTrue);
       expect(harness.pauseCount, 1);
       expect(harness.lastTrimKeepAlives, isFalse);
-      expect(harness.rebuildCount, 2);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
       expect(harness.manager.shouldFreezeWebView, isTrue);
       await tester.pump(const Duration(milliseconds: 350));
     });
@@ -129,7 +130,8 @@ void main() {
       expect(calls, <String>['favorite', 'debug', 'desktop']);
       expect(harness.pauseCount, 1);
       expect(harness.lastTrimKeepAlives, isTrue);
-      expect(harness.rebuildCount, 2);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
       await tester.pump(const Duration(milliseconds: 350));
     });
 
@@ -165,7 +167,8 @@ void main() {
       );
 
       expect(harness.pauseCount, 1);
-      expect(harness.rebuildCount, 2);
+      expect(harness.overlayRefreshCount, 1);
+      expect(harness.rebuildCount, 0);
       await tester.pump(const Duration(milliseconds: 350));
     });
   });
@@ -196,6 +199,7 @@ class _OverlayHarness {
       isMounted: () => true,
       syncNotifiers: () {},
       rebuild: () => rebuildCount++,
+      refreshOverlayState: () => overlayRefreshCount++,
       pauseWebView: ({required trimKeepAlives}) {
         pauseCount++;
         lastTrimKeepAlives = trimKeepAlives;
@@ -208,5 +212,6 @@ class _OverlayHarness {
   int pauseCount = 0;
   int resumeCount = 0;
   int rebuildCount = 0;
+  int overlayRefreshCount = 0;
   bool? lastTrimKeepAlives;
 }

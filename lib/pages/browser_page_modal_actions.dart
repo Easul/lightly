@@ -12,31 +12,32 @@ Future<void> showBrowserTabSwitcherModal({
   required ValueChanged<String> onCloseTab,
   required VoidCallback onCloseAll,
   required VoidCallback onNewTab,
-}) {
-  return showModalBottomSheet<void>(
+}) async {
+  VoidCallback? selectedAction;
+  await _showBrowserModalSheet(
     context: context,
-    isScrollControlled: true,
     builder: (sheetContext) => TabSwitcherSheet(
       tabs: tabs,
       activeTabId: activeTabId,
       onSelectTab: (tabId) {
+        selectedAction = () => onSelectTab(tabId);
         Navigator.of(sheetContext).pop();
-        onSelectTab(tabId);
       },
       onCloseTab: (tabId) {
+        selectedAction = () => onCloseTab(tabId);
         Navigator.of(sheetContext).pop();
-        onCloseTab(tabId);
       },
       onCloseAll: () {
+        selectedAction = onCloseAll;
         Navigator.of(sheetContext).pop();
-        onCloseAll();
       },
       onNewTab: () {
+        selectedAction = onNewTab;
         Navigator.of(sheetContext).pop();
-        onNewTab();
       },
     ),
   );
+  selectedAction?.call();
 }
 
 Future<void> showBrowserMoreActionsModal({
@@ -56,26 +57,60 @@ Future<void> showBrowserMoreActionsModal({
   required VoidCallback onEnterFloatingWindowMode,
   required VoidCallback onExitApp,
   required VoidCallback? onOpenFavoritesMenu,
-}) {
-  return showModalBottomSheet<void>(
+}) async {
+  VoidCallback? selectedAction;
+  VoidCallback deferAction(VoidCallback action) {
+    return () {
+      selectedAction = action;
+    };
+  }
+
+  await _showBrowserModalSheet(
     context: context,
-    isScrollControlled: true,
     builder: (sheetContext) => BrowserMoreActionsSheet(
       proxyEnabled: proxyEnabled,
       desktopModeEnabled: desktopModeEnabled,
       webDebugConsoleEnabled: webDebugConsoleEnabled,
       isFavorited: isFavorited,
-      onToggleFavorite: onToggleFavorite,
-      onToggleProxy: onToggleProxy,
-      onToggleWebDebugConsole: onToggleWebDebugConsole,
-      onToggleDesktopMode: onToggleDesktopMode,
-      onOpenDownloads: onOpenDownloads,
-      onOpenTools: onOpenTools,
-      onCloseTab: onCloseTab,
-      onOpenSettings: onOpenSettings,
-      onEnterFloatingWindowMode: onEnterFloatingWindowMode,
-      onExitApp: onExitApp,
-      onOpenFavoritesMenu: onOpenFavoritesMenu,
+      onToggleFavorite: onToggleFavorite == null
+          ? null
+          : deferAction(onToggleFavorite),
+      onToggleProxy: deferAction(onToggleProxy),
+      onToggleWebDebugConsole: deferAction(onToggleWebDebugConsole),
+      onToggleDesktopMode: deferAction(onToggleDesktopMode),
+      onOpenDownloads: deferAction(onOpenDownloads),
+      onOpenTools: deferAction(onOpenTools),
+      onCloseTab: deferAction(onCloseTab),
+      onOpenSettings: deferAction(onOpenSettings),
+      onEnterFloatingWindowMode: deferAction(onEnterFloatingWindowMode),
+      onExitApp: deferAction(onExitApp),
+      onOpenFavoritesMenu: onOpenFavoritesMenu == null
+          ? null
+          : deferAction(onOpenFavoritesMenu),
     ),
   );
+  selectedAction?.call();
+}
+
+Future<void> _showBrowserModalSheet({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) async {
+  final navigator = Navigator.of(context);
+  final localizations = MaterialLocalizations.of(context);
+  final route = ModalBottomSheetRoute<void>(
+    builder: builder,
+    capturedThemes: InheritedTheme.capture(
+      from: context,
+      to: navigator.context,
+    ),
+    isScrollControlled: true,
+    barrierLabel: localizations.scrimLabel,
+    barrierOnTapHint: localizations.scrimOnTapHint(
+      localizations.bottomSheetLabel,
+    ),
+    modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
+  );
+  await navigator.push<void>(route);
+  await route.completed;
 }

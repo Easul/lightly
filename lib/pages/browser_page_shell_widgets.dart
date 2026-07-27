@@ -159,7 +159,7 @@ class BrowserPageBodySection extends StatelessWidget {
   final bool isFavoritesPage;
   final Widget favoritesChild;
   final Widget webViewChild;
-  final bool freezeWebViewForOverlay;
+  final ValueListenable<bool> freezeWebViewForOverlay;
   final ValueListenable<String> statusMessage;
   final bool youtubePlayButtonVisible;
   final VoidCallback onYoutubePlayPressed;
@@ -177,9 +177,16 @@ class BrowserPageBodySection extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ColoredBox(color: Theme.of(context).colorScheme.surface),
-              IgnorePointer(
-                ignoring: freezeWebViewForOverlay,
+              ValueListenableBuilder<bool>(
+                valueListenable: freezeWebViewForOverlay,
                 child: webViewChild,
+                builder: (context, shouldFreezeWebView, child) {
+                  return IgnorePointer(
+                    key: const ValueKey('browserWebViewOverlayPointerBlocker'),
+                    ignoring: shouldFreezeWebView,
+                    child: child,
+                  );
+                },
               ),
               BrowserYoutubePlayBubble(
                 visible: youtubePlayButtonVisible,

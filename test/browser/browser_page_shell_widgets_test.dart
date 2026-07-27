@@ -7,45 +7,65 @@ void main() {
     tester,
   ) async {
     var disposeCount = 0;
+    var buildCount = 0;
     final statusMessage = ValueNotifier<String>('');
+    final freezeWebView = ValueNotifier<bool>(false);
 
-    Widget buildHost({required bool frozen}) {
-      return MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: Scaffold(
           body: BrowserPageBodySection(
             isFavoritesPage: false,
             favoritesChild: const SizedBox.shrink(),
             webViewChild: _DisposableProbe(
               key: const ValueKey('webview-probe'),
+              onBuild: () => buildCount++,
               onDispose: () => disposeCount++,
             ),
-            freezeWebViewForOverlay: frozen,
+            freezeWebViewForOverlay: freezeWebView,
             statusMessage: statusMessage,
             youtubePlayButtonVisible: false,
             onYoutubePlayPressed: () {},
           ),
         ),
-      );
-    }
-
-    await tester.pumpWidget(buildHost(frozen: false));
+      ),
+    );
     expect(find.byKey(const ValueKey('webview-probe')), findsOneWidget);
+    expect(buildCount, 1);
 
-    await tester.pumpWidget(buildHost(frozen: true));
+    freezeWebView.value = true;
+    await tester.pump();
     expect(disposeCount, 0);
+    expect(buildCount, 1);
     expect(find.byKey(const ValueKey('webview-probe')), findsOneWidget);
+    expect(
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(const ValueKey('browserWebViewOverlayPointerBlocker')),
+          )
+          .ignoring,
+      isTrue,
+    );
 
-    await tester.pumpWidget(buildHost(frozen: false));
+    freezeWebView.value = false;
+    await tester.pump();
     expect(disposeCount, 0);
+    expect(buildCount, 1);
     expect(find.byKey(const ValueKey('webview-probe')), findsOneWidget);
 
+    freezeWebView.dispose();
     statusMessage.dispose();
   });
 }
 
 class _DisposableProbe extends StatefulWidget {
-  const _DisposableProbe({super.key, required this.onDispose});
+  const _DisposableProbe({
+    super.key,
+    required this.onBuild,
+    required this.onDispose,
+  });
 
+  final VoidCallback onBuild;
   final VoidCallback onDispose;
 
   @override
@@ -61,6 +81,7 @@ class _DisposableProbeState extends State<_DisposableProbe> {
 
   @override
   Widget build(BuildContext context) {
+    widget.onBuild();
     return const SizedBox.expand();
   }
 }

@@ -10,12 +10,14 @@ class BrowserPageOverlayStateManager {
     required bool Function() isMounted,
     required VoidCallback syncNotifiers,
     required VoidCallback rebuild,
+    required VoidCallback refreshOverlayState,
     required void Function({required bool trimKeepAlives}) pauseWebView,
     required VoidCallback resumeWebView,
   }) : _coordinator = coordinator,
        _isMounted = isMounted,
        _syncNotifiers = syncNotifiers,
        _rebuild = rebuild,
+       _refreshOverlayState = refreshOverlayState,
        _pauseWebView = pauseWebView,
        _resumeWebView = resumeWebView;
 
@@ -23,12 +25,14 @@ class BrowserPageOverlayStateManager {
   final bool Function() _isMounted;
   final VoidCallback _syncNotifiers;
   final VoidCallback _rebuild;
+  final VoidCallback _refreshOverlayState;
   final void Function({required bool trimKeepAlives}) _pauseWebView;
   final VoidCallback _resumeWebView;
 
   int _overlayDepth = 0;
   Timer? _overlaySettledTimer;
   bool _hasDeferredOverlayRebuild = false;
+  bool _lastReportedShouldFreezeWebView = false;
   bool _disposed = false;
 
   bool get shouldSkipRebuild =>
@@ -53,6 +57,7 @@ class BrowserPageOverlayStateManager {
     _overlaySettledTimer?.cancel();
     _overlaySettledTimer = null;
     _overlayDepth = 0;
+    _refreshOverlayStateIfNeeded();
     _resumeWebView();
     _applyDeferredOverlayRebuild();
   }
@@ -70,11 +75,9 @@ class BrowserPageOverlayStateManager {
       overlayDepth: _overlayDepth,
     );
     _overlayDepth = decision.overlayDepth;
+    _refreshOverlayStateIfNeeded();
     if (pauseWebView && decision.shouldPauseWebView) {
       _pauseWebView(trimKeepAlives: trimKeepAlives);
-    }
-    if (_isMounted()) {
-      _rebuild();
     }
   }
 
@@ -89,9 +92,7 @@ class BrowserPageOverlayStateManager {
     if (decision.shouldResumeWebView) {
       _scheduleOverlaySettledWork(resumeWebView: true);
     }
-    if (_isMounted()) {
-      _rebuild();
-    }
+    _refreshOverlayStateIfNeeded();
   }
 
   Future<T> runTrackedOverlay<T>(Future<T> Function() action) async {
@@ -133,11 +134,21 @@ class BrowserPageOverlayStateManager {
       if (resumeWebView) {
         _resumeWebView();
       }
+      _refreshOverlayStateIfNeeded();
       _applyDeferredOverlayRebuild();
-      if (_isMounted()) {
-        _rebuild();
-      }
     });
+  }
+
+  void _refreshOverlayStateIfNeeded() {
+    if (_disposed || !_isMounted()) {
+      return;
+    }
+    final shouldFreeze = shouldFreezeWebView;
+    if (_lastReportedShouldFreezeWebView == shouldFreeze) {
+      return;
+    }
+    _lastReportedShouldFreezeWebView = shouldFreeze;
+    _refreshOverlayState();
   }
 
   void _applyDeferredOverlayRebuild() {

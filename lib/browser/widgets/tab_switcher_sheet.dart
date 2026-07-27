@@ -125,6 +125,7 @@ class TabSwitcherSheet extends StatelessWidget {
                   vertical: 8,
                 ),
                 itemExtent: _tabListItemExtent,
+                cacheExtent: 0,
                 addAutomaticKeepAlives: false,
                 addRepaintBoundaries: false,
                 itemCount: tabs.length,
