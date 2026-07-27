@@ -757,9 +757,23 @@ looks unrelated to architecture work, but any move of proxy routing logic can si
   `.apk` ultimately receives `text/html` or XHTML, fail with a clear re-login/expired-link message
   before opening the output file; do not save the page body under the requested binary filename.
 - Keep intentional `.html`, `.htm`, `.xhtml`, and `.shtml` downloads allowed.
+- Transient socket, HTTP-stream, TLS, idle-timeout, HTTP `408` / `429`, and `5xx` failures should
+  retry a bounded number of times with backoff. Preserve and close the partial-file sink before
+  retrying, then resume from the actual file length instead of the last UI/database progress tick.
+- Range resume must validate that `Content-Range` starts exactly at the local file length. During
+  same-task automatic retries, send `If-Range` when the server supplied ETag or Last-Modified. If a
+  server ignores Range and returns `200`, truncate and restart rather than append duplicate bytes.
+- Use an identity transfer encoding for resumable downloads so local file offsets remain compatible
+  with HTTP Range byte positions. Apply the idle timeout while waiting for response headers as well
+  as while streaming the body, and never hide a file-sink close/write failure as a successful file.
+- Do not delete partial files after an ordinary failure. Persist their actual length and expose a
+  retry action for failed records; explicit record-plus-file deletion remains the only failure-path
+  action that removes the partial file.
+- Prevent two active transfers from writing the same download record/path concurrently.
 - Related files: `lib/browser/services/browser_download_request_context_resolver.dart`,
   `lib/browser/services/browser_download_coordinator.dart`, and
-  `lib/browser/services/browser_download_service.dart`.
+  `lib/browser/services/browser_download_service.dart`,
+  `lib/browser/services/browser_download_transfer.dart`.
 
 ## Selective Browsing Data Clearing
 
