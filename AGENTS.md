@@ -166,6 +166,8 @@ These patterns were introduced to eliminate jank during normal browsing. Do not 
 - **Overlay animations must not compete with BrowserPage rebuilds.**
   - While drawer / bottom sheets are opening or closing, defer non-critical `setState()` calls and batch one rebuild after the overlay settles.
   - WebView callbacks, favorite-status notifications, secure-state changes, and load-stop follow-ups can still arrive behind overlays; do not let them rebuild the full BrowserPage during the animation.
+  - Keep overlay pointer freezing isolated through the existing `ValueListenable<bool>` around `IgnorePointer`; opening or settling a sheet must not rebuild `BrowserWebViewHost`.
+  - Run tab/more-sheet actions only after the sheet dismissal animation completes so tab changes and navigation do not compete with the route transition.
   - Resume WebView timers/video after the overlay settle delay rather than synchronously in the same frame that dismisses the overlay.
 
 - **Tab switcher layout must stay cheap during sheet animation.**
