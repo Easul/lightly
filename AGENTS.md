@@ -770,6 +770,11 @@ looks unrelated to architecture work, but any move of proxy routing logic can si
   retry action for failed records; explicit record-plus-file deletion remains the only failure-path
   action that removes the partial file.
 - Prevent two active transfers from writing the same download record/path concurrently.
+- Resolve download names from authoritative `Content-Disposition` (including RFC 5987
+  `filename*`), filename-like query parameters, the final redirected URL path, and known MIME
+  extensions. Preserve the existing URL/timestamp `.bin` fallback when none is usable. A real
+  response may replace an unchanged automatically resolved name with a stronger header/query name,
+  while final-URL/MIME inference upgrades only generic names; never overwrite a user-edited name.
 - Related files: `lib/browser/services/browser_download_request_context_resolver.dart`,
   `lib/browser/services/browser_download_coordinator.dart`, and
   `lib/browser/services/browser_download_service.dart`,
