@@ -7,6 +7,9 @@ typedef BrowserDownloadRetryCallback =
     void Function(int retryNumber, int maxRetries);
 typedef BrowserDownloadResponseValidator =
     void Function(HttpClientResponse response);
+typedef BrowserDownloadOutputFileResolver =
+    Future<File> Function(HttpClientResponse response, File currentFile);
+typedef BrowserDownloadOutputFileChanged = Future<void> Function(File file);
 
 class BrowserDownloadCancelledException implements Exception {
   const BrowserDownloadCancelledException();
@@ -34,10 +37,12 @@ class BrowserDownloadTransferResult {
   const BrowserDownloadTransferResult({
     required this.bytesReceived,
     required this.totalBytes,
+    required this.outputFile,
   });
 
   final int bytesReceived;
   final int totalBytes;
+  final File outputFile;
 }
 
 class BrowserDownloadTransfer {
@@ -63,8 +68,10 @@ class BrowserDownloadTransfer {
   bool _isCancelled = false;
   int _knownTotalBytes = 0;
   String? _entityValidator;
+  File? _outputFile;
 
   Future<void> get done => _done.future;
+  File? get outputFile => _outputFile;
 
   Future<void> cancel() async {
     if (_isCancelled) {
@@ -94,18 +101,22 @@ class BrowserDownloadTransfer {
     required BrowserDownloadProgressCallback onProgress,
     required BrowserDownloadRetryCallback onRetry,
     required BrowserDownloadResponseValidator validateResponse,
+    BrowserDownloadOutputFileResolver? resolveOutputFile,
+    BrowserDownloadOutputFileChanged? onOutputFileChanged,
   }) async {
     _knownTotalBytes = initialTotalBytes > 0 ? initialTotalBytes : 0;
+    _outputFile = outputFile;
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       _throwIfCancelled();
       try {
         return await _runAttempt(
           url: url,
-          outputFile: outputFile,
           requestHeaders: requestHeaders,
           onProgress: onProgress,
           validateResponse: validateResponse,
+          resolveOutputFile: resolveOutputFile,
+          onOutputFileChanged: onOutputFileChanged,
         );
       } catch (error) {
         await _closeSink();
@@ -114,7 +125,7 @@ class BrowserDownloadTransfer {
         }
         final retryable = _isRetryable(error);
         if (retryable) {
-          await _persistCurrentFileLength(outputFile, onProgress);
+          await _persistCurrentFileLength(_outputFile!, onProgress);
         }
         if (!retryable || attempt >= _maxAttempts) {
           rethrow;
@@ -133,11 +144,13 @@ class BrowserDownloadTransfer {
 
   Future<BrowserDownloadTransferResult> _runAttempt({
     required Uri url,
-    required File outputFile,
     required Map<String, String> requestHeaders,
     required BrowserDownloadProgressCallback onProgress,
     required BrowserDownloadResponseValidator validateResponse,
+    required BrowserDownloadOutputFileResolver? resolveOutputFile,
+    required BrowserDownloadOutputFileChanged? onOutputFileChanged,
   }) async {
+    var outputFile = _outputFile!;
     if (!await outputFile.parent.exists()) {
       await outputFile.parent.create(recursive: true);
     }
@@ -170,6 +183,7 @@ class BrowserDownloadTransfer {
         return BrowserDownloadTransferResult(
           bytesReceived: resumedFromBytes,
           totalBytes: serverTotal,
+          outputFile: outputFile,
         );
       }
       if (serverTotal != null && resumedFromBytes > serverTotal) {
@@ -187,6 +201,22 @@ class BrowserDownloadTransfer {
     }
 
     validateResponse(response);
+    final resolvedOutputFile = await resolveOutputFile?.call(
+      response,
+      outputFile,
+    );
+    if (resolvedOutputFile != null &&
+        resolvedOutputFile.path != outputFile.path) {
+      if (!await resolvedOutputFile.parent.exists()) {
+        await resolvedOutputFile.parent.create(recursive: true);
+      }
+      if (await outputFile.exists()) {
+        await outputFile.rename(resolvedOutputFile.path);
+      }
+      outputFile = resolvedOutputFile;
+      _outputFile = outputFile;
+      await onOutputFileChanged?.call(outputFile);
+    }
     _captureEntityValidator(
       response,
       replaceMissing: response.statusCode == HttpStatus.ok,
@@ -248,6 +278,7 @@ class BrowserDownloadTransfer {
     return BrowserDownloadTransferResult(
       bytesReceived: fileLength,
       totalBytes: totalBytes,
+      outputFile: outputFile,
     );
   }
 

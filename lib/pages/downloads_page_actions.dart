@@ -176,7 +176,7 @@ extension _DownloadsPageActions on _DownloadsPageState {
   Future<void> _startManualDownload(String url, {String? fileName}) async {
     final resolvedFileName = fileName?.trim().isNotEmpty == true
         ? fileName!.trim()
-        : _extractFileNameFromUrl(url);
+        : _downloadService.resolveFileNameFromUrl(url);
     final pendingRecord = BrowserDownloadRecord(
       url: url,
       fileName: resolvedFileName,
@@ -228,28 +228,13 @@ extension _DownloadsPageActions on _DownloadsPageState {
           if (!mounted) return;
           _showToast(message);
         },
+        allowResponseFileName: confirmation.fileName == resolvedFileName,
       );
       await _reloadDownloads();
     } catch (e) {
       if (!mounted) return;
       _showToast('下载失败：$e');
     }
-  }
-
-  String _extractFileNameFromUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri != null && uri.pathSegments.isNotEmpty) {
-      final segment = uri.pathSegments.last;
-      if (segment.isNotEmpty) {
-        final sanitized = segment
-            .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-            .trim();
-        if (sanitized.isNotEmpty && sanitized != '.' && sanitized != '..') {
-          return Uri.decodeComponent(sanitized);
-        }
-      }
-    }
-    return 'download_${DateTime.now().millisecondsSinceEpoch}.bin';
   }
 
   Future<void> _pauseDownload(BrowserDownloadRecord record) async {

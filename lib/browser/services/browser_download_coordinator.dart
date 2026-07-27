@@ -139,6 +139,7 @@ class BrowserDownloadCoordinator {
         downloadStore: _downloadStore,
         onStatus: onStatus,
         requestHeaders: requestHeaders,
+        allowResponseFileName: confirmedFileName == fileName,
       ),
     );
   }
@@ -221,6 +222,7 @@ class BrowserDownloadCoordinator {
         downloadStore: _downloadStore,
         onStatus: onStatus,
         requestHeaders: requestHeaders,
+        allowResponseFileName: confirmedFileName == fileName,
       ),
     );
   }
@@ -246,6 +248,7 @@ class BrowserDownloadCoordinator {
       downloadStore: _downloadStore,
       onStatus: onStatus,
       requestHeaders: requestHeaders,
+      allowResponseFileName: false,
     );
   }
 

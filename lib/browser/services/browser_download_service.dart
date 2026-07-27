@@ -11,6 +11,7 @@ import '../../services/shared_downloads_directory_service.dart';
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
 import '../../features/proxy/infrastructure/proxy_service.dart';
+import 'browser_download_file_name_resolver.dart';
 import 'browser_download_transfer.dart';
 import 'browser_download_store.dart';
 
@@ -24,12 +25,16 @@ class BrowserDownloadService {
   BrowserDownloadService({
     DateTime Function()? now,
     SharedDownloadsAccess? sharedDownloadsAccess,
+    BrowserDownloadFileNameResolver? fileNameResolver,
   }) : _now = now ?? DateTime.now,
        _sharedDownloadsAccess =
-           sharedDownloadsAccess ?? SharedDownloadsDirectoryService();
+           sharedDownloadsAccess ?? SharedDownloadsDirectoryService(),
+       _fileNameResolver =
+           fileNameResolver ?? BrowserDownloadFileNameResolver(now: now);
 
   final DateTime Function() _now;
   final SharedDownloadsAccess _sharedDownloadsAccess;
+  final BrowserDownloadFileNameResolver _fileNameResolver;
   final Map<int, BrowserDownloadTransfer> _activeDownloads =
       <int, BrowserDownloadTransfer>{};
 
@@ -39,13 +44,17 @@ class BrowserDownloadService {
     bool deletePartialFile = false,
   }) async {
     final session = _activeDownloads[id];
+    var partialFilePath = savedPath?.trim();
     if (session != null) {
       await session.cancel();
       await session.done;
+      partialFilePath = session.outputFile?.path ?? partialFilePath;
     }
 
-    if (deletePartialFile && savedPath != null && savedPath.trim().isNotEmpty) {
-      final file = File(savedPath.trim());
+    if (deletePartialFile &&
+        partialFilePath != null &&
+        partialFilePath.isNotEmpty) {
+      final file = File(partialFilePath);
       if (await file.exists()) {
         await file.delete();
       }
@@ -53,47 +62,23 @@ class BrowserDownloadService {
   }
 
   String resolveFileName(DownloadStartRequest request) {
-    final suggestedFileName = request.suggestedFilename?.trim();
-    if (suggestedFileName != null && suggestedFileName.isNotEmpty) {
-      return sanitizeFileName(suggestedFileName);
-    }
-
-    final contentDispositionName = _extractFilenameFromContentDisposition(
-      request.contentDisposition,
+    return _fileNameResolver.resolve(
+      suggestedFileName: request.suggestedFilename,
+      contentDisposition: request.contentDisposition,
+      url: Uri.parse(request.url.toString()),
+      mimeType: request.mimeType,
     );
-    if (contentDispositionName != null && contentDispositionName.isNotEmpty) {
-      return sanitizeFileName(contentDispositionName);
-    }
-
-    final pathSegment = request.url.pathSegments.isNotEmpty
-        ? request.url.pathSegments.last
-        : '';
-    if (pathSegment.isNotEmpty) {
-      return sanitizeFileName(Uri.decodeComponent(pathSegment));
-    }
-
-    return _defaultFileName();
   }
 
   String resolveFileNameFromUrl(String url) {
     final uri = Uri.tryParse(url.trim());
-    if (uri != null && uri.pathSegments.isNotEmpty) {
-      final pathSegment = uri.pathSegments.last;
-      if (pathSegment.isNotEmpty) {
-        return sanitizeFileName(Uri.decodeComponent(pathSegment));
-      }
-    }
-
-    return _defaultFileName();
-  }
-
-  String sanitizeFileName(String name) {
-    final sanitized = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
-    if (sanitized.isEmpty || sanitized == '.' || sanitized == '..') {
+    if (uri == null) {
       return _defaultFileName();
     }
-    return sanitized;
+    return _fileNameResolver.resolve(url: uri);
   }
+
+  String sanitizeFileName(String name) => _fileNameResolver.sanitize(name);
 
   Future<DownloadConfirmationResult?> showConfirmDialog(
     BuildContext context,
@@ -202,6 +187,7 @@ class BrowserDownloadService {
     required BrowserDownloadStore downloadStore,
     required void Function(String) onStatus,
     Map<String, String> requestHeaders = const <String, String>{},
+    bool allowResponseFileName = false,
   }) async {
     final id = record.id;
     if (id == null) {
@@ -221,15 +207,16 @@ class BrowserDownloadService {
         proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
     final transfer = BrowserDownloadTransfer(client: client);
     _activeDownloads[id] = transfer;
+    var effectiveSavedPath = savedPath;
     var currentRecord = record.copyWith(
       status: 'downloading',
-      savedPath: savedPath,
+      savedPath: effectiveSavedPath,
     );
 
     Future<void> markFailed() async {
       var actualBytes = currentRecord.bytesReceived;
       try {
-        final outputFile = File(savedPath);
+        final outputFile = File(effectiveSavedPath);
         if (await outputFile.exists()) {
           actualBytes = await outputFile.length();
         }
@@ -245,7 +232,7 @@ class BrowserDownloadService {
       await downloadStore.update(currentRecord);
       final result = await transfer.run(
         url: Uri.parse(url),
-        outputFile: File(savedPath),
+        outputFile: File(effectiveSavedPath),
         requestHeaders: requestHeaders,
         initialTotalBytes: currentRecord.totalBytes,
         onProgress: (bytesReceived, totalBytes) async {
@@ -256,11 +243,13 @@ class BrowserDownloadService {
           await downloadStore.update(currentRecord);
         },
         onRetry: (retryNumber, maxRetries) {
-          onStatus('网络中断，正在重试（$retryNumber/$maxRetries）：${record.fileName}');
+          onStatus(
+            '网络中断，正在重试（$retryNumber/$maxRetries）：${currentRecord.fileName}',
+          );
         },
         validateResponse: (response) {
           if (isUnexpectedHtmlResponse(
-            fileName: record.fileName,
+            fileName: currentRecord.fileName,
             mimeType: response.headers.contentType?.mimeType,
           )) {
             throw const BrowserDownloadRejectedException(
@@ -268,20 +257,48 @@ class BrowserDownloadService {
             );
           }
         },
+        resolveOutputFile: allowResponseFileName
+            ? (response, currentFile) async {
+                final resolvedFileName = _fileNameResolver.resolveFromResponse(
+                  currentFileName: currentRecord.fileName,
+                  requestUrl: Uri.parse(url),
+                  response: response,
+                );
+                if (resolvedFileName == null ||
+                    resolvedFileName == currentRecord.fileName) {
+                  return currentFile;
+                }
+                final resolvedPath = await _resolveUniqueDownloadPath(
+                  currentFile.parent,
+                  resolvedFileName,
+                );
+                return File(resolvedPath);
+              }
+            : null,
+        onOutputFileChanged: (outputFile) async {
+          effectiveSavedPath = outputFile.path;
+          currentRecord = currentRecord.copyWith(
+            fileName: p.basename(outputFile.path),
+            savedPath: outputFile.path,
+          );
+          await downloadStore.update(currentRecord);
+        },
       );
 
+      effectiveSavedPath = result.outputFile.path;
       currentRecord = currentRecord.copyWith(
         status: 'completed',
         totalBytes: result.totalBytes,
         bytesReceived: result.bytesReceived,
-        savedPath: savedPath,
+        fileName: p.basename(effectiveSavedPath),
+        savedPath: effectiveSavedPath,
       );
       await downloadStore.update(currentRecord);
       // 扫描新下载的文件，让系统文件管理器可以看到
-      unawaited(MediaScannerService.scanFile(savedPath));
-      onStatus('下载完成：${record.fileName}');
+      unawaited(MediaScannerService.scanFile(effectiveSavedPath));
+      onStatus('下载完成：${currentRecord.fileName}');
     } on BrowserDownloadCancelledException {
-      final outputFile = File(savedPath);
+      final outputFile = File(effectiveSavedPath);
       if (await outputFile.exists()) {
         currentRecord = currentRecord.copyWith(
           bytesReceived: await outputFile.length(),
@@ -294,13 +311,13 @@ class BrowserDownloadService {
       onStatus(error.message);
     } on BrowserDownloadHttpStatusException catch (error) {
       await markFailed();
-      onStatus('下载失败：服务器返回 ${error.statusCode}（${record.fileName}）');
+      onStatus('下载失败：服务器返回 ${error.statusCode}（${currentRecord.fileName}）');
     } on BrowserDownloadProtocolException {
       await markFailed();
-      onStatus('下载失败：服务器不支持可靠续传，请重试（${record.fileName}）');
+      onStatus('下载失败：服务器不支持可靠续传，请重试（${currentRecord.fileName}）');
     } catch (_) {
       await markFailed();
-      onStatus('下载中断，已保留进度，可在下载记录中重试：${record.fileName}');
+      onStatus('下载中断，已保留进度，可在下载记录中重试：${currentRecord.fileName}');
     } finally {
       _activeDownloads.remove(id);
       await transfer.finish();
@@ -341,7 +358,7 @@ class BrowserDownloadService {
   }
 
   String _defaultFileName() {
-    return 'download_${_now().millisecondsSinceEpoch}.bin';
+    return _fileNameResolver.resolve(url: Uri());
   }
 
   Future<String> _resolveUniqueDownloadPath(
@@ -361,25 +378,5 @@ class BrowserDownloadService {
     }
 
     return p.join(directory.path, candidateName);
-  }
-
-  String? _extractFilenameFromContentDisposition(String? value) {
-    if (value == null || value.isEmpty) {
-      return null;
-    }
-
-    final utf8Match = RegExp(
-      r"filename\*=UTF-8''([^;]+)",
-      caseSensitive: false,
-    ).firstMatch(value);
-    if (utf8Match != null) {
-      return Uri.decodeComponent(utf8Match.group(1) ?? '');
-    }
-
-    final filenameMatch = RegExp(
-      r'filename="?([^";]+)"?',
-      caseSensitive: false,
-    ).firstMatch(value);
-    return filenameMatch?.group(1);
   }
 }

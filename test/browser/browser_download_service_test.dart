@@ -18,7 +18,7 @@ void main() {
       );
     });
 
-    test('resolveFileName prefers suggested filename', () {
+    test('resolveFileName prefers content disposition filename', () {
       final request = DownloadStartRequest(
         url: WebUri('https://example.com/archive.bin'),
         contentLength: 128,
@@ -26,7 +26,7 @@ void main() {
         contentDisposition: 'attachment; filename="ignored.txt"',
       );
 
-      expect(service.resolveFileName(request), 'report_.pdf');
+      expect(service.resolveFileName(request), 'ignored.txt');
     });
 
     test('resolveFileName falls back to content disposition filename', () {
@@ -74,6 +74,15 @@ void main() {
           'https://example.com/files/hello%20world%3F.txt?download=1',
         ),
         'hello world_.txt',
+      );
+    });
+
+    test('resolveFileNameFromUrl prefers filename query parameter', () {
+      expect(
+        service.resolveFileNameFromUrl(
+          'https://example.com/hash.bin?fileName=archive.zip',
+        ),
+        'archive.zip',
       );
     });
 
@@ -181,6 +190,161 @@ void main() {
         expect(statuses.last, contains('服务器返回的是网页'));
         expect(await File(savedPath).exists(), isFalse);
       } finally {
+        await server.close(force: true);
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test(
+      'prefers response content disposition over an automatic name',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final subscription = server.listen((request) async {
+          request.response.headers.set(
+            'content-disposition',
+            "attachment; filename*=UTF-8''real%20archive.zip",
+          );
+          request.response.contentLength = 3;
+          request.response.add(<int>[1, 2, 3]);
+          await request.response.close();
+        });
+        final tempDir = await Directory.systemTemp.createTemp('download_test_');
+        final originalPath = '${tempDir.path}/cdn-hash.zip';
+        final renamedPath = '${tempDir.path}/real archive.zip';
+        final store = _RecordingDownloadStore();
+        final statuses = <String>[];
+        final record = BrowserDownloadRecord(
+          id: 2,
+          url: 'http://${server.address.host}:${server.port}/cdn-hash.zip',
+          fileName: 'cdn-hash.zip',
+          status: 'pending',
+          savedPath: originalPath,
+          totalBytes: 0,
+          bytesReceived: 0,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+        );
+
+        try {
+          await service.startDownload(
+            url: record.url,
+            record: record,
+            savedPath: originalPath,
+            proxyService: ProxyService(),
+            settings: BrowserSettings.defaults(),
+            downloadStore: store,
+            onStatus: statuses.add,
+            allowResponseFileName: true,
+          );
+
+          expect(await File(originalPath).exists(), isFalse);
+          expect(await File(renamedPath).readAsBytes(), <int>[1, 2, 3]);
+          expect(store.updates.last.fileName, 'real archive.zip');
+          expect(store.updates.last.savedPath, renamedPath);
+          expect(store.updates.last.status, 'completed');
+          expect(statuses.last, '下载完成：real archive.zip');
+        } finally {
+          await subscription.cancel();
+          await server.close(force: true);
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
+
+    test('keeps a user filename when response renaming is disabled', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final subscription = server.listen((request) async {
+        request.response.headers.set(
+          'content-disposition',
+          'attachment; filename=server.zip',
+        );
+        request.response.contentLength = 1;
+        request.response.add(<int>[1]);
+        await request.response.close();
+      });
+      final tempDir = await Directory.systemTemp.createTemp('download_test_');
+      final savedPath = '${tempDir.path}/my-choice.bin';
+      final store = _RecordingDownloadStore();
+      final record = BrowserDownloadRecord(
+        id: 3,
+        url: 'http://${server.address.host}:${server.port}/download',
+        fileName: 'my-choice.bin',
+        status: 'pending',
+        savedPath: savedPath,
+        totalBytes: 0,
+        bytesReceived: 0,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      );
+
+      try {
+        await service.startDownload(
+          url: record.url,
+          record: record,
+          savedPath: savedPath,
+          proxyService: ProxyService(),
+          settings: BrowserSettings.defaults(),
+          downloadStore: store,
+          onStatus: (_) {},
+          allowResponseFileName: false,
+        );
+
+        expect(await File(savedPath).readAsBytes(), <int>[1]);
+        expect(store.updates.last.fileName, 'my-choice.bin');
+        expect(store.updates.last.savedPath, savedPath);
+      } finally {
+        await subscription.cancel();
+        await server.close(force: true);
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('renames a generic file from the final redirected URL', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final subscription = server.listen((request) async {
+        if (request.uri.path == '/download.bin') {
+          request.response.statusCode = HttpStatus.found;
+          request.response.headers.set(
+            HttpHeaders.locationHeader,
+            '/real%20archive.zip',
+          );
+        } else {
+          request.response.contentLength = 2;
+          request.response.add(<int>[4, 5]);
+        }
+        await request.response.close();
+      });
+      final tempDir = await Directory.systemTemp.createTemp('download_test_');
+      final originalPath = '${tempDir.path}/download.bin';
+      final renamedPath = '${tempDir.path}/real archive.zip';
+      final store = _RecordingDownloadStore();
+      final record = BrowserDownloadRecord(
+        id: 4,
+        url: 'http://${server.address.host}:${server.port}/download.bin',
+        fileName: 'download.bin',
+        status: 'pending',
+        savedPath: originalPath,
+        totalBytes: 0,
+        bytesReceived: 0,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      );
+
+      try {
+        await service.startDownload(
+          url: record.url,
+          record: record,
+          savedPath: originalPath,
+          proxyService: ProxyService(),
+          settings: BrowserSettings.defaults(),
+          downloadStore: store,
+          onStatus: (_) {},
+          allowResponseFileName: true,
+        );
+
+        expect(await File(originalPath).exists(), isFalse);
+        expect(await File(renamedPath).readAsBytes(), <int>[4, 5]);
+        expect(store.updates.last.fileName, 'real archive.zip');
+        expect(store.updates.last.savedPath, renamedPath);
+      } finally {
+        await subscription.cancel();
         await server.close(force: true);
         await tempDir.delete(recursive: true);
       }
