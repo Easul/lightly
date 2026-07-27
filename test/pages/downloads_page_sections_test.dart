@@ -51,6 +51,39 @@ void main() {
   });
 
   group('DownloadRecordCard', () {
+    testWidgets('failed download exposes retry action', (tester) async {
+      final record = BrowserDownloadRecord(
+        id: 1,
+        url: 'https://example.com/file.zip',
+        fileName: 'file.zip',
+        status: 'failed',
+        savedPath: '/storage/emulated/0/Download/file.zip',
+        totalBytes: 100,
+        bytesReceived: 50,
+        createdAt: DateTime(2026),
+      );
+      BrowserDownloadRecord? retried;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DownloadRecordCard(
+              record: record,
+              onPause: (_) {},
+              onResume: (record) => retried = record,
+              onInstall: (_) {},
+              onPlayVideo: (_) {},
+              onDelete: (_) {},
+              onCopyLink: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('重试'));
+      expect(retried, same(record));
+    });
+
     testWidgets('long press exposes copy link action', (tester) async {
       final record = BrowserDownloadRecord(
         id: 1,

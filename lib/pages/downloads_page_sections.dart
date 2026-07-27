@@ -163,10 +163,14 @@ class DownloadRecordCard extends StatelessWidget {
                   onPause(record);
                 },
               ),
-            if (record.status == 'paused')
+            if (record.status == 'paused' || record.status == 'failed')
               ListTile(
-                leading: const Icon(Icons.play_arrow_rounded),
-                title: const Text('继续'),
+                leading: Icon(
+                  record.status == 'failed'
+                      ? Icons.refresh_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+                title: Text(record.status == 'failed' ? '重试' : '继续'),
                 onTap: () {
                   Navigator.of(context).pop();
                   onResume(record);
@@ -238,10 +242,10 @@ class _DownloadRecordQuickActions extends StatelessWidget {
         child: const Text('暂停'),
       );
     }
-    if (record.status == 'paused') {
+    if (record.status == 'paused' || record.status == 'failed') {
       return TextButton(
         onPressed: () => onResume(record),
-        child: const Text('继续'),
+        child: Text(record.status == 'failed' ? '重试' : '继续'),
       );
     }
     if (canInstall) {

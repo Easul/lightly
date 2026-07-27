@@ -225,6 +225,30 @@ class BrowserDownloadCoordinator {
     );
   }
 
+  Future<void> resumeDownload({
+    required BrowserDownloadRecord record,
+    required BrowserSettings settings,
+    required void Function(String) onStatus,
+  }) async {
+    final savedPath = record.savedPath?.trim();
+    if (savedPath == null || savedPath.isEmpty) {
+      throw StateError('Download record has no saved path.');
+    }
+    final requestHeaders = await _requestContextResolver.resolve(
+      url: WebUri(record.url),
+    );
+    await _downloadService.startDownload(
+      url: record.url,
+      record: record,
+      savedPath: savedPath,
+      proxyService: _proxyService,
+      settings: settings,
+      downloadStore: _downloadStore,
+      onStatus: onStatus,
+      requestHeaders: requestHeaders,
+    );
+  }
+
   Future<bool?> _resolveSystemDownloadsPreference(
     BuildContext context, {
     required void Function(String) onStatus,

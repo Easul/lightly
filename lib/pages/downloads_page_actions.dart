@@ -262,7 +262,8 @@ extension _DownloadsPageActions on _DownloadsPageState {
         savedPath: record.savedPath,
         deletePartialFile: false,
       );
-      await _downloadStore.update(record.copyWith(status: 'paused'));
+      final latestRecord = await _downloadStore.query(id) ?? record;
+      await _downloadStore.update(latestRecord.copyWith(status: 'paused'));
       await _reloadDownloads();
       if (mounted) {
         _showToast('已暂停：${record.fileName}');
@@ -277,17 +278,15 @@ extension _DownloadsPageActions on _DownloadsPageState {
   Future<void> _resumeDownload(BrowserDownloadRecord record) async {
     try {
       final settings = await _settingsService.loadSettings();
-      final resumedRecord = record.copyWith(status: 'downloading');
-      await _downloadStore.update(resumedRecord);
       if (!mounted) return;
-      _showToast('继续下载：${record.fileName}');
-      await _downloadService.startDownload(
-        url: record.url,
-        record: resumedRecord,
-        savedPath: record.savedPath ?? '',
-        proxyService: _proxyService,
+      _showToast(
+        record.status == 'failed'
+            ? '重新下载：${record.fileName}'
+            : '继续下载：${record.fileName}',
+      );
+      await _downloadCoordinator.resumeDownload(
+        record: record,
         settings: settings,
-        downloadStore: _downloadStore,
         onStatus: (message) {
           if (!mounted) return;
           _showToast(message);

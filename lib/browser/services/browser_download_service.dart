@@ -11,45 +11,13 @@ import '../../services/shared_downloads_directory_service.dart';
 import '../browser_settings.dart';
 import '../models/browser_download_record.dart';
 import '../../features/proxy/infrastructure/proxy_service.dart';
+import 'browser_download_transfer.dart';
 import 'browser_download_store.dart';
 
 class DownloadConfirmationResult {
   const DownloadConfirmationResult({required this.fileName});
 
   final String fileName;
-}
-
-class _DownloadCancelledException implements Exception {
-  const _DownloadCancelledException();
-}
-
-class _DownloadRejectedException implements Exception {
-  const _DownloadRejectedException(this.message);
-
-  final String message;
-}
-
-class _ActiveDownloadSession {
-  _ActiveDownloadSession({required this.client});
-
-  final HttpClient client;
-  IOSink? sink;
-  bool cancelled = false;
-  final Completer<void> done = Completer<void>();
-
-  Future<void> cancel() async {
-    cancelled = true;
-    client.close(force: true);
-    try {
-      await sink?.close();
-    } catch (_) {}
-  }
-
-  void complete() {
-    if (!done.isCompleted) {
-      done.complete();
-    }
-  }
 }
 
 class BrowserDownloadService {
@@ -62,9 +30,8 @@ class BrowserDownloadService {
 
   final DateTime Function() _now;
   final SharedDownloadsAccess _sharedDownloadsAccess;
-  static const int _downloadProgressPersistStepBytes = 256 * 1024;
-  final Map<int, _ActiveDownloadSession> _activeDownloads =
-      <int, _ActiveDownloadSession>{};
+  final Map<int, BrowserDownloadTransfer> _activeDownloads =
+      <int, BrowserDownloadTransfer>{};
 
   Future<void> cancelDownload(
     int id, {
@@ -74,7 +41,7 @@ class BrowserDownloadService {
     final session = _activeDownloads[id];
     if (session != null) {
       await session.cancel();
-      await session.done.future;
+      await session.done;
     }
 
     if (deletePartialFile && savedPath != null && savedPath.trim().isNotEmpty) {
@@ -236,9 +203,6 @@ class BrowserDownloadService {
     required void Function(String) onStatus,
     Map<String, String> requestHeaders = const <String, String>{},
   }) async {
-    final client = HttpClient();
-    client.findProxy = (uri) =>
-        proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
     final id = record.id;
     if (id == null) {
       throw ArgumentError.value(
@@ -247,131 +211,99 @@ class BrowserDownloadService {
         'Record id is required.',
       );
     }
-    final session = _ActiveDownloadSession(client: client);
-    _activeDownloads[id] = session;
+    if (_activeDownloads.containsKey(id)) {
+      onStatus('下载任务已在进行：${record.fileName}');
+      return;
+    }
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 20);
+    client.findProxy = (uri) =>
+        proxyService.findProxyForDownload(settings.proxyConfiguration, uri);
+    final transfer = BrowserDownloadTransfer(client: client);
+    _activeDownloads[id] = transfer;
     var currentRecord = record.copyWith(
       status: 'downloading',
       savedPath: savedPath,
     );
-    await downloadStore.update(currentRecord);
+
+    Future<void> markFailed() async {
+      var actualBytes = currentRecord.bytesReceived;
+      try {
+        final outputFile = File(savedPath);
+        if (await outputFile.exists()) {
+          actualBytes = await outputFile.length();
+        }
+      } catch (_) {}
+      currentRecord = currentRecord.copyWith(
+        status: 'failed',
+        bytesReceived: actualBytes,
+      );
+      await downloadStore.update(currentRecord);
+    }
 
     try {
-      final outputFile = File(savedPath);
-      if (!await outputFile.parent.exists()) {
-        await outputFile.parent.create(recursive: true);
-      }
-
-      var resumedFromBytes = 0;
-      if (await outputFile.exists()) {
-        resumedFromBytes = await outputFile.length();
-      }
-
-      final httpRequest = await client.getUrl(Uri.parse(url));
-      for (final header in requestHeaders.entries) {
-        final value = header.value.trim();
-        if (value.isNotEmpty &&
-            header.key.toLowerCase() != HttpHeaders.rangeHeader) {
-          httpRequest.headers.set(header.key, value);
-        }
-      }
-      if (resumedFromBytes > 0) {
-        httpRequest.headers.set(
-          HttpHeaders.rangeHeader,
-          'bytes=$resumedFromBytes-',
-        );
-      }
-      final response = await httpRequest.close();
-      if (response.statusCode < HttpStatus.ok ||
-          response.statusCode >= HttpStatus.multipleChoices) {
-        throw HttpException(
-          'Download failed with status ${response.statusCode}',
-          uri: Uri.parse(url),
-        );
-      }
-
-      if (isUnexpectedHtmlResponse(
-        fileName: record.fileName,
-        mimeType: response.headers.contentType?.mimeType,
-      )) {
-        throw const _DownloadRejectedException('下载失败：服务器返回的是网页，链接可能已失效或需要重新登录');
-      }
-
-      var writeMode = FileMode.write;
-      var bytesReceived = 0;
-      var totalBytes = currentRecord.totalBytes;
-
-      if (resumedFromBytes > 0) {
-        if (response.statusCode == HttpStatus.partialContent) {
-          writeMode = FileMode.append;
-          bytesReceived = resumedFromBytes;
-          totalBytes = _resolveResumedTotalBytes(
-            response: response,
-            resumedFromBytes: resumedFromBytes,
-            fallbackTotalBytes: currentRecord.totalBytes,
-          );
-        } else {
-          await outputFile.writeAsBytes(const <int>[]);
-          resumedFromBytes = 0;
-          totalBytes = response.contentLength > 0
-              ? response.contentLength
-              : currentRecord.totalBytes;
-        }
-      } else {
-        totalBytes = response.contentLength > 0
-            ? response.contentLength
-            : currentRecord.totalBytes;
-      }
-
-      final sink = outputFile.openWrite(mode: writeMode);
-      session.sink = sink;
-      var lastPersistedBytes = bytesReceived;
-      await for (final chunk in response) {
-        if (session.cancelled) {
-          throw const _DownloadCancelledException();
-        }
-        bytesReceived += chunk.length;
-        sink.add(chunk);
-        if (lastPersistedBytes == 0 ||
-            bytesReceived - lastPersistedBytes >=
-                _downloadProgressPersistStepBytes) {
+      await downloadStore.update(currentRecord);
+      final result = await transfer.run(
+        url: Uri.parse(url),
+        outputFile: File(savedPath),
+        requestHeaders: requestHeaders,
+        initialTotalBytes: currentRecord.totalBytes,
+        onProgress: (bytesReceived, totalBytes) async {
           currentRecord = currentRecord.copyWith(
             bytesReceived: bytesReceived,
             totalBytes: totalBytes,
           );
           await downloadStore.update(currentRecord);
-          lastPersistedBytes = bytesReceived;
-        }
-      }
-      if (session.cancelled) {
-        throw const _DownloadCancelledException();
-      }
-      await sink.close();
+        },
+        onRetry: (retryNumber, maxRetries) {
+          onStatus('网络中断，正在重试（$retryNumber/$maxRetries）：${record.fileName}');
+        },
+        validateResponse: (response) {
+          if (isUnexpectedHtmlResponse(
+            fileName: record.fileName,
+            mimeType: response.headers.contentType?.mimeType,
+          )) {
+            throw const BrowserDownloadRejectedException(
+              '下载失败：服务器返回的是网页，链接可能已失效或需要重新登录',
+            );
+          }
+        },
+      );
 
-      totalBytes = totalBytes > 0 ? totalBytes : bytesReceived;
       currentRecord = currentRecord.copyWith(
         status: 'completed',
-        totalBytes: totalBytes,
-        bytesReceived: bytesReceived,
+        totalBytes: result.totalBytes,
+        bytesReceived: result.bytesReceived,
         savedPath: savedPath,
       );
       await downloadStore.update(currentRecord);
       // 扫描新下载的文件，让系统文件管理器可以看到
       unawaited(MediaScannerService.scanFile(savedPath));
       onStatus('下载完成：${record.fileName}');
-    } on _DownloadCancelledException {
+    } on BrowserDownloadCancelledException {
+      final outputFile = File(savedPath);
+      if (await outputFile.exists()) {
+        currentRecord = currentRecord.copyWith(
+          bytesReceived: await outputFile.length(),
+        );
+        await downloadStore.update(currentRecord);
+      }
       return;
-    } on _DownloadRejectedException catch (error) {
-      currentRecord = currentRecord.copyWith(status: 'failed');
-      await downloadStore.update(currentRecord);
+    } on BrowserDownloadRejectedException catch (error) {
+      await markFailed();
       onStatus(error.message);
+    } on BrowserDownloadHttpStatusException catch (error) {
+      await markFailed();
+      onStatus('下载失败：服务器返回 ${error.statusCode}（${record.fileName}）');
+    } on BrowserDownloadProtocolException {
+      await markFailed();
+      onStatus('下载失败：服务器不支持可靠续传，请重试（${record.fileName}）');
     } catch (_) {
-      currentRecord = currentRecord.copyWith(status: 'failed');
-      await downloadStore.update(currentRecord);
-      onStatus('下载失败：${record.fileName}');
+      await markFailed();
+      onStatus('下载中断，已保留进度，可在下载记录中重试：${record.fileName}');
     } finally {
       _activeDownloads.remove(id);
-      session.complete();
-      client.close(force: true);
+      await transfer.finish();
     }
   }
 
@@ -449,26 +381,5 @@ class BrowserDownloadService {
       caseSensitive: false,
     ).firstMatch(value);
     return filenameMatch?.group(1);
-  }
-
-  int _resolveResumedTotalBytes({
-    required HttpClientResponse response,
-    required int resumedFromBytes,
-    required int fallbackTotalBytes,
-  }) {
-    final contentRange = response.headers.value(HttpHeaders.contentRangeHeader);
-    if (contentRange != null) {
-      final match = RegExp(r'bytes\s+\d+-\d+/(\d+)').firstMatch(contentRange);
-      final total = int.tryParse(match?.group(1) ?? '');
-      if (total != null && total > 0) {
-        return total;
-      }
-    }
-
-    if (response.contentLength > 0) {
-      return resumedFromBytes + response.contentLength;
-    }
-
-    return fallbackTotalBytes;
   }
 }
