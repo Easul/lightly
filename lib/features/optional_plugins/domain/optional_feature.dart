@@ -34,19 +34,19 @@ class OptionalFeatureCatalog {
           id: OptionalFeatureId.telegram,
           displayName: 'TG 工具插件',
           packageName: 'lightly.tool.plugin.telegram',
-          minimumApiVersion: 1,
+          minimumApiVersion: 2,
         ),
         OptionalFeatureId.webRtcVoice: OptionalFeatureDescriptor(
           id: OptionalFeatureId.webRtcVoice,
           displayName: '远程语音插件',
           packageName: 'lightly.tool.plugin.webrtc',
-          minimumApiVersion: 1,
+          minimumApiVersion: 2,
         ),
         OptionalFeatureId.easyTier: OptionalFeatureDescriptor(
           id: OptionalFeatureId.easyTier,
           displayName: 'EasyTier 插件',
           packageName: 'lightly.tool.plugin.easytier',
-          minimumApiVersion: 1,
+          minimumApiVersion: 2,
         ),
       };
 

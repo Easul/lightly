@@ -8,10 +8,12 @@
         android:extractNativeLibs="false"
         android:fullBackupContent="false"
         android:hasCode="true"
-        android:label="Lightly TG 插件">
+        android:icon="@mipmap/ic_launcher"
+        android:label="Lightly TG 插件"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <meta-data
             android:name="lightly.plugin.API_VERSION"
-            android:value="1" />
+            android:value="2" />
         <meta-data
             android:name="lightly.plugin.FEATURE_ID"
             android:value="telegram" />
@@ -24,5 +26,13 @@
                 <action android:name="lightly.tool.plugin.telegram.BIND" />
             </intent-filter>
         </service>
+
+        <activity
+            android:name=".PluginBootstrapActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="lightly.tool.plugin.telegram.permission.BIND_SERVICE"
+            android:theme="@style/Theme.LightlyTelegramPlugin.Bootstrap" />
     </application>
 </manifest>

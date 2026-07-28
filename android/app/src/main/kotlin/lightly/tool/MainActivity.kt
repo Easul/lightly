@@ -20,12 +20,17 @@ class MainActivity : FlutterActivity() {
     private val proxyFloatingModeChannelHandler by lazy {
         ProxyFloatingModeChannelHandler(this)
     }
-    private val easyTierChannelHandler by lazy { EasyTierChannelHandler(this) }
+    private val optionalPluginActivationCoordinator by lazy {
+        OptionalPluginActivationCoordinator(this)
+    }
+    private val easyTierChannelHandler by lazy {
+        EasyTierChannelHandler(this, optionalPluginActivationCoordinator)
+    }
     private val telegramPluginChannelHandler by lazy {
-        TelegramPluginChannelHandler(this)
+        TelegramPluginChannelHandler(this, optionalPluginActivationCoordinator)
     }
     private val webRtcVoicePluginChannelHandler by lazy {
-        WebRtcVoicePluginChannelHandler(this)
+        WebRtcVoicePluginChannelHandler(this, optionalPluginActivationCoordinator)
     }
     private var remoteControlChannelHandler: RemoteControlChannelHandler? = null
 
@@ -162,6 +167,8 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
             return
+        } else if (optionalPluginActivationCoordinator.handleActivityResult(requestCode, resultCode)) {
+            return
         } else if (webRtcVoicePluginChannelHandler.handleActivityResult(requestCode, resultCode)) {
             return
         } else if (easyTierChannelHandler.handleActivityResult(requestCode, resultCode)) {
@@ -187,6 +194,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        optionalPluginActivationCoordinator.clear()
         telegramPluginChannelHandler.shutdown()
         webRtcVoicePluginChannelHandler.shutdown()
         shutdownRemoteControlResources()

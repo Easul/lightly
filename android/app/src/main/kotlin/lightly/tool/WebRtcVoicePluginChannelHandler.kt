@@ -17,6 +17,7 @@ import lightly.tool.plugin.webrtc.ipc.IWebRtcVoicePluginService
 
 class WebRtcVoicePluginChannelHandler(
     private val activity: Activity,
+    private val pluginActivationCoordinator: OptionalPluginActivationCoordinator,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val connectWaiters = mutableListOf<MethodChannel.Result>()
@@ -116,6 +117,18 @@ class WebRtcVoicePluginChannelHandler(
             return
         }
         binding = true
+        pluginActivationCoordinator.activate(
+            pluginPackage = PLUGIN_PACKAGE,
+            bootstrapActivityClass = PLUGIN_BOOTSTRAP_ACTIVITY_CLASS,
+            onActivated = ::bindPluginService,
+            onFailure = { finishConnect(false) },
+        )
+    }
+
+    private fun bindPluginService() {
+        if (!binding) {
+            return
+        }
         val intent = Intent(ACTION_BIND).setComponent(
             ComponentName(PLUGIN_PACKAGE, PLUGIN_SERVICE_CLASS),
         )
@@ -208,8 +221,10 @@ class WebRtcVoicePluginChannelHandler(
             "lightly.tool.plugin.webrtc.WebRtcVoicePluginService"
         private const val PLUGIN_PERMISSION_ACTIVITY_CLASS =
             "lightly.tool.plugin.webrtc.AudioPermissionActivity"
+        private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
+            "lightly.tool.plugin.webrtc.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.webrtc.BIND"
-        private const val MINIMUM_API_VERSION = 1
+        private const val MINIMUM_API_VERSION = 2
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val REQUEST_AUDIO_PERMISSION = 49013
         private const val METHOD_CONNECT = "connect"

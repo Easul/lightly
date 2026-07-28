@@ -119,7 +119,7 @@ class WebRtcVoicePluginService : Service() {
     }
 
     companion object {
-        private const val API_VERSION = 1
+        private const val API_VERSION = 2
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val MAX_ERROR_LENGTH = 512
     }

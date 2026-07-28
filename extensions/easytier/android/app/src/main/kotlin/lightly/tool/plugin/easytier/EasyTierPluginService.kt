@@ -92,7 +92,7 @@ class EasyTierPluginService : Service() {
     }
 
     companion object {
-        private const val API_VERSION = 1
+        private const val API_VERSION = 2
         private const val NOTIFICATION_ID = 14602
         private const val NOTIFICATION_CHANNEL = "lightly_easytier_runtime"
     }

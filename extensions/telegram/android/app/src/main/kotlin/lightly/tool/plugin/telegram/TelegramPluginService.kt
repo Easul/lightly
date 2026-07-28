@@ -118,7 +118,7 @@ class TelegramPluginService : Service() {
     }
 
     companion object {
-        const val API_VERSION = 1
+        const val API_VERSION = 2
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val RECEIVE_TIMEOUT_SECONDS = 0.25
     }

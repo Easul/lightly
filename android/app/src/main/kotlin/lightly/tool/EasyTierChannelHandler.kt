@@ -12,7 +12,10 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import lightly.tool.plugin.easytier.ipc.IEasyTierPluginService
 
-class EasyTierChannelHandler(private val activity: Activity) {
+class EasyTierChannelHandler(
+    private val activity: Activity,
+    private val pluginActivationCoordinator: OptionalPluginActivationCoordinator,
+) {
     private data class PendingOperation(
         val result: MethodChannel.Result,
         val block: (IEasyTierPluginService) -> Unit,
@@ -200,6 +203,20 @@ class EasyTierChannelHandler(private val activity: Activity) {
         pendingOperations += PendingOperation(result, block)
         if (binding) return
         binding = true
+        pluginActivationCoordinator.activate(
+            pluginPackage = PLUGIN_PACKAGE,
+            bootstrapActivityClass = PLUGIN_BOOTSTRAP_ACTIVITY_CLASS,
+            onActivated = ::bindPluginService,
+            onFailure = {
+                failPending(ERROR_PLUGIN_UNAVAILABLE, "Unable to activate EasyTier plugin")
+            },
+        )
+    }
+
+    private fun bindPluginService() {
+        if (!binding) {
+            return
+        }
         val intent = Intent(ACTION_BIND).setComponent(
             ComponentName(PLUGIN_PACKAGE, PLUGIN_SERVICE_CLASS),
         )
@@ -258,8 +275,10 @@ class EasyTierChannelHandler(private val activity: Activity) {
             "lightly.tool.plugin.easytier.EasyTierPluginService"
         private const val PLUGIN_PERMISSION_ACTIVITY_CLASS =
             "lightly.tool.plugin.easytier.EasyTierVpnPermissionActivity"
+        private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
+            "lightly.tool.plugin.easytier.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.easytier.BIND"
-        private const val MINIMUM_API_VERSION = 1
+        private const val MINIMUM_API_VERSION = 2
         private const val MAX_CONFIG_LENGTH = 1024 * 1024
         private const val VPN_PERMISSION_REQUEST_CODE = 4103
         private const val METHOD_PARSE_CONFIG = "parseConfig"

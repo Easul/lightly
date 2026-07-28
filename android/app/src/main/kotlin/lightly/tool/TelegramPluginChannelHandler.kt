@@ -17,6 +17,7 @@ import lightly.tool.plugin.telegram.ipc.ITelegramPluginService
 
 class TelegramPluginChannelHandler(
     private val activity: Activity,
+    private val pluginActivationCoordinator: OptionalPluginActivationCoordinator,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val connectWaiters = mutableListOf<MethodChannel.Result>()
@@ -112,6 +113,18 @@ class TelegramPluginChannelHandler(
             return
         }
         binding = true
+        pluginActivationCoordinator.activate(
+            pluginPackage = PLUGIN_PACKAGE,
+            bootstrapActivityClass = PLUGIN_BOOTSTRAP_ACTIVITY_CLASS,
+            onActivated = ::bindPluginService,
+            onFailure = { finishConnect(false) },
+        )
+    }
+
+    private fun bindPluginService() {
+        if (!binding) {
+            return
+        }
         val intent = Intent(ACTION_BIND).setComponent(
             ComponentName(PLUGIN_PACKAGE, PLUGIN_SERVICE_CLASS),
         )
@@ -206,8 +219,10 @@ class TelegramPluginChannelHandler(
         private const val PLUGIN_PACKAGE = "lightly.tool.plugin.telegram"
         private const val PLUGIN_SERVICE_CLASS =
             "lightly.tool.plugin.telegram.TelegramPluginService"
+        private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
+            "lightly.tool.plugin.telegram.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.telegram.BIND"
-        private const val MINIMUM_API_VERSION = 1
+        private const val MINIMUM_API_VERSION = 2
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val METHOD_CONNECT = "connect"
         private const val METHOD_CREATE_CLIENT = "createClient"

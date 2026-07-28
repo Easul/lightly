@@ -13,11 +13,13 @@
         android:extractNativeLibs="false"
         android:fullBackupContent="false"
         android:hasCode="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="Lightly 远程语音插件"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.LightlyVoicePlugin">
         <meta-data
             android:name="lightly.plugin.API_VERSION"
-            android:value="1" />
+            android:value="2" />
         <meta-data
             android:name="lightly.plugin.FEATURE_ID"
             android:value="webrtc_voice" />
@@ -33,6 +35,14 @@
 
         <activity
             android:name=".AudioPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="lightly.tool.plugin.webrtc.permission.BIND_SERVICE"
+            android:theme="@style/Theme.LightlyVoicePlugin.Permission" />
+
+        <activity
+            android:name=".PluginBootstrapActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"

@@ -14,9 +14,11 @@
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Lightly EasyTier 插件"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.LightlyEasyTierPlugin">
-        <meta-data android:name="lightly.plugin.API_VERSION" android:value="1" />
+        <meta-data android:name="lightly.plugin.API_VERSION" android:value="2" />
         <meta-data android:name="lightly.plugin.FEATURE_ID" android:value="easytier" />
 
         <service
@@ -43,6 +45,13 @@
         </service>
         <activity
             android:name=".EasyTierVpnPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="lightly.tool.plugin.easytier.permission.BIND_SERVICE"
+            android:theme="@style/Theme.LightlyEasyTierPlugin.Permission" />
+        <activity
+            android:name=".PluginBootstrapActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"

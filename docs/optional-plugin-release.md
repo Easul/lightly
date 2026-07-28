@@ -23,5 +23,12 @@ Prepare Telegram's TDLib binary first:
 extensions/telegram/scripts/prepare_tdlib.sh
 ```
 
+Every Service-owning companion must include the protected transparent
+`PluginBootstrapActivity` and Lightly must activate it through
+`OptionalPluginActivationCoordinator` before the initial bind. This is required for OEM builds
+that reject direct cross-package background-service activation. The bootstrap does not provide UI;
+it returns immediately to the foreground Lightly Activity. Keep `android:icon` and
+`android:roundIcon` pointed at the copied Lightly launcher resources in every companion manifest.
+
 Do not publish the manifest until the corresponding APKs are signed with the same certificate as
 the Lightly build that declares the minimum version code.

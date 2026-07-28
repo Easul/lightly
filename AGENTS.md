@@ -299,8 +299,18 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Lightly owns all business UI, persisted configuration, backup/import, download prompts, and
   orchestration. Companion APKs own only native runtime/session resources, JNI libraries, and
   bounded capability APIs.
-- A companion may expose a minimal native Activity only when Android requires an Activity for a
-  system authorization flow, such as microphone or VPN consent. It must not become a business UI.
+- A companion may expose a minimal native Activity only for a system authorization flow (such as
+  microphone or VPN consent) or the shared foreground bootstrap required before binding on OEM
+  builds that reject direct cross-package service autostart. It must be transparent, immediately
+  finish, be protected by the companion signature permission, and must not become a business UI.
+- All Service-owning companions must use `OptionalPluginActivationCoordinator` before their first
+  explicit `bindService()`. Do not reintroduce per-feature wake-up request codes or bypass its
+  same-signature check; MIUI can reject a direct bind from `lightly.tool` to an installed plugin.
+- The foreground-bootstrap protocol is optional-plugin API 2. When changing this mechanism, bump
+  the companion manifest and Service API together with `OptionalFeatureCatalog` so old APKs are
+  offered an update instead of being treated as compatible.
+- Companion manifests must use Lightly's `ic_launcher` and `ic_launcher_round` resources so the
+  installer and system settings do not show the default Android application icon.
 - Release verification must unpack every companion APK and fail if Flutter/Dart runtime artifacts
   are present. Keep the companion single-ABI and same-signed with the matching Lightly release.
   `scripts/build_optional_plugins.sh` is the canonical six-artifact build and manifest path; it
