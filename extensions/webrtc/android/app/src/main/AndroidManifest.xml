@@ -37,7 +37,6 @@
             android:name=".AudioPermissionActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:noHistory="true"
             android:permission="lightly.tool.plugin.webrtc.permission.BIND_SERVICE"
             android:theme="@style/Theme.LightlyVoicePlugin.Permission" />
 

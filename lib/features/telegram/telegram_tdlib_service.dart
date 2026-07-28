@@ -58,6 +58,10 @@ class TelegramTdlibService {
       _clientId = await _plugin.createClient();
     }
     authStep.value = TelegramAuthStep.loading;
+    // Apply the local SOCKS5 endpoint before the first TDLib request. TDLib can begin bootstrap
+    // networking as soon as getAuthorizationState is sent, so configuring it later can still
+    // leave the initial connection on a direct path even when the proxy is already running.
+    await configureProxyIfAvailable();
     await _enqueueAuthorizationState(await _request('getAuthorizationState'));
   }
 
@@ -226,7 +230,7 @@ class TelegramTdlibService {
 
   Future<void> configureProxyIfAvailable() async {
     if (_clientId == 0) return;
-    final port = proxyEndpointProvider.localSocks5Port;
+    final port = await proxyEndpointProvider.resolveAvailableLocalSocks5Port();
     if (port == null) {
       if (_configuredProxyPort != null) {
         await _expectOk('disableProxy');
@@ -402,4 +406,7 @@ class _NullProxyEndpointProvider implements LocalProxyEndpointProvider {
 
   @override
   int? get localSocks5Port => null;
+
+  @override
+  Future<int?> resolveAvailableLocalSocks5Port() async => null;
 }

@@ -11,4 +11,6 @@
 /// call time (callers poll it before each use).
 abstract class LocalProxyEndpointProvider {
   int? get localSocks5Port;
+
+  Future<int?> resolveAvailableLocalSocks5Port() async => localSocks5Port;
 }

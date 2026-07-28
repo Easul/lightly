@@ -12,6 +12,9 @@ class _FakeProxyEndpointProvider implements LocalProxyEndpointProvider {
 
   @override
   int? get localSocks5Port => _port;
+
+  @override
+  Future<int?> resolveAvailableLocalSocks5Port() async => _port;
 }
 
 void main() {
@@ -31,6 +34,14 @@ void main() {
       // surface null — the exact "direct connection" signal Telegram relies on.
       final adapter = ProxyServiceLocalEndpointAdapter();
       expect(adapter.localSocks5Port, isNull);
+    });
+
+    test('adapter accepts a listener when the runtime flag is stale', () async {
+      final adapter = ProxyServiceLocalEndpointAdapter(
+        listenerProbe: (host, port) async =>
+            host == '127.0.0.1' && port == 23333,
+      );
+      expect(await adapter.resolveAvailableLocalSocks5Port(), 23333);
     });
   });
 

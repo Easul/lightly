@@ -545,6 +545,9 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 - The companion has no FlutterEngine or business Activity. Its transparent permission Activity is
   only for the plugin package's own `RECORD_AUDIO` runtime grant. Keep the host and plugin AIDL
   byte-for-byte compatible and retain same-signature checks before binding or launching it.
+- Do not mark the microphone permission Activity `noHistory`: opening Android's runtime permission
+  UI temporarily backgrounds it on some ROMs, and `noHistory` can destroy it before the permission
+  result is returned, making every microphone attempt appear denied.
 - The optional companion API is currently 2 because all service-owning plugins use the shared
   foreground bootstrap protocol; keep the host catalog, manifests, service constants, and release
   manifest aligned when changing it.
@@ -1212,6 +1215,10 @@ void dispose() {
 - Keep TG Tools foreground/manual-refresh only. Recent chats, text history, text sending, and check-in must not introduce background polling or notification delivery.
 - One-click check-in sends only targets whose `enabled` switch is on; this flag is part of unified backup import/export.
 - TDLib requests must continue to follow the active local SOCKS5 proxy before login, chat loading, refresh, and sending.
+- Telegram must configure the local SOCKS5 endpoint before its first TDLib request. Do not rely
+  solely on the proxy owner's in-memory `isRunning` flag: after runtime reconstruction it can be
+  stale while the native listener is already active, so the production endpoint adapter should
+  verify the concrete loopback listener before falling back to direct connection.
 - Unified backup includes Telegram App ID, App Hash, phone number, targets, and commands; treat that
   backup as sensitive data and never write these values to runtime logs.
 - If the local proxy is unavailable, the UI must explicitly say Telegram is attempting a direct

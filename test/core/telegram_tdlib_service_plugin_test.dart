@@ -64,8 +64,8 @@ void main() {
     );
 
     expect(requests.map((request) => request['@type']), <String>[
-      'getAuthorizationState',
       'addProxy',
+      'getAuthorizationState',
       'setTdlibParameters',
     ]);
     final parameters = requests[2];
@@ -73,7 +73,7 @@ void main() {
     expect(parameters['api_hash'], 'test-hash');
     expect(parameters['database_directory'], isEmpty);
     expect(parameters['files_directory'], isEmpty);
-    expect(requests[1]['port'], 23333);
+    expect(requests[0]['port'], 23333);
     expect(service.proxyStatus.value, '已使用本地代理 127.0.0.1:23333');
 
     await _sendPluginResult(channel, <String, Object?>{
@@ -93,6 +93,9 @@ class _ProxyEndpoint implements LocalProxyEndpointProvider {
 
   @override
   final int? localSocks5Port;
+
+  @override
+  Future<int?> resolveAvailableLocalSocks5Port() async => localSocks5Port;
 }
 
 Future<void> _sendPluginResult(
