@@ -262,6 +262,7 @@ class TelegramTdlibService {
           authStep.value = TelegramAuthStep.error;
           return;
         }
+        await configureProxyIfAvailable();
         await _expectOk('setTdlibParameters', <String, Object?>{
           'use_test_dc': false,
           'database_directory': '',
@@ -280,7 +281,6 @@ class TelegramTdlibService {
           'enable_storage_optimizer': true,
           'ignore_file_names': true,
         });
-        await configureProxyIfAvailable();
       case 'authorizationStateWaitPhoneNumber':
         await configureProxyIfAvailable();
         authStep.value = TelegramAuthStep.phone;

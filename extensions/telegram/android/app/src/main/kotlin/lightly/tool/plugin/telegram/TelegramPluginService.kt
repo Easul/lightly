@@ -6,8 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import android.os.RemoteCallbackList
+import android.util.Log
 import lightly.tool.plugin.telegram.ipc.ITelegramPluginCallback
 import lightly.tool.plugin.telegram.ipc.ITelegramPluginService
+import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 class TelegramPluginService : Service() {
@@ -30,14 +32,21 @@ class TelegramPluginService : Service() {
 
         override fun createClient(): Int {
             enforceTrustedCaller()
-            ensureReceiverStarted()
-            return TelegramNativeBridge.createClient()
+            // TDLib queues its initial authorization update until receive() starts. Starting the
+            // loop here can race the Binder reply, causing Lightly to discard that update before
+            // it has stored the returned client ID.
+            return TelegramNativeBridge.createClient().also { clientId ->
+                Log.i(LOG_TAG, "Created TDLib client $clientId")
+            }
         }
 
         override fun send(clientId: Int, requestJson: String) {
             enforceTrustedCaller()
             require(requestJson.length <= MAX_JSON_LENGTH) { "TDLib request is too large" }
-            TelegramNativeBridge.send(clientId, requestSanitizer.rewrite(requestJson))
+            val sanitizedRequest = requestSanitizer.rewrite(requestJson)
+            TelegramNativeBridge.send(clientId, sanitizedRequest)
+            logLifecycleRequest(sanitizedRequest)
+            ensureReceiverStarted()
         }
 
         override fun execute(requestJson: String): String? {
@@ -86,11 +95,28 @@ class TelegramPluginService : Service() {
             while (receiving.get()) {
                 val result = TelegramNativeBridge.receive(RECEIVE_TIMEOUT_SECONDS) ?: continue
                 if (result.length <= MAX_JSON_LENGTH) {
+                    logAuthorizationUpdate(result)
                     broadcast(result)
                 }
             }
         } finally {
             receiving.set(false)
+        }
+    }
+
+    private fun logLifecycleRequest(requestJson: String) {
+        val type = runCatching { JSONObject(requestJson).optString("@type") }
+            .getOrDefault("")
+        if (type in LOGGED_REQUEST_TYPES) {
+            Log.i(LOG_TAG, "Sent TDLib request $type")
+        }
+    }
+
+    private fun logAuthorizationUpdate(resultJson: String) {
+        val type = runCatching { JSONObject(resultJson).optString("@type") }
+            .getOrDefault("")
+        if (type == "updateAuthorizationState") {
+            Log.i(LOG_TAG, "Received TDLib authorization update")
         }
     }
 
@@ -119,7 +145,14 @@ class TelegramPluginService : Service() {
 
     companion object {
         const val API_VERSION = 2
+        private const val LOG_TAG = "TelegramPlugin"
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val RECEIVE_TIMEOUT_SECONDS = 0.25
+        private val LOGGED_REQUEST_TYPES = setOf(
+            "getAuthorizationState",
+            "setTdlibParameters",
+            "addProxy",
+            "disableProxy",
+        )
     }
 }

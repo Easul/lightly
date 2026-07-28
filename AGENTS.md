@@ -1230,6 +1230,10 @@ void dispose() {
   compatible.
 - TDLib crosses IPC only through bounded JSON requests/results. The plugin owns the single receive
   loop and rewrites `setTdlibParameters` database/files directories into its private sandbox.
+- Do not start the TDLib receive loop from `createClient()`: the initial authorization update can
+  arrive before Lightly stores the Binder-returned client ID and be discarded. Start it after the
+  first client-scoped request is sent. Configure the local SOCKS5 proxy before
+  `setTdlibParameters` so the initial TDLib network setup does not race a direct connection.
 - Lightly's `TelegramTdlibService` uses the local `TelegramTdJsonCodec` for the limited request and
   response schema needed by TG Tools. Do not add the Flutter `tdlib` package or `libtdjson.so` back
   to the host merely for generated Dart model classes.
