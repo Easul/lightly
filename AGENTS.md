@@ -545,6 +545,9 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 - The companion has no FlutterEngine or business Activity. Its transparent permission Activity is
   only for the plugin package's own `RECORD_AUDIO` runtime grant. Keep the host and plugin AIDL
   byte-for-byte compatible and retain same-signature checks before binding or launching it.
+- The optional companion API is currently 2 because all service-owning plugins use the shared
+  foreground bootstrap protocol; keep the host catalog, manifests, service constants, and release
+  manifest aligned when changing it.
 - Missing/incompatible plugin must disable voice for the current session while preserving control
   and screen connectivity. Internal-proxy and no-tun paths must not prompt for the voice plugin.
 - Once both endpoints requested a direct voice-capable session, a transient plugin prepare or
