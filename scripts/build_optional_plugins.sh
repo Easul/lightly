@@ -6,6 +6,7 @@ PLUGIN_OUTPUT_DIR="${PLUGIN_OUTPUT_DIR:-$PROJECT_ROOT/build/optional-plugins}"
 MAIN_COMMIT_COUNT="$(git -C "$PROJECT_ROOT" rev-list --count main)"
 PLUGIN_VERSION_CODE="${PLUGIN_VERSION_CODE:-$((5000 + MAIN_COMMIT_COUNT))}"
 PLUGIN_VERSION_NAME="${PLUGIN_VERSION_NAME:-$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || echo v1.0.0)+$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD)}"
+PLUGIN_API_VERSION="${PLUGIN_API_VERSION:-2}"
 MINIMUM_LIGHTLY_VERSION_CODE="${MINIMUM_LIGHTLY_VERSION_CODE:-$PLUGIN_VERSION_CODE}"
 RELEASE_TAG="${PLUGIN_RELEASE_TAG:-plugins-${PLUGIN_VERSION_NAME//[^[:alnum:].+-]/-}}"
 APKSIGNER="${APKSIGNER:-$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)}"
@@ -126,7 +127,7 @@ cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
   "plugins": {
     "telegram": {
       "packageName": "${PLUGIN_PACKAGES[telegram]}",
-      "apiVersion": 1,
+      "apiVersion": ${PLUGIN_API_VERSION},
       "versionCode": ${PLUGIN_VERSION_CODE},
       "versionName": "${PLUGIN_VERSION_NAME}",
       "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
@@ -134,7 +135,7 @@ cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
     },
     "webrtc_voice": {
       "packageName": "${PLUGIN_PACKAGES[webrtc]}",
-      "apiVersion": 1,
+      "apiVersion": ${PLUGIN_API_VERSION},
       "versionCode": ${PLUGIN_VERSION_CODE},
       "versionName": "${PLUGIN_VERSION_NAME}",
       "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
@@ -142,7 +143,7 @@ cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
     },
     "easytier": {
       "packageName": "${PLUGIN_PACKAGES[easytier]}",
-      "apiVersion": 1,
+      "apiVersion": ${PLUGIN_API_VERSION},
       "versionCode": ${PLUGIN_VERSION_CODE},
       "versionName": "${PLUGIN_VERSION_NAME}",
       "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},

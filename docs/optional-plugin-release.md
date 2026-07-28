@@ -11,11 +11,16 @@ scripts/build_optional_plugins.sh
 ```
 
 The default output directory is `build/optional-plugins/`. Override `PLUGIN_VERSION_CODE`,
-`PLUGIN_VERSION_NAME`, `MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
+`PLUGIN_VERSION_NAME`, `PLUGIN_API_VERSION`, `MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
 `PLUGIN_OUTPUT_DIR` when preparing a release. The script compares every plugin signing certificate
 with `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`; set `LIGHTLY_APK` explicitly when
 the matching host APK is elsewhere. Upload the six `*-release.apk` files and
 `plugins.json` to the matching GitHub release in `Easul/lightly-plugins`.
+
+The host build script keeps its normal main-commit version rule by default. For an explicitly
+requested compatibility rebuild, pass the matching `RELEASE_VERSION_NAME` and
+`RELEASE_VERSION_CODE` to `scripts/build_multi_abi.sh`, then pass those same values as
+`PLUGIN_VERSION_NAME` and `PLUGIN_VERSION_CODE` to `scripts/build_optional_plugins.sh`.
 
 Prepare Telegram's TDLib binary first:
 

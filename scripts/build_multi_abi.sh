@@ -78,11 +78,11 @@ echo "🏷️  Latest tag: $LATEST_TAG"
 COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD 2>/dev/null || echo "unknown")
 
 # Build version label: tag+commit
-VERSION_NAME="${LATEST_TAG}+${COMMIT_HASH}"
+VERSION_NAME="${RELEASE_VERSION_NAME:-${LATEST_TAG}+${COMMIT_HASH}}"
 echo "📋 Version: $VERSION_NAME"
 
 COMMIT_COUNT=$(git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count origin/main 2>/dev/null || git -C "$PROJECT_ROOT" rev-list --count HEAD 2>/dev/null || echo "1")
-VERSION_CODE=$((5000 + COMMIT_COUNT))
+VERSION_CODE="${RELEASE_VERSION_CODE:-$((5000 + COMMIT_COUNT))}"
 echo "🔢 Version code: $VERSION_CODE (5000 + main commit count: $COMMIT_COUNT)"
 
 echo "⚙️  Local conservative build mode enabled"
