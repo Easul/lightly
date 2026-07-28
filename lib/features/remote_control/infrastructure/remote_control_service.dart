@@ -352,8 +352,8 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
         try {
           await _prepareVoiceSession(isController: false);
         } catch (error) {
-          _disableVoiceForCurrentSession(
-            'Receiver WebRTC plugin unavailable; continuing without voice',
+          _logVoicePreparationFailure(
+            'Receiver WebRTC plugin prepare failed; voice controls remain available for retry',
             error: error,
           );
         }
@@ -435,8 +435,8 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
             try {
               await _prepareVoiceSession(isController: true);
             } catch (error) {
-              _disableVoiceForCurrentSession(
-                'Controller WebRTC plugin unavailable; continuing without voice',
+              _logVoicePreparationFailure(
+                'Controller WebRTC plugin prepare failed; voice controls remain available for retry',
                 error: error,
               );
             }
@@ -1020,17 +1020,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
     );
   }
 
-  void _disableVoiceForCurrentSession(String message, {Object? error}) {
-    final config = _config;
-    if (config != null && config.enableVoice) {
-      _config = RemoteControlConfig(
-        ports: config.ports,
-        enableScreen: config.enableScreen,
-        enableVoice: false,
-        screenFps: config.screenFps,
-        screenBitrate: config.screenBitrate,
-      );
-    }
+  void _logVoicePreparationFailure(String message, {Object? error}) {
     _logMessage(message, error: error);
   }
 

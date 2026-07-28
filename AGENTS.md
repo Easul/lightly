@@ -306,6 +306,10 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - All Service-owning companions must use `OptionalPluginActivationCoordinator` before their first
   explicit `bindService()`. Do not reintroduce per-feature wake-up request codes or bypass its
   same-signature check; MIUI can reject a direct bind from `lightly.tool` to an installed plugin.
+- Companion runtime lifetime is subordinate to the Lightly host binding. Telegram and WebRTC must
+  close native sessions when their host callback Binder dies; EasyTier must stop its native network
+  and VPN when the last Lightly binding is lost, even though its active runtime is also promoted to
+  a started foreground service. Normal app backgrounding keeps the binding and must not stop them.
 - The foreground-bootstrap protocol is optional-plugin API 2. When changing this mechanism, bump
   the companion manifest and Service API together with `OptionalFeatureCatalog` so old APKs are
   offered an update instead of being treated as compatible.
@@ -541,9 +545,12 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 - The companion has no FlutterEngine or business Activity. Its transparent permission Activity is
   only for the plugin package's own `RECORD_AUDIO` runtime grant. Keep the host and plugin AIDL
   byte-for-byte compatible and retain same-signature checks before binding or launching it.
-- Missing/incompatible plugin, permission denial, or native prepare failure must disable voice for
-  the current session while preserving control and screen connectivity. Internal-proxy and no-tun
-  paths must not prompt for the voice plugin.
+- Missing/incompatible plugin must disable voice for the current session while preserving control
+  and screen connectivity. Internal-proxy and no-tun paths must not prompt for the voice plugin.
+- Once both endpoints requested a direct voice-capable session, a transient plugin prepare or
+  microphone-permission failure must not remove the microphone controls. Keep the controls visible
+  so tapping them can retry permission/plugin preparation; only a missing/incompatible plugin or a
+  no-tun/internal-proxy session should advertise voice as unavailable.
 
 - The remote-control TCP connection is the source of truth for reachability.
   - When controller/receiver control and screen sockets are already connected through a host such as `10.126.*`, WebRTC should prefer that same proven remote-control IP instead of relying only on default Wi-Fi ICE candidates.
@@ -1232,7 +1239,8 @@ void dispose() {
   loop and rewrites `setTdlibParameters` database/files directories into its private sandbox.
 - Do not start the TDLib receive loop from `createClient()`: the initial authorization update can
   arrive before Lightly stores the Binder-returned client ID and be discarded. Start it after the
-  first client-scoped request is sent. Configure the local SOCKS5 proxy before
+  first client-scoped request is sent. Callback registration also happens before `createClient()`
+  and must not start the receive loop for the same reason. Configure the local SOCKS5 proxy before
   `setTdlibParameters` so the initial TDLib network setup does not race a direct connection.
 - Lightly's `TelegramTdlibService` uses the local `TelegramTdJsonCodec` for the limited request and
   response schema needed by TG Tools. Do not add the Flutter `tdlib` package or `libtdjson.so` back

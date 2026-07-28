@@ -10,10 +10,16 @@ import android.util.Log
 import lightly.tool.plugin.telegram.ipc.ITelegramPluginCallback
 import lightly.tool.plugin.telegram.ipc.ITelegramPluginService
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 class TelegramPluginService : Service() {
-    private val callbacks = RemoteCallbackList<ITelegramPluginCallback>()
+    private val callbacks = object : RemoteCallbackList<ITelegramPluginCallback>() {
+        override fun onCallbackDied(callback: ITelegramPluginCallback?) {
+            stopRuntimeWhenHostIsGone()
+        }
+    }
+    private val clientIds = ConcurrentHashMap.newKeySet<Int>()
     private val receiving = AtomicBoolean(false)
     private var receiverThread: Thread? = null
     private val requestSanitizer by lazy {
@@ -36,6 +42,7 @@ class TelegramPluginService : Service() {
             // loop here can race the Binder reply, causing Lightly to discard that update before
             // it has stored the returned client ID.
             return TelegramNativeBridge.createClient().also { clientId ->
+                clientIds += clientId
                 Log.i(LOG_TAG, "Created TDLib client $clientId")
             }
         }
@@ -58,7 +65,6 @@ class TelegramPluginService : Service() {
         override fun registerCallback(callback: ITelegramPluginCallback) {
             enforceTrustedCaller()
             callbacks.register(callback)
-            ensureReceiverStarted()
         }
 
         override fun unregisterCallback(callback: ITelegramPluginCallback) {
@@ -73,11 +79,30 @@ class TelegramPluginService : Service() {
     }
 
     override fun onDestroy() {
+        closeClients()
+        stopReceiver()
+        callbacks.kill()
+        super.onDestroy()
+    }
+
+    private fun stopRuntimeWhenHostIsGone() {
+        Log.i(LOG_TAG, "Lightly host disconnected; closing TDLib clients")
+        closeClients()
+        stopReceiver()
+        stopSelf()
+    }
+
+    private fun closeClients() {
+        clientIds.forEach { clientId ->
+            runCatching { TelegramNativeBridge.send(clientId, CLOSE_REQUEST) }
+        }
+        clientIds.clear()
+    }
+
+    private fun stopReceiver() {
         receiving.set(false)
         receiverThread?.interrupt()
         receiverThread = null
-        callbacks.kill()
-        super.onDestroy()
     }
 
     private fun ensureReceiverStarted() {
@@ -148,6 +173,7 @@ class TelegramPluginService : Service() {
         private const val LOG_TAG = "TelegramPlugin"
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val RECEIVE_TIMEOUT_SECONDS = 0.25
+        private const val CLOSE_REQUEST = "{\"@type\":\"close\"}"
         private val LOGGED_REQUEST_TYPES = setOf(
             "getAuthorizationState",
             "setTdlibParameters",

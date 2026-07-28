@@ -11,7 +11,16 @@ import lightly.tool.plugin.webrtc.ipc.IWebRtcVoicePluginService
 import org.json.JSONObject
 
 class WebRtcVoicePluginService : Service() {
-    private val callbacks = RemoteCallbackList<IWebRtcVoicePluginCallback>()
+    private val callbacks = object : RemoteCallbackList<IWebRtcVoicePluginCallback>() {
+        override fun onCallbackDied(callback: IWebRtcVoicePluginCallback?) {
+            if (::worker.isInitialized) {
+                worker.post {
+                    session.close()
+                    stopSelf()
+                }
+            }
+        }
+    }
     private lateinit var workerThread: HandlerThread
     private lateinit var worker: Handler
     private lateinit var session: WebRtcVoiceSession

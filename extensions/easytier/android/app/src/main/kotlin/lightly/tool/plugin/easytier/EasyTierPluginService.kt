@@ -46,9 +46,23 @@ class EasyTierPluginService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        // EasyTier promotes this bound service to a started foreground service while the network
+        // is active. Without explicit cleanup, losing Lightly's binding leaves the native runtime
+        // and VPN alive after Lightly is removed from recents or its process is killed.
+        stopRuntimeAfterHostDisconnect()
+        return false
+    }
+
     override fun onDestroy() {
         controller.close()
         super.onDestroy()
+    }
+
+    private fun stopRuntimeAfterHostDisconnect() {
+        controller.close()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun startRuntimeForeground() {
