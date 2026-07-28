@@ -18,7 +18,7 @@ bash scripts/build_easytier_android.sh
 2. 如果 `build/EasyTier` 不存在，则从 `https://github.com/Easul/EasyTier` 克隆到这里
 3. 基于本次验证使用的 commit 创建/复用本地构建分支
 4. 自动填充 JNI 修复内容后重新编译 Android `.so`
-5. 编译成功后自动复制到当前 Flutter 仓库的 `android/app/src/main/jniLibs/`
+5. 编译成功后自动复制到当前仓库的 `extensions/easytier/android/app/src/main/jniLibs/`
 6. 自动和当前 Flutter 仓库中的 `jniLibs` 做一致性比对
 
 脚本同时支持自动并行编译：
@@ -56,10 +56,10 @@ lightly/android-jni-b20075e3
 
 当前 Flutter 仓库实际使用以下原生库：
 
-- `android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so`
-- `android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
+- `extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so`
+- `extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so`
+- `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
+- `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
 
 脚本在构建完成后会自动覆盖更新这 4 个文件。
 
@@ -173,7 +173,7 @@ cargo ndk -t armeabi-v7a build --release
 这些哈希同时匹配：
 
 - EasyTier 源码仓库本次构建输出
-- 当前 Flutter 仓库 `android/app/src/main/jniLibs/` 中已提交的 `.so`
+- 当前仓库 `extensions/easytier/android/app/src/main/jniLibs/` 中已提交的 `.so`
 
 ## 更新 Flutter 仓库中的 EasyTier 库
 
@@ -183,17 +183,17 @@ cargo ndk -t armeabi-v7a build --release
 bash scripts/build_easytier_android.sh
 ```
 
-那么脚本会在构建成功后自动把 4 个 `.so` 复制到 `android/app/src/main/jniLibs/`，通常不需要再手动复制。
+那么脚本应在构建成功后自动把 4 个 `.so` 复制到 `extensions/easytier/android/app/src/main/jniLibs/`，通常不需要再手动复制。
 
 如果你只想手动复制，也可以使用下面这些命令：
 
 当 EasyTier 源码发生变化并重新编译后，将新库复制到本仓库：
 
 ```bash
-cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_android_jni.so android/app/src/main/jniLibs/arm64-v8a/
-cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_ffi.so android/app/src/main/jniLibs/arm64-v8a/
-cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_android_jni.so android/app/src/main/jniLibs/armeabi-v7a/
-cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_ffi.so android/app/src/main/jniLibs/armeabi-v7a/
+cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_android_jni.so extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/
+cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_ffi.so extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/
+cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_android_jni.so extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/
+cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_ffi.so extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/
 ```
 
 ## 更新后建议验证

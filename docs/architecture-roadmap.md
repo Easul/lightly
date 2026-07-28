@@ -239,7 +239,8 @@ AppRuntimeCoordinator
 已交付：
 
 - `browser_proxy` 已拆为 browser proxy、storage access、external intent 与悬浮模式 handler/gateway。
-- `easytier_vpn` 已由 `EasyTierPlatformGateway` / `EasyTierChannelHandler` 持有，包含权限与监控生命周期。
+- `easytier_vpn` 已由 `EasyTierPlatformGateway` / `EasyTierChannelHandler` 持有；handler 仅代理
+  同签名 companion AIDL，VPN 权限、JNI、monitor 与 native runtime 生命周期归 companion。
 - `remote_control` 已由 `RemoteControlPlatformGateway` / `RemoteControlChannelHandler` 持有，
   屏幕帧保持 `Uint8List` / `ByteArray` 直传。
 - `MainActivity` 不再直接注册 MethodChannel handler，保留 Activity Result 与生命周期委派。
@@ -252,7 +253,7 @@ Android
 ├── BrowserPlatformChannelHandler
 ├── StorageAccessChannelHandler
 ├── ExternalIntentChannelHandler
-├── EasyTierChannelHandler
+├── EasyTierChannelHandler（仅 companion IPC）
 └── RemoteControlChannelHandler
 
 Dart

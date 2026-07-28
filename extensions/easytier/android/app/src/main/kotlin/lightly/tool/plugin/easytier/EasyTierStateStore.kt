@@ -1,4 +1,4 @@
-package lightly.tool
+package lightly.tool.plugin.easytier
 
 import com.easytier.jni.EasyTierJNI
 import org.json.JSONObject

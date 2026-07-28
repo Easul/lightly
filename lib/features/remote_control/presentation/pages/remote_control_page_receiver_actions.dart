@@ -2,6 +2,10 @@ part of 'remote_control_page.dart';
 
 extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
   Future<void> _startReceiver() async {
+    if (!await widget.ensureEasyTierPluginAvailable()) {
+      return;
+    }
+    if (!mounted) return;
     final effectiveNoTunMode = resolveReceiverNoTunMode(
       receiverNoTunMode: _useReceiverNoTunMode,
       p2pNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,

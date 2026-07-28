@@ -56,6 +56,8 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
         context,
         OptionalFeatureId.webRtcVoice,
       ),
+      ensureEasyTierPluginAvailable: () => OptionalFeatureGate()
+          .ensureAvailable(context, OptionalFeatureId.easyTier),
     ),
     '/telegram-checkin': (context) => const TelegramCheckinPage(),
     '/translation-tool': (context) => const TranslationToolPage(),

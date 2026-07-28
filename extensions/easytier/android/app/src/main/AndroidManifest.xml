@@ -1,0 +1,58 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <permission
+        android:name="lightly.tool.plugin.easytier.permission.BIND_SERVICE"
+        android:protectionLevel="signature" />
+    <permission
+        android:name="lightly.tool.permission.READ_EASYTIER_STATE"
+        android:protectionLevel="signature" />
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:label="Lightly EasyTier 插件"
+        android:theme="@style/Theme.LightlyEasyTierPlugin">
+        <meta-data android:name="lightly.plugin.API_VERSION" android:value="1" />
+        <meta-data android:name="lightly.plugin.FEATURE_ID" android:value="easytier" />
+
+        <service
+            android:name=".EasyTierPluginService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="lightly.tool.plugin.easytier.permission.BIND_SERVICE">
+            <intent-filter>
+                <action android:name="lightly.tool.plugin.easytier.BIND" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-requested EasyTier peer-to-peer network runtime" />
+        </service>
+        <service
+            android:name=".EasyTierVpnService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter><action android:name="android.net.VpnService" /></intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="EasyTier virtual network tunnel" />
+        </service>
+        <activity
+            android:name=".EasyTierVpnPermissionActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="lightly.tool.plugin.easytier.permission.BIND_SERVICE"
+            android:theme="@style/Theme.LightlyEasyTierPlugin.Permission" />
+        <provider
+            android:name=".EasyTierInfoProvider"
+            android:authorities="lightly.tool.easytier"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            android:readPermission="lightly.tool.permission.READ_EASYTIER_STATE" />
+    </application>
+</manifest>

@@ -69,20 +69,21 @@ context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
 
 Monitor should try this provider first in `EasyTierManager.getNetworkInfo()`. If Lightly is not installed, the permission is missing, EasyTier is not running, or `raw_network_info_json` is blank, fall back to monitor's existing `EasyTierJNI.collectNetworkInfos(10)` or VPN scanning path.
 
-## Lightly Implementation Files
+## Lightly and Companion Implementation Files
 
-- `android/app/src/main/AndroidManifest.xml`: signature permission and provider declaration.
-- `android/app/src/main/kotlin/lightly/tool/EasyTierInfoProvider.kt`: read-only provider.
-- `android/app/src/main/kotlin/lightly/tool/EasyTierStateStore.kt`: latest EasyTier state cache.
-- `android/app/src/main/kotlin/lightly/tool/MainActivity.kt`: cache refresh on EasyTier start/stop, polling, and `getNetworkInfo`.
+- `android/app/src/main/AndroidManifest.xml`: retains the same signature-permission declaration for existing monitor compatibility.
+- `extensions/easytier/android/app/src/main/AndroidManifest.xml`: declares the provider and the same signature permission in the companion.
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierInfoProvider.kt`: companion-owned read-only provider.
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierStateStore.kt`: companion-owned latest-state cache.
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierRuntimeController.kt`: companion-owned start/stop, polling, and cache refresh.
 
 ## Verification
 
-Lightly-side baseline check:
+Host and companion baseline checks:
 
 ```bash
-cd android
-./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests lightly.tool.EasyTierStateStoreTest
+./gradlew :app:compileDebugKotlin :app:testDebugUnitTest
+extensions/telegram/android/gradlew -p extensions/easytier/android --offline :app:testDebugUnitTest
 ```
 
 Recommended device smoke test:

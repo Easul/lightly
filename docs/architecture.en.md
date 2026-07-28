@@ -243,13 +243,15 @@ owners, connection modes, and lifecycle.
 EasyTier page / remote-control flow
   → EasyTierService
   → easytier_vpn MethodChannel
-  → EasyTierChannelHandler / EasyTierJNI
-  → EasyTier Rust runtime
-  → Android VpnService or no-tun SOCKS5 portal
+  → EasyTierChannelHandler (host IPC only)
+  → same-signature EasyTier companion AIDL service
+  → EasyTierJNI / EasyTier Rust runtime
+  → companion Android VpnService or no-tun SOCKS5 portal
 ```
 
-A signature-permission-protected ContentProvider shares runtime state with same-signature monitor
-applications.
+A signature-permission-protected ContentProvider in the companion shares runtime state with
+same-signature monitor applications. The host retains configuration, backup, UI, and orchestration;
+the companion exclusively owns JNI, native instances, the monitor loop, TUN fd, and VPN lifecycle.
 EasyTier domain/application/infrastructure code and independent presentation widgets live under
 `lib/features/easytier/`. Settings-page orchestration that crosses browser settings, local HTTP, and
 clipboard remains in `lib/pages/` for now.
@@ -306,7 +308,7 @@ See the [Data Ownership Catalog](data-ownership.en.md) for the complete key/tabl
 |---|---|---|
 | `browser_proxy` | `ProxyPlatformGateway`, `StorageAccessGateway`, and `ExternalIntentGateway` | `BrowserPlatformChannelHandler` and grouped handlers |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
-| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
+| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` (IPC to companion) |
 | `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
 | `floating_video` | Floating-video gateway | `FloatingVideoChannelHandler` / service |
 | `translation_overlay` | Translation services | `TranslationOverlayChannelHandler` / service |

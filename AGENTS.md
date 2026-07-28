@@ -319,7 +319,9 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - The Android `profile` build uses `applicationIdSuffix = ".profile"`, producing `lightly.tool.profile`.
 - One-off diagnostic Profile builds may set `PROFILE_APPLICATION_ID` to a full package name. This override must apply only when Gradle is executing a Profile task; release/debug application IDs must remain unchanged.
 - Manifest permission names and provider authorities must derive from `${applicationId}` so profile and release packages can be installed together without provider conflicts.
-- `EasyTierInfoProvider` must validate against the runtime package name via `EasyTierStateStore.authorityFor(context.packageName)` rather than a hardcoded release authority.
+- The optional EasyTier companion owns the fixed monitor-provider authority
+  `lightly.tool.easytier`; profile/release host variants must not register a second provider with
+  the same authority.
 - Profile-only popup diagnostics may log URL scheme, length, and case-presence flags, but must not log full external URLs or sensitive payload tokens.
 
 ### Release Build Flags
@@ -897,10 +899,23 @@ The address bar lock icon opens a dialog for clearing current-site data:
 ## EasyTier Android Integration Notes
 
 - EasyTier Android integration in this repo uses:
-  - Flutter UI / MethodChannel
-  - Kotlin JNI wrapper
-  - Rust `easytier-android-jni` + `easytier_ffi`
-  - Android `VpnService` for TUN handoff
+  - Flutter UI / typed MethodChannel gateway in Lightly
+  - same-signature AIDL bridge to the pure Android companion
+  - Kotlin JNI wrapper plus Rust `easytier-android-jni` + `easytier_ffi` in the companion
+  - companion-owned Android `VpnService` for TUN handoff
+
+### Optional companion boundary
+
+- Package `lightly.tool.plugin.easytier`, API 1 is the only owner of EasyTier JNI/FFI,
+  native instances, monitor loop, TUN fd, `VpnService`, and runtime state provider.
+- Lightly keeps profiles, selected profile, backup/import, P2P/remote-control UI, no-tun policy,
+  and the typed `easytier_vpn` gateway. Missing or untrusted plugin must not block Lightly startup,
+  LAN remote control, or internal-proxy remote control.
+- The companion is pure Android. Its transparent Activity exists only for Android VPN consent; do
+  not add Flutter runtime/UI to it.
+- Keep host and plugin `IEasyTierPluginService.aidl` byte-for-byte compatible. Binding and the VPN
+  consent Activity require the signature permission
+  `lightly.tool.plugin.easytier.permission.BIND_SERVICE` plus an explicit same-signature check.
 
 ### Native linking pitfall
 
@@ -913,9 +928,10 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 ### Library provenance rule
 
-- This Flutter repo ships the EasyTier native runtime by checking compiled `.so` files into:
-  - `android/app/src/main/jniLibs/arm64-v8a/`
-  - `android/app/src/main/jniLibs/armeabi-v7a/`
+- This repo ships the EasyTier native runtime only in the companion by checking compiled `.so`
+  files into:
+  - `extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/`
+  - `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/`
 - The Rust source of truth still lives in the separate EasyTier repo at:
   - `/home/easul/workspace/EasyTier`
 - Keep in mind:
@@ -943,7 +959,9 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - peer route synchronization finished
   - `my_node_info.virtual_ipv4` exists
   - `VpnService` should already start
-- Keep the current monitor loop in `EasyTierChannelHandler.kt` that polls `collectNetworkInfos()` and only starts `EasyTierVpnService` after `virtual_ipv4` becomes available.
+- Keep the companion monitor loop in `EasyTierRuntimeController.kt` that polls
+  `collectNetworkInfos()` and only starts `EasyTierVpnService` after `virtual_ipv4` becomes
+  available.
 - Also note: when `virtual_ipv4` becomes available, the Android `VpnService` must add the **EasyTier virtual subnet route itself** (for example `10.126.126.22/24`) in addition to any `proxy_cidrs`, otherwise Android 7 can bring up `tun0` and assign the address but still fail to route peer traffic correctly.
 
 ### Mobile DHCP caveat
@@ -955,8 +973,10 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - Build release APK:
   - `flutter build apk --release --target-platform android-arm64`
+- Build/test the companion:
+  - `extensions/telegram/android/gradlew -p extensions/easytier/android --offline :app:testDebugUnitTest :app:assembleDebug`
 - Optional 32-bit build:
-  - ensure both `libeasytier_android_jni.so` and `libeasytier_ffi.so` exist under `android/app/src/main/jniLibs/armeabi-v7a/`
+  - ensure both `libeasytier_android_jni.so` and `libeasytier_ffi.so` exist under `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/`
   - then build with `flutter build apk --release --target-platform android-arm`
 - Verify on-device:
   - VPN permission dialog appears
@@ -967,8 +987,8 @@ The address bar lock icon opens a dialog for clearing current-site data:
 ### 32-bit Android build pitfall
 
 - arm32 support in this repo requires copying **both** EasyTier shared libraries into:
-  - `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
-  - `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
+  - `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
+  - `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
 - If only the JNI library is present, the 32-bit app may build incorrectly or fail at runtime due to missing FFI dependency.
 - Release arm32 builds may fail during R8 minification with:
   - `java.lang.OutOfMemoryError: Java heap space`
@@ -1027,10 +1047,11 @@ The address bar lock icon opens a dialog for clearing current-site data:
   - `error_message`
 - Treat `raw_network_info_json` as the source of truth; it is the raw `EasyTierJNI.collectNetworkInfos(10)` JSON and should remain compatible with `EasyTierNetworkInfoAnalyzer`.
 - Related files:
-  - `android/app/src/main/AndroidManifest.xml`
-  - `android/app/src/main/kotlin/lightly/tool/EasyTierInfoProvider.kt`
-  - `android/app/src/main/kotlin/lightly/tool/EasyTierStateStore.kt`
-  - `android/app/src/main/kotlin/lightly/tool/EasyTierChannelHandler.kt`
+  - `extensions/easytier/android/app/src/main/AndroidManifest.xml`
+  - `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierInfoProvider.kt`
+  - `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierStateStore.kt`
+  - `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierRuntimeController.kt`
+  - `android/app/src/main/kotlin/lightly/tool/EasyTierChannelHandler.kt` (host IPC only)
 
 ### EasyTier local service exposure pitfall
 
@@ -1051,8 +1072,10 @@ The address bar lock icon opens a dialog for clearing current-site data:
 ### EasyTier VPN stop lifecycle pitfall
 
 - `stopService()` alone is not always enough to clear the Android system VPN indicator reliably.
-- Keep the explicit `ACTION_STOP` path inside `EasyTierVpnService`, let the service close its own `ParcelFileDescriptor`, and rely on `stopSelf()` / `onRevoke()` for cleanup.
-- Avoid immediately killing the service from `EasyTierChannelHandler` before the service has a chance to close the VPN interface itself, or the system VPN icon can linger.
+- Keep the explicit `ACTION_STOP` path inside the companion `EasyTierVpnService`, let the service
+  close its own `ParcelFileDescriptor`, and rely on `stopSelf()` / `onRevoke()` for cleanup.
+- Avoid immediately killing it from `EasyTierRuntimeController` before it closes the VPN interface,
+  or the system VPN icon can linger.
 
 ### Android 7 / Android 10 service asymmetry note
 

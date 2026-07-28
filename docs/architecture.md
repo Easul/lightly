@@ -235,12 +235,15 @@ candidate。
 EasyTierPage / RemoteControl flow
   → EasyTierService
   → easytier_vpn MethodChannel
-  → EasyTierChannelHandler / EasyTierJNI
-  → EasyTier Rust runtime
-  → Android VpnService 或 no-tun SOCKS5 portal
+  → EasyTierChannelHandler（主体，仅 IPC）
+  → 同签名 EasyTier companion AIDL Service
+  → EasyTierJNI / EasyTier Rust runtime
+  → companion Android VpnService 或 no-tun SOCKS5 portal
 ```
 
-同签名 Monitor 应用通过受签名权限保护的 ContentProvider 读取 EasyTier 运行状态。
+同签名 Monitor 应用通过 companion 中受签名权限保护的 ContentProvider 读取 EasyTier
+运行状态。主体保留配置、备份、UI 和调度，companion 独占 JNI、native instance、monitor
+loop、TUN fd 与 VPN 生命周期。
 EasyTier 的 domain/application/infrastructure 与独立 presentation widgets 位于
 `lib/features/easytier/`；跨浏览器设置、本地 HTTP 和剪贴板的设置页编排仍暂留 `lib/pages/`。
 
@@ -295,7 +298,7 @@ Lightly 没有引入全局状态管理框架，主要使用：
 |---|---|---|
 | `browser_proxy` | `ProxyPlatformGateway`、`StorageAccessGateway`、`ExternalIntentGateway` | `BrowserPlatformChannelHandler` 及分组 handler |
 | `com.proxy.core/proxy` | `ProxyCoreService` | `ProxyCoreChannelHandler` |
-| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler` |
+| `easytier_vpn` | `EasyTierPlatformGateway` / `EasyTierService` | `EasyTierChannelHandler`（到 companion 的 IPC） |
 | `remote_control` | `RemoteControlPlatformGateway` | `RemoteControlChannelHandler` |
 | `floating_video` | floating video gateway | `FloatingVideoChannelHandler` / service |
 | `translation_overlay` | translation services | `TranslationOverlayChannelHandler` / service |

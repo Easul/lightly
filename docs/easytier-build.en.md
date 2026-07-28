@@ -18,7 +18,7 @@ The script will:
 2. clone `https://github.com/Easul/EasyTier` there if `build/EasyTier` does not exist yet
 3. create or reuse a local build branch from the verified base commit
 4. apply the JNI fixes automatically and rebuild the Android `.so` libraries
-5. automatically copy the rebuilt libraries into this Flutter repo under `android/app/src/main/jniLibs/`
+5. automatically copy the rebuilt libraries into this repo under `extensions/easytier/android/app/src/main/jniLibs/`
 6. compare the rebuilt outputs with the vendored Flutter `jniLibs`
 
 The script also supports automatic parallel builds:
@@ -56,10 +56,10 @@ lightly/android-jni-b20075e3
 
 This Flutter repo consumes these native libraries:
 
-- `android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so`
-- `android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
+- `extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so`
+- `extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so`
+- `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so`
+- `extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so`
 
 The script automatically overwrites these four files after a successful build.
 
@@ -173,7 +173,7 @@ All 4 libraries were **byte-for-byte identical**.
 These hashes matched both:
 
 - the EasyTier source-repo build outputs from this verification
-- the checked-in `.so` files under `android/app/src/main/jniLibs/` in this Flutter repo
+- the checked-in `.so` files under `extensions/easytier/android/app/src/main/jniLibs/` in this repo
 
 ## Updating the Flutter Repo Libraries
 
@@ -183,17 +183,17 @@ If you run:
 bash scripts/build_easytier_android.sh
 ```
 
-the script now copies all four `.so` files into `android/app/src/main/jniLibs/` automatically after a successful build, so a separate manual copy step is usually unnecessary.
+the script should copy all four `.so` files into `extensions/easytier/android/app/src/main/jniLibs/` automatically after a successful build, so a separate manual copy step is usually unnecessary.
 
 If you still want to copy them manually, use the commands below:
 
 After rebuilding EasyTier, copy the new libraries into this repo:
 
 ```bash
-cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_android_jni.so android/app/src/main/jniLibs/arm64-v8a/
-cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_ffi.so android/app/src/main/jniLibs/arm64-v8a/
-cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_android_jni.so android/app/src/main/jniLibs/armeabi-v7a/
-cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_ffi.so android/app/src/main/jniLibs/armeabi-v7a/
+cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_android_jni.so extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/
+cp build/EasyTier/target/aarch64-linux-android/release/libeasytier_ffi.so extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/
+cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_android_jni.so extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/
+cp build/EasyTier/target/armv7-linux-androideabi/release/libeasytier_ffi.so extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/
 ```
 
 ## Recommended Verification After Updating

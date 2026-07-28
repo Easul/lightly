@@ -1,4 +1,4 @@
-package lightly.tool
+package lightly.tool.plugin.easytier
 
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -16,7 +16,7 @@ class EasyTierInfoProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?,
     ): Cursor? {
-        if (uri.authority != expectedAuthority() ||
+        if (uri.authority != AUTHORITY ||
             uri.pathSegments.firstOrNull() != EasyTierStateStore.PATH_NETWORK_INFO
         ) {
             return null
@@ -30,7 +30,7 @@ class EasyTierInfoProvider : ContentProvider() {
     }
 
     override fun getType(uri: Uri): String? {
-        if (uri.authority != expectedAuthority() ||
+        if (uri.authority != AUTHORITY ||
             uri.pathSegments.firstOrNull() != EasyTierStateStore.PATH_NETWORK_INFO
         ) {
             return null
@@ -49,9 +49,6 @@ class EasyTierInfoProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
     ): Int = 0
 
-    private fun expectedAuthority(): String =
-        EasyTierStateStore.authorityFor(requireNotNull(context).packageName)
-
     private fun EasyTierStateStore.Snapshot.valueFor(column: String): Any? {
         return when (column) {
             EasyTierStateStore.COLUMN_INSTANCE_NAME -> instanceName
@@ -65,6 +62,7 @@ class EasyTierInfoProvider : ContentProvider() {
     }
 
     companion object {
+        private const val AUTHORITY = "lightly.tool.easytier"
         private val DEFAULT_COLUMNS = arrayOf(
             EasyTierStateStore.COLUMN_INSTANCE_NAME,
             EasyTierStateStore.COLUMN_RAW_NETWORK_INFO_JSON,

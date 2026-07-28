@@ -19,10 +19,10 @@ LIB_RS="$JNI_DIR/src/lib.rs"
 ARM64_OUTPUT="$EASYTIER_REPO_DIR/target/aarch64-linux-android/release"
 ARMV7_OUTPUT="$EASYTIER_REPO_DIR/target/armv7-linux-androideabi/release"
 
-ARM64_JNI_DEST="$PROJECT_ROOT/android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so"
-ARM64_FFI_DEST="$PROJECT_ROOT/android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so"
-ARMV7_JNI_DEST="$PROJECT_ROOT/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so"
-ARMV7_FFI_DEST="$PROJECT_ROOT/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so"
+ARM64_JNI_DEST="$PROJECT_ROOT/extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_android_jni.so"
+ARM64_FFI_DEST="$PROJECT_ROOT/extensions/easytier/android/app/src/main/jniLibs/arm64-v8a/libeasytier_ffi.so"
+ARMV7_JNI_DEST="$PROJECT_ROOT/extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_android_jni.so"
+ARMV7_FFI_DEST="$PROJECT_ROOT/extensions/easytier/android/app/src/main/jniLibs/armeabi-v7a/libeasytier_ffi.so"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then

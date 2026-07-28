@@ -69,20 +69,21 @@ context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
 
 建议 monitor 在 `EasyTierManager.getNetworkInfo()` 中优先查询该 Provider；如果没有权限、未安装 Lightly、Lightly 未运行 EasyTier、或 `raw_network_info_json` 为空，再回退到 monitor 当前自己的 `EasyTierJNI.collectNetworkInfos(10)` / VPN 扫描逻辑。
 
-## Lightly 侧实现位置
+## Lightly 与 companion 实现位置
 
-- `android/app/src/main/AndroidManifest.xml`：声明签名权限和 Provider。
-- `android/app/src/main/kotlin/lightly/tool/EasyTierInfoProvider.kt`：只读 Provider。
-- `android/app/src/main/kotlin/lightly/tool/EasyTierStateStore.kt`：缓存最新 EasyTier 状态。
-- `android/app/src/main/kotlin/lightly/tool/MainActivity.kt`：在 EasyTier 启停、轮询和 `getNetworkInfo` 时刷新缓存。
+- `android/app/src/main/AndroidManifest.xml`：主体保留同名签名权限声明，兼容既有 monitor。
+- `extensions/easytier/android/app/src/main/AndroidManifest.xml`：插件声明 Provider 和同名签名权限。
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierInfoProvider.kt`：插件内只读 Provider。
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierStateStore.kt`：插件内缓存最新 EasyTier 状态。
+- `extensions/easytier/android/app/src/main/kotlin/lightly/tool/plugin/easytier/EasyTierRuntimeController.kt`：插件内负责启停、轮询与缓存刷新。
 
 ## 验证
 
-Lightly 侧基础验证：
+主体与 companion 基础验证：
 
 ```bash
-cd android
-./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests lightly.tool.EasyTierStateStoreTest
+./gradlew :app:compileDebugKotlin :app:testDebugUnitTest
+extensions/telegram/android/gradlew -p extensions/easytier/android --offline :app:testDebugUnitTest
 ```
 
 真机联调建议：

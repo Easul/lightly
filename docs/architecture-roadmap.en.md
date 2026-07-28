@@ -269,8 +269,9 @@ Delivered:
 
 - `browser_proxy` is split across browser proxy, storage access, external intent, and floating-mode
   handlers/gateways.
-- `easytier_vpn` is owned by `EasyTierPlatformGateway` / `EasyTierChannelHandler`, including
-  permission and monitor lifecycles.
+- `easytier_vpn` is owned by `EasyTierPlatformGateway` / `EasyTierChannelHandler`; the handler only
+  proxies the same-signature companion AIDL, while VPN consent, JNI, monitoring, and native runtime
+  lifecycle belong to the companion.
 - `remote_control` is owned by `RemoteControlPlatformGateway` / `RemoteControlChannelHandler`, with
   screen frames still passed directly as `Uint8List` / `ByteArray`.
 - `MainActivity` no longer registers MethodChannel handlers directly and only delegates Activity
@@ -285,7 +286,7 @@ Android
 ├── BrowserPlatformChannelHandler
 ├── StorageAccessChannelHandler
 ├── ExternalIntentChannelHandler
-├── EasyTierChannelHandler
+├── EasyTierChannelHandler (companion IPC only)
 └── RemoteControlChannelHandler
 
 Dart

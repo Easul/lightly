@@ -25,6 +25,7 @@ class RemoteControlPage extends StatefulWidget {
     required this.showMessage,
     required this.navigatorKey,
     required this.ensureVoicePluginAvailable,
+    required this.ensureEasyTierPluginAvailable,
   });
 
   final RemoteControlPresentationRuntime service;
@@ -34,6 +35,7 @@ class RemoteControlPage extends StatefulWidget {
   final Future<void> Function(String message) showMessage;
   final GlobalKey<NavigatorState> navigatorKey;
   final Future<bool> Function() ensureVoicePluginAvailable;
+  final Future<bool> Function() ensureEasyTierPluginAvailable;
 
   @override
   State<RemoteControlPage> createState() => _RemoteControlPageState();

@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="lightly.tool.plugin.telegram.permission.BIND_SERVICE" />
     <uses-permission android:name="lightly.tool.plugin.webrtc.permission.BIND_SERVICE" />
+    <uses-permission android:name="lightly.tool.plugin.easytier.permission.BIND_SERVICE" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -231,21 +232,6 @@
             android:enabled="true"
             android:exported="false"
             android:stopWithTask="false" />
-        <service
-            android:name=".EasyTierVpnService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="true"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-        </service>
-        <provider
-            android:name=".EasyTierInfoProvider"
-            android:authorities="${applicationId}.easytier"
-            android:exported="true"
-            android:grantUriPermissions="false"
-            android:readPermission="${applicationId}.permission.READ_EASYTIER_STATE" />
         <service
             android:name=".RemoteControlAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

@@ -87,6 +87,18 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _openEasyTierPlugin() async {
+    if (!await _optionalFeatureGate.ensureAvailable(
+      context,
+      OptionalFeatureId.easyTier,
+    )) {
+      return;
+    }
+    if (mounted) {
+      await Navigator.pushNamed(context, '/easytier');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,7 +150,7 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
               _ToolTile(
                 icon: Icons.vpn_lock_rounded,
                 label: 'P2P VPN',
-                onTap: () => Navigator.pushNamed(context, '/easytier'),
+                onTap: () => unawaited(_openEasyTierPlugin()),
               ),
             ],
           ),

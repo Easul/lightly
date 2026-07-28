@@ -1,4 +1,4 @@
-package lightly.tool
+package lightly.tool.plugin.easytier
 
 import android.content.Intent
 import android.net.VpnService

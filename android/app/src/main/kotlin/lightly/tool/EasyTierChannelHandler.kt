@@ -1,386 +1,266 @@
 package lightly.tool
 
 import android.app.Activity
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
-import android.net.VpnService
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
-import com.easytier.jni.EasyTierJNI
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.IBinder
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import org.json.JSONObject
+import lightly.tool.plugin.easytier.ipc.IEasyTierPluginService
 
-class EasyTierChannelHandler internal constructor(
-    private val nativeRuntime: EasyTierNativeRuntime,
-    private val vpnPlatform: EasyTierVpnPlatform,
-    private val stateStore: EasyTierRuntimeStateStore,
-    private val monitorScheduler: EasyTierMonitorScheduler,
-) {
-    constructor(activity: Activity) : this(
-        nativeRuntime = JniEasyTierNativeRuntime,
-        vpnPlatform = AndroidEasyTierVpnPlatform(activity),
-        stateStore = AndroidEasyTierRuntimeStateStore,
-        monitorScheduler = HandlerEasyTierMonitorScheduler(),
+class EasyTierChannelHandler(private val activity: Activity) {
+    private data class PendingOperation(
+        val result: MethodChannel.Result,
+        val block: (IEasyTierPluginService) -> Unit,
     )
 
-    private var pendingVpnPermissionResult: MethodChannel.Result? = null
-    private var pendingVpnConfig: String? = null
-    private var pendingVpnInstanceName: String? = null
-    private var runningInstanceName: String? = null
-    private var currentIpv4: String? = null
-    private var monitorTick = 0
-    private var runningConfig: String? = null
-    private var missingInfoTicks = 0
-    private var notRunningTicks = 0
-    private var restartInProgress = false
-    private var useAndroidVpn = true
+    private data class PendingStart(
+        val config: String,
+        val instanceName: String,
+        val result: MethodChannel.Result,
+    )
+
+    private val pendingOperations = mutableListOf<PendingOperation>()
+    private var channel: MethodChannel? = null
+    private var service: IEasyTierPluginService? = null
+    private var binding = false
+    private var bound = false
+    private var pendingStart: PendingStart? = null
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            val connected = IEasyTierPluginService.Stub.asInterface(binder)
+            val compatible = runCatching {
+                connected.getApiVersion() >= MINIMUM_API_VERSION
+            }.getOrDefault(false)
+            if (!compatible) {
+                failPending(ERROR_INCOMPATIBLE, "EasyTier plugin API is incompatible")
+                disconnect()
+                return
+            }
+            service = connected
+            binding = false
+            val operations = pendingOperations.toList()
+            pendingOperations.clear()
+            operations.forEach { operation -> execute(connected, operation) }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) = handleRemoteDisconnect()
+        override fun onBindingDied(name: ComponentName) = handleRemoteDisconnect()
+
+        override fun onNullBinding(name: ComponentName) {
+            failPending(ERROR_INCOMPATIBLE, "EasyTier plugin returned a null binding")
+            disconnect()
+        }
+    }
 
     fun register(messenger: BinaryMessenger) {
-        MethodChannel(messenger, CHANNEL_NAME).setMethodCallHandler(::handle)
+        channel = MethodChannel(messenger, CHANNEL_NAME).also {
+            it.setMethodCallHandler(::handle)
+        }
     }
 
     internal fun handle(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             METHOD_PARSE_CONFIG -> parseConfig(call, result)
             METHOD_START_VPN -> startVpn(call, result)
-            METHOD_CHECK_VPN_PERMISSION -> {
-                result.success(vpnPlatform.hasVpnPermission())
+            METHOD_CHECK_VPN_PERMISSION -> withService(result) {
+                result.success(it.hasVpnPermission())
             }
-            METHOD_STOP_VPN -> stopVpn(result)
-            METHOD_GET_NETWORK_INFO -> getNetworkInfo(result)
-            METHOD_GET_LAST_ERROR -> getLastError(result)
+            METHOD_STOP_VPN -> withService(result) { result.success(it.stopNetwork()) }
+            METHOD_GET_NETWORK_INFO -> withService(result) { result.success(it.getNetworkInfo()) }
+            METHOD_GET_LAST_ERROR -> withService(result) { result.success(it.getLastError()) }
             else -> result.notImplemented()
         }
     }
 
     fun handleActivityResult(requestCode: Int, resultCode: Int): Boolean {
-        if (requestCode != VPN_PERMISSION_REQUEST_CODE) {
-            return false
+        if (requestCode != VPN_PERMISSION_REQUEST_CODE) return false
+        val pending = pendingStart ?: return true
+        pendingStart = null
+        if (resultCode != Activity.RESULT_OK) {
+            pending.result.error(
+                ERROR_VPN_PERMISSION_DENIED,
+                "User denied VPN permission",
+                null,
+            )
+            return true
         }
-        finishPendingVpnPermissionResult(resultCode == Activity.RESULT_OK)
+        withService(pending.result) { connected ->
+            finishStart(connected, pending)
+        }
         return true
     }
 
     fun shutdown() {
-        runCatching {
-            stopMonitor()
-            vpnPlatform.stopVpnService(forceStop = false)
-        }.onFailure { error ->
-            Log.w(CHANNEL_NAME, "Failed to stop EasyTier VPN service", error)
-        }
-        runCatching {
-            nativeRuntime.stopAllInstances()
-            runningConfig = null
-        }.onFailure { error ->
-            Log.w(CHANNEL_NAME, "Failed to stop EasyTier instances", error)
-        }
+        channel?.setMethodCallHandler(null)
+        channel = null
+        pendingStart?.result?.error(ERROR_DISCONNECTED, "Activity destroyed", null)
+        pendingStart = null
+        failPending(ERROR_DISCONNECTED, "Activity destroyed")
+        disconnect()
     }
 
     private fun parseConfig(call: MethodCall, result: MethodChannel.Result) {
         val config = call.argument<String>(ARG_CONFIG)
-        if (config.isNullOrBlank()) {
+        if (config.isNullOrBlank() || config.length > MAX_CONFIG_LENGTH) {
             result.error(ERROR_INVALID_CONFIG, "Config is required", null)
             return
         }
-        try {
-            if (nativeRuntime.parseConfig(config) == 0) {
+        withService(result) { connected ->
+            val parsed = connected.parseConfig(config)
+            if (parsed) {
                 result.success(true)
             } else {
                 result.error(
                     ERROR_PARSE_FAILED,
-                    nativeRuntime.getLastError() ?: "Config parse failed",
+                    connected.getLastError() ?: "Config parse failed",
                     null,
                 )
             }
-        } catch (error: Exception) {
-            result.error(ERROR_EXCEPTION, error.message, null)
         }
     }
 
     private fun startVpn(call: MethodCall, result: MethodChannel.Result) {
         val config = call.argument<String>(ARG_CONFIG)
         val instanceName = call.argument<String>(ARG_INSTANCE_NAME)
-        val requestedAndroidVpn = call.argument<Boolean>(ARG_USE_ANDROID_VPN) ?: true
-        if (config.isNullOrBlank() || instanceName.isNullOrBlank()) {
-            result.error(
-                ERROR_INVALID_CONFIG,
-                "Config and instanceName are required",
-                null,
-            )
+        val useAndroidVpn = call.argument<Boolean>(ARG_USE_ANDROID_VPN) ?: true
+        if (config.isNullOrBlank() ||
+            config.length > MAX_CONFIG_LENGTH ||
+            instanceName.isNullOrBlank()
+        ) {
+            result.error(ERROR_INVALID_CONFIG, "Config and instanceName are required", null)
             return
         }
-
-        if (!requestedAndroidVpn) {
-            vpnPlatform.stopVpnService(forceStop = true)
-            startVpnWithConfig(config, instanceName, result, useAndroidVpn = false)
-            return
-        }
-
-        if (!vpnPlatform.hasVpnPermission()) {
-            pendingVpnPermissionResult = result
-            pendingVpnConfig = config
-            pendingVpnInstanceName = instanceName
-            vpnPlatform.requestVpnPermission(VPN_PERMISSION_REQUEST_CODE)
-            return
-        }
-        startVpnWithConfig(config, instanceName, result, useAndroidVpn = true)
-    }
-
-    private fun finishPendingVpnPermissionResult(granted: Boolean) {
-        val pendingResult = pendingVpnPermissionResult ?: return
-        val config = pendingVpnConfig
-        val instanceName = pendingVpnInstanceName
-        pendingVpnPermissionResult = null
-        pendingVpnConfig = null
-        pendingVpnInstanceName = null
-
-        if (granted && config != null && instanceName != null) {
-            startVpnWithConfig(config, instanceName, pendingResult, useAndroidVpn = true)
-        } else {
-            pendingResult.error(
-                ERROR_VPN_PERMISSION_DENIED,
-                "User denied VPN permission",
-                null,
-            )
+        withService(result) { connected ->
+            val pending = PendingStart(config, instanceName, result)
+            if (useAndroidVpn && !connected.hasVpnPermission()) {
+                if (pendingStart != null) {
+                    result.error(ERROR_PERMISSION_BUSY, "VPN permission request already active", null)
+                    return@withService
+                }
+                pendingStart = pending
+                val permissionIntent = Intent().setComponent(
+                    ComponentName(PLUGIN_PACKAGE, PLUGIN_PERMISSION_ACTIVITY_CLASS),
+                )
+                runCatching {
+                    activity.startActivityForResult(permissionIntent, VPN_PERMISSION_REQUEST_CODE)
+                }.onFailure {
+                    pendingStart = null
+                    result.error(ERROR_VPN_PERMISSION_DENIED, "Unable to request VPN permission", null)
+                }
+                return@withService
+            }
+            finishStart(connected, pending, useAndroidVpn)
         }
     }
 
-    private fun startVpnWithConfig(
-        config: String,
-        instanceName: String,
-        result: MethodChannel.Result,
-        useAndroidVpn: Boolean,
+    private fun finishStart(
+        connected: IEasyTierPluginService,
+        pending: PendingStart,
+        useAndroidVpn: Boolean = true,
     ) {
-        try {
-            val nativeResult = nativeRuntime.runNetworkInstance(config)
-            if (nativeResult == 0) {
-                runningConfig = config
-                startMonitor(instanceName)
-                this.useAndroidVpn = useAndroidVpn
-                stateStore.markStarted(instanceName)
-                result.success(true)
-            } else {
-                result.error(
-                    ERROR_START_FAILED,
-                    nativeRuntime.getLastError() ?: "VPN start failed",
-                    null,
-                )
-            }
-        } catch (error: Exception) {
-            result.error(ERROR_EXCEPTION, error.message, null)
-        }
-    }
-
-    private fun stopVpn(result: MethodChannel.Result) {
-        try {
-            stopMonitor()
-            vpnPlatform.stopVpnService(forceStop = true)
-            nativeRuntime.stopAllInstances()
-            stateStore.clear()
-            runningConfig = null
-            useAndroidVpn = true
-            result.success(true)
-        } catch (error: Exception) {
-            result.error(ERROR_EXCEPTION, error.message, null)
-        }
-    }
-
-    private fun getNetworkInfo(result: MethodChannel.Result) {
-        try {
-            val info = nativeRuntime.collectNetworkInfos()
-            if (!info.isNullOrBlank()) {
-                stateStore.refreshFromNative()
-            }
-            result.success(info)
-        } catch (error: Exception) {
-            result.error(ERROR_EXCEPTION, error.message, null)
-        }
-    }
-
-    private fun getLastError(result: MethodChannel.Result) {
-        try {
-            result.success(nativeRuntime.getLastError())
-        } catch (error: Exception) {
-            result.error(ERROR_EXCEPTION, error.message, null)
-        }
-    }
-
-    private fun startMonitor(instanceName: String) {
-        stopMonitor()
-        runningInstanceName = instanceName
-        currentIpv4 = null
-        monitorTick = 0
-        missingInfoTicks = 0
-        notRunningTicks = 0
-        restartInProgress = false
-        monitorScheduler.start(::monitorStatus)
-    }
-
-    private fun stopMonitor() {
-        monitorScheduler.stop()
-        runningInstanceName = null
-        currentIpv4 = null
-        monitorTick = 0
-        missingInfoTicks = 0
-        notRunningTicks = 0
-        restartInProgress = false
-        useAndroidVpn = true
-        stateStore.clear()
-    }
-
-    private fun monitorStatus() {
-        val instanceName = runningInstanceName ?: return
-        monitorTick += 1
-        val infosJson = nativeRuntime.collectNetworkInfos()
-        if (infosJson.isNullOrBlank()) {
-            missingInfoTicks += 1
-            Log.d(LOG_TAG, "No network info returned yet count=$missingInfoTicks")
-            if (missingInfoTicks >= 4) {
-                restartInstance("missing-network-info")
-            }
-            return
-        }
-        missingInfoTicks = 0
-
-        try {
-            val root = JSONObject(infosJson)
-            val networkInfo = root.optJSONObject("map")?.optJSONObject(instanceName) ?: return
-            val running = networkInfo.optBoolean("running", false)
-            stateStore.updateFromNetworkInfo(
-                instanceName,
-                infosJson,
-                extractVirtualIpv4(networkInfo),
-                running,
-            )
-            val peerCount = networkInfo.optJSONArray("peers")?.length() ?: 0
-            val routeCount = networkInfo.optJSONArray("routes")?.length() ?: 0
-            val hostname = networkInfo.optJSONObject("my_node_info")?.optString("hostname")
-            val errorMessage = networkInfo.optString("error_msg")
-            Log.d(
-                LOG_TAG,
-                "Monitor tick=$monitorTick instance=$instanceName running=$running hostname=$hostname peers=$peerCount routes=$routeCount error=$errorMessage",
-            )
-            logDiagnostics(networkInfo)
-
-            if (!running) {
-                notRunningTicks += 1
-                Log.w(LOG_TAG, "Instance not running count=$notRunningTicks: $errorMessage")
-                if (notRunningTicks >= 2) {
-                    restartInstance("instance-not-running")
-                }
-                return
-            }
-            notRunningTicks = 0
-
-            val virtualIpv4 = extractVirtualIpv4(networkInfo)
-            if (virtualIpv4 == null) {
-                if (monitorTick <= 3 || monitorTick % 5 == 0) {
-                    Log.d(LOG_TAG, "Raw network info: $networkInfo")
-                }
-                Log.d(LOG_TAG, "Instance running but virtual_ipv4 not assigned yet")
-                return
-            }
-
-            if (virtualIpv4 != currentIpv4) {
-                currentIpv4 = virtualIpv4
-                if (useAndroidVpn) {
-                    vpnPlatform.restartVpnService(instanceName, virtualIpv4)
-                } else {
-                    Log.i(
-                        LOG_TAG,
-                        "EasyTier no-tun mode active; skipping Android VpnService route for IPv4=$virtualIpv4",
-                    )
-                }
-            }
-        } catch (error: Exception) {
-            Log.e(LOG_TAG, "Failed to parse network info JSON", error)
-        }
-    }
-
-    private fun logDiagnostics(networkInfo: JSONObject) {
-        val stunInfo = networkInfo.optJSONObject("my_node_info")?.optJSONObject("stun_info")
-        Log.d(
-            LOG_TAG,
-            "Diagnostics virtualIpv4=${extractVirtualIpv4(networkInfo) ?: "null"} udpNat=${stunInfo?.optString("udp_nat_type", "-") ?: "-"} tcpNat=${stunInfo?.optString("tcp_nat_type", "-") ?: "-"}",
+        val started = connected.startNetwork(
+            pending.config,
+            pending.instanceName,
+            useAndroidVpn,
         )
-
-        val directConnectionCountByPeer = mutableMapOf<Long, Int>()
-        val peers = networkInfo.optJSONArray("peers")
-        if (peers != null) {
-            for (index in 0 until peers.length()) {
-                val peer = peers.optJSONObject(index) ?: continue
-                directConnectionCountByPeer[peer.optLong("peer_id", 0L)] =
-                    peer.optJSONArray("directly_connected_conns")?.length() ?: 0
-            }
-        }
-
-        val routes = networkInfo.optJSONArray("routes")
-        if (routes != null) {
-            for (index in 0 until routes.length()) {
-                val route = routes.optJSONObject(index) ?: continue
-                val peerId = route.optLong("peer_id", 0L)
-                val nextHopPeerId = route.optLong("next_hop_peer_id", 0L)
-                val cost = route.optInt("cost", -1)
-                val latency = route.optLong("path_latency", -1L)
-                val hostname = route.optString("hostname", "")
-                val publicServer = route.optJSONObject("feature_flag")
-                    ?.optBoolean("is_public_server", false) ?: false
-                val directConnectionCount = directConnectionCountByPeer[peerId] ?: 0
-                val mode = describeRouteMode(
-                    cost,
-                    peerId,
-                    nextHopPeerId,
-                    publicServer,
-                    directConnectionCount,
-                )
-                Log.d(
-                    LOG_TAG,
-                    "Route[$index] host=$hostname peer=$peerId nextHop=$nextHopPeerId cost=$cost latency=${latency}ms directConns=$directConnectionCount public=$publicServer mode=$mode",
-                )
-            }
-        }
-
-        val events = networkInfo.optJSONArray("events")
-        if (events != null && events.length() > 0) {
-            for (index in maxOf(0, events.length() - 3) until events.length()) {
-                Log.d(LOG_TAG, "RecentEvent[$index]=${events.optString(index)}")
-            }
+        if (started) {
+            pending.result.success(true)
+        } else {
+            pending.result.error(
+                ERROR_START_FAILED,
+                connected.getLastError() ?: "EasyTier start failed",
+                null,
+            )
         }
     }
 
-    private fun restartInstance(reason: String) {
-        val config = runningConfig
-        val instanceName = runningInstanceName
-        if (config.isNullOrBlank() || instanceName.isNullOrBlank() || restartInProgress) {
+    private fun withService(
+        result: MethodChannel.Result,
+        block: (IEasyTierPluginService) -> Unit,
+    ) {
+        val connected = service
+        if (connected != null) {
+            execute(connected, PendingOperation(result, block))
             return
         }
-        restartInProgress = true
-        Log.w(LOG_TAG, "Restarting EasyTier instance after monitor failure: reason=$reason instance=$instanceName")
-        try {
-            runCatching { nativeRuntime.stopAllInstances() }
-            if (nativeRuntime.runNetworkInstance(config) == 0) {
-                currentIpv4 = null
-                missingInfoTicks = 0
-                notRunningTicks = 0
-                Log.i(LOG_TAG, "EasyTier instance restarted: reason=$reason")
-            } else {
-                Log.e(
-                    LOG_TAG,
-                    "EasyTier instance restart failed: reason=$reason error=${nativeRuntime.getLastError()}",
-                )
-            }
-        } catch (error: Exception) {
-            Log.e(LOG_TAG, "Exception restarting EasyTier instance: reason=$reason", error)
-        } finally {
-            restartInProgress = false
+        if (!isTrustedPluginInstalled()) {
+            result.error(
+                ERROR_PLUGIN_UNAVAILABLE,
+                "EasyTier plugin is not installed or signature does not match",
+                null,
+            )
+            return
         }
+        pendingOperations += PendingOperation(result, block)
+        if (binding) return
+        binding = true
+        val intent = Intent(ACTION_BIND).setComponent(
+            ComponentName(PLUGIN_PACKAGE, PLUGIN_SERVICE_CLASS),
+        )
+        val started = runCatching {
+            activity.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }.getOrDefault(false)
+        if (started) {
+            bound = true
+        } else {
+            failPending(ERROR_PLUGIN_UNAVAILABLE, "Unable to bind EasyTier plugin")
+        }
+    }
+
+    private fun execute(connected: IEasyTierPluginService, operation: PendingOperation) {
+        runCatching { operation.block(connected) }
+            .onFailure {
+                handleRemoteDisconnect()
+                operation.result.error(ERROR_REMOTE_FAILURE, "EasyTier plugin request failed", null)
+            }
+    }
+
+    private fun failPending(code: String, message: String) {
+        binding = false
+        val operations = pendingOperations.toList()
+        pendingOperations.clear()
+        operations.forEach { it.result.error(code, message, null) }
+    }
+
+    private fun handleRemoteDisconnect() {
+        service = null
+        binding = false
+    }
+
+    private fun disconnect() {
+        service = null
+        binding = false
+        if (bound) {
+            runCatching { activity.unbindService(connection) }
+            bound = false
+        }
+    }
+
+    private fun isTrustedPluginInstalled(): Boolean {
+        return runCatching {
+            activity.packageManager.checkSignatures(
+                activity.packageName,
+                PLUGIN_PACKAGE,
+            ) == PackageManager.SIGNATURE_MATCH
+        }.getOrDefault(false)
     }
 
     companion object {
         const val CHANNEL_NAME = "easytier_vpn"
-        private const val LOG_TAG = "EasyTier"
+        private const val PLUGIN_PACKAGE = "lightly.tool.plugin.easytier"
+        private const val PLUGIN_SERVICE_CLASS =
+            "lightly.tool.plugin.easytier.EasyTierPluginService"
+        private const val PLUGIN_PERMISSION_ACTIVITY_CLASS =
+            "lightly.tool.plugin.easytier.EasyTierVpnPermissionActivity"
+        private const val ACTION_BIND = "lightly.tool.plugin.easytier.BIND"
+        private const val MINIMUM_API_VERSION = 1
+        private const val MAX_CONFIG_LENGTH = 1024 * 1024
         private const val VPN_PERMISSION_REQUEST_CODE = 4103
         private const val METHOD_PARSE_CONFIG = "parseConfig"
         private const val METHOD_START_VPN = "startVpn"
@@ -394,158 +274,11 @@ class EasyTierChannelHandler internal constructor(
         private const val ERROR_INVALID_CONFIG = "INVALID_CONFIG"
         private const val ERROR_PARSE_FAILED = "PARSE_FAILED"
         private const val ERROR_START_FAILED = "START_FAILED"
-        private const val ERROR_EXCEPTION = "EXCEPTION"
         private const val ERROR_VPN_PERMISSION_DENIED = "VPN_PERMISSION_DENIED"
-
-        internal fun describeRouteMode(
-            cost: Int,
-            peerId: Long,
-            nextHopPeerId: Long,
-            publicServer: Boolean,
-            directConnectionCount: Int,
-        ): String {
-            if (publicServer) return "public-server"
-            if (cost <= 1 && directConnectionCount > 0) return "direct-lan"
-            if (cost <= 1) return "p2p-direct"
-            if (nextHopPeerId != 0L && nextHopPeerId != peerId) {
-                return "relay-via-$nextHopPeerId"
-            }
-            return "relay"
-        }
-
-        internal fun extractVirtualIpv4(networkInfo: JSONObject): String? {
-            val virtualIpv4 = networkInfo.optJSONObject("my_node_info")
-                ?.optJSONObject("virtual_ipv4") ?: return null
-            val address = virtualIpv4.optJSONObject("address") ?: return null
-            if (!address.has("addr")) return null
-            val normalized = address.optLong("addr") and 0xffffffffL
-            val ip = listOf(
-                (normalized shr 24) and 0xff,
-                (normalized shr 16) and 0xff,
-                (normalized shr 8) and 0xff,
-                normalized and 0xff,
-            ).joinToString(".")
-            return "$ip/${virtualIpv4.optInt("network_length", 24)}"
-        }
-    }
-}
-
-internal interface EasyTierNativeRuntime {
-    fun parseConfig(config: String): Int
-    fun runNetworkInstance(config: String): Int
-    fun stopAllInstances()
-    fun collectNetworkInfos(): String?
-    fun getLastError(): String?
-}
-
-private object JniEasyTierNativeRuntime : EasyTierNativeRuntime {
-    override fun parseConfig(config: String): Int = EasyTierJNI.parseConfig(config)
-    override fun runNetworkInstance(config: String): Int = EasyTierJNI.runNetworkInstance(config)
-    override fun stopAllInstances() {
-        EasyTierJNI.stopAllInstances()
-    }
-    override fun collectNetworkInfos(): String? = EasyTierJNI.collectNetworkInfos(10)
-    override fun getLastError(): String? = EasyTierJNI.getLastError()
-}
-
-internal interface EasyTierVpnPlatform {
-    fun hasVpnPermission(): Boolean
-    fun requestVpnPermission(requestCode: Int)
-    fun restartVpnService(instanceName: String, ipv4: String)
-    fun stopVpnService(forceStop: Boolean)
-}
-
-private class AndroidEasyTierVpnPlatform(
-    private val activity: Activity,
-) : EasyTierVpnPlatform {
-    private var preparedPermissionIntent: Intent? = null
-
-    override fun hasVpnPermission(): Boolean {
-        preparedPermissionIntent = VpnService.prepare(activity)
-        return preparedPermissionIntent == null
-    }
-
-    override fun requestVpnPermission(requestCode: Int) {
-        val intent = preparedPermissionIntent ?: VpnService.prepare(activity)
-        preparedPermissionIntent = null
-        intent?.let {
-            activity.startActivityForResult(intent, requestCode)
-        }
-    }
-
-    override fun restartVpnService(instanceName: String, ipv4: String) {
-        activity.stopService(Intent(activity, EasyTierVpnService::class.java))
-        activity.startService(Intent(activity, EasyTierVpnService::class.java).apply {
-            putExtra("ipv4_address", ipv4)
-            putExtra("instance_name", instanceName)
-        })
-        Log.i("EasyTier", "Started EasyTierVpnService with IPv4=$ipv4 routes=virtual-subnet-only")
-    }
-
-    override fun stopVpnService(forceStop: Boolean) {
-        activity.startService(Intent(activity, EasyTierVpnService::class.java).apply {
-            action = EasyTierVpnService.ACTION_STOP
-        })
-        if (forceStop) {
-            activity.stopService(Intent(activity, EasyTierVpnService::class.java))
-        }
-    }
-}
-
-internal interface EasyTierRuntimeStateStore {
-    fun markStarted(instanceName: String)
-    fun updateFromNetworkInfo(
-        instanceName: String,
-        json: String,
-        virtualIpv4: String?,
-        running: Boolean,
-    )
-    fun refreshFromNative()
-    fun clear()
-}
-
-private object AndroidEasyTierRuntimeStateStore : EasyTierRuntimeStateStore {
-    override fun markStarted(instanceName: String) = EasyTierStateStore.markStarted(instanceName)
-
-    override fun updateFromNetworkInfo(
-        instanceName: String,
-        json: String,
-        virtualIpv4: String?,
-        running: Boolean,
-    ) = EasyTierStateStore.updateFromNetworkInfo(instanceName, json, virtualIpv4, running)
-
-    override fun refreshFromNative() {
-        EasyTierStateStore.refreshFromJni()
-    }
-
-    override fun clear() = EasyTierStateStore.clear()
-}
-
-internal interface EasyTierMonitorScheduler {
-    fun start(task: () -> Unit)
-    fun stop()
-}
-
-private class HandlerEasyTierMonitorScheduler : EasyTierMonitorScheduler {
-    private val handler = Handler(Looper.getMainLooper())
-    private var runnable: Runnable? = null
-
-    override fun start(task: () -> Unit) {
-        stop()
-        runnable = object : Runnable {
-            override fun run() {
-                try {
-                    task()
-                } finally {
-                    handler.postDelayed(this, 3000)
-                }
-            }
-        }
-        runnable?.let(handler::post)
-    }
-
-    override fun stop() {
-        runnable?.let(handler::removeCallbacks)
-        runnable = null
+        private const val ERROR_PERMISSION_BUSY = "PERMISSION_BUSY"
+        private const val ERROR_PLUGIN_UNAVAILABLE = "PLUGIN_UNAVAILABLE"
+        private const val ERROR_INCOMPATIBLE = "INCOMPATIBLE"
+        private const val ERROR_REMOTE_FAILURE = "REMOTE_FAILURE"
+        private const val ERROR_DISCONNECTED = "DISCONNECTED"
     }
 }
