@@ -4,6 +4,8 @@ plugins {
 }
 
 val tdlibVersion = "1.6.0"
+val pluginVersionCode = providers.environmentVariable("PLUGIN_VERSION_CODE").orNull?.toIntOrNull() ?: 1
+val pluginVersionName = providers.environmentVariable("PLUGIN_VERSION_NAME").orNull ?: "1.0.0"
 val targetAbi = providers.environmentVariable("TARGET_ABI").orNull
 val supportedAbis = when (targetAbi) {
     "arm64-v8a" -> setOf("arm64-v8a")
@@ -41,8 +43,8 @@ android {
         applicationId = "lightly.tool.plugin.telegram"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = pluginVersionCode
+        versionName = pluginVersionName
 
         ndk {
             abiFilters += supportedAbis

@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 val targetAbi = providers.environmentVariable("TARGET_ABI").orNull
+val pluginVersionCode = providers.environmentVariable("PLUGIN_VERSION_CODE").orNull?.toIntOrNull() ?: 1
+val pluginVersionName = providers.environmentVariable("PLUGIN_VERSION_NAME").orNull ?: "1.0.0"
 val supportedAbis = when (targetAbi) {
     "arm64-v8a" -> setOf("arm64-v8a")
     "armeabi-v7a" -> setOf("armeabi-v7a")
@@ -26,8 +28,8 @@ android {
         applicationId = "lightly.tool.plugin.webrtc"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = pluginVersionCode
+        versionName = pluginVersionName
 
         ndk {
             abiFilters += supportedAbis

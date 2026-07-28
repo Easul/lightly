@@ -303,6 +303,8 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
   system authorization flow, such as microphone or VPN consent. It must not become a business UI.
 - Release verification must unpack every companion APK and fail if Flutter/Dart runtime artifacts
   are present. Keep the companion single-ABI and same-signed with the matching Lightly release.
+  `scripts/build_optional_plugins.sh` is the canonical six-artifact build and manifest path; it
+  verifies ABI/runtime contents and compares companion certificates with the matching Lightly APK.
 
 ## Git Artifact Hygiene
 

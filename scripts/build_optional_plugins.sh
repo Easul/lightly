@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_OUTPUT_DIR="${PLUGIN_OUTPUT_DIR:-$PROJECT_ROOT/build/optional-plugins}"
+MAIN_COMMIT_COUNT="$(git -C "$PROJECT_ROOT" rev-list --count main)"
+PLUGIN_VERSION_CODE="${PLUGIN_VERSION_CODE:-$((5000 + MAIN_COMMIT_COUNT))}"
+PLUGIN_VERSION_NAME="${PLUGIN_VERSION_NAME:-$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || echo v1.0.0)+$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD)}"
+MINIMUM_LIGHTLY_VERSION_CODE="${MINIMUM_LIGHTLY_VERSION_CODE:-$PLUGIN_VERSION_CODE}"
+RELEASE_TAG="${PLUGIN_RELEASE_TAG:-plugins-${PLUGIN_VERSION_NAME//[^[:alnum:].+-]/-}}"
+APKSIGNER="${APKSIGNER:-$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)}"
+GRADLEW="${PLUGIN_GRADLEW:-$PROJECT_ROOT/extensions/telegram/android/gradlew}"
+LIGHTLY_APK="${LIGHTLY_APK:-$PROJECT_ROOT/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk}"
+
+declare -A PLUGIN_DIRS=(
+  [telegram]="$PROJECT_ROOT/extensions/telegram/android"
+  [webrtc]="$PROJECT_ROOT/extensions/webrtc/android"
+  [easytier]="$PROJECT_ROOT/extensions/easytier/android"
+)
+declare -A PLUGIN_PACKAGES=(
+  [telegram]=lightly.tool.plugin.telegram
+  [webrtc]=lightly.tool.plugin.webrtc
+  [easytier]=lightly.tool.plugin.easytier
+)
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Required command not found: $1" >&2
+    exit 1
+  }
+}
+
+require_command git
+require_command sha256sum
+require_command unzip
+[[ -n "$APKSIGNER" && -x "$APKSIGNER" ]] || {
+  echo "Android apksigner not found; set APKSIGNER explicitly" >&2
+  exit 1
+}
+[[ -x "$GRADLEW" ]] || { echo "Gradle wrapper not found: $GRADLEW" >&2; exit 1; }
+[[ -f "$LIGHTLY_APK" ]] || {
+  echo "Lightly release APK not found: $LIGHTLY_APK. Build Lightly first or set LIGHTLY_APK." >&2
+  exit 1
+}
+LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+[[ -n "$LIGHTLY_CERT" ]] || { echo "Could not read signing certificate for $LIGHTLY_APK" >&2; exit 1; }
+
+rm -rf "$PLUGIN_OUTPUT_DIR"
+mkdir -p "$PLUGIN_OUTPUT_DIR/.work"
+
+build_plugin() {
+  local feature="$1"
+  local abi="$2"
+  local gradle_dir="${PLUGIN_DIRS[$feature]}"
+  local apk_source="$gradle_dir/../build/app/outputs/apk/release/app-release.apk"
+  local apk="$PLUGIN_OUTPUT_DIR/${feature}-${abi}-release.apk"
+
+  TARGET_ABI="$abi" \
+    PLUGIN_VERSION_CODE="$PLUGIN_VERSION_CODE" \
+    PLUGIN_VERSION_NAME="$PLUGIN_VERSION_NAME" \
+    "$GRADLEW" -p "$gradle_dir" --offline :app:assembleRelease >/dev/null
+  cp "$apk_source" "$apk"
+
+  local entries
+  entries="$(unzip -Z1 "$apk")"
+  if grep -Eiq '(^|/)(libflutter\.so|libapp\.so|libdartjni\.so|flutter_assets/|GeneratedPluginRegistrant\.class)' <<<"$entries"; then
+    echo "Flutter/Dart runtime artifact found in $apk" >&2
+    exit 1
+  fi
+  grep -q "^lib/$abi/" <<<"$entries" || {
+    echo "Expected ABI $abi missing from $apk" >&2
+    exit 1
+  }
+  while read -r path; do
+    [[ -z "$path" || "$path" == "lib/$abi/"* ]] || {
+      echo "Unexpected ABI slice $path in $apk" >&2
+      exit 1
+    }
+  done < <(grep '^lib/[^/]\+/' <<<"$entries" || true)
+
+  local cert size digest
+  cert="$($APKSIGNER verify --print-certs "$apk" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+  [[ -n "$cert" ]] || { echo "Could not read signing certificate for $apk" >&2; exit 1; }
+  size="$(stat -c '%s' "$apk")"
+  digest="$(sha256sum "$apk" | awk '{print $1}')"
+  printf '%s %s %s\n' "$size" "$digest" "$cert" > "$PLUGIN_OUTPUT_DIR/.work/${feature}-${abi}.metadata"
+  echo "Built $feature $abi: $size bytes sha256=$digest cert=$cert"
+}
+
+for feature in telegram webrtc easytier; do
+  for abi in arm64-v8a armeabi-v7a; do
+    build_plugin "$feature" "$abi"
+  done
+done
+
+EXPECTED_CERT=""
+for feature in telegram webrtc easytier; do
+  for abi in arm64-v8a armeabi-v7a; do
+    cert="$(awk '{print $3}' "$PLUGIN_OUTPUT_DIR/.work/${feature}-${abi}.metadata")"
+    if [[ -z "$EXPECTED_CERT" ]]; then EXPECTED_CERT="$cert"; fi
+    [[ "$cert" == "$EXPECTED_CERT" ]] || {
+      echo "Plugin certificates do not match: $feature/$abi" >&2
+      exit 1
+    }
+    [[ "$cert" == "$LIGHTLY_CERT" ]] || {
+      echo "Plugin certificate does not match Lightly: $feature/$abi" >&2
+      exit 1
+    }
+  done
+done
+
+artifact_json() {
+  local feature="$1"
+  local abi="$2"
+  local metadata="$PLUGIN_OUTPUT_DIR/.work/${feature}-${abi}.metadata"
+  local size digest
+  size="$(awk '{print $1}' "$metadata")"
+  digest="$(awk '{print $2}' "$metadata")"
+  printf '"%s": {"url": "https://github.com/Easul/lightly-plugins/releases/download/%s/%s-%s-release.apk", "sha256": "%s", "size": %s}' \
+    "$abi" "$RELEASE_TAG" "$feature" "$abi" "$digest" "$size"
+}
+
+cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
+{
+  "schemaVersion": 1,
+  "plugins": {
+    "telegram": {
+      "packageName": "${PLUGIN_PACKAGES[telegram]}",
+      "apiVersion": 1,
+      "versionCode": ${PLUGIN_VERSION_CODE},
+      "versionName": "${PLUGIN_VERSION_NAME}",
+      "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
+      "artifacts": {$(artifact_json telegram arm64-v8a), $(artifact_json telegram armeabi-v7a)}
+    },
+    "webrtc_voice": {
+      "packageName": "${PLUGIN_PACKAGES[webrtc]}",
+      "apiVersion": 1,
+      "versionCode": ${PLUGIN_VERSION_CODE},
+      "versionName": "${PLUGIN_VERSION_NAME}",
+      "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
+      "artifacts": {$(artifact_json webrtc arm64-v8a), $(artifact_json webrtc armeabi-v7a)}
+    },
+    "easytier": {
+      "packageName": "${PLUGIN_PACKAGES[easytier]}",
+      "apiVersion": 1,
+      "versionCode": ${PLUGIN_VERSION_CODE},
+      "versionName": "${PLUGIN_VERSION_NAME}",
+      "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
+      "artifacts": {$(artifact_json easytier arm64-v8a), $(artifact_json easytier armeabi-v7a)}
+    }
+  }
+}
+EOF
+
+rm -rf "$PLUGIN_OUTPUT_DIR/.work"
+echo "Verified plugin certificate matches $(basename "$LIGHTLY_APK"): $LIGHTLY_CERT"
+echo "Wrote $PLUGIN_OUTPUT_DIR/plugins.json"
