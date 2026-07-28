@@ -73,6 +73,27 @@ class OptionalPluginChannelHandlerTest {
         assertEquals("arm64-v8a", abiResult.successValue)
         assertEquals(false, permissionResult.successValue)
     }
+
+    @Test
+    fun `maps launch package and extras`() {
+        val platform = FakeOptionalPluginPlatform()
+        val result = OptionalPluginRecordingResult()
+
+        OptionalPluginChannelHandler(platform).handle(
+            MethodCall(
+                "launchPlugin",
+                mapOf(
+                    "packageName" to "lightly.tool.plugin.telegram",
+                    "extras" to mapOf("proxyPort" to 23333),
+                ),
+            ),
+            result,
+        )
+
+        assertEquals("lightly.tool.plugin.telegram", platform.launchPackageName)
+        assertEquals(23333, platform.launchExtras?.get("proxyPort"))
+        assertEquals(true, result.successValue)
+    }
 }
 
 private class FakeOptionalPluginPlatform(
@@ -83,6 +104,8 @@ private class FakeOptionalPluginPlatform(
     var statusPackageName: String? = null
     var installPath: String? = null
     var installPackageName: String? = null
+    var launchPackageName: String? = null
+    var launchExtras: Map<String, Any?>? = null
 
     override fun getSupportedAbi(): String? = supportedAbi
 
@@ -102,6 +125,12 @@ private class FakeOptionalPluginPlatform(
         installPath = path
         installPackageName = expectedPackageName
         return installResult
+    }
+
+    override fun launchPlugin(packageName: String, extras: Map<String, Any?>): Boolean {
+        launchPackageName = packageName
+        launchExtras = extras
+        return true
     }
 }
 

@@ -2,6 +2,9 @@
     <permission
         android:name="${applicationId}.permission.READ_EASYTIER_STATE"
         android:protectionLevel="signature" />
+    <permission
+        android:name="${applicationId}.permission.ACCESS_OPTIONAL_PLUGIN_DATA"
+        android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -45,6 +48,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/optional_plugin_file_paths" />
         </provider>
+        <provider
+            android:name=".OptionalPluginDataProvider"
+            android:authorities="${applicationId}.optional_plugins.data"
+            android:exported="true"
+            android:readPermission="${applicationId}.permission.ACCESS_OPTIONAL_PLUGIN_DATA"
+            android:writePermission="${applicationId}.permission.ACCESS_OPTIONAL_PLUGIN_DATA" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

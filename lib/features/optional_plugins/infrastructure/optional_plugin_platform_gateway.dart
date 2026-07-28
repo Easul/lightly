@@ -51,4 +51,15 @@ class OptionalPluginPlatformGateway {
     );
     return OptionalPluginInstallResult.fromWireValue(result);
   }
+
+  Future<bool> launchPlugin({
+    required String packageName,
+    Map<String, Object?> extras = const <String, Object?>{},
+  }) async {
+    return await _channel.invokeMethod<bool>('launchPlugin', <String, Object?>{
+          'packageName': packageName,
+          'extras': extras,
+        }) ??
+        false;
+  }
 }

@@ -36,6 +36,7 @@ class OptionalPluginChannelHandler internal constructor(
                 result.success(null)
             }
             METHOD_INSTALL_PLUGIN_APK -> installPluginApk(call, result)
+            METHOD_LAUNCH_PLUGIN -> launchPlugin(call, result)
             else -> result.notImplemented()
         }
     }
@@ -63,6 +64,16 @@ class OptionalPluginChannelHandler internal constructor(
         result.success(platform.installPluginApk(path, expectedPackageName).wireValue)
     }
 
+    private fun launchPlugin(call: MethodCall, result: MethodChannel.Result) {
+        val packageName = call.argument<String>(ARG_PACKAGE_NAME)
+        if (packageName.isNullOrBlank()) {
+            result.error(ERROR_INVALID_ARGUMENTS, "Package name is required", null)
+            return
+        }
+        val extras = call.argument<Map<String, Any?>>(ARG_EXTRAS) ?: emptyMap()
+        result.success(platform.launchPlugin(packageName, extras))
+    }
+
     companion object {
         const val CHANNEL_NAME = "optional_plugins"
 
@@ -71,9 +82,11 @@ class OptionalPluginChannelHandler internal constructor(
         private const val METHOD_CAN_REQUEST_INSTALLS = "canRequestPackageInstalls"
         private const val METHOD_OPEN_INSTALL_SETTINGS = "openInstallPermissionSettings"
         private const val METHOD_INSTALL_PLUGIN_APK = "installPluginApk"
+        private const val METHOD_LAUNCH_PLUGIN = "launchPlugin"
         private const val ARG_PACKAGE_NAME = "packageName"
         private const val ARG_PATH = "path"
         private const val ARG_EXPECTED_PACKAGE_NAME = "expectedPackageName"
+        private const val ARG_EXTRAS = "extras"
         private const val ERROR_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
     }
 }
@@ -93,6 +106,7 @@ internal interface OptionalPluginPlatform {
     fun canRequestPackageInstalls(): Boolean
     fun openInstallPermissionSettings()
     fun installPluginApk(path: String, expectedPackageName: String): PluginInstallResult
+    fun launchPlugin(packageName: String, extras: Map<String, Any?>): Boolean
 }
 
 private class AndroidOptionalPluginPlatform(
@@ -190,6 +204,39 @@ private class AndroidOptionalPluginPlatform(
         }
     }
 
+    override fun launchPlugin(packageName: String, extras: Map<String, Any?>): Boolean {
+        val pluginInfo = try {
+            getPackageInfo(packageName)
+        } catch (_: PackageManager.NameNotFoundException) {
+            return false
+        }
+        if (!signaturesMatch(pluginInfo, getPackageInfo(activity.packageName))) {
+            return false
+        }
+        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return false
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        extras.forEach { (key, value) ->
+            when (value) {
+                is String -> intent.putExtra(key, value)
+                is Int -> intent.putExtra(key, value)
+                is Long -> intent.putExtra(key, value)
+                is Double -> intent.putExtra(key, value)
+                is Boolean -> intent.putExtra(key, value)
+            }
+        }
+        intent.putExtra(EXTRA_HOST_PACKAGE, activity.packageName)
+        intent.putExtra(
+            EXTRA_HOST_DATA_AUTHORITY,
+            "${activity.packageName}.optional_plugins.data",
+        )
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun getPackageInfo(packageName: String): PackageInfo {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -251,5 +298,7 @@ private class AndroidOptionalPluginPlatform(
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val META_API_VERSION = "lightly.plugin.API_VERSION"
         private const val META_FEATURE_ID = "lightly.plugin.FEATURE_ID"
+        private const val EXTRA_HOST_PACKAGE = "lightly.host.PACKAGE"
+        private const val EXTRA_HOST_DATA_AUTHORITY = "lightly.host.DATA_AUTHORITY"
     }
 }
