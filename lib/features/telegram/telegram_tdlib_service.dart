@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:tdlib/td_api.dart' as td;
 
 import '../../core/network/local_proxy_endpoint_provider.dart';
 import 'telegram_checkin_models.dart';
 import 'telegram_plugin_platform_gateway.dart';
+import 'telegram_td_json_codec.dart';
 
 enum TelegramAuthStep {
   loading,
@@ -27,10 +26,11 @@ class TelegramTdlibService {
   final ValueNotifier<TelegramAuthStep> authStep =
       ValueNotifier<TelegramAuthStep>(TelegramAuthStep.loading);
   final ValueNotifier<String> proxyStatus = ValueNotifier<String>('正在检查代理');
-  final Map<String, Completer<td.TdObject>> _requests =
-      <String, Completer<td.TdObject>>{};
+  final Map<String, Completer<TelegramJson>> _requests =
+      <String, Completer<TelegramJson>>{};
   final TelegramPluginPlatformGateway _plugin =
       TelegramPluginPlatformGateway.instance;
+  final TelegramTdJsonCodec _codec = const TelegramTdJsonCodec();
   StreamSubscription<String>? _resultSubscription;
   StreamSubscription<void>? _disconnectSubscription;
   Future<void> _authorizationQueue = Future<void>.value();
@@ -39,9 +39,6 @@ class TelegramTdlibService {
   int? _configuredProxyPort;
   TelegramCheckinConfig? _config;
 
-  /// Source of the local SOCKS5 port. Injected by the composition root so this
-  /// feature does not depend on a concrete proxy implementation. Defaults to a
-  /// null provider (direct connection) until wired.
   LocalProxyEndpointProvider proxyEndpointProvider =
       const _NullProxyEndpointProvider();
 
@@ -61,55 +58,44 @@ class TelegramTdlibService {
       _clientId = await _plugin.createClient();
     }
     authStep.value = TelegramAuthStep.loading;
-    final state = await _request(const td.GetAuthorizationState());
-    if (state is td.AuthorizationState) {
-      await _enqueueAuthorizationState(state);
-    }
+    await _enqueueAuthorizationState(await _request('getAuthorizationState'));
   }
 
   Future<void> submitPhone(String phoneNumber) async {
     await configureProxyIfAvailable();
-    await _expectOk(
-      td.SetAuthenticationPhoneNumber(phoneNumber: phoneNumber, settings: null),
-    );
+    await _expectOk('setAuthenticationPhoneNumber', <String, Object?>{
+      'phone_number': phoneNumber,
+      'settings': null,
+    });
   }
 
-  Future<void> submitCode(String code) async {
-    await _expectOk(td.CheckAuthenticationCode(code: code));
+  Future<void> submitCode(String code) {
+    return _expectOk('checkAuthenticationCode', <String, Object?>{
+      'code': code,
+    });
   }
 
-  Future<void> submitPassword(String password) async {
-    await _expectOk(td.CheckAuthenticationPassword(password: password));
+  Future<void> submitPassword(String password) {
+    return _expectOk('checkAuthenticationPassword', <String, Object?>{
+      'password': password,
+    });
   }
 
   Future<List<TelegramMessagePreview>> fetchLatest(String rawUsername) async {
     await configureProxyIfAvailable();
     _ensureReady();
     final chat = await _resolveChat(rawUsername);
-    final response = await _request(
-      td.GetChatHistory(
-        chatId: chat.id,
-        fromMessageId: 0,
-        offset: 0,
-        limit: 10,
-        onlyLocal: false,
-      ),
-    );
-    if (response is td.TdError) throw StateError(response.message);
-    final messages = response as td.Messages;
-    return messages.messages
-        .map((message) {
-          final content = message.content;
-          final text = content is td.MessageText
-              ? content.text.text
-              : '[${content.getConstructor()}]';
-          return TelegramMessagePreview(
-            id: message.id,
-            text: text,
-            date: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
-            isOutgoing: message.isOutgoing,
-          );
-        })
+    final response = await _request('getChatHistory', <String, Object?>{
+      'chat_id': (chat['id'] as num).toInt(),
+      'from_message_id': 0,
+      'offset': 0,
+      'limit': 10,
+      'only_local': false,
+    });
+    _throwIfError(response);
+    return _codec
+        .mapList(response['messages'])
+        .map(_codec.messagePreview)
         .toList(growable: false);
   }
 
@@ -117,46 +103,42 @@ class TelegramTdlibService {
     await configureProxyIfAvailable();
     _ensureReady();
     final chat = await _resolveChat(rawUsername);
-    final response = await _request(
-      td.SendMessage(
-        chatId: chat.id,
-        messageThreadId: 0,
-        inputMessageContent: td.InputMessageText(
-          text: td.FormattedText(text: command, entities: const []),
-          disableWebPagePreview: true,
-          clearDraft: true,
-        ),
-      ),
-    );
-    if (response is td.TdError) throw StateError(response.message);
+    await _sendText((chat['id'] as num).toInt(), command, disablePreview: true);
   }
 
   Future<List<TelegramChatSummary>> loadChats({int limit = 30}) async {
     await configureProxyIfAvailable();
     _ensureReady();
-    final loadResponse = await _request(
-      td.LoadChats(chatList: null, limit: limit),
-    );
-    if (loadResponse is td.TdError && loadResponse.code != 404) {
-      throw StateError(loadResponse.message);
+    final loadResponse = await _request('loadChats', <String, Object?>{
+      'chat_list': null,
+      'limit': limit,
+    });
+    if (_codec.isError(loadResponse) && _codec.errorCode(loadResponse) != 404) {
+      _throwIfError(loadResponse);
     }
-    final response = await _request(td.GetChats(chatList: null, limit: limit));
-    if (response is td.TdError) throw StateError(response.message);
-    final chats = response as td.Chats;
-    final summaries = await Future.wait(
-      chats.chatIds.map((chatId) async {
-        final chatResponse = await _request(td.GetChat(chatId: chatId));
-        if (chatResponse is td.TdError) return null;
-        return _toChatSummary(chatResponse as td.Chat);
+    final response = await _request('getChats', <String, Object?>{
+      'chat_list': null,
+      'limit': limit,
+    });
+    _throwIfError(response);
+    final chatIds =
+        (response['chat_ids'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<num>();
+    final chats = await Future.wait(
+      chatIds.map((chatId) async {
+        final chat = await _request('getChat', <String, Object?>{
+          'chat_id': chatId.toInt(),
+        });
+        return _codec.isError(chat) ? null : _codec.chatSummary(chat);
       }),
     );
-    return summaries.whereType<TelegramChatSummary>().toList(growable: false);
+    return chats.whereType<TelegramChatSummary>().toList(growable: false);
   }
 
   Future<TelegramChatSummary> resolvePublicChat(String rawUsername) async {
     await configureProxyIfAvailable();
     _ensureReady();
-    return _toChatSummary(await _resolveChat(rawUsername));
+    return _codec.chatSummary(await _resolveChat(rawUsername));
   }
 
   Future<List<TelegramMessagePreview>> loadChatMessages(
@@ -168,100 +150,88 @@ class TelegramTdlibService {
     _ensureReady();
     final isLatestPage = fromMessageId == 0;
     if (isLatestPage) {
-      await _expectOk(td.OpenChat(chatId: chatId));
+      await _expectOk('openChat', <String, Object?>{'chat_id': chatId});
     }
-    final response = await _request(
-      td.GetChatHistory(
-        chatId: chatId,
-        fromMessageId: fromMessageId,
-        offset: 0,
-        limit: limit,
-        onlyLocal: false,
-      ),
-    );
-    if (response is td.TdError) throw StateError(response.message);
-    final messages = (response as td.Messages).messages;
+    final response = await _request('getChatHistory', <String, Object?>{
+      'chat_id': chatId,
+      'from_message_id': fromMessageId,
+      'offset': 0,
+      'limit': limit,
+      'only_local': false,
+    });
+    _throwIfError(response);
+    final messages = _codec
+        .mapList(response['messages'])
+        .map(_codec.messagePreview)
+        .toList(growable: false);
     if (isLatestPage && messages.isNotEmpty) {
-      await _expectOk(
-        td.ViewMessages(
-          chatId: chatId,
-          messageIds: messages.map((message) => message.id).toList(),
-          source: null,
-          forceRead: true,
-        ),
-      );
+      await _expectOk('viewMessages', <String, Object?>{
+        'chat_id': chatId,
+        'message_ids': messages.map((message) => message.id).toList(),
+        'source': null,
+        'force_read': true,
+      });
     }
-    return messages.map(_toMessagePreview).toList(growable: false);
+    return messages;
   }
 
   Future<void> closeChat(int chatId) async {
     if (_clientId == 0) return;
-    await _expectOk(td.CloseChat(chatId: chatId));
+    await _expectOk('closeChat', <String, Object?>{'chat_id': chatId});
   }
 
   Future<void> sendText(int chatId, String text) async {
     await configureProxyIfAvailable();
     _ensureReady();
-    final response = await _request(
-      td.SendMessage(
-        chatId: chatId,
-        messageThreadId: 0,
-        inputMessageContent: td.InputMessageText(
-          text: td.FormattedText(text: text, entities: const []),
-          disableWebPagePreview: false,
-          clearDraft: true,
-        ),
-      ),
-    );
-    if (response is td.TdError) throw StateError(response.message);
+    await _sendText(chatId, text);
   }
 
   Future<void> logout() async {
     await configureProxyIfAvailable();
     _ensureReady();
-    await _expectOk(const td.LogOut());
+    await _expectOk('logOut');
     authStep.value = TelegramAuthStep.loading;
   }
 
-  TelegramChatSummary _toChatSummary(td.Chat chat) {
-    final lastMessage = chat.lastMessage;
-    return TelegramChatSummary(
-      id: chat.id,
-      title: chat.title,
-      lastMessage: lastMessage == null ? '' : _messageText(lastMessage.content),
-      date: lastMessage == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(lastMessage.date * 1000),
-      unreadCount: chat.unreadCount,
-    );
+  Future<void> _sendText(
+    int chatId,
+    String text, {
+    bool disablePreview = false,
+  }) async {
+    final response = await _request('sendMessage', <String, Object?>{
+      'chat_id': chatId,
+      'message_thread_id': 0,
+      'input_message_content': <String, Object?>{
+        '@type': 'inputMessageText',
+        'text': <String, Object?>{
+          '@type': 'formattedText',
+          'text': text,
+          'entities': <Object?>[],
+        },
+        'disable_web_page_preview': disablePreview,
+        'clear_draft': true,
+      },
+    });
+    _throwIfError(response);
   }
 
-  TelegramMessagePreview _toMessagePreview(td.Message message) {
-    return TelegramMessagePreview(
-      id: message.id,
-      text: _messageText(message.content),
-      date: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
-      isOutgoing: message.isOutgoing,
-    );
-  }
-
-  String _messageText(td.MessageContent content) {
-    return content is td.MessageText
-        ? content.text.text
-        : '[${content.getConstructor()}]';
-  }
-
-  Future<td.Chat> _resolveChat(String rawUsername) async {
+  Future<TelegramJson> _resolveChat(String rawUsername) async {
     final username = rawUsername.trim().replaceFirst(RegExp(r'^@'), '');
-    final response = await _request(td.SearchPublicChat(username: username));
-    if (response is td.TdError) throw StateError(response.message);
-    return response as td.Chat;
+    final response = await _request('searchPublicChat', <String, Object?>{
+      'username': username,
+    });
+    _throwIfError(response);
+    return response;
   }
 
   Future<void> configureProxyIfAvailable() async {
     if (_clientId == 0) return;
     final port = proxyEndpointProvider.localSocks5Port;
     if (port == null) {
+      if (_configuredProxyPort != null) {
+        await _expectOk('disableProxy');
+        _configuredProxyPort = null;
+      }
       proxyStatus.value = '本地代理未运行，TDLib 将尝试直连';
       return;
     }
@@ -269,71 +239,69 @@ class TelegramTdlibService {
       proxyStatus.value = '已使用本地代理 127.0.0.1:$port';
       return;
     }
-    final response = await _request(
-      td.AddProxy(
-        server: '127.0.0.1',
-        port: port,
-        enable: true,
-        type: const td.ProxyTypeSocks5(username: '', password: ''),
-      ),
-    );
-    if (response is td.TdError) {
-      proxyStatus.value = '代理启用失败：${response.message}';
-      throw StateError(response.message);
-    }
+    final response = await _request('addProxy', <String, Object?>{
+      'server': '127.0.0.1',
+      'port': port,
+      'enable': true,
+      'type': <String, Object?>{
+        '@type': 'proxyTypeSocks5',
+        'username': '',
+        'password': '',
+      },
+    });
+    _throwIfError(response, statusPrefix: '代理启用失败');
     _configuredProxyPort = port;
     proxyStatus.value = '已使用本地代理 127.0.0.1:$port';
   }
 
-  Future<void> _handleAuthorizationState(td.AuthorizationState state) async {
-    if (state is td.AuthorizationStateWaitTdlibParameters) {
-      final config = _config;
-      if (config == null || !config.hasApiCredentials) {
-        authStep.value = TelegramAuthStep.error;
-        return;
-      }
-      await _expectOk(
-        td.SetTdlibParameters(
-          useTestDc: false,
-          databaseDirectory: '',
-          filesDirectory: '',
-          databaseEncryptionKey: '',
-          useFileDatabase: false,
-          useChatInfoDatabase: true,
-          useMessageDatabase: true,
-          useSecretChats: false,
-          apiId: config.apiId,
-          apiHash: config.apiHash,
-          systemLanguageCode: 'zh-Hans',
-          deviceModel: 'Android',
-          systemVersion: Platform.operatingSystemVersion,
-          applicationVersion: '1.0.1',
-          enableStorageOptimizer: true,
-          ignoreFileNames: true,
-        ),
-      );
-      await configureProxyIfAvailable();
-    } else if (state is td.AuthorizationStateWaitPhoneNumber) {
-      await configureProxyIfAvailable();
-      authStep.value = TelegramAuthStep.phone;
-    } else if (state is td.AuthorizationStateWaitCode) {
-      await configureProxyIfAvailable();
-      authStep.value = TelegramAuthStep.code;
-    } else if (state is td.AuthorizationStateWaitPassword) {
-      await configureProxyIfAvailable();
-      authStep.value = TelegramAuthStep.password;
-    } else if (state is td.AuthorizationStateReady) {
-      await configureProxyIfAvailable();
-      authStep.value = TelegramAuthStep.ready;
-    } else if (state is td.AuthorizationStateClosed) {
-      _clientId = 0;
-      _configuredProxyPort = null;
-      _failPendingRequests(StateError('Telegram 连接已关闭'));
-      authStep.value = TelegramAuthStep.loggedOut;
+  Future<void> _handleAuthorizationState(TelegramJson state) async {
+    switch (state['@type']) {
+      case 'authorizationStateWaitTdlibParameters':
+        final config = _config;
+        if (config == null || !config.hasApiCredentials) {
+          authStep.value = TelegramAuthStep.error;
+          return;
+        }
+        await _expectOk('setTdlibParameters', <String, Object?>{
+          'use_test_dc': false,
+          'database_directory': '',
+          'files_directory': '',
+          'database_encryption_key': '',
+          'use_file_database': false,
+          'use_chat_info_database': true,
+          'use_message_database': true,
+          'use_secret_chats': false,
+          'api_id': config.apiId,
+          'api_hash': config.apiHash,
+          'system_language_code': 'zh-Hans',
+          'device_model': 'Android',
+          'system_version': Platform.operatingSystemVersion,
+          'application_version': '1.0.1',
+          'enable_storage_optimizer': true,
+          'ignore_file_names': true,
+        });
+        await configureProxyIfAvailable();
+      case 'authorizationStateWaitPhoneNumber':
+        await configureProxyIfAvailable();
+        authStep.value = TelegramAuthStep.phone;
+      case 'authorizationStateWaitCode':
+        await configureProxyIfAvailable();
+        authStep.value = TelegramAuthStep.code;
+      case 'authorizationStateWaitPassword':
+        await configureProxyIfAvailable();
+        authStep.value = TelegramAuthStep.password;
+      case 'authorizationStateReady':
+        await configureProxyIfAvailable();
+        authStep.value = TelegramAuthStep.ready;
+      case 'authorizationStateClosed':
+        _clientId = 0;
+        _configuredProxyPort = null;
+        _failPendingRequests(StateError('Telegram 连接已关闭'));
+        authStep.value = TelegramAuthStep.loggedOut;
     }
   }
 
-  Future<void> _enqueueAuthorizationState(td.AuthorizationState state) {
+  Future<void> _enqueueAuthorizationState(TelegramJson state) {
     _authorizationQueue = _authorizationQueue
         .then((_) => _handleAuthorizationState(state))
         .catchError((Object error, StackTrace stackTrace) {
@@ -344,30 +312,44 @@ class TelegramTdlibService {
   }
 
   void _handleRawResult(String rawResult) {
-    final object = td.convertToObject(rawResult);
-    if (object == null) return;
-    final clientId = object.clientId;
-    if (clientId != null && clientId != _clientId) return;
-    final extra = object.extra?.toString();
-    if (extra != null) {
-      _requests.remove(extra)?.complete(object);
-    }
-    if (object is td.UpdateAuthorizationState) {
-      unawaited(_enqueueAuthorizationState(object.authorizationState));
+    try {
+      final object = _codec.decodeObject(rawResult);
+      final clientId = (object['@client_id'] as num?)?.toInt();
+      if (clientId != null && clientId != _clientId) return;
+      final extra = object['@extra']?.toString();
+      if (extra != null) {
+        _requests.remove(extra)?.complete(object);
+      }
+      if (object['@type'] == 'updateAuthorizationState') {
+        unawaited(
+          _enqueueAuthorizationState(
+            _codec.mapOrEmpty(object['authorization_state']),
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('Telegram plugin returned invalid JSON: $error');
     }
   }
 
-  Future<td.TdObject> _request(td.TdFunction function) async {
+  Future<TelegramJson> _request(
+    String type, [
+    Map<String, Object?> arguments = const <String, Object?>{},
+  ]) async {
     if (_clientId == 0) {
       throw StateError('Telegram 客户端尚未启动');
     }
     final extra = 'tg_${_requestId++}';
-    final completer = Completer<td.TdObject>();
+    final completer = Completer<TelegramJson>();
     _requests[extra] = completer;
     try {
       await _plugin.send(
         clientId: _clientId,
-        requestJson: jsonEncode(function.toJson(extra)),
+        requestJson: _codec.encodeRequest(
+          type,
+          arguments: arguments,
+          extra: extra,
+        ),
       );
     } catch (_) {
       _requests.remove(extra);
@@ -379,9 +361,25 @@ class TelegramTdlibService {
         if (identical(_requests[extra], completer)) {
           _requests.remove(extra);
         }
-        throw TimeoutException('Telegram 请求超时：${function.getConstructor()}');
+        throw TimeoutException('Telegram 请求超时：$type');
       },
     );
+  }
+
+  Future<void> _expectOk(
+    String type, [
+    Map<String, Object?> arguments = const <String, Object?>{},
+  ]) async {
+    _throwIfError(await _request(type, arguments));
+  }
+
+  void _throwIfError(TelegramJson response, {String? statusPrefix}) {
+    if (!_codec.isError(response)) return;
+    final message = _codec.errorMessage(response);
+    if (statusPrefix != null) {
+      proxyStatus.value = '$statusPrefix：$message';
+    }
+    throw StateError(message);
   }
 
   void _failPendingRequests(Object error) {
@@ -392,11 +390,6 @@ class TelegramTdlibService {
     }
   }
 
-  Future<void> _expectOk(td.TdFunction function) async {
-    final response = await _request(function);
-    if (response is td.TdError) throw StateError(response.message);
-  }
-
   void _ensureReady() {
     if (authStep.value != TelegramAuthStep.ready) {
       throw StateError('Telegram 账号尚未登录');
@@ -404,9 +397,6 @@ class TelegramTdlibService {
   }
 }
 
-/// Default provider used before the composition root injects a real one.
-/// Reports no local proxy, so TDLib falls back to a direct connection —
-/// identical to the previous behavior when the proxy was not running.
 class _NullProxyEndpointProvider implements LocalProxyEndpointProvider {
   const _NullProxyEndpointProvider();
 

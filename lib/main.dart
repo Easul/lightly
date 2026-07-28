@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:tdlib/tdlib.dart';
 
 import 'app/app.dart';
 import 'app/app_services.dart';
@@ -16,9 +14,6 @@ export 'app/app.dart' show MyApp;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isAndroid) {
-    await TdPlugin.initialize('libtdjson.so');
-  }
   final services = AppServices.production();
   final appLogService = services.logService;
   await appLogService.initialize();

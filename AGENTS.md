@@ -1169,6 +1169,9 @@ void dispose() {
   compatible.
 - TDLib crosses IPC only through bounded JSON requests/results. The plugin owns the single receive
   loop and rewrites `setTdlibParameters` database/files directories into its private sandbox.
+- Lightly's `TelegramTdlibService` uses the local `TelegramTdJsonCodec` for the limited request and
+  response schema needed by TG Tools. Do not add the Flutter `tdlib` package or `libtdjson.so` back
+  to the host merely for generated Dart model classes.
 - JNI conversion must use standard UTF-8 byte conversion, not JNI modified-UTF-8 helpers, so
   Chinese and emoji message JSON are preserved.
 - Release companion APKs must use the same upload certificate as the matching Lightly release.
@@ -1180,6 +1183,8 @@ void dispose() {
 - Verify the host gateway with targeted Flutter tests and Android Kotlin compilation. Verify the
   companion from its `android/` directory with
   `TARGET_ABI=arm64-v8a ./gradlew --offline :app:testDebugUnitTest :app:assembleDebug`.
+- After host release builds, inspect the APK and confirm it contains no `libtdjson.so`; the same
+  library must exist only in the selected-ABI Telegram companion APK.
 
 ## AI Translation / Chat Tool Integration
 

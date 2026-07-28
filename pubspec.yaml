@@ -54,7 +54,6 @@ dependencies:
 
   # Remote Control dependencies
   flutter_webrtc: ^0.13.1
-  tdlib: ^1.6.0
 
 dev_dependencies:
   flutter_test:
