@@ -1226,9 +1226,11 @@ void dispose() {
 - Release companion APKs must use the same upload certificate as the matching Lightly release.
   Debug/profile companion builds use the matching debug certificate. Do not weaken this to an
   untrusted exported Activity or an unprotected configuration provider.
-- `flutter pub get` under `extensions/telegram` is currently only a reproducible fetch step for the
-  pinned TDLib `.so`; Flutter artifacts and `GeneratedPluginRegistrant.java` must not enter the
-  native APK or Java compilation. CI may set `TDLIB_JNI_DIR` to a verified binary directory.
+- `extensions/telegram/scripts/prepare_tdlib.sh` is the reproducible fetch step for the pinned
+  TDLib `.so`. It verifies the archive SHA-256 and extracts only Android libraries into ignored
+  `.deps/`; do not restore `pubspec.yaml`, Flutter pub-cache lookup, Flutter artifacts, or
+  `GeneratedPluginRegistrant.java`. CI may provide `TDLIB_ARCHIVE_PATH` for offline preparation or
+  set `TDLIB_JNI_DIR` to a separately verified binary directory.
 - Verify the host gateway with targeted Flutter tests and Android Kotlin compilation. Verify the
   companion from its `android/` directory with
   `TARGET_ABI=arm64-v8a ./gradlew --offline :app:testDebugUnitTest :app:assembleDebug`.

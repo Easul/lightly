@@ -10,13 +10,18 @@ val supportedAbis = when (targetAbi) {
     "armeabi-v7a" -> setOf("armeabi-v7a")
     else -> setOf("arm64-v8a", "armeabi-v7a")
 }
-val pubCache = providers.environmentVariable("PUB_CACHE").orNull?.let(::file)
-    ?: File(System.getProperty("user.home"), ".pub-cache")
 val tdlibJniDir = providers.environmentVariable("TDLIB_JNI_DIR").orNull?.let(::file)
-    ?: File(pubCache, "hosted/pub.dev/tdlib-$tdlibVersion/android/src/main/jniLibs")
+    ?: rootProject.file("../.deps/tdlib-$tdlibVersion/jniLibs")
 
 require(tdlibJniDir.isDirectory) {
-    "TDLib JNI directory not found at $tdlibJniDir. Run Flutter pub get once or set TDLIB_JNI_DIR."
+    "TDLib JNI directory not found at $tdlibJniDir. " +
+        "Run extensions/telegram/scripts/prepare_tdlib.sh or set TDLIB_JNI_DIR."
+}
+supportedAbis.forEach { abi ->
+    require(File(tdlibJniDir, "$abi/libtdjson.so").isFile) {
+        "TDLib $abi binary not found under $tdlibJniDir. " +
+            "Run extensions/telegram/scripts/prepare_tdlib.sh again."
+    }
 }
 
 android {
@@ -107,8 +112,4 @@ android {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20180813")
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
 }
