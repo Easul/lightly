@@ -6,6 +6,7 @@
         android:name="${applicationId}.permission.ACCESS_OPTIONAL_PLUGIN_DATA"
         android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="lightly.tool.plugin.telegram.permission.LAUNCH" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -275,6 +276,9 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <package android:name="lightly.tool.plugin.telegram" />
+        <package android:name="lightly.tool.plugin.webrtc" />
+        <package android:name="lightly.tool.plugin.easytier" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../app/optional_feature_coordinator.dart';
+import '../features/optional_plugins/domain/optional_feature.dart';
+import '../features/optional_plugins/presentation/optional_feature_gate.dart';
 import '../services/app_toast.dart';
 import '../services/time_overlay_service.dart';
 
@@ -14,6 +17,9 @@ class ToolsPage extends StatefulWidget {
 
 class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
   final TimeOverlayService _timeOverlayService = TimeOverlayService();
+  final OptionalFeatureGate _optionalFeatureGate = OptionalFeatureGate();
+  final OptionalFeatureCoordinator _optionalFeatureCoordinator =
+      OptionalFeatureCoordinator.instance;
   bool _timeOverlayRunning = false;
   bool _busy = false;
 
@@ -72,6 +78,19 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
 
   void _toast(String message) => unawaited(AppToast.show(message));
 
+  Future<void> _openTelegramPlugin() async {
+    if (!await _optionalFeatureGate.ensureAvailable(
+      context,
+      OptionalFeatureId.telegram,
+    )) {
+      return;
+    }
+    final launched = await _optionalFeatureCoordinator.launchTelegramPlugin();
+    if (!launched) {
+      _toast('TG 工具插件启动失败，请重新安装插件后再试');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,7 +104,7 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
               _ToolTile(
                 icon: Icons.telegram,
                 label: 'TG 工具',
-                onTap: () => Navigator.pushNamed(context, '/telegram-checkin'),
+                onTap: () => unawaited(_openTelegramPlugin()),
               ),
               _ToolTile(
                 icon: Icons.chat_bubble_outline_rounded,

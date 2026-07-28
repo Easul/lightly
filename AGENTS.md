@@ -1152,6 +1152,31 @@ void dispose() {
   `android/app/src/main/kotlin/lightly/tool/TimeOverlayService.kt`.
 - Verification: run `flutter analyze`, `flutter test test/browser/browser_backup_service_test.dart`, and `./gradlew :app:compileDebugKotlin`.
 
+### Telegram optional companion boundary
+
+- The Telegram UI and TDLib runtime are extracted into the optional Android companion at
+  `extensions/telegram`, package `lightly.tool.plugin.telegram`.
+- Lightly remains the single owner of `telegram_checkin_config`. The companion reads and writes it
+  through `${applicationId}.optional_plugins.data/telegram_config`, protected by the host's
+  signature permission. Keep this ownership so existing Lightly backup export/import remains
+  compatible.
+- The companion owns its private TDLib database/session. Android app sandboxes prevent an in-place
+  migration from Lightly's old support directory, so the first companion launch requires Telegram
+  login again; normal Lightly upgrades and data import still restore API/check-in configuration.
+- Companion launch is protected by `lightly.tool.plugin.telegram.permission.LAUNCH`; Lightly must
+  request that permission, declare the companion in Android package visibility queries, validate
+  the plugin package certificate, and pass only bounded launch metadata such as the active local
+  SOCKS5 port.
+- Release companion APKs must use the same upload certificate as the matching Lightly release.
+  Debug/profile companion builds use the matching debug certificate. Do not weaken this to an
+  untrusted exported Activity or an unprotected configuration provider.
+- `tdlib 1.6.0` pins obsolete AGP 7.3.0 and omits an Android namespace. The companion mirrors the
+  main Android build's compatibility rule: force the project AGP 8.11.1 in `settings.gradle.kts`
+  and inject namespace `org.naji.td.tdlib` through `LibraryExtension`. Do not edit the global pub
+  cache to make local builds pass.
+- Verify the companion with `flutter analyze`, `flutter test`, and from its `android/` directory
+  `./gradlew --offline :app:compileDebugKotlin` when dependencies are already cached.
+
 ## AI Translation / Chat Tool Integration
 
 - Translation and chat share `AiConfigStore`; keep Base URL, API key, endpoint type, and model selection aligned across both tools.

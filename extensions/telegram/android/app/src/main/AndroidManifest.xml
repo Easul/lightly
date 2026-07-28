@@ -1,0 +1,43 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <permission
+        android:name="lightly.tool.plugin.telegram.permission.LAUNCH"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="lightly.tool.permission.ACCESS_OPTIONAL_PLUGIN_DATA" />
+    <uses-permission android:name="lightly.tool.profile.permission.ACCESS_OPTIONAL_PLUGIN_DATA" />
+    <uses-permission android:name="lightly.tool.test.permission.ACCESS_OPTIONAL_PLUGIN_DATA" />
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:label="Lightly TG 插件"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <meta-data
+            android:name="lightly.plugin.API_VERSION"
+            android:value="1" />
+        <meta-data
+            android:name="lightly.plugin.FEATURE_ID"
+            android:value="telegram" />
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:permission="lightly.tool.plugin.telegram.permission.LAUNCH"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
