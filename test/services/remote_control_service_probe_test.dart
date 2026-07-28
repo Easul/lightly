@@ -16,7 +16,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel(RemoteControlPlatformGateway.channelName);
-  const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -30,18 +29,12 @@ void main() {
           }
           return null;
         });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, (call) async {
-          return true;
-        });
   });
 
   tearDown(() async {
     await RemoteControlService().disconnect();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, null);
   });
 
   test('receiver port discovery probe does not become a session', () async {

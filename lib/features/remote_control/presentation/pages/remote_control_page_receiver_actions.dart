@@ -6,6 +6,13 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
       receiverNoTunMode: _useReceiverNoTunMode,
       p2pNoTunMode: _runtimeCoordinator.isEasyTierNoTunMode,
     );
+    final voiceAvailable = effectiveNoTunMode
+        ? false
+        : await widget.ensureVoicePluginAvailable();
+    if (!voiceAvailable && !effectiveNoTunMode && mounted) {
+      _showToast('远程语音插件不可用，被控端将仅启用屏幕与控制功能');
+    }
+    if (!mounted) return;
     _updateState(() {
       _isConnecting = true;
       _useReceiverNoTunMode = effectiveNoTunMode;
@@ -20,6 +27,7 @@ extension _RemoteControlPageReceiverActions on _RemoteControlPageState {
         ensureVpnForRemoteControl: ({bool noTunMode = false}) =>
             _runtimeCoordinator.ensureReceiverNetwork(noTunMode: noTunMode),
         useNoTunMode: effectiveNoTunMode,
+        voicePluginAvailable: voiceAvailable,
       );
 
       if (!mounted) return;

@@ -22,7 +22,7 @@ flowchart LR
     SERVICE[RemoteControlService<br/>Session / Socket Owner]
     CONTROL[Control TCP<br/>NDJSON]
     SCREEN[Screen TCP<br/>H.264 Frames]
-    VOICE[WebRTC Voice]
+    VOICE[Optional native WebRTC plugin APK]
     RECEIVER[Receiver RemoteControlService]
     GATEWAY[RemoteControlPlatformGateway]
     NATIVE[Android Capture / Decode / Accessibility]
@@ -48,14 +48,17 @@ flowchart LR
 | `RemoteControlScreenFrameSender` | key/delta 帧排队与新鲜度策略 | 控制通道命令 |
 | `ScreenCaptureManager` | native capture 生命周期与帧 stream | socket/session state |
 | `RemoteControlVoiceCoordinator` | WebRTC 信令与网络偏好 | TCP socket owner |
+| `WebRtcVoiceService` | typed IPC、candidate 策略与信令转发 | PeerConnection/音轨所有权 |
+| WebRTC companion Service | PeerConnection、麦克风、扬声器和音频 lifecycle | Lightly UI、control/screen socket |
 | `RemoteControlPlatformGateway` | typed Dart/Kotlin 通道契约 | 页面状态 |
 | Kotlin capture/decode/accessibility | MediaProjection、MediaCodec、手势/键盘/全局动作 | Dart 会话策略 |
 
 Dart config/protocol contracts、connection/screen/voice application policies、socket/status、
-screen capture、WebRTC infrastructure 与 typed gateway 已位于
+screen capture、WebRTC IPC adapter 与 typed gateway 已位于
 `lib/features/remote_control/`。其中 `ScreenFrame` 只包装原始 `Uint8List`，screen
-sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 持有
-PeerConnection/tracks/timers，但仍由 `RemoteControlService` 创建和关闭。
+sender/pipeline/watchdog 与 socket adapters 不长期持有 socket；`WebRtcVoiceService` 只持有
+插件连接状态、candidate 策略和 request correlation，`extensions/webrtc` 的纯原生 companion
+Service 持有 PeerConnection、音轨和 Android audio route。
 `RemoteControlService` 位于 `lib/features/remote_control/infrastructure/`，仍是 control/screen
 socket 与 session state 的唯一 owner；日志和性能统计由 app composition 注入的 contract
 提供。独立 widgets 与 setup/session 页面均位于 feature presentation；页面通过
@@ -83,8 +86,11 @@ EasyTier/proxy/browser settings 能力。具体实现只在应用路由 composit
 
 - 不使用固定第三音频端口。
 - offer/answer/candidate 经 control TCP 交换，媒体由 WebRTC 协商。
+- WebRTC runtime 位于同签名按需安装的 `lightly.tool.plugin.webrtc`，插件没有 FlutterEngine
+  或业务 UI；透明 Activity 只负责插件自己的麦克风系统授权。
 - EasyTier `10.126.*` 会话优先使用已验证的远控目标地址，并在必要时改写 host candidate。
 - 内置代理和 no-tun 模式不提供 WebRTC 语音。
+- 插件缺失、拒绝麦克风权限或版本不兼容时，只禁用当前会话语音，control/screen 仍继续。
 
 ### 端口范围
 

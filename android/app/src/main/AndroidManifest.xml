@@ -7,6 +7,7 @@
         android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="lightly.tool.plugin.telegram.permission.BIND_SERVICE" />
+    <uses-permission android:name="lightly.tool.plugin.webrtc.permission.BIND_SERVICE" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -22,15 +23,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <application
         android:label="若轻"
         android:name=".RuoqingApplication"

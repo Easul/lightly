@@ -65,6 +65,7 @@ abstract class RemoteControlPresentationRuntime extends RemoteControlRuntime {
     int discoveryDelayMs = 0,
     bool useProxy = false,
     int? proxyPort,
+    bool enableVoice = true,
   });
 
   Future<RemoteControlPortConfig?> discoverReceiverPorts(

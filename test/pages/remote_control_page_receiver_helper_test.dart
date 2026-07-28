@@ -8,7 +8,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel(RemoteControlPlatformGateway.channelName);
-  const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -29,16 +28,12 @@ void main() {
           }
           return null;
         });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, (call) async => true);
   });
 
   tearDown(() async {
     await RemoteControlService().shutdownReceiverHostResources();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, null);
   });
 
   test('no-tun receiver flow starts with voice disabled', () async {
@@ -57,5 +52,20 @@ void main() {
     expect(capturedNoTunMode, isTrue);
     expect(ports.controlPort, greaterThan(0));
     expect(RemoteControlService().isVoiceEnabled, isFalse);
+  });
+
+  test('missing voice plugin does not block receiver screen runtime', () async {
+    final ports = await const RemoteControlPageReceiverHelper()
+        .startReceiverFlow(
+          permissionRuntime: RemoteControlPlatformGateway(channel: channel),
+          service: RemoteControlService(),
+          useNoTunMode: false,
+          voicePluginAvailable: false,
+          ensureVpnForRemoteControl: ({bool noTunMode = false}) async => true,
+        );
+
+    expect(ports.controlPort, greaterThan(0));
+    expect(RemoteControlService().isVoiceEnabled, isFalse);
+    expect(RemoteControlService().isReceiverHostRunning, isTrue);
   });
 }

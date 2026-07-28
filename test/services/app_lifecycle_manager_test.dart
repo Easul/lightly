@@ -13,21 +13,12 @@ void main() {
   const remoteControlChannel = MethodChannel(
     RemoteControlPlatformGateway.channelName,
   );
-  const webRtcChannel = MethodChannel('FlutterWebRTC.Method');
-
-  setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, (call) async => true);
-  });
-
   tearDown(() async {
     await EasyTierService().stopVpn();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(easyTierChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(remoteControlChannel, null);
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(webRtcChannel, null);
   });
 
   test('receiver no-vpn startup does not add port forwards', () async {

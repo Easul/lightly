@@ -4,4 +4,5 @@ class PlatformChannelNames {
   static const String browser = 'browser_proxy';
   static const String optionalPlugins = 'optional_plugins';
   static const String telegramPlugin = 'telegram_plugin';
+  static const String webRtcVoicePlugin = 'webrtc_voice_plugin';
 }

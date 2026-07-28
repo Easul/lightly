@@ -23,7 +23,7 @@ flowchart LR
     SERVICE[RemoteControlService<br/>Session / Socket Owner]
     CONTROL[Control TCP<br/>NDJSON]
     SCREEN[Screen TCP<br/>H.264 Frames]
-    VOICE[WebRTC Voice]
+    VOICE[Optional native WebRTC plugin APK]
     RECEIVER[Receiver RemoteControlService]
     GATEWAY[RemoteControlPlatformGateway]
     NATIVE[Android Capture / Decode / Accessibility]
@@ -49,14 +49,17 @@ flowchart LR
 | `RemoteControlScreenFrameSender` | Key/delta queue and freshness policy | Control commands |
 | `ScreenCaptureManager` | Native capture lifecycle and frame stream | Socket/session state |
 | `RemoteControlVoiceCoordinator` | WebRTC signaling and network preference | TCP socket state |
+| `WebRtcVoiceService` | Typed IPC, candidate policy, and signaling forwarding | PeerConnection or track ownership |
+| WebRTC companion Service | PeerConnection, microphone, speaker, and audio lifecycle | Lightly UI or control/screen sockets |
 | `RemoteControlPlatformGateway` | Typed Dart/Kotlin contract | Page state |
 | Kotlin capture/decode/accessibility | MediaProjection, MediaCodec, input/system actions | Dart session policy |
 
 Dart config/protocol contracts, connection/screen/voice application policies, socket/status,
-screen-capture, WebRTC infrastructure, and the typed gateway now live under
+screen-capture, the WebRTC IPC adapter, and the typed gateway now live under
 `lib/features/remote_control/`. `ScreenFrame` only wraps the original `Uint8List`; the screen
-sender, pipeline, watchdog, and socket adapters do not retain sockets. `WebRtcVoiceService` owns its
-PeerConnection, tracks, and timers, but `RemoteControlService` still creates and closes it.
+sender, pipeline, watchdog, and socket adapters do not retain sockets. `WebRtcVoiceService` retains
+only plugin connection state, candidate policy, and request correlation. The pure native companion
+under `extensions/webrtc` owns PeerConnection, tracks, and Android audio routing.
 `RemoteControlService` now lives in `lib/features/remote_control/infrastructure/` and remains the
 single owner of control/screen sockets and session state. Logging and performance diagnostics are
 provided through contracts injected by app composition. Independent widgets and the setup/session
@@ -86,9 +89,14 @@ route.
 
 - There is no fixed third audio port.
 - Offer, answer, and candidates travel over control TCP; WebRTC negotiates media transport.
+- The runtime is provided by the same-signature on-demand package `lightly.tool.plugin.webrtc`.
+  It has no Flutter engine or business UI; its transparent Activity only requests the plugin's own
+  microphone permission.
 - EasyTier `10.126.*` sessions prefer the proven remote-control address and rewrite host candidates
   when needed.
 - Built-in-proxy and no-tun modes do not provide WebRTC voice.
+- A missing/incompatible plugin or denied microphone permission disables voice for that session
+  without blocking control or screen transport.
 
 ### Port Range
 

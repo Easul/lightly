@@ -24,6 +24,9 @@ class MainActivity : FlutterActivity() {
     private val telegramPluginChannelHandler by lazy {
         TelegramPluginChannelHandler(this)
     }
+    private val webRtcVoicePluginChannelHandler by lazy {
+        WebRtcVoicePluginChannelHandler(this)
+    }
     private var remoteControlChannelHandler: RemoteControlChannelHandler? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -131,6 +134,7 @@ class MainActivity : FlutterActivity() {
         OptionalPluginChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
         telegramPluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
+        webRtcVoicePluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = BrowserPlatformChannelHandler(
             methodHandlers = listOf(
@@ -158,6 +162,8 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
             return
+        } else if (webRtcVoicePluginChannelHandler.handleActivityResult(requestCode, resultCode)) {
+            return
         } else if (easyTierChannelHandler.handleActivityResult(requestCode, resultCode)) {
             return
         } else if (
@@ -182,6 +188,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         telegramPluginChannelHandler.shutdown()
+        webRtcVoicePluginChannelHandler.shutdown()
         shutdownRemoteControlResources()
         shutdownEasyTierVpnResources()
         super.onDestroy()

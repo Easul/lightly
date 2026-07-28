@@ -132,6 +132,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
   int? _lastControllerProxyPort;
   List<String> _lastControllerAvailableHosts = const <String>[];
   int _lastControllerDiscoveryDelayMs = 0;
+  bool _lastControllerVoiceEnabled = true;
   DateTime? _lastWebRtcRecoveryAt;
   bool _receiverSessionActive = false;
 
@@ -347,6 +348,16 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
       _logMessage(
         'Receiver started on ports ${ports.controlPort}/${ports.screenPort}',
       );
+      if (isVoiceEnabled) {
+        try {
+          await _prepareVoiceSession(isController: false);
+        } catch (error) {
+          _disableVoiceForCurrentSession(
+            'Receiver WebRTC plugin unavailable; continuing without voice',
+            error: error,
+          );
+        }
+      }
       return ports;
     } catch (e) {
       _updateState(RemoteControlState.error);
@@ -362,6 +373,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
     int discoveryDelayMs = 0,
     bool useProxy = false,
     int? proxyPort,
+    bool enableVoice = true,
   }) async {
     host = _connectionHelper.normalizeRemoteHost(host);
     _mode = RemoteControlMode.controller;
@@ -372,8 +384,12 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
     _lastControllerProxyPort = proxyPort;
     _lastControllerAvailableHosts = List<String>.from(availableHosts);
     _lastControllerDiscoveryDelayMs = discoveryDelayMs;
+    _lastControllerVoiceEnabled = enableVoice;
     _disconnectRequested = false;
-    _config = RemoteControlConfig(ports: ports, enableVoice: !useProxy);
+    _config = RemoteControlConfig(
+      ports: ports,
+      enableVoice: enableVoice && !useProxy,
+    );
 
     // 记录设备发现路径
     _diagnostics.recordDiscoveryPath(
@@ -416,7 +432,14 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
           await _platformGateway.startController(host);
           markNativeStarted();
           if (isVoiceEnabled) {
-            await _prepareVoiceSession(isController: true);
+            try {
+              await _prepareVoiceSession(isController: true);
+            } catch (error) {
+              _disableVoiceForCurrentSession(
+                'Controller WebRTC plugin unavailable; continuing without voice',
+                error: error,
+              );
+            }
           } else {
             _logMessage('WebRTC voice disabled for internal proxy connection');
           }
@@ -449,6 +472,7 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
       discoveryDelayMs: _lastControllerDiscoveryDelayMs,
       useProxy: _lastControllerUseProxy,
       proxyPort: _lastControllerProxyPort,
+      enableVoice: _lastControllerVoiceEnabled,
     );
   }
 
@@ -994,6 +1018,20 @@ class RemoteControlService implements RemoteControlPresentationRuntime {
       overlayPrefix: _easyTierOverlayPrefix,
       log: _logMessage,
     );
+  }
+
+  void _disableVoiceForCurrentSession(String message, {Object? error}) {
+    final config = _config;
+    if (config != null && config.enableVoice) {
+      _config = RemoteControlConfig(
+        ports: config.ports,
+        enableScreen: config.enableScreen,
+        enableVoice: false,
+        screenFps: config.screenFps,
+        screenBitrate: config.screenBitrate,
+      );
+    }
+    _logMessage(message, error: error);
   }
 
   Future<void> _sendWebRtcSignal(StatusMessage message) async {

@@ -154,7 +154,9 @@ class RemoteControlVoiceCoordinator {
         preferredHost: targetHost,
         preferredOverlayPrefix: overlayPrefix,
       ),
-    );
+    ).catchError((Object error) {
+      log('Failed to handle WebRTC signal: $error', error: error);
+    });
     return true;
   }
 

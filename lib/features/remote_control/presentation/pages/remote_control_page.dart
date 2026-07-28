@@ -24,6 +24,7 @@ class RemoteControlPage extends StatefulWidget {
     required this.runtimeLogger,
     required this.showMessage,
     required this.navigatorKey,
+    required this.ensureVoicePluginAvailable,
   });
 
   final RemoteControlPresentationRuntime service;
@@ -32,6 +33,7 @@ class RemoteControlPage extends StatefulWidget {
   final RuntimeLogger runtimeLogger;
   final Future<void> Function(String message) showMessage;
   final GlobalKey<NavigatorState> navigatorKey;
+  final Future<bool> Function() ensureVoicePluginAvailable;
 
   @override
   State<RemoteControlPage> createState() => _RemoteControlPageState();
@@ -283,7 +285,11 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       return;
     }
     if (!_service.isVoiceEnabled) {
-      _showToast('非 VPN 模式会禁用若轻实时通话');
+      _showToast(
+        _useReceiverNoTunMode
+            ? '非 VPN 模式会禁用若轻实时通话'
+            : '当前会话未启用语音，请安装远程语音插件后重新启动',
+      );
       return;
     }
 
@@ -309,6 +315,16 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
       setState(() => _errorMessage = '请输入被控端地址');
       return;
     }
+
+    final directVoiceRequested =
+        !_runtimeCoordinator.isEasyTierNoTunMode && !_useInternalProxy;
+    final voiceAvailable = !directVoiceRequested
+        ? false
+        : await widget.ensureVoicePluginAvailable();
+    if (!voiceAvailable && directVoiceRequested && mounted) {
+      _showToast('远程语音插件不可用，本次仍可继续使用屏幕与控制功能');
+    }
+    if (!mounted) return;
 
     setState(() {
       _hostController.text = host;
@@ -368,6 +384,7 @@ class _RemoteControlPageState extends State<RemoteControlPage> {
           ports,
           useProxy: noTunControllerMode || _useInternalProxy,
           proxyPort: proxyPort,
+          enableVoice: voiceAvailable,
         );
         if (!mounted) {
           return;

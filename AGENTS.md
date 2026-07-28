@@ -506,6 +506,18 @@ must not be used as the current design; fixed UDP/Opus audio has been replaced b
 
 Remote-control WebRTC voice has several real-world pitfalls that must not be regressed:
 
+- WebRTC voice is an optional same-signature native companion, package
+  `lightly.tool.plugin.webrtc`, API 1. Lightly keeps UI, control-TCP signaling, candidate filtering,
+  and session policy; the companion Service owns `PeerConnectionFactory`, microphone, speaker,
+  tracks, and audio routing. Do not add `flutter_webrtc` or `libjingle_peerconnection_so.so` back
+  to the host.
+- The companion has no FlutterEngine or business Activity. Its transparent permission Activity is
+  only for the plugin package's own `RECORD_AUDIO` runtime grant. Keep the host and plugin AIDL
+  byte-for-byte compatible and retain same-signature checks before binding or launching it.
+- Missing/incompatible plugin, permission denial, or native prepare failure must disable voice for
+  the current session while preserving control and screen connectivity. Internal-proxy and no-tun
+  paths must not prompt for the voice plugin.
+
 - The remote-control TCP connection is the source of truth for reachability.
   - When controller/receiver control and screen sockets are already connected through a host such as `10.126.*`, WebRTC should prefer that same proven remote-control IP instead of relying only on default Wi-Fi ICE candidates.
   - `RemoteControlVoiceCoordinator.handleIncomingWebRtcSignal()` passes the active remote-control target host into `WebRtcVoiceService.handleSignal()`. Keep this path intact.
@@ -516,11 +528,11 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 
 - Interpret audio logs carefully:
   - `AudioTrack ... [mute]` / `isLongTimeZeroData` with `MODE_IN_COMMUNICATION` and active playback means the Android output path is open but WebRTC is receiving silence or the peer connection is failed. It is not automatically a speaker-volume problem.
-  - `FlutterWebRTCPlugin: onConnectionChangeFAILED` on either side usually points to ICE/candidate reachability, not microphone hardware.
+  - `webrtc-native-state: FAILED` on either side usually points to ICE/candidate reachability, not microphone hardware.
   - Useful log filters: `webrtc-remote-audio`, `webrtc-local-candidate`, `webrtc-overlay-candidate-rewritten`, `webrtc-stats`, `onConnectionChange`, `AudioTrack`, `WebRtcAudioRecordExternal`.
 
 - Receiver-side output volume is intentionally boosted modestly.
-  - `WebRtcVoiceService` applies a bounded `Helper.setVolume(1.6, remoteTrack)` only when `_isController == false`, so the controlled device hears the controller louder without also amplifying controller-side monitoring and echo.
+  - The native companion applies bounded `AudioTrack.setVolume(1.6)` only when it is the receiver, so the controlled device hears the controller louder without also amplifying controller-side monitoring and echo.
   - Keep this boost modest; large values can clip or increase echo on some phones.
 
 - Internal proxy mode intentionally does not provide WebRTC voice.
@@ -531,6 +543,7 @@ Recommended verification after touching WebRTC voice:
 ```bash
 flutter analyze lib/features/remote_control/infrastructure/webrtc_voice_service.dart lib/features/remote_control/application/remote_control_voice_coordinator.dart lib/features/remote_control/infrastructure/remote_control_service.dart
 flutter test test/services/webrtc_candidate_filter_test.dart test/services/remote_control_voice_coordinator_test.dart test/services/
+extensions/telegram/android/gradlew -p extensions/webrtc/android --offline :app:compileDebugKotlin
 ```
 
 Manual smoke test:

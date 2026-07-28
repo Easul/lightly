@@ -18,12 +18,13 @@ class RemoteControlPageReceiverHelper {
     required RemoteControlPresentationRuntime service,
     required Future<bool> Function({bool noTunMode}) ensureVpnForRemoteControl,
     required bool useNoTunMode,
+    bool voicePluginAvailable = true,
   }) async {
     final defaultConfig = await RemoteControlConfig.defaultConfig();
     final config = RemoteControlConfig(
       ports: defaultConfig.ports,
       enableScreen: defaultConfig.enableScreen,
-      enableVoice: !useNoTunMode,
+      enableVoice: !useNoTunMode && voicePluginAvailable,
       screenFps: defaultConfig.screenFps,
       screenBitrate: defaultConfig.screenBitrate,
     );

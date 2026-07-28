@@ -18,6 +18,8 @@ import '../pages/translation_tool_page.dart';
 import '../pages/ai_chat_page.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/infrastructure/remote_control_service.dart';
+import '../features/optional_plugins/domain/optional_feature.dart';
+import '../features/optional_plugins/presentation/optional_feature_gate.dart';
 import '../services/app_log_service.dart';
 import '../services/app_toast.dart';
 import 'remote_control_page_coordinator.dart';
@@ -50,6 +52,10 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
       runtimeLogger: AppLogService.instance,
       showMessage: AppToast.show,
       navigatorKey: AppToast.navigatorKey,
+      ensureVoicePluginAvailable: () => OptionalFeatureGate().ensureAvailable(
+        context,
+        OptionalFeatureId.webRtcVoice,
+      ),
     ),
     '/telegram-checkin': (context) => const TelegramCheckinPage(),
     '/translation-tool': (context) => const TranslationToolPage(),

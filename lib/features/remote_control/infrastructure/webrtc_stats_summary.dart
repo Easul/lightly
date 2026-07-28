@@ -1,4 +1,14 @@
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+class WebRtcStatsReport {
+  const WebRtcStatsReport({
+    required this.id,
+    required this.type,
+    required this.values,
+  });
+
+  final String id;
+  final String type;
+  final Map<String, dynamic> values;
+}
 
 class WebRtcStatsSnapshotSummary {
   const WebRtcStatsSnapshotSummary({
@@ -17,7 +27,7 @@ class WebRtcStatsSnapshotSummary {
 class WebRtcStatsSummaryBuilder {
   const WebRtcStatsSummaryBuilder();
 
-  WebRtcStatsSnapshotSummary build(List<StatsReport> reports) {
+  WebRtcStatsSnapshotSummary build(List<WebRtcStatsReport> reports) {
     final selectedPairs = <String>[];
     final audioReports = <String>[];
     var inboundAudioBytes = 0;

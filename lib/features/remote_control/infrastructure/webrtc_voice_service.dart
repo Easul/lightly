@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_webrtc/flutter_webrtc.dart';
-
 import '../domain/remote_control_protocol.dart';
 import '../domain/webrtc_candidate_filter.dart';
-import 'webrtc_stats_summary.dart';
+import 'webrtc_voice_plugin_platform_gateway.dart';
 
 typedef WebRtcSignalSender = Future<void> Function(StatusMessage message);
 typedef WebRtcLogCallback = void Function(String message, {Object? error});
@@ -13,238 +11,81 @@ typedef WebRtcConnectionInterrupted = void Function(String reason);
 
 class WebRtcVoiceService {
   static const WebRtcSdpSummary _sdpSummary = WebRtcSdpSummary();
-  static const WebRtcStatsSummaryBuilder _statsSummary =
-      WebRtcStatsSummaryBuilder();
-
-  static const double _receiverPlaybackVolumeBoost = 1.6;
-  static const int _receiverAudioStallThreshold = 3;
-
-  static const Map<String, dynamic> _audioConstraints = {
-    'echoCancellation': true,
-    'noiseSuppression': true,
-    // 关闭软件 AGC，避免把远控通话放得过大；保留系统 AEC/NS。
-    'autoGainControl': false,
-    'googEchoCancellation': true,
-    'googNoiseSuppression': true,
-    'googAutoGainControl': false,
-    'googHighpassFilter': true,
-    'googTypingNoiseDetection': true,
-    'channelCount': 1,
-    'sampleRate': 48000,
-    'sampleSize': 16,
-  };
 
   WebRtcVoiceService({
     required WebRtcSignalSender sendSignal,
     required Future<void> Function() ensureDiagnosticsLogging,
     required WebRtcLogCallback log,
     WebRtcConnectionInterrupted? onConnectionInterrupted,
+    WebRtcVoicePluginPlatformGateway? plugin,
   }) : _sendSignal = sendSignal,
        _ensureDiagnosticsLogging = ensureDiagnosticsLogging,
        _log = log,
-       _onConnectionInterrupted = onConnectionInterrupted;
+       _onConnectionInterrupted = onConnectionInterrupted,
+       _plugin = plugin ?? WebRtcVoicePluginPlatformGateway.instance {
+    _eventSubscription = _plugin.events.listen(_handlePluginEvent);
+    _disconnectSubscription = _plugin.disconnects.listen((_) {
+      _connected = false;
+      _prepared = false;
+      _localAudioEnabled = false;
+      _onConnectionInterrupted?.call('plugin-disconnected');
+    });
+  }
 
   final WebRtcSignalSender _sendSignal;
   final Future<void> Function() _ensureDiagnosticsLogging;
   final WebRtcLogCallback _log;
   final WebRtcConnectionInterrupted? _onConnectionInterrupted;
+  final WebRtcVoicePluginPlatformGateway _plugin;
 
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  MediaStreamTrack? _localAudioTrack;
-  final List<MediaStream> _remoteStreams = <MediaStream>[];
-  final List<MediaStreamTrack> _remoteAudioTracks = <MediaStreamTrack>[];
+  late final StreamSubscription<WebRtcPluginJson> _eventSubscription;
+  late final StreamSubscription<void> _disconnectSubscription;
+  bool _connected = false;
+  bool _prepared = false;
   bool _localAudioEnabled = false;
-  bool _isController = false;
-  final bool _speakerphoneEnabled = true;
-  bool _hasRemoteDescription = false;
-  final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
   WebRtcNetworkPreference _networkPreference = const WebRtcNetworkPreference();
   String? _localOverlayHost;
-  Timer? _statsTimer;
-  Timer? _audioRouteTimer;
-  bool _isClosing = false;
-  String? _lastSelectedAudioOutputId;
-  String? _lastSelectedAudioInputId;
-  bool _hasAppliedSpeakerphoneRoute = false;
-  int? _lastInboundAudioBytes;
-  int? _lastInboundAudioPackets;
-  int _receiverAudioStallCount = 0;
 
   WebRtcCandidateFilter get _candidateFilter =>
       WebRtcCandidateFilter(preference: _networkPreference);
 
   bool get isLocalAudioEnabled => _localAudioEnabled;
-  bool get isPrepared => _peerConnection != null;
+  bool get isPrepared => _prepared;
 
   Future<void> prepare({
     required bool isController,
     WebRtcNetworkPreference networkPreference = const WebRtcNetworkPreference(),
   }) async {
-    _isClosing = false;
-    _isController = isController;
     _networkPreference = networkPreference;
     _localOverlayHost = await _resolveLocalOverlayHost(networkPreference);
-    if (_peerConnection != null) {
-      return;
-    }
+    if (_prepared) return;
 
     await _ensureDiagnosticsLogging();
-    await _refreshAudioRoute(force: true);
-    _startAudioRouteMonitor();
-
-    final configuration = <String, dynamic>{
-      'iceServers': const [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        {'urls': 'stun:stun1.l.google.com:19302'},
-      ],
-      'sdpSemantics': 'unified-plan',
-    };
-    final constraints = <String, dynamic>{
-      'mandatory': <String, dynamic>{},
-      'optional': [
-        {'DtlsSrtpKeyAgreement': true},
-      ],
-    };
-
-    final peerConnection = await createPeerConnection(
-      configuration,
-      constraints,
-    );
-    peerConnection.onIceCandidate = (candidate) {
-      final candidateValue = candidate.candidate;
-      if (candidateValue == null || candidateValue.isEmpty) {
-        return;
-      }
-      if (!_candidateFilter.shouldSendLocalCandidate(
-        candidateValue,
-        log: (message) => _log(message),
-      )) {
-        _log(
-          'webrtc-local-candidate-skipped: ${_candidateFilter.summary(candidateValue)}',
-        );
-        return;
-      }
-      final outboundCandidate = _candidateFilter.rewriteHostCandidateIp(
-        candidateValue,
-        replacementIp: _localOverlayHost,
-        log: (message) => _log(message),
-      );
-      _log(
-        'webrtc-local-candidate: ${_candidateFilter.summary(outboundCandidate)}',
-      );
-      unawaited(
-        _sendSignal(
-          StatusMessage(
-            action: 'webrtc_candidate',
-            data: {
-              'candidate': outboundCandidate,
-              'sdpMid': candidate.sdpMid,
-              'sdpMLineIndex': candidate.sdpMLineIndex,
-            },
-            id: DateTime.now().millisecondsSinceEpoch,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-          ),
-        ),
-      );
-    };
-    peerConnection.onConnectionState = (state) {
-      _log('webrtc-state: $state');
-      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        unawaited(_refreshAudioRoute(force: true));
-        _startStatsTimer();
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-        _notifyConnectionInterrupted('peer-$state');
-      }
-    };
-    peerConnection.onIceConnectionState = (state) {
-      _log('webrtc-ice-state: $state');
-      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
-          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-        unawaited(_refreshAudioRoute(force: true));
-        _startStatsTimer();
-      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
-          state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-        _notifyConnectionInterrupted('ice-$state');
-      }
-    };
-    peerConnection.onTrack = (event) {
-      if (event.track.kind == 'audio') {
-        event.track.enabled = true;
-        if (!_isController) {
-          unawaited(_applyReceiverPlaybackVolumeBoost(event.track));
-        }
-        if (!_remoteAudioTracks.any((track) => track.id == event.track.id)) {
-          _remoteAudioTracks.add(event.track);
-        }
-        for (final stream in event.streams) {
-          if (!_remoteStreams.any(
-            (knownStream) => knownStream.id == stream.id,
-          )) {
-            _remoteStreams.add(stream);
-          }
-        }
-        _log(
-          'webrtc-remote-audio: track=${event.track.id} enabled=${event.track.enabled} muted=${event.track.muted} streams=${event.streams.length} retainedStreams=${_remoteStreams.length}',
-        );
-      }
-    };
-
-    final localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': _audioConstraints,
-      'video': false,
-    });
-    final audioTracks = localStream.getAudioTracks();
-    if (audioTracks.isEmpty) {
-      await localStream.dispose();
-      await peerConnection.close();
-      throw StateError('WebRTC local audio track not found');
+    await _ensureConnected();
+    if (!await _plugin.requestAudioPermission()) {
+      throw StateError('远程语音插件未获得麦克风权限');
     }
-
-    final localAudioTrack = audioTracks.first;
-    localAudioTrack.enabled = false;
-    await peerConnection.addTrack(localAudioTrack, localStream);
-    _log(
-      'webrtc-local-track-created: id=${localAudioTrack.id} enabled=${localAudioTrack.enabled} muted=${localAudioTrack.muted}',
+    await _plugin.request(
+      'prepare',
+      arguments: <String, Object?>{'isController': isController},
     );
-
-    _peerConnection = peerConnection;
-    _localStream = localStream;
-    _localAudioTrack = localAudioTrack;
+    _prepared = true;
     _localAudioEnabled = false;
-    _hasRemoteDescription = false;
-    _pendingRemoteCandidates.clear();
-
     _log(
-      'webrtc-prepared: controller=$_isController track=${localAudioTrack.id} preferenceHost=${networkPreference.preferredHost ?? 'none'} overlayPrefix=${networkPreference.preferredOverlayPrefix ?? 'none'} preferOverlay=${networkPreference.preferOverlayHostCandidates}',
+      'webrtc-plugin-prepared: controller=$isController preferenceHost=${networkPreference.preferredHost ?? 'none'} overlayPrefix=${networkPreference.preferredOverlayPrefix ?? 'none'}',
     );
-    if (_isController) {
-      await _createAndSendOffer();
-    }
-  }
-
-  void _notifyConnectionInterrupted(String reason) {
-    if (_isClosing) {
-      return;
-    }
-    _log('webrtc-connection-interrupted: $reason');
-    _onConnectionInterrupted?.call(reason);
   }
 
   Future<void> setLocalAudioEnabled(bool enabled) async {
-    if (_peerConnection == null) {
-      if (!enabled) {
-        return;
-      }
+    if (!_prepared) {
+      if (!enabled) return;
       throw StateError('WebRTC voice session not prepared');
     }
-    _localAudioEnabled = enabled;
-    _localAudioTrack?.enabled = enabled;
-    await _refreshAudioRoute(force: true);
-    _log(
-      'webrtc-local-audio: enabled=$enabled trackEnabled=${_localAudioTrack?.enabled} muted=${_localAudioTrack?.muted}',
+    await _plugin.request(
+      'setLocalAudioEnabled',
+      arguments: <String, Object?>{'enabled': enabled},
     );
+    _localAudioEnabled = enabled;
   }
 
   Future<void> handleSignal(
@@ -253,123 +94,117 @@ class WebRtcVoiceService {
   }) async {
     if (networkPreference.preferredHost != null) {
       _networkPreference = networkPreference;
+      _localOverlayHost ??= await _resolveLocalOverlayHost(networkPreference);
     }
-    switch (message.action) {
-      case 'webrtc_offer':
-        await _handleOffer(message, networkPreference: networkPreference);
-        break;
-      case 'webrtc_answer':
-        await _handleAnswer(message);
-        break;
-      case 'webrtc_candidate':
-        await _handleCandidate(message);
-        break;
+    if (!_prepared && message.action == 'webrtc_offer') {
+      await prepare(isController: false, networkPreference: _networkPreference);
     }
+    if (!_prepared) {
+      _log('webrtc-plugin-signal-ignored: not-prepared ${message.action}');
+      return;
+    }
+    if (message.action == 'webrtc_candidate') {
+      final candidate = message.data['candidate'] as String? ?? '';
+      if (!_candidateFilter.shouldAcceptRemoteCandidate(
+        candidate,
+        log: (message) => _log(message),
+      )) {
+        _log(
+          'webrtc-remote-candidate-skipped: ${_candidateFilter.summary(candidate)}',
+        );
+        return;
+      }
+    }
+    await _plugin.request(
+      'handleSignal',
+      arguments: <String, Object?>{
+        'action': message.action,
+        'data': message.data,
+      },
+    );
   }
 
   Future<void> close() async {
-    _isClosing = true;
-    _statsTimer?.cancel();
-    _statsTimer = null;
-    _audioRouteTimer?.cancel();
-    _audioRouteTimer = null;
-    _localAudioEnabled = false;
-    _localAudioTrack?.enabled = false;
-
-    final stream = _localStream;
-    if (stream != null) {
-      for (final track in stream.getTracks()) {
-        await track.stop();
+    if (_connected) {
+      try {
+        await _plugin.request('close');
+      } catch (error) {
+        _log('webrtc-plugin-close-error', error: error);
       }
-      await stream.dispose();
     }
-    _localStream = null;
-    _localAudioTrack = null;
+    _prepared = false;
+    _localAudioEnabled = false;
     _localOverlayHost = null;
-    _lastSelectedAudioOutputId = null;
-    _lastSelectedAudioInputId = null;
-    _hasAppliedSpeakerphoneRoute = false;
-    _lastInboundAudioBytes = null;
-    _lastInboundAudioPackets = null;
-    _receiverAudioStallCount = 0;
-    _remoteAudioTracks.clear();
-    _remoteStreams.clear();
-    _hasRemoteDescription = false;
-    _pendingRemoteCandidates.clear();
-
-    final peerConnection = _peerConnection;
-    if (peerConnection != null) {
-      await peerConnection.close();
-      await peerConnection.dispose();
-    }
-    _peerConnection = null;
-
-    await Helper.setSpeakerphoneOn(false);
     _log('webrtc-closed');
   }
 
-  Future<void> _applyReceiverPlaybackVolumeBoost(MediaStreamTrack track) async {
-    try {
-      await Helper.setVolume(_receiverPlaybackVolumeBoost, track);
-      _log(
-        'webrtc-remote-audio-volume: track=${track.id} volume=$_receiverPlaybackVolumeBoost',
+  Future<void> _ensureConnected() async {
+    if (_connected) return;
+    _connected = await _plugin.connect();
+    if (!_connected) {
+      throw StateError('远程语音插件未安装、签名不匹配或版本不兼容');
+    }
+  }
+
+  void _handlePluginEvent(WebRtcPluginJson event) {
+    switch (event['type']) {
+      case 'signal':
+        unawaited(_forwardPluginSignal(event));
+      case 'log':
+        final message = event['message'] as String?;
+        if (message != null && message.isNotEmpty) _log(message);
+      case 'state':
+        final data = event['data'];
+        if (data is Map) {
+          _prepared = data['prepared'] == true;
+          _localAudioEnabled = data['localAudioEnabled'] == true;
+        }
+      case 'connectionInterrupted':
+        final reason = event['reason'] as String? ?? 'unknown';
+        _log('webrtc-connection-interrupted: $reason');
+        _onConnectionInterrupted?.call(reason);
+    }
+  }
+
+  Future<void> _forwardPluginSignal(WebRtcPluginJson event) async {
+    final action = event['action'] as String?;
+    final rawData = event['data'];
+    if (action == null || rawData is! Map) return;
+    final data = Map<String, dynamic>.from(rawData);
+    if (action == 'webrtc_candidate') {
+      final candidate = data['candidate'] as String? ?? '';
+      if (!_candidateFilter.shouldSendLocalCandidate(
+        candidate,
+        log: (message) => _log(message),
+      )) {
+        _log(
+          'webrtc-local-candidate-skipped: ${_candidateFilter.summary(candidate)}',
+        );
+        return;
+      }
+      final outbound = _candidateFilter.rewriteHostCandidateIp(
+        candidate,
+        replacementIp: _localOverlayHost,
+        log: (message) => _log(message),
       );
-    } catch (error) {
-      _log('webrtc-remote-audio-volume-error', error: error);
+      data['candidate'] = outbound;
+      _log('webrtc-local-candidate: ${_candidateFilter.summary(outbound)}');
+    } else {
+      _log(
+        'webrtc-${action == 'webrtc_offer' ? 'offer' : 'answer'}-created: ${_sdpSummary(data['sdp'] as String?)}',
+      );
     }
-  }
-
-  void _startAudioRouteMonitor() {
-    _audioRouteTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
-      unawaited(_refreshAudioRoute());
-    });
-  }
-
-  Future<void> _refreshAudioRoute({bool force = false}) async {
-    try {
-      final outputs = await Helper.audiooutputs;
-      final inputs = await Helper.enumerateDevices('audioinput');
-      final output = _preferredDevice(outputs);
-      final input = _preferredDevice(inputs);
-      if (output != null) {
-        if (force || output.deviceId != _lastSelectedAudioOutputId) {
-          await Helper.selectAudioOutput(output.deviceId);
-          _lastSelectedAudioOutputId = output.deviceId;
-          _hasAppliedSpeakerphoneRoute = false;
-          _log('webrtc-audio-output: ${output.label}');
-        }
-      } else if (_speakerphoneEnabled) {
-        if (force || !_hasAppliedSpeakerphoneRoute) {
-          await Helper.setSpeakerphoneOnButPreferBluetooth();
-          _lastSelectedAudioOutputId = null;
-          _hasAppliedSpeakerphoneRoute = true;
-          _log('webrtc-audio-output: speaker-or-bluetooth');
-        }
-      } else {
-        await Helper.setSpeakerphoneOn(false);
-      }
-      if (input != null) {
-        if (force || input.deviceId != _lastSelectedAudioInputId) {
-          await Helper.selectAudioInput(input.deviceId);
-          _lastSelectedAudioInputId = input.deviceId;
-          _log('webrtc-audio-input: ${input.label}');
-        }
-      }
-    } catch (error) {
-      _log('webrtc-audio-route-error', error: error);
-      if (_speakerphoneEnabled) {
-        await Helper.setSpeakerphoneOnButPreferBluetooth();
-      }
-    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _sendSignal(
+      StatusMessage(action: action, data: data, id: now, timestamp: now),
+    );
   }
 
   Future<String?> _resolveLocalOverlayHost(
     WebRtcNetworkPreference preference,
   ) async {
     final prefix = preference.preferredOverlayPrefix;
-    if (!preference.preferOverlayHostCandidates || prefix == null) {
-      return null;
-    }
+    if (!preference.preferOverlayHostCandidates || prefix == null) return null;
     try {
       final interfaces = await NetworkInterface.list(
         includeLoopback: false,
@@ -392,240 +227,9 @@ class WebRtcVoiceService {
     return null;
   }
 
-  MediaDeviceInfo? _preferredDevice(List<MediaDeviceInfo> devices) {
-    for (final keyword in const [
-      'bluetooth',
-      'headset',
-      'headphone',
-      'wired',
-    ]) {
-      for (final device in devices) {
-        final label = device.label.toLowerCase();
-        if (label.contains(keyword)) {
-          return device;
-        }
-      }
-    }
-    return null;
-  }
-
-  Future<void> _createAndSendOffer() async {
-    final peerConnection = _peerConnection;
-    if (peerConnection == null) {
-      return;
-    }
-    final offer = await peerConnection.createOffer({
-      'mandatory': {'OfferToReceiveAudio': true, 'OfferToReceiveVideo': false},
-      'optional': <Map<String, dynamic>>[],
-    });
-    await peerConnection.setLocalDescription(offer);
-    _log('webrtc-offer-created: ${_sdpSummary(offer.sdp)}');
-    await _sendSignal(
-      StatusMessage(
-        action: 'webrtc_offer',
-        data: {'sdp': offer.sdp, 'type': offer.type},
-        id: DateTime.now().millisecondsSinceEpoch,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
-    _log('webrtc-offer-sent: ${_sdpSummary(offer.sdp)}');
-  }
-
-  Future<void> _handleOffer(
-    StatusMessage message, {
-    required WebRtcNetworkPreference networkPreference,
-  }) async {
-    final effectivePreference = networkPreference.preferredHost != null
-        ? networkPreference
-        : _networkPreference;
-    await prepare(isController: false, networkPreference: effectivePreference);
-    final peerConnection = _peerConnection;
-    if (peerConnection == null) {
-      return;
-    }
-
-    final sdp = message.data['sdp'] as String?;
-    final type = message.data['type'] as String? ?? 'offer';
-    if (sdp == null || sdp.isEmpty) {
-      _log('webrtc-offer-ignored: empty-sdp');
-      return;
-    }
-
-    _log('webrtc-offer-received: ${_sdpSummary(sdp)}');
-    await peerConnection.setRemoteDescription(RTCSessionDescription(sdp, type));
-    _hasRemoteDescription = true;
-    await _flushPendingRemoteCandidates();
-    final answer = await peerConnection.createAnswer({
-      'mandatory': {'OfferToReceiveAudio': true, 'OfferToReceiveVideo': false},
-      'optional': <Map<String, dynamic>>[],
-    });
-    await peerConnection.setLocalDescription(answer);
-    _log('webrtc-answer-created: ${_sdpSummary(answer.sdp)}');
-    await _sendSignal(
-      StatusMessage(
-        action: 'webrtc_answer',
-        data: {'sdp': answer.sdp, 'type': answer.type},
-        id: DateTime.now().millisecondsSinceEpoch,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
-    _log('webrtc-answer-sent: ${_sdpSummary(answer.sdp)}');
-  }
-
-  Future<void> _handleAnswer(StatusMessage message) async {
-    final peerConnection = _peerConnection;
-    final sdp = message.data['sdp'] as String?;
-    final type = message.data['type'] as String? ?? 'answer';
-    if (peerConnection == null || sdp == null || sdp.isEmpty) {
-      _log(
-        'webrtc-answer-ignored: peer=${peerConnection != null} sdp=${sdp?.isNotEmpty == true}',
-      );
-      return;
-    }
-    _log('webrtc-answer-received: ${_sdpSummary(sdp)}');
-    await peerConnection.setRemoteDescription(RTCSessionDescription(sdp, type));
-    _hasRemoteDescription = true;
-    await _flushPendingRemoteCandidates();
-    _log('webrtc-answer-applied');
-  }
-
-  Future<void> _handleCandidate(StatusMessage message) async {
-    final peerConnection = _peerConnection;
-    if (peerConnection == null) {
-      return;
-    }
-
-    final candidate = message.data['candidate'] as String?;
-    if (candidate == null || candidate.isEmpty) {
-      _log('webrtc-candidate-ignored: empty');
-      return;
-    }
-    _log(
-      'webrtc-remote-candidate-received: ${_candidateFilter.summary(candidate)}',
-    );
-
-    final remoteCandidate = RTCIceCandidate(
-      candidate,
-      message.data['sdpMid'] as String?,
-      message.data['sdpMLineIndex'] as int?,
-    );
-    if (!_candidateFilter.shouldAcceptRemoteCandidate(
-      candidate,
-      log: (message) => _log(message),
-    )) {
-      _log(
-        'webrtc-remote-candidate-skipped: ${_candidateFilter.summary(candidate)}',
-      );
-      return;
-    }
-    if (!_hasRemoteDescription) {
-      _pendingRemoteCandidates.add(remoteCandidate);
-      _log('webrtc-candidate-queued: count=${_pendingRemoteCandidates.length}');
-      return;
-    }
-
-    await peerConnection.addCandidate(remoteCandidate);
-    _log('webrtc-candidate-applied: ${_candidateFilter.summary(candidate)}');
-  }
-
-  Future<void> _flushPendingRemoteCandidates() async {
-    final peerConnection = _peerConnection;
-    if (peerConnection == null || _pendingRemoteCandidates.isEmpty) {
-      return;
-    }
-
-    final pending = List<RTCIceCandidate>.from(_pendingRemoteCandidates);
-    _pendingRemoteCandidates.clear();
-    for (final candidate in pending) {
-      await peerConnection.addCandidate(candidate);
-    }
-    _log(
-      'webrtc-candidate-flush: count=${pending.length} candidates=${pending.map((candidate) => _candidateFilter.summary(candidate.candidate ?? '')).join(',')}',
-    );
-  }
-
-  void _startStatsTimer() {
-    if (_statsTimer != null) {
-      return;
-    }
-    _log('webrtc-stats-started');
-    _statsTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      unawaited(_logStatsSnapshot());
-    });
-    unawaited(_logStatsSnapshot());
-  }
-
-  Future<void> _logStatsSnapshot() async {
-    final peerConnection = _peerConnection;
-    if (peerConnection == null) {
-      return;
-    }
-    try {
-      final reports = await peerConnection.getStats();
-      final summary = _statsSummary.build(reports);
-      await _recoverReceiverAudioIfNeeded(summary);
-      final remoteTracks = _remoteAudioTracks
-          .map(
-            (track) =>
-                '${track.id}:enabled=${track.enabled}:muted=${track.muted}',
-          )
-          .join(',');
-      _log(
-        'webrtc-stats: selected=${summary.selected} audio=${summary.audio} localEnabled=$_localAudioEnabled trackEnabled=${_localAudioTrack?.enabled} trackMuted=${_localAudioTrack?.muted} remoteTracks=${_remoteAudioTracks.length}[$remoteTracks]',
-      );
-    } catch (error) {
-      _log('webrtc-stats-error', error: error);
-    }
-  }
-
-  Future<void> _recoverReceiverAudioIfNeeded(
-    WebRtcStatsSnapshotSummary summary,
-  ) async {
-    if (_isController || _remoteAudioTracks.isEmpty) {
-      _lastInboundAudioBytes = null;
-      _lastInboundAudioPackets = null;
-      _receiverAudioStallCount = 0;
-      return;
-    }
-    final previousBytes = _lastInboundAudioBytes;
-    final previousPackets = _lastInboundAudioPackets;
-    _lastInboundAudioBytes = summary.inboundAudioBytes;
-    _lastInboundAudioPackets = summary.inboundAudioPackets;
-    if (previousBytes == null || previousPackets == null) {
-      return;
-    }
-    final advanced =
-        summary.inboundAudioBytes > previousBytes ||
-        summary.inboundAudioPackets > previousPackets;
-    if (advanced) {
-      _receiverAudioStallCount = 0;
-      return;
-    }
-    _receiverAudioStallCount++;
-    _log(
-      'webrtc-remote-audio-stall: count=$_receiverAudioStallCount inboundBytes=${summary.inboundAudioBytes} inboundPackets=${summary.inboundAudioPackets}',
-    );
-    if (_receiverAudioStallCount == 1) {
-      await _refreshAudioRoute(force: true);
-      for (final track in _remoteAudioTracks) {
-        await _applyReceiverPlaybackVolumeBoost(track);
-      }
-      return;
-    }
-    if (_receiverAudioStallCount == 2) {
-      for (final track in _remoteAudioTracks) {
-        track.enabled = false;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      for (final track in _remoteAudioTracks) {
-        track.enabled = true;
-        await _applyReceiverPlaybackVolumeBoost(track);
-      }
-      return;
-    }
-    if (_receiverAudioStallCount >= _receiverAudioStallThreshold) {
-      _receiverAudioStallCount = 0;
-      _notifyConnectionInterrupted('remote-audio-stall');
-    }
+  Future<void> dispose() async {
+    await close();
+    await _eventSubscription.cancel();
+    await _disconnectSubscription.cancel();
   }
 }
