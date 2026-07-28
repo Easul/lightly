@@ -291,6 +291,19 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 
 ## Build Size & Code Optimization Guidelines
 
+### Optional companion APK policy
+
+- Every optional plugin APK must be a pure Android companion. Do not package a FlutterEngine,
+  Dart AOT runtime, `libflutter.so`, `libapp.so`, Flutter assets, or a second Flutter UI in
+  Telegram, WebRTC, EasyTier, YouTube, or future companions.
+- Lightly owns all business UI, persisted configuration, backup/import, download prompts, and
+  orchestration. Companion APKs own only native runtime/session resources, JNI libraries, and
+  bounded capability APIs.
+- A companion may expose a minimal native Activity only when Android requires an Activity for a
+  system authorization flow, such as microphone or VPN consent. It must not become a business UI.
+- Release verification must unpack every companion APK and fail if Flutter/Dart runtime artifacts
+  are present. Keep the companion single-ABI and same-signed with the matching Lightly release.
+
 ## Git Artifact Hygiene
 
 - Do **not** commit generated build artifacts or binary outputs unless the user explicitly requests it.
