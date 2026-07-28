@@ -1154,28 +1154,32 @@ void dispose() {
 
 ### Telegram optional companion boundary
 
-- The Telegram UI and TDLib runtime are extracted into the optional Android companion at
+- Lightly keeps the Telegram UI, `telegram_checkin_config`, backup/import, and foreground-only
+  orchestration. Only the TDLib runtime/session is extracted into the pure Android companion at
   `extensions/telegram`, package `lightly.tool.plugin.telegram`.
-- Lightly remains the single owner of `telegram_checkin_config`. The companion reads and writes it
-  through `${applicationId}.optional_plugins.data/telegram_config`, protected by the host's
-  signature permission. Keep this ownership so existing Lightly backup export/import remains
+- Lightly remains the single owner of `telegram_checkin_config`; the companion does not persist a
+  second config copy. Keep this ownership so existing Lightly backup export/import remains
   compatible.
 - The companion owns its private TDLib database/session. Android app sandboxes prevent an in-place
   migration from Lightly's old support directory, so the first companion launch requires Telegram
   login again; normal Lightly upgrades and data import still restore API/check-in configuration.
-- Companion launch is protected by `lightly.tool.plugin.telegram.permission.LAUNCH`; Lightly must
-  request that permission, declare the companion in Android package visibility queries, validate
-  the plugin package certificate, and pass only bounded launch metadata such as the active local
-  SOCKS5 port.
+- The companion has no launcher Activity or Flutter engine. Lightly binds its exported Service
+  through `lightly.tool.plugin.telegram.permission.BIND_SERVICE`, AIDL API 1, an explicit component,
+  package visibility, and a same-signature check. Keep the host and plugin AIDL files byte-for-byte
+  compatible.
+- TDLib crosses IPC only through bounded JSON requests/results. The plugin owns the single receive
+  loop and rewrites `setTdlibParameters` database/files directories into its private sandbox.
+- JNI conversion must use standard UTF-8 byte conversion, not JNI modified-UTF-8 helpers, so
+  Chinese and emoji message JSON are preserved.
 - Release companion APKs must use the same upload certificate as the matching Lightly release.
   Debug/profile companion builds use the matching debug certificate. Do not weaken this to an
   untrusted exported Activity or an unprotected configuration provider.
-- `tdlib 1.6.0` pins obsolete AGP 7.3.0 and omits an Android namespace. The companion mirrors the
-  main Android build's compatibility rule: force the project AGP 8.11.1 in `settings.gradle.kts`
-  and inject namespace `org.naji.td.tdlib` through `LibraryExtension`. Do not edit the global pub
-  cache to make local builds pass.
-- Verify the companion with `flutter analyze`, `flutter test`, and from its `android/` directory
-  `./gradlew --offline :app:compileDebugKotlin` when dependencies are already cached.
+- `flutter pub get` under `extensions/telegram` is currently only a reproducible fetch step for the
+  pinned TDLib `.so`; Flutter artifacts and `GeneratedPluginRegistrant.java` must not enter the
+  native APK or Java compilation. CI may set `TDLIB_JNI_DIR` to a verified binary directory.
+- Verify the host gateway with targeted Flutter tests and Android Kotlin compilation. Verify the
+  companion from its `android/` directory with
+  `TARGET_ABI=arm64-v8a ./gradlew --offline :app:testDebugUnitTest :app:assembleDebug`.
 
 ## AI Translation / Chat Tool Integration
 

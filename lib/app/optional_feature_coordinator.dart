@@ -1,13 +1,11 @@
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../browser/browser_settings_service.dart';
-import '../core/network/local_proxy_endpoint_provider.dart';
 import '../features/optional_plugins/domain/optional_feature.dart';
 import '../features/optional_plugins/domain/optional_plugin_status.dart';
 import '../features/optional_plugins/infrastructure/optional_plugin_platform_gateway.dart';
 import '../features/optional_plugins/infrastructure/optional_plugin_repository.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
-import '../features/proxy/infrastructure/proxy_service_local_endpoint_adapter.dart';
 
 class OptionalFeatureProxyRequiredException implements Exception {
   const OptionalFeatureProxyRequiredException();
@@ -34,7 +32,6 @@ class OptionalFeatureCoordinator {
     OptionalPluginPlatformGateway? platformGateway,
     OptionalPluginRepositoryFactory? repositoryFactory,
     Future<PackageInfo> Function()? loadPackageInfo,
-    LocalProxyEndpointProvider? localProxyEndpoint,
   }) : _settingsService = settingsService ?? BrowserSettingsService(),
        _proxyService = proxyService ?? ProxyService(),
        _platformGateway =
@@ -42,10 +39,7 @@ class OptionalFeatureCoordinator {
        _repositoryFactory =
            repositoryFactory ??
            ((resolver) => OptionalPluginRepository(proxyResolver: resolver)),
-       _loadPackageInfo = loadPackageInfo ?? PackageInfo.fromPlatform,
-       _localProxyEndpoint =
-           localProxyEndpoint ??
-           ProxyServiceLocalEndpointAdapter(proxyService: proxyService);
+       _loadPackageInfo = loadPackageInfo ?? PackageInfo.fromPlatform;
 
   static final OptionalFeatureCoordinator instance =
       OptionalFeatureCoordinator();
@@ -55,7 +49,6 @@ class OptionalFeatureCoordinator {
   final OptionalPluginPlatformGateway _platformGateway;
   final OptionalPluginRepositoryFactory _repositoryFactory;
   final Future<PackageInfo> Function() _loadPackageInfo;
-  final LocalProxyEndpointProvider _localProxyEndpoint;
 
   Future<OptionalPluginStatus> getStatus(OptionalFeatureId featureId) {
     final descriptor = OptionalFeatureCatalog.descriptor(featureId);
@@ -119,21 +112,6 @@ class OptionalFeatureCoordinator {
 
   Future<void> openInstallPermissionSettings() {
     return _platformGateway.openInstallPermissionSettings();
-  }
-
-  Future<bool> launchTelegramPlugin() {
-    final descriptor = OptionalFeatureCatalog.descriptor(
-      OptionalFeatureId.telegram,
-    );
-    final proxyPort = _localProxyEndpoint.localSocks5Port;
-    final extras = <String, Object?>{};
-    if (proxyPort != null) {
-      extras['proxyPort'] = proxyPort;
-    }
-    return _platformGateway.launchPlugin(
-      packageName: descriptor.packageName,
-      extras: extras,
-    );
   }
 
   int _parseVersionCode(String value) {

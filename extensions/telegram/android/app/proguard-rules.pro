@@ -1,0 +1,3 @@
+-keep class lightly.tool.plugin.telegram.TelegramNativeBridge { *; }
+-keep class lightly.tool.plugin.telegram.TelegramPluginService { *; }
+-keep class lightly.tool.plugin.telegram.ipc.** { *; }

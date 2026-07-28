@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../app/optional_feature_coordinator.dart';
 import '../features/optional_plugins/domain/optional_feature.dart';
 import '../features/optional_plugins/presentation/optional_feature_gate.dart';
 import '../services/app_toast.dart';
@@ -18,8 +17,6 @@ class ToolsPage extends StatefulWidget {
 class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
   final TimeOverlayService _timeOverlayService = TimeOverlayService();
   final OptionalFeatureGate _optionalFeatureGate = OptionalFeatureGate();
-  final OptionalFeatureCoordinator _optionalFeatureCoordinator =
-      OptionalFeatureCoordinator.instance;
   bool _timeOverlayRunning = false;
   bool _busy = false;
 
@@ -85,9 +82,8 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
     )) {
       return;
     }
-    final launched = await _optionalFeatureCoordinator.launchTelegramPlugin();
-    if (!launched) {
-      _toast('TG 工具插件启动失败，请重新安装插件后再试');
+    if (mounted) {
+      await Navigator.pushNamed(context, '/telegram-checkin');
     }
   }
 

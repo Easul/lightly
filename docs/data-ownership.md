@@ -68,7 +68,7 @@ SharedPreferences 清理来模拟停止；必须调用各自 service/gateway 的
 | app external `logs/runtime.log` | `AppLogService` | 高（已脱敏诊断） | 用户显式“导出日志”时复制到 Download | 关闭 runtime logging 时等待写队列后删除；缓存清理不负责删除 |
 | shared Download 或 app fallback 下的 `ruoqing-*.json` | `BrowserBackupFileWriter` | 高（备份含 Cookie、配置与私密内容） | 文件本身就是用户导出物 | 应用不自动删除；由用户/文件管理器处理 |
 | shared Download / app fallback 下载文件 | `BrowserDownloadService`（记录由 `BrowserDownloadStore`） | 取决于文件 | 不进入统一备份 | 全局清记录保留文件；单条“记录+文件”才删除对应文件 |
-| Telegram 插件 app support `/telegram/`（TDLib database/files） | `extensions/telegram` 的 `TelegramTdlibService` / TDLib | 高（登录会话、聊天缓存） | 否 | 插件首次使用需重新登录；仅由明确的 Telegram logout/data reset 流程或卸载插件清除；普通 Lightly 数据清理不得删除 |
+| Telegram 插件私有 files `/telegram/`（TDLib database/files） | `TelegramPluginService` / TDLib | 高（登录会话、聊天缓存） | 否 | 插件首次使用需重新登录；仅由明确的 Telegram logout/data reset 流程或卸载插件清除；普通 Lightly 数据清理不得删除 |
 | WebView Cookie store | Android WebView / `CookieManager`，origin index 由 `BrowserCookieOriginService` 持有 | 高 | 统一备份按 origin 枚举并导出支持的 Cookie | “Cookie 与站点数据”清除；清历史不清 Cookie |
 | WebView local/session storage、IndexedDB、Cache API | Android WebView + 当前 WebView origin | 高 | 统一备份仅覆盖当前实现可枚举的 web storage | 全局站点数据或当前站点清理；当前站点清理不含 WebView 全局 HTTP cache |
 | WebView 全局 HTTP cache / app cache / temp children | `AppCacheMaintenanceService` 与 WebView API | 中 | 否 | “清理应用缓存”或计划清理；不得清历史、收藏、下载记录、配置或用户文件 |

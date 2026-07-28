@@ -21,6 +21,9 @@ class MainActivity : FlutterActivity() {
         ProxyFloatingModeChannelHandler(this)
     }
     private val easyTierChannelHandler by lazy { EasyTierChannelHandler(this) }
+    private val telegramPluginChannelHandler by lazy {
+        TelegramPluginChannelHandler(this)
+    }
     private var remoteControlChannelHandler: RemoteControlChannelHandler? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,6 +130,7 @@ class MainActivity : FlutterActivity() {
             .register(flutterEngine.dartExecutor.binaryMessenger)
         OptionalPluginChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
+        telegramPluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = BrowserPlatformChannelHandler(
             methodHandlers = listOf(
@@ -177,6 +181,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        telegramPluginChannelHandler.shutdown()
         shutdownRemoteControlResources()
         shutdownEasyTierVpnResources()
         super.onDestroy()

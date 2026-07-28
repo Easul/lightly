@@ -1,21 +1,37 @@
-# Lightly Telegram plugin
+# Lightly Telegram native plugin
 
-Optional companion APK for Lightly's Telegram tools. The plugin owns TDLib and
-its private login session. Lightly remains the owner of Telegram API/check-in
-configuration so existing backup export/import continues to work.
+Pure Android companion APK for Lightly's Telegram tools. It has no Flutter
+engine and no business UI. Lightly keeps the existing Telegram pages,
+configuration, backup/import, and scheduling; this APK owns TDLib and its
+private login session.
 
-The APK must be signed with the same certificate as its Lightly host. Release
-builds reuse `android/app/upload-keystore.jks` from the repository root when it
-is available.
+## Runtime contract
 
-Build one ABI at a time:
+- Package: `lightly.tool.plugin.telegram`
+- Feature metadata: `telegram`, API `1`
+- Exported component: signature-protected `TelegramPluginService`
+- IPC: AIDL using TDLib's JSON client API
+- Native libraries: `libtdjson.so` and the small `libtelegram_bridge.so`
+
+The duplicated AIDL files in Lightly and this plugin must remain byte-for-byte
+compatible. Release APKs must use the same signing certificate as Lightly.
+
+## TDLib binary source
+
+The repository does not commit generated or third-party `.so` files. Run
+`flutter pub get` once in this directory to fetch the pinned `tdlib 1.6.0`
+package. Gradle then reads its `jniLibs` directory. CI may instead set
+`TDLIB_JNI_DIR` to a verified TDLib binary directory.
+
+## Build
 
 ```bash
-TARGET_ABI=arm64-v8a flutter build apk --release --target-platform android-arm64 \
-  --obfuscate --split-debug-info=build/symbols
-TARGET_ABI=armeabi-v7a flutter build apk --release --target-platform android-arm \
-  --obfuscate --split-debug-info=build/symbols
+flutter pub get
+
+cd android
+TARGET_ABI=arm64-v8a ./gradlew assembleRelease
+TARGET_ABI=armeabi-v7a ./gradlew assembleRelease
 ```
 
-`TARGET_ABI` is required because TDLib's Android library publishes multiple
-native slices that Flutter's target platform alone does not exclude.
+`TARGET_ABI` is required. Verify the APK contains only the selected ABI before
+publishing it to the optional-plugin release manifest.

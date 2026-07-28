@@ -1,0 +1,125 @@
+package lightly.tool.plugin.telegram
+
+import android.app.Service
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Binder
+import android.os.IBinder
+import android.os.RemoteCallbackList
+import lightly.tool.plugin.telegram.ipc.ITelegramPluginCallback
+import lightly.tool.plugin.telegram.ipc.ITelegramPluginService
+import java.util.concurrent.atomic.AtomicBoolean
+
+class TelegramPluginService : Service() {
+    private val callbacks = RemoteCallbackList<ITelegramPluginCallback>()
+    private val receiving = AtomicBoolean(false)
+    private var receiverThread: Thread? = null
+    private val requestSanitizer by lazy {
+        val root = java.io.File(filesDir, "telegram")
+        TelegramRequestSanitizer(
+            databaseDirectory = java.io.File(root, "database"),
+            filesDirectory = java.io.File(root, "files"),
+        )
+    }
+
+    private val binder = object : ITelegramPluginService.Stub() {
+        override fun getApiVersion(): Int {
+            enforceTrustedCaller()
+            return API_VERSION
+        }
+
+        override fun createClient(): Int {
+            enforceTrustedCaller()
+            ensureReceiverStarted()
+            return TelegramNativeBridge.createClient()
+        }
+
+        override fun send(clientId: Int, requestJson: String) {
+            enforceTrustedCaller()
+            require(requestJson.length <= MAX_JSON_LENGTH) { "TDLib request is too large" }
+            TelegramNativeBridge.send(clientId, requestSanitizer.rewrite(requestJson))
+        }
+
+        override fun execute(requestJson: String): String? {
+            enforceTrustedCaller()
+            require(requestJson.length <= MAX_JSON_LENGTH) { "TDLib request is too large" }
+            return TelegramNativeBridge.execute(requestJson)
+        }
+
+        override fun registerCallback(callback: ITelegramPluginCallback) {
+            enforceTrustedCaller()
+            callbacks.register(callback)
+            ensureReceiverStarted()
+        }
+
+        override fun unregisterCallback(callback: ITelegramPluginCallback) {
+            enforceTrustedCaller()
+            callbacks.unregister(callback)
+        }
+    }
+
+    override fun onBind(intent: Intent?): IBinder {
+        enforceTrustedCaller()
+        return binder
+    }
+
+    override fun onDestroy() {
+        receiving.set(false)
+        receiverThread?.interrupt()
+        receiverThread = null
+        callbacks.kill()
+        super.onDestroy()
+    }
+
+    private fun ensureReceiverStarted() {
+        if (!receiving.compareAndSet(false, true)) {
+            return
+        }
+        receiverThread = Thread({ receiveLoop() }, "TelegramTdlibReceiver").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun receiveLoop() {
+        try {
+            while (receiving.get()) {
+                val result = TelegramNativeBridge.receive(RECEIVE_TIMEOUT_SECONDS) ?: continue
+                if (result.length <= MAX_JSON_LENGTH) {
+                    broadcast(result)
+                }
+            }
+        } finally {
+            receiving.set(false)
+        }
+    }
+
+    private fun broadcast(resultJson: String) {
+        val count = callbacks.beginBroadcast()
+        try {
+            for (index in 0 until count) {
+                runCatching { callbacks.getBroadcastItem(index).onResult(resultJson) }
+            }
+        } finally {
+            callbacks.finishBroadcast()
+        }
+    }
+
+    private fun enforceTrustedCaller() {
+        val callerUid = Binder.getCallingUid()
+        if (callerUid == applicationInfo.uid) {
+            return
+        }
+        val trusted = packageManager.getPackagesForUid(callerUid).orEmpty().any { packageName ->
+            packageManager.checkSignatures(packageName, this.packageName) ==
+                PackageManager.SIGNATURE_MATCH
+        }
+        check(trusted) { "Caller signature does not match Telegram plugin" }
+    }
+
+    companion object {
+        const val API_VERSION = 1
+        private const val MAX_JSON_LENGTH = 512 * 1024
+        private const val RECEIVE_TIMEOUT_SECONDS = 0.25
+    }
+}

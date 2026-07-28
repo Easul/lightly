@@ -257,10 +257,10 @@ EasyTier 的 domain/application/infrastructure 与独立 presentation widgets �
 - `AiClient`：OpenAI completions/responses 与 Anthropic messages。
 - `AiHistoryDatabase`：复用应用 SQLite 数据库。
 - Android `TranslationOverlayService`：Flutter 后台时独立执行翻译。
-- `extensions/telegram`：可选同签名 companion APK，持有 TDLib 登录会话与 TG 工具 UI，并使用
-  Lightly 启动时下发的当前本地 SOCKS5 端点。
-- Lightly 继续持有 `telegram_checkin_config` 并纳入统一备份；插件只经签名权限 Provider 读写，
-  不在主体中复制 TDLib 运行时所有权。
+- `extensions/telegram`：无 Flutter/无业务 UI 的同签名原生 companion APK，仅持有 TDLib
+  runtime 与登录会话；Lightly 通过签名保护 AIDL Service 发送有界 JSON 请求并接收结果。
+- Lightly 保留 TG 工具 UI、当前本地 SOCKS5 策略、`telegram_checkin_config` 和统一备份，不在
+  插件内复制配置 owner，也不在主体中复制 TDLib runtime owner。
 
 ## 当前状态管理模型
 

@@ -1,13 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:tdlib/td_api.dart' as td;
-import 'package:tdlib/tdlib.dart';
 
 import '../../core/network/local_proxy_endpoint_provider.dart';
 import 'telegram_checkin_models.dart';
+import 'telegram_plugin_platform_gateway.dart';
 
 enum TelegramAuthStep {
   loading,
@@ -29,7 +29,10 @@ class TelegramTdlibService {
   final ValueNotifier<String> proxyStatus = ValueNotifier<String>('正在检查代理');
   final Map<String, Completer<td.TdObject>> _requests =
       <String, Completer<td.TdObject>>{};
-  Timer? _receiveTimer;
+  final TelegramPluginPlatformGateway _plugin =
+      TelegramPluginPlatformGateway.instance;
+  StreamSubscription<String>? _resultSubscription;
+  StreamSubscription<void>? _disconnectSubscription;
   Future<void> _authorizationQueue = Future<void>.value();
   int _clientId = 0;
   int _requestId = 0;
@@ -45,11 +48,17 @@ class TelegramTdlibService {
   Future<void> start(TelegramCheckinConfig config) async {
     _config = config;
     if (_clientId == 0) {
-      _clientId = tdCreate();
-      _receiveTimer ??= Timer.periodic(
-        const Duration(milliseconds: 80),
-        (_) => _drainUpdates(),
-      );
+      if (!await _plugin.connect()) {
+        throw StateError('Telegram 插件未安装、签名不匹配或版本不兼容');
+      }
+      _resultSubscription ??= _plugin.results.listen(_handleRawResult);
+      _disconnectSubscription ??= _plugin.disconnects.listen((_) {
+        _clientId = 0;
+        _configuredProxyPort = null;
+        _failPendingRequests(StateError('Telegram 插件连接已断开'));
+        authStep.value = TelegramAuthStep.error;
+      });
+      _clientId = await _plugin.createClient();
     }
     authStep.value = TelegramAuthStep.loading;
     final state = await _request(const td.GetAuthorizationState());
@@ -283,14 +292,11 @@ class TelegramTdlibService {
         authStep.value = TelegramAuthStep.error;
         return;
       }
-      final directory = await getApplicationSupportDirectory();
-      final databaseDirectory = Directory('${directory.path}/telegram');
-      await databaseDirectory.create(recursive: true);
       await _expectOk(
         td.SetTdlibParameters(
           useTestDc: false,
-          databaseDirectory: databaseDirectory.path,
-          filesDirectory: databaseDirectory.path,
+          databaseDirectory: '',
+          filesDirectory: '',
           databaseEncryptionKey: '',
           useFileDatabase: false,
           useChatInfoDatabase: true,
@@ -337,23 +343,21 @@ class TelegramTdlibService {
     return _authorizationQueue;
   }
 
-  void _drainUpdates() {
-    for (var index = 0; index < 20; index++) {
-      final object = tdReceive(0);
-      if (object == null) return;
-      final clientId = object.clientId;
-      if (clientId != null && clientId != _clientId) continue;
-      final extra = object.extra?.toString();
-      if (extra != null) {
-        _requests.remove(extra)?.complete(object);
-      }
-      if (object is td.UpdateAuthorizationState) {
-        unawaited(_enqueueAuthorizationState(object.authorizationState));
-      }
+  void _handleRawResult(String rawResult) {
+    final object = td.convertToObject(rawResult);
+    if (object == null) return;
+    final clientId = object.clientId;
+    if (clientId != null && clientId != _clientId) return;
+    final extra = object.extra?.toString();
+    if (extra != null) {
+      _requests.remove(extra)?.complete(object);
+    }
+    if (object is td.UpdateAuthorizationState) {
+      unawaited(_enqueueAuthorizationState(object.authorizationState));
     }
   }
 
-  Future<td.TdObject> _request(td.TdFunction function) {
+  Future<td.TdObject> _request(td.TdFunction function) async {
     if (_clientId == 0) {
       throw StateError('Telegram 客户端尚未启动');
     }
@@ -361,7 +365,10 @@ class TelegramTdlibService {
     final completer = Completer<td.TdObject>();
     _requests[extra] = completer;
     try {
-      tdSend(_clientId, function, extra);
+      await _plugin.send(
+        clientId: _clientId,
+        requestJson: jsonEncode(function.toJson(extra)),
+      );
     } catch (_) {
       _requests.remove(extra);
       rethrow;
