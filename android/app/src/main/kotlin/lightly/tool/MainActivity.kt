@@ -125,6 +125,8 @@ class MainActivity : FlutterActivity() {
             .register(flutterEngine.dartExecutor.binaryMessenger)
         TranslationOverlayChannelHandler(this)
             .register(flutterEngine.dartExecutor.binaryMessenger)
+        OptionalPluginChannelHandler(this)
+            .register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = BrowserPlatformChannelHandler(
             methodHandlers = listOf(
