@@ -6,6 +6,11 @@ plugins {
 }
 
 val targetAbi = providers.environmentVariable("TARGET_ABI").orNull
+val excludedAbis = when (targetAbi) {
+    "arm64-v8a" -> listOf("armeabi-v7a", "x86", "x86_64")
+    "armeabi-v7a" -> listOf("arm64-v8a", "x86", "x86_64")
+    else -> emptyList()
+}
 
 android {
     namespace = "lightly.tool.plugin.telegram"
@@ -58,6 +63,14 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludedAbis.forEach { abi ->
+                excludes += "**/$abi/*.so"
+            }
         }
     }
 }

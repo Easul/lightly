@@ -11,6 +11,11 @@ is available.
 Build one ABI at a time:
 
 ```bash
-TARGET_ABI=arm64-v8a flutter build apk --release --target-platform android-arm64
-TARGET_ABI=armeabi-v7a flutter build apk --release --target-platform android-arm
+TARGET_ABI=arm64-v8a flutter build apk --release --target-platform android-arm64 \
+  --obfuscate --split-debug-info=build/symbols
+TARGET_ABI=armeabi-v7a flutter build apk --release --target-platform android-arm \
+  --obfuscate --split-debug-info=build/symbols
 ```
+
+`TARGET_ABI` is required because TDLib's Android library publishes multiple
+native slices that Flutter's target platform alone does not exclude.
