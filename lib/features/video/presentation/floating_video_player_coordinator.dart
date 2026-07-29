@@ -98,6 +98,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
     var downloadUrl = url;
     var displayDownloadUrl = _downloadRuntime.redactUrl(url);
     String? suggestedDownloadFileName;
+    Map<String, String>? downloadHeaders;
 
     try {
       final preparedPlayback = await _playbackPreparationService.prepare(
@@ -110,6 +111,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
       playbackUrl = preparedPlayback.playbackUrl;
       downloadUrl = preparedPlayback.downloadUrl;
       displayDownloadUrl = preparedPlayback.displayDownloadUrl;
+      downloadHeaders = preparedPlayback.downloadHeaders;
 
       if (shouldResolveYoutube) {
         floatingTitle =
@@ -145,6 +147,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
                       downloadUrl,
                       displayUrl: displayDownloadUrl,
                       suggestedFileName: suggestedDownloadFileName,
+                      requestHeaders: downloadHeaders,
                     ),
                   );
                 },
@@ -193,6 +196,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
               downloadUrl,
               displayUrl: displayDownloadUrl,
               suggestedFileName: suggestedDownloadFileName,
+              requestHeaders: downloadHeaders,
             ),
           );
         },
@@ -222,6 +226,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
               downloadUrl,
               displayUrl: displayDownloadUrl,
               suggestedFileName: suggestedDownloadFileName,
+              requestHeaders: downloadHeaders,
             ),
           );
         },
@@ -293,6 +298,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
     String url, {
     String? displayUrl,
     String? suggestedFileName,
+    Map<String, String>? requestHeaders,
   }) async {
     await _downloadRuntime.startDownload(
       context: context,
@@ -302,6 +308,7 @@ class FloatingVideoPlayerCoordinator<TDownloadContext> {
       dialogAnchorOverlay: _floatingVideoOverlay,
       displayUrl: displayUrl,
       suggestedFileName: suggestedFileName,
+      requestHeaders: requestHeaders,
     );
   }
 

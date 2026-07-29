@@ -42,6 +42,7 @@ class BrowserFloatingVideoDownloadRuntime
     OverlayEntry? dialogAnchorOverlay,
     String? displayUrl,
     String? suggestedFileName,
+    Map<String, String>? requestHeaders,
   }) {
     return _downloadCoordinator.startDownloadFromUrl(
       context: context,
@@ -51,6 +52,7 @@ class BrowserFloatingVideoDownloadRuntime
       dialogAnchorOverlay: dialogAnchorOverlay,
       displayUrl: displayUrl,
       suggestedFileName: suggestedFileName,
+      overrideHeaders: requestHeaders,
     );
   }
 }

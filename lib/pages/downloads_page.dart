@@ -75,7 +75,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
           ),
         );
       },
-      buildProxyPlaybackUrl: _videoProxyServer.buildProxyUrl,
+      buildProxyPlaybackUrl: (url, headers) =>
+          _videoProxyServer.buildProxyUrl(url, headers: headers),
       redactDownloadUrl: BrowserDownloadCoordinator.redactDownloadUrl,
     );
     _videoPlayerCoordinator = BrowserVideoPlayerCoordinator(

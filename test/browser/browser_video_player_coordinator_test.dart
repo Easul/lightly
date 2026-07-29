@@ -28,7 +28,7 @@ void main() {
             title: 'Video',
           ),
           ensureProxyServer: (_) async {},
-          buildProxyPlaybackUrl: (url) => url,
+          buildProxyPlaybackUrl: (url, _) => url,
           redactDownloadUrl: (url) => url,
         ),
         downloadCoordinator: BrowserDownloadCoordinator(

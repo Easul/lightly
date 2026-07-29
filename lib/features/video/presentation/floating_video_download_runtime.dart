@@ -15,5 +15,6 @@ abstract interface class FloatingVideoDownloadRuntime<TDownloadContext> {
     OverlayEntry? dialogAnchorOverlay,
     String? displayUrl,
     String? suggestedFileName,
+    Map<String, String>? requestHeaders,
   });
 }

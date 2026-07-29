@@ -122,7 +122,8 @@ class BrowserPageServices {
               ),
             );
           },
-          buildProxyPlaybackUrl: videoProxyServer.buildProxyUrl,
+          buildProxyPlaybackUrl: (url, headers) =>
+              videoProxyServer.buildProxyUrl(url, headers: headers),
           redactDownloadUrl: BrowserDownloadCoordinator.redactDownloadUrl,
           onDebugLog: onDebugLog,
         );

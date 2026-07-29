@@ -9,7 +9,8 @@ class VideoPlaybackPreparationService<TSettings>
     required Future<ResolvedVideoSource> Function(String, TSettings)
     resolveVideoSource,
     required Future<void> Function(TSettings) ensureProxyServer,
-    required String Function(String) buildProxyPlaybackUrl,
+    required String Function(String, Map<String, String>?)
+    buildProxyPlaybackUrl,
     required String Function(String) redactDownloadUrl,
     void Function(String message)? onDebugLog,
   }) : _loadSettings = loadSettings,
@@ -25,7 +26,7 @@ class VideoPlaybackPreparationService<TSettings>
   final Future<ResolvedVideoSource> Function(String, TSettings)
   _resolveVideoSource;
   final Future<void> Function(TSettings) _ensureProxyServer;
-  final String Function(String) _buildProxyPlaybackUrl;
+  final String Function(String, Map<String, String>?) _buildProxyPlaybackUrl;
   final String Function(String) _redactDownloadUrl;
   final void Function(String message)? _onDebugLog;
 
@@ -56,16 +57,18 @@ class VideoPlaybackPreparationService<TSettings>
     resolvedTitle = resolved.title;
     downloadUrl = rawStreamUrl;
     displayDownloadUrl = _redactDownloadUrl(requestedUrl);
+    final downloadHeaders = resolved.httpHeaders;
 
     await _ensureProxyServer(settings);
-    playbackUrl = _buildProxyPlaybackUrl(rawStreamUrl);
-    _onDebugLog?.call('VideoPlayback: proxying through $playbackUrl');
+    playbackUrl = _buildProxyPlaybackUrl(rawStreamUrl, downloadHeaders);
+    _onDebugLog?.call('VideoPlayback: using local proxy');
 
     return PreparedVideoPlayback(
       playbackUrl: playbackUrl,
       downloadUrl: downloadUrl,
       displayDownloadUrl: displayDownloadUrl,
       resolvedTitle: resolvedTitle,
+      downloadHeaders: downloadHeaders,
     );
   }
 }

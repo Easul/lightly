@@ -73,6 +73,7 @@ class BrowserDownloadCoordinator {
     String? suggestedFileName,
     String? referrerUrl,
     String? userAgent,
+    Map<String, String>? overrideHeaders,
   }) async {
     final actualDisplayUrl = displayUrl ?? redactDownloadUrl(url);
     final fileName =
@@ -123,11 +124,13 @@ class BrowserDownloadCoordinator {
     final record = await _downloadStore.insert(
       preparedRecord.copyWith(url: actualDisplayUrl),
     );
-    final requestHeaders = await _requestContextResolver.resolve(
-      url: WebUri(url),
-      userAgent: userAgent,
-      referrerUrl: referrerUrl,
-    );
+    final requestHeaders = overrideHeaders == null
+        ? await _requestContextResolver.resolve(
+            url: WebUri(url),
+            userAgent: userAgent,
+            referrerUrl: referrerUrl,
+          )
+        : Map<String, String>.unmodifiable(overrideHeaders);
     onStatus('开始下载：$confirmedFileName');
     unawaited(
       _downloadService.startDownload(

@@ -12,7 +12,7 @@ void main() {
           throw StateError('should not resolve');
         },
         ensureProxyServer: (_) async {},
-        buildProxyPlaybackUrl: (url) => 'proxy:$url',
+        buildProxyPlaybackUrl: (url, _) => 'proxy:$url',
         redactDownloadUrl: (url) => 'redacted:$url',
       );
 
@@ -28,12 +28,14 @@ void main() {
         'redacted:https://example.com/video.mp4',
       );
       expect(prepared.resolvedTitle, isNull);
+      expect(prepared.downloadHeaders, isNull);
     });
 
     test(
       'uses local proxy playback url for youtube even when proxy is disabled',
       () async {
         var proxyStarted = false;
+        Map<String, String>? capturedHeaders;
         final service = BrowserVideoPlaybackPreparationService(
           loadSettings: () async =>
               BrowserSettings.defaults().copyWith(proxyEnabled: false),
@@ -41,12 +43,18 @@ void main() {
             videoId: 'abc123',
             title: 'Resolved title',
             streamUrl: 'https://cdn.example.com/stream.m3u8',
+            httpHeaders: <String, String>{
+              'cookie': 'SID=secret',
+              'referer': 'https://m.youtube.com/',
+            },
           ),
           ensureProxyServer: (_) async {
             proxyStarted = true;
           },
-          buildProxyPlaybackUrl: (url) =>
-              'http://127.0.0.1:12345/proxy?url=${Uri.encodeComponent(url)}',
+          buildProxyPlaybackUrl: (url, headers) {
+            capturedHeaders = headers;
+            return 'http://127.0.0.1:12345/proxy?url=${Uri.encodeComponent(url)}';
+          },
           redactDownloadUrl: (url) => 'redacted:$url',
         );
 
@@ -66,6 +74,8 @@ void main() {
           'redacted:https://youtube.com/watch?v=abc123',
         );
         expect(prepared.resolvedTitle, 'Resolved title');
+        expect(capturedHeaders?['cookie'], 'SID=secret');
+        expect(prepared.downloadHeaders?['cookie'], 'SID=secret');
       },
     );
 
@@ -85,7 +95,7 @@ void main() {
         ensureProxyServer: (_) async {
           proxyStarted = true;
         },
-        buildProxyPlaybackUrl: (url) =>
+        buildProxyPlaybackUrl: (url, _) =>
             'http://127.0.0.1:12345/proxy?url=${Uri.encodeComponent(url)}',
         redactDownloadUrl: (url) => url,
       );
@@ -118,7 +128,7 @@ void main() {
         ensureProxyServer: (_) async {
           throw StateError('should not start proxy');
         },
-        buildProxyPlaybackUrl: (url) => 'proxy:$url',
+        buildProxyPlaybackUrl: (url, _) => 'proxy:$url',
         redactDownloadUrl: (url) => 'redacted:$url',
       );
 

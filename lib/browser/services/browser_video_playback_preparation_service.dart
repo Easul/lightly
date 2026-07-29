@@ -9,7 +9,8 @@ class BrowserVideoPlaybackPreparationService implements VideoPlaybackPreparer {
     required Future<ResolvedVideoSource> Function(String, BrowserSettings)
     resolveVideoSource,
     required Future<void> Function(BrowserSettings) ensureProxyServer,
-    required String Function(String) buildProxyPlaybackUrl,
+    required String Function(String, Map<String, String>?)
+    buildProxyPlaybackUrl,
     required String Function(String) redactDownloadUrl,
     void Function(String message)? onDebugLog,
   }) : _delegate = VideoPlaybackPreparationService<BrowserSettings>(
