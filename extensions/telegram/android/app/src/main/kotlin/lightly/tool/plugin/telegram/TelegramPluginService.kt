@@ -21,6 +21,7 @@ class TelegramPluginService : Service() {
     }
     private val clientIds = ConcurrentHashMap.newKeySet<Int>()
     private val receiving = AtomicBoolean(false)
+    private val receiverLock = Any()
     private var receiverThread: Thread? = null
     private val requestSanitizer by lazy {
         val root = java.io.File(filesDir, "telegram")
@@ -100,18 +101,27 @@ class TelegramPluginService : Service() {
     }
 
     private fun stopReceiver() {
-        receiving.set(false)
-        receiverThread?.interrupt()
-        receiverThread = null
+        synchronized(receiverLock) {
+            receiving.set(false)
+            val thread = receiverThread
+            thread?.interrupt()
+            if (thread != null && thread !== Thread.currentThread()) {
+                runCatching { thread.join(RECEIVER_STOP_TIMEOUT_MS) }
+            }
+            receiverThread = null
+        }
     }
 
     private fun ensureReceiverStarted() {
-        if (!receiving.compareAndSet(false, true)) {
-            return
-        }
-        receiverThread = Thread({ receiveLoop() }, "TelegramTdlibReceiver").apply {
-            isDaemon = true
-            start()
+        synchronized(receiverLock) {
+            if (receiverThread?.isAlive == true) {
+                return
+            }
+            receiving.set(true)
+            receiverThread = Thread({ receiveLoop() }, "TelegramTdlibReceiver").apply {
+                isDaemon = true
+                start()
+            }
         }
     }
 
@@ -173,6 +183,7 @@ class TelegramPluginService : Service() {
         private const val LOG_TAG = "TelegramPlugin"
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val RECEIVE_TIMEOUT_SECONDS = 0.25
+        private const val RECEIVER_STOP_TIMEOUT_MS = 1_000L
         private const val CLOSE_REQUEST = "{\"@type\":\"close\"}"
         private val LOGGED_REQUEST_TYPES = setOf(
             "getAuthorizationState",
