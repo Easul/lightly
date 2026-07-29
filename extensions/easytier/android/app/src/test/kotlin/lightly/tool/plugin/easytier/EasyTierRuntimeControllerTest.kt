@@ -57,11 +57,29 @@ class EasyTierRuntimeControllerTest {
 
         assertEquals("10.126.126.22/24", EasyTierRuntimeController.extractVirtualIpv4(info))
     }
+
+    @Test
+    fun `returns monitored network info without another native collection`() {
+        val native = FakeNativeRuntime()
+        val state = FakeStateStore().apply {
+            rawNetworkInfo = """{"map":{"test":{"running":true}}}"""
+        }
+        val controller = EasyTierRuntimeController(
+            native,
+            FakeVpnPlatform(hasPermission = true),
+            state,
+            FakeMonitorScheduler(),
+        )
+
+        assertEquals(state.rawNetworkInfo, controller.getNetworkInfo())
+        assertEquals(0, native.collectCount)
+    }
 }
 
 private class FakeNativeRuntime : EasyTierNativeRuntime {
     var startedConfig: String? = null
     var stopped = false
+    var collectCount = 0
 
     override fun parseConfig(config: String): Int = 0
     override fun runNetworkInstance(config: String): Int {
@@ -69,7 +87,10 @@ private class FakeNativeRuntime : EasyTierNativeRuntime {
         return 0
     }
     override fun stopAllInstances() { stopped = true }
-    override fun collectNetworkInfos(): String? = """{"map":{}}"""
+    override fun collectNetworkInfos(): String? {
+        collectCount += 1
+        return """{"map":{}}"""
+    }
     override fun getLastError(): String? = null
 }
 
@@ -82,6 +103,7 @@ private class FakeVpnPlatform(var hasPermission: Boolean) : EasyTierVpnPlatform 
 
 private class FakeStateStore : EasyTierRuntimeStateStore {
     var startedInstanceName: String? = null
+    var rawNetworkInfo: String? = null
     var cleared = false
     override fun markStarted(instanceName: String) { startedInstanceName = instanceName }
     override fun updateFromNetworkInfo(
@@ -89,8 +111,10 @@ private class FakeStateStore : EasyTierRuntimeStateStore {
         json: String,
         virtualIpv4: String?,
         running: Boolean,
-    ) = Unit
-    override fun refreshFromNative() = Unit
+    ) {
+        rawNetworkInfo = json
+    }
+    override fun rawNetworkInfo(): String? = rawNetworkInfo
     override fun clear() { cleared = true }
 }
 

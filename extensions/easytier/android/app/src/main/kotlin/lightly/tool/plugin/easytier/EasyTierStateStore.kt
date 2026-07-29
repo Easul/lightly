@@ -35,6 +35,8 @@ object EasyTierStateStore {
     fun markStarted(nextInstanceName: String) {
         synchronized(lock) {
             instanceName = nextInstanceName
+            rawNetworkInfoJson = null
+            virtualIpv4 = null
             isRunning = true
             errorMessage = null
             updatedAtMillis = System.currentTimeMillis()

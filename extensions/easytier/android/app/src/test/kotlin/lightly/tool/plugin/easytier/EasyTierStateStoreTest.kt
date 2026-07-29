@@ -29,4 +29,22 @@ class EasyTierStateStoreTest {
         assertNull(cleared.virtualIpv4)
         assertFalse(cleared.isRunning)
     }
+
+    @Test
+    fun `starting a new instance clears stale monitored data`() {
+        EasyTierStateStore.clear()
+        EasyTierStateStore.updateFromNetworkInfo(
+            nextInstanceName = "old",
+            json = "{\"map\":{}}",
+            nextVirtualIpv4 = "10.126.126.10/24",
+            running = true,
+        )
+
+        EasyTierStateStore.markStarted("new")
+
+        val snapshot = EasyTierStateStore.snapshot()
+        assertEquals("new", snapshot.instanceName)
+        assertNull(snapshot.rawNetworkInfoJson)
+        assertNull(snapshot.virtualIpv4)
+    }
 }

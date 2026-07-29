@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.util.Log
 import com.easytier.jni.EasyTierJNI
 import org.json.JSONObject
@@ -94,11 +94,9 @@ internal class EasyTierRuntimeController(
 
     @Synchronized
     fun getNetworkInfo(): String? {
-        return runCatching {
-            nativeRuntime.collectNetworkInfos()?.also {
-                if (it.isNotBlank()) stateStore.refreshFromNative()
-            }
-        }.onFailure { lastError = it.message }.getOrNull()
+        stateStore.rawNetworkInfo()?.takeIf { it.isNotBlank() }?.let { return it }
+        monitorStatus()
+        return stateStore.rawNetworkInfo()?.takeIf { it.isNotBlank() }
     }
 
     fun getLastError(): String? = lastError ?: nativeRuntime.getLastError()
@@ -128,6 +126,7 @@ internal class EasyTierRuntimeController(
         restartInProgress = false
     }
 
+    @Synchronized
     private fun monitorStatus() {
         val instanceName = runningInstanceName ?: return
         monitorTick += 1
@@ -153,7 +152,9 @@ internal class EasyTierRuntimeController(
             }
             notRunningTicks = 0
             if (virtualIpv4 == null) {
-                Log.d(LOG_TAG, "Instance running but virtual_ipv4 not assigned yet")
+                if (monitorTick == 1 || monitorTick % 10 == 0) {
+                    Log.d(LOG_TAG, "Instance running but virtual_ipv4 not assigned yet")
+                }
                 return
             }
             if (virtualIpv4 != currentIpv4) {
@@ -195,6 +196,7 @@ internal class EasyTierRuntimeController(
     }
 
     private fun logDiagnostics(networkInfo: JSONObject) {
+        if (monitorTick != 1 && monitorTick % 10 != 0) return
         val peers = networkInfo.optJSONArray("peers")
         val routes = networkInfo.optJSONArray("routes")
         val hostname = networkInfo.optJSONObject("my_node_info")?.optString("hostname")
@@ -266,7 +268,7 @@ private class AndroidEasyTierVpnPlatform(private val context: Context) : EasyTie
 internal interface EasyTierRuntimeStateStore {
     fun markStarted(instanceName: String)
     fun updateFromNetworkInfo(instanceName: String, json: String, virtualIpv4: String?, running: Boolean)
-    fun refreshFromNative()
+    fun rawNetworkInfo(): String?
     fun clear()
 }
 
@@ -278,7 +280,7 @@ private object AndroidEasyTierRuntimeStateStore : EasyTierRuntimeStateStore {
         virtualIpv4: String?,
         running: Boolean,
     ) = EasyTierStateStore.updateFromNetworkInfo(instanceName, json, virtualIpv4, running)
-    override fun refreshFromNative() { EasyTierStateStore.refreshFromJni() }
+    override fun rawNetworkInfo(): String? = EasyTierStateStore.snapshot().rawNetworkInfoJson
     override fun clear() = EasyTierStateStore.clear()
 }
 
@@ -288,21 +290,40 @@ internal interface EasyTierMonitorScheduler {
 }
 
 private class HandlerEasyTierMonitorScheduler : EasyTierMonitorScheduler {
-    private val handler = Handler(Looper.getMainLooper())
+    private var handlerThread: HandlerThread? = null
+    private var handler: Handler? = null
     private var runnable: Runnable? = null
 
+    @Synchronized
     override fun start(task: () -> Unit) {
         stop()
-        runnable = object : Runnable {
+        val thread = HandlerThread("EasyTierMonitor").apply { start() }
+        val nextHandler = Handler(thread.looper)
+        handlerThread = thread
+        handler = nextHandler
+        val nextRunnable = object : Runnable {
             override fun run() {
-                try { task() } finally { handler.postDelayed(this, 3000) }
+                try {
+                    task()
+                } finally {
+                    synchronized(this@HandlerEasyTierMonitorScheduler) {
+                        if (runnable === this) {
+                            handler?.postDelayed(this, 3000)
+                        }
+                    }
+                }
             }
         }
-        runnable?.let(handler::post)
+        runnable = nextRunnable
+        nextHandler.post(nextRunnable)
     }
 
+    @Synchronized
     override fun stop() {
-        runnable?.let(handler::removeCallbacks)
+        runnable?.let { task -> handler?.removeCallbacks(task) }
         runnable = null
+        handler = null
+        handlerThread?.quitSafely()
+        handlerThread = null
     }
 }
