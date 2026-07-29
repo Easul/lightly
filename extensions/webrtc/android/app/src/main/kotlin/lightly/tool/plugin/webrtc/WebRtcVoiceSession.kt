@@ -3,6 +3,8 @@ package lightly.tool.plugin.webrtc
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
@@ -37,6 +39,7 @@ internal class WebRtcVoiceSession(
     private var localAudioEnabled = false
     private var previousAudioMode: Int? = null
     private var previousSpeakerphone: Boolean? = null
+    private var audioDeviceCallback: AudioDeviceCallback? = null
 
     val prepared: Boolean
         get() = peerConnection != null
@@ -433,12 +436,43 @@ internal class WebRtcVoiceSession(
             previousSpeakerphone = manager.isSpeakerphoneOn
         }
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
+        registerAudioDeviceCallback(manager)
+        val wiredDevice = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            manager.availableCommunicationDevices.firstOrNull(::isWiredAudioDevice)
+        } else {
+            null
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && wiredDevice != null) {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = false
+            if (manager.communicationDevice?.id != wiredDevice.id) {
+                manager.setCommunicationDevice(wiredDevice)
+            }
+            emitLog("webrtc-native-audio-route: wired type=${wiredDevice.type}")
+            return
+        }
+        @Suppress("DEPRECATION")
+        if (manager.isWiredHeadsetOn) {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = false
+            emitLog("webrtc-native-audio-route: wired-legacy")
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            manager.clearCommunicationDevice()
+        }
         @Suppress("DEPRECATION")
         manager.isSpeakerphoneOn = true
+        emitLog("webrtc-native-audio-route: speaker")
     }
 
     private fun restoreAudioRoute() {
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioDeviceCallback?.let(manager::unregisterAudioDeviceCallback)
+        audioDeviceCallback = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            manager.clearCommunicationDevice()
+        }
         previousAudioMode?.let { manager.mode = it }
         previousSpeakerphone?.let {
             @Suppress("DEPRECATION")
@@ -446,6 +480,30 @@ internal class WebRtcVoiceSession(
         }
         previousAudioMode = null
         previousSpeakerphone = null
+    }
+
+    private fun registerAudioDeviceCallback(manager: AudioManager) {
+        if (audioDeviceCallback != null) return
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                handler.post(::configureAudioRoute)
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                handler.post(::configureAudioRoute)
+            }
+        }
+        audioDeviceCallback = callback
+        manager.registerAudioDeviceCallback(callback, handler)
+    }
+
+    private fun isWiredAudioDevice(device: AudioDeviceInfo): Boolean = when (device.type) {
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_DEVICE,
+        AudioDeviceInfo.TYPE_USB_ACCESSORY -> true
+        else -> false
     }
 
     private fun createPeerConstraints() = MediaConstraints().apply {
