@@ -54,14 +54,43 @@ require_command unzip
   echo "Android apksigner not found; set APKSIGNER explicitly" >&2
   exit 1
 }
+
+read_certificate_digest() {
+  local apk="$1"
+  local output digest
+
+  if ! output="$($APKSIGNER verify --print-certs "$apk" 2>&1)"; then
+    echo "apksigner failed for $apk:" >&2
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+
+  # Build-tools versions differ in whether the SHA-256 digest is rendered as
+  # colon-separated octets or as one contiguous hexadecimal string. Match the
+  # digest value itself instead of depending on an English label or spacing.
+  digest="$(
+    printf '%s\n' "$output" |
+      grep -Ei 'certificate.*sha-256|sha-256.*certificate' |
+      grep -Eio '([[:xdigit:]]{2}:){31}[[:xdigit:]]{2}|[[:xdigit:]]{64}' |
+      head -n 1 |
+      tr -d ':' |
+      tr '[:upper:]' '[:lower:]' || true
+  )"
+  if [[ -z "$digest" ]]; then
+    echo "Could not parse signing certificate for $apk; apksigner output:" >&2
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+  printf '%s\n' "$digest"
+}
+
 if [[ "$GRADLEW" != */* ]]; then
   GRADLEW="$(command -v "$GRADLEW" || true)"
 fi
 [[ -x "$GRADLEW" ]] || { echo "Gradle executable not found: $GRADLEW" >&2; exit 1; }
 LIGHTLY_CERT=""
 if [[ -f "$LIGHTLY_APK" ]]; then
-  LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
-  [[ -n "$LIGHTLY_CERT" ]] || { echo "Could not read signing certificate for $LIGHTLY_APK" >&2; exit 1; }
+  LIGHTLY_CERT="$(read_certificate_digest "$LIGHTLY_APK")"
 elif [[ "$DEFER_LIGHTLY_CERT_VERIFY" != "1" ]]; then
   echo "Lightly release APK not found: $LIGHTLY_APK. Build Lightly first or set DEFER_LIGHTLY_CERT_VERIFY=1 for the CI pre-host phase." >&2
   exit 1
@@ -101,8 +130,7 @@ build_plugin() {
   done < <(grep '^lib/[^/]\+/' <<<"$entries" || true)
 
   local cert size digest
-  cert="$($APKSIGNER verify --print-certs "$apk" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
-  [[ -n "$cert" ]] || { echo "Could not read signing certificate for $apk" >&2; exit 1; }
+  cert="$(read_certificate_digest "$apk")"
   size="$(stat -c '%s' "$apk")"
   digest="$(sha256sum "$apk" | awk '{print $1}')"
   printf '%s %s %s\n' "$size" "$digest" "$cert" > "$PLUGIN_OUTPUT_DIR/.work/${feature}-${abi}.metadata"
