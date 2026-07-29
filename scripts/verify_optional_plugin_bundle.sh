@@ -16,14 +16,38 @@ APKSIGNER="${APKSIGNER:-$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-too
   exit 1
 }
 
-LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
-[[ -n "$LIGHTLY_CERT" ]] || { echo "Could not read Lightly certificate" >&2; exit 1; }
+read_certificate_digest() {
+  local apk="$1"
+  local output digest
+
+  if ! output="$($APKSIGNER verify --print-certs "$apk" 2>&1)"; then
+    echo "apksigner failed for $apk:" >&2
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+  digest="$(
+    printf '%s\n' "$output" |
+      grep -Ei 'certificate.*sha-256|sha-256.*certificate' |
+      grep -Eio '([[:xdigit:]]{2}:){31}[[:xdigit:]]{2}|[[:xdigit:]]{64}' |
+      head -n 1 |
+      tr -d ':' |
+      tr '[:upper:]' '[:lower:]' || true
+  )"
+  if [[ -z "$digest" ]]; then
+    echo "Could not parse signing certificate for $apk; apksigner output:" >&2
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+  printf '%s\n' "$digest"
+}
+
+LIGHTLY_CERT="$(read_certificate_digest "$LIGHTLY_APK")"
 
 for feature in telegram webrtc easytier; do
   for abi in arm64-v8a armeabi-v7a; do
     apk="$PLUGIN_OUTPUT_DIR/${feature}-${abi}-release.apk"
     [[ -f "$apk" ]] || { echo "Missing plugin APK: $apk" >&2; exit 1; }
-    cert="$($APKSIGNER verify --print-certs "$apk" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+    cert="$(read_certificate_digest "$apk")"
     [[ "$cert" == "$LIGHTLY_CERT" ]] || {
       echo "Plugin certificate mismatch: $feature/$abi" >&2
       exit 1
