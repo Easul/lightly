@@ -328,6 +328,18 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
   are present. Keep the companion single-ABI and same-signed with the matching Lightly release.
   `scripts/build_optional_plugins.sh` is the canonical six-artifact build and manifest path; it
   verifies ABI/runtime contents and compares companion certificates with the matching Lightly APK.
+- Release `plugins.json` is embedded at `assets/optional_plugins/plugins.json` before the final
+  Lightly build. Runtime installation must use this signed in-APK manifest instead of trusting a
+  remotely replaceable latest manifest. The embedded URL, size, and SHA-256 plus the Android
+  package/same-signature checks form one trust chain.
+- Automatic plugin delivery tries the original GitHub URL through the active Lightly proxy when
+  available, otherwise direct, then falls back to a direct HTTPS mirror on connection/idle timeout
+  or sustained low throughput. Do not add IP geolocation to select a mirror. User mirror settings
+  belong to `optional_plugin_download_settings_v1`; arbitrary mirrors must never bypass fixed
+  size/hash/package/signature validation.
+- The `v*` GitHub Action must publish companion assets before the Lightly Release. Build all
+  artifacts with one keystore, embed the generated manifest, build the final host once, then run
+  `scripts/verify_optional_plugin_bundle.sh` against that final host.
 
 ## Git Artifact Hygiene
 
@@ -1192,6 +1204,16 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - `scripts/build_youtube_aar.sh` is the local AAR build/injection path. Full Lightly release builds
   must require or generate the AAR and verify that `YouTubeResolverBridge` is present in the APK.
   Public/OSS builds must continue to compile without the AAR and return a clear unavailable error.
+- Release AARs must enable library-level R8. Preserve only the reflected API 1 bridge methods and
+  verify their exact public signatures with `javap`; no implementation class may remain under the
+  original `lightly.youtube.resolver` package. Publish AARs as GitHub Release assets rather than Git
+  blobs; Lightly Actions must fetch a fixed HTTPS asset URL with a pinned SHA-256 before any APK
+  build.
+- Use `yt-resolver.aar` as the canonical resolver Release asset name; the GitHub Release tag carries
+  its version. The binary repository may be private, but cross-repository access then requires a
+  fine-grained Contents: Read token in `YOUTUBE_RESOLVER_GITHUB_TOKEN` and authenticated
+  `gh release download`. The runtime companion repository must remain anonymously downloadable
+  unless Lightly gains a separate authenticated plugin-delivery design.
 - `BrowserSettings.nativeVideoParserApiBaseUrl` is a retired compatibility field. Keep its existing
   SharedPreferences/JSON/backup key and round-trip behavior, but do not expose it in settings or use
   it to gate playback. The native video player switch now gates YouTube resolution directly.

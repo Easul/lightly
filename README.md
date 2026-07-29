@@ -40,6 +40,12 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - Telegram 签到工具与消息文本选择
 - 计算器与 2048 小工具
 
+### 可选插件
+- Telegram、WebRTC 语音和 EasyTier 以同签名纯 Android companion APK 提供
+- Lightly 内置与当前宿主版本匹配的插件 URL、ABI、大小和 SHA-256，不在运行时信任远程 manifest
+- 插件下载支持 Lightly 代理、GitHub 直连、持续低速/超时后镜像回退，以及用户自定义 HTTPS 镜像前缀
+- GitHub Actions 使用同一 Release keystore 构建 Lightly 与六个 ABI 插件包，并在发布前交叉验证签名
+
 ## 界面与交互
 
 - 使用低饱和主题绿、浅灰背景和白色内容块，减少大面积纯黑与高饱和红色
@@ -81,6 +87,9 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - [远程控制架构](docs/remote-control-architecture.md)
 - [界面设计规范](docs/ui-design.md)
 - [发布构建说明](docs/release_build.md)
+- [GitHub Release 与插件交付](docs/github-release-delivery.md)
+- [可选插件发布说明](docs/optional-plugin-release.md)
+- [插件交付与 YouTube 二进制发布改造说明](docs/release-summary-plugin-delivery.md)
 - [浏览器回归清单](docs/browser_regression_checklist.md)
 - [远程控制回归清单](docs/remote_control_regression_checklist.md)
 - [浏览器 / 远控模块地图](docs/browser_remote_module_map.md)

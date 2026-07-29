@@ -175,6 +175,8 @@ docs: update xxx
 - 当前仓库要求 Dart SDK 与 Flutter 版本保持兼容；Flutter `3.41.6` 对应 Dart `3.11.4`
 - 发布工作流使用 Java `17`
 - 发布工作流复用 `scripts/build_multi_abi.sh`，本地与 CI 应保持同一套多 ABI 构建、混淆、split-debug-info 与版本号规则
+- 发布工作流还会构建六个 optional companion APK、嵌入固定 `plugins.json`、验证同签名，并从固定
+  URL/SHA-256 获取 R8 YouTube AAR；配置和信任链见 [GitHub Release 与插件交付](github-release-delivery.md)
 
 ## 相关文档
 

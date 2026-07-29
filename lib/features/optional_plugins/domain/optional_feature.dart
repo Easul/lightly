@@ -25,8 +25,7 @@ class OptionalFeatureDescriptor {
 class OptionalFeatureCatalog {
   const OptionalFeatureCatalog._();
 
-  static const String manifestUrl =
-      'https://github.com/Easul/lightly-plugins/releases/latest/download/plugins.json';
+  static const String manifestAsset = 'assets/optional_plugins/plugins.json';
 
   static const Map<OptionalFeatureId, OptionalFeatureDescriptor> descriptors =
       <OptionalFeatureId, OptionalFeatureDescriptor>{

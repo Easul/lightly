@@ -61,7 +61,7 @@ class OptionalFeatureGate {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('安装${descriptor.displayName}'),
-        content: const Text('该功能采用独立插件提供，需要通过已配置的代理从 GitHub 下载并安装。'),
+        content: const Text('该功能采用独立插件提供，将按设置的下载线路获取并安装。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -102,9 +102,7 @@ class OptionalFeatureGate {
               children: [
                 LinearProgressIndicator(value: value),
                 const SizedBox(height: 12),
-                Text(
-                  value == null ? '正在连接 GitHub…' : '${(value * 100).round()}%',
-                ),
+                Text(value == null ? '正在连接下载源…' : '${(value * 100).round()}%'),
               ],
             ),
           ),
@@ -140,31 +138,6 @@ class OptionalFeatureGate {
         return false;
       }
       unawaited(AppToast.show('请在系统安装界面完成插件安装'));
-      return false;
-    } on OptionalFeatureProxyRequiredException {
-      await closeProgress();
-      if (context.mounted) {
-        final openSettings = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('需要代理'),
-            content: const Text('请先在设置中配置并启用代理，再下载插件。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('打开设置'),
-              ),
-            ],
-          ),
-        );
-        if (openSettings == true && context.mounted) {
-          await Navigator.pushNamed(context, '/settings');
-        }
-      }
       return false;
     } catch (error) {
       await closeProgress();

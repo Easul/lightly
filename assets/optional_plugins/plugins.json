@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "plugins": {
+    "telegram": {
+      "packageName": "lightly.tool.plugin.telegram",
+      "apiVersion": 3,
+      "versionCode": 5622,
+      "versionName": "v1.0.8+6d540f",
+      "minimumLightlyVersionCode": 5622,
+      "artifacts": {"arm64-v8a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/telegram-arm64-v8a-release.apk", "sha256": "aa493b0e31772aa734f7e5f8f5bb0e211480973a435092c063ff75006707dae1", "size": 20164665}, "armeabi-v7a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/telegram-armeabi-v7a-release.apk", "sha256": "f7146bafb57a366bc8d8c144e8d418fdfef1ad0d1f867f051434e09a14049efd", "size": 14333617}}
+    },
+    "webrtc_voice": {
+      "packageName": "lightly.tool.plugin.webrtc",
+      "apiVersion": 3,
+      "versionCode": 5622,
+      "versionName": "v1.0.8+6d540f",
+      "minimumLightlyVersionCode": 5622,
+      "artifacts": {"arm64-v8a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/webrtc-arm64-v8a-release.apk", "sha256": "c24a4c1858280e1bce24ea397d2ffc7dd8b60dc7c3dee6f54aacf2c5d621b363", "size": 11726950}, "armeabi-v7a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/webrtc-armeabi-v7a-release.apk", "sha256": "cb316aa7c8277e786fc61d430a527980b110ba8672b2f7d1a73c16b1b9eed508", "size": 6885960}}
+    },
+    "easytier": {
+      "packageName": "lightly.tool.plugin.easytier",
+      "apiVersion": 2,
+      "versionCode": 5622,
+      "versionName": "v1.0.8+6d540f",
+      "minimumLightlyVersionCode": 5622,
+      "artifacts": {"arm64-v8a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/easytier-arm64-v8a-release.apk", "sha256": "54f432da81ef5885f9ee0d1de24588669ad7d82181a18ddc98fbc37f5b0c7387", "size": 23633716}, "armeabi-v7a": {"url": "https://github.com/Easul/lightly-plugins/releases/download/plugins-v1.0.8+6d540f/easytier-armeabi-v7a-release.apk", "sha256": "408cd45eba55570484126b70704f47d6a1e3481d306cc24fedfd4d4f1c316557", "size": 16285512}}
+    }
+  }
+}

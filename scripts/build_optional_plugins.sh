@@ -11,9 +11,17 @@ WEBRTC_PLUGIN_API_VERSION="${WEBRTC_PLUGIN_API_VERSION:-3}"
 EASYTIER_PLUGIN_API_VERSION="${EASYTIER_PLUGIN_API_VERSION:-${PLUGIN_API_VERSION:-2}}"
 MINIMUM_LIGHTLY_VERSION_CODE="${MINIMUM_LIGHTLY_VERSION_CODE:-$PLUGIN_VERSION_CODE}"
 RELEASE_TAG="${PLUGIN_RELEASE_TAG:-plugins-${PLUGIN_VERSION_NAME//[^[:alnum:].+-]/-}}"
+PLUGIN_RELEASE_REPOSITORY="${PLUGIN_RELEASE_REPOSITORY:-Easul/lightly-plugins}"
+DEFER_LIGHTLY_CERT_VERIFY="${DEFER_LIGHTLY_CERT_VERIFY:-0}"
 APKSIGNER="${APKSIGNER:-$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -1)}"
 GRADLEW="${PLUGIN_GRADLEW:-$PROJECT_ROOT/extensions/telegram/android/gradlew}"
 LIGHTLY_APK="${LIGHTLY_APK:-$PROJECT_ROOT/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk}"
+PLUGIN_GRADLE_OFFLINE="${PLUGIN_GRADLE_OFFLINE:-1}"
+
+GRADLE_NETWORK_ARGS=()
+if [[ "$PLUGIN_GRADLE_OFFLINE" == "1" ]]; then
+  GRADLE_NETWORK_ARGS+=(--offline)
+fi
 
 declare -A PLUGIN_DIRS=(
   [telegram]="$PROJECT_ROOT/extensions/telegram/android"
@@ -41,12 +49,14 @@ require_command unzip
   exit 1
 }
 [[ -x "$GRADLEW" ]] || { echo "Gradle wrapper not found: $GRADLEW" >&2; exit 1; }
-[[ -f "$LIGHTLY_APK" ]] || {
-  echo "Lightly release APK not found: $LIGHTLY_APK. Build Lightly first or set LIGHTLY_APK." >&2
+LIGHTLY_CERT=""
+if [[ -f "$LIGHTLY_APK" ]]; then
+  LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+  [[ -n "$LIGHTLY_CERT" ]] || { echo "Could not read signing certificate for $LIGHTLY_APK" >&2; exit 1; }
+elif [[ "$DEFER_LIGHTLY_CERT_VERIFY" != "1" ]]; then
+  echo "Lightly release APK not found: $LIGHTLY_APK. Build Lightly first or set DEFER_LIGHTLY_CERT_VERIFY=1 for the CI pre-host phase." >&2
   exit 1
-}
-LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
-[[ -n "$LIGHTLY_CERT" ]] || { echo "Could not read signing certificate for $LIGHTLY_APK" >&2; exit 1; }
+fi
 
 rm -rf "$PLUGIN_OUTPUT_DIR"
 mkdir -p "$PLUGIN_OUTPUT_DIR/.work"
@@ -61,7 +71,7 @@ build_plugin() {
   TARGET_ABI="$abi" \
     PLUGIN_VERSION_CODE="$PLUGIN_VERSION_CODE" \
     PLUGIN_VERSION_NAME="$PLUGIN_VERSION_NAME" \
-    "$GRADLEW" -p "$gradle_dir" --offline :app:assembleRelease >/dev/null
+    "$GRADLEW" -p "$gradle_dir" "${GRADLE_NETWORK_ARGS[@]}" :app:assembleRelease >/dev/null
   cp "$apk_source" "$apk"
 
   local entries
@@ -105,7 +115,7 @@ for feature in telegram webrtc easytier; do
       echo "Plugin certificates do not match: $feature/$abi" >&2
       exit 1
     }
-    [[ "$cert" == "$LIGHTLY_CERT" ]] || {
+    [[ -z "$LIGHTLY_CERT" || "$cert" == "$LIGHTLY_CERT" ]] || {
       echo "Plugin certificate does not match Lightly: $feature/$abi" >&2
       exit 1
     }
@@ -119,8 +129,8 @@ artifact_json() {
   local size digest
   size="$(awk '{print $1}' "$metadata")"
   digest="$(awk '{print $2}' "$metadata")"
-  printf '"%s": {"url": "https://github.com/Easul/lightly-plugins/releases/download/%s/%s-%s-release.apk", "sha256": "%s", "size": %s}' \
-    "$abi" "$RELEASE_TAG" "$feature" "$abi" "$digest" "$size"
+  printf '"%s": {"url": "https://github.com/%s/releases/download/%s/%s-%s-release.apk", "sha256": "%s", "size": %s}' \
+    "$abi" "$PLUGIN_RELEASE_REPOSITORY" "$RELEASE_TAG" "$feature" "$abi" "$digest" "$size"
 }
 
 cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
@@ -156,5 +166,9 @@ cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
 EOF
 
 rm -rf "$PLUGIN_OUTPUT_DIR/.work"
-echo "Verified plugin certificate matches $(basename "$LIGHTLY_APK"): $LIGHTLY_CERT"
+if [[ -n "$LIGHTLY_CERT" ]]; then
+  echo "Verified plugin certificate matches $(basename "$LIGHTLY_APK"): $LIGHTLY_CERT"
+else
+  echo "Deferred Lightly certificate comparison; run scripts/verify_optional_plugin_bundle.sh after the final host build"
+fi
 echo "Wrote $PLUGIN_OUTPUT_DIR/plugins.json"

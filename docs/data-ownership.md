@@ -39,6 +39,7 @@ Flutter `shared_preferences` 在 Android 上落到应用私有 preferences。下
 | `browser_settings` | `BrowserSettingsService`；历史 key v0，JSON 字段默认值兼容 | 高（含代理凭据） | 是 | 导入可覆盖；无独立“清除全部设置”，重置必须走 settings owner |
 | `browser_tab_sessions_v1` | `BrowserTabService`；key 版本 `v1` | 中 | 否 | 会话恢复 owner 自行覆盖；清浏览历史不得删除 tab session |
 | `browser_cookie_origins_v1` | `BrowserCookieOriginService`；key 版本 `v1` | 中 | 不直接备份；用于枚举 Cookie 导出 origin | 清 Cookie/站点数据时清除；只清历史时保留 |
+| `optional_plugin_download_settings_v1` | `OptionalPluginDownloadSettingsStore`；JSON key version `v1` | 低（线路模式、公开镜像前缀） | 否 | 插件下载设置页覆盖；损坏值回退自动模式与默认镜像，不影响插件运行态 |
 | `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`；历史 key v0，节点 JSON 容错读取 | 高（订阅节点可能含凭据） | 否 | 由订阅设置删除/覆盖；不得随历史清理删除 |
 | `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`；历史标量 key v0 | 高（内容）、低（开关/端口） | 内容与启用时端口会备份；enabled 不独立导出 | “剪贴板”清除只清 app 保存内容；不得清 Android 系统剪贴板；服务设置由 owner 更新 |
 | `calculation_history` | `HistoryService`；历史 key v0，JSON list 容错读取 | 中 | 是 | “计算器历史”全量清除 |

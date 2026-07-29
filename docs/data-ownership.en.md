@@ -43,6 +43,7 @@ through their owner's parser.
 | `browser_settings` | `BrowserSettingsService`; historical key v0 with JSON field defaults | high (proxy credentials) | Yes | Import may replace it; resets must go through the settings owner |
 | `browser_tab_sessions_v1` | `BrowserTabService`; key version `v1` | medium | No | Owned by session restore; history clearing must preserve it |
 | `browser_cookie_origins_v1` | `BrowserCookieOriginService`; key version `v1` | medium | Not directly; drives Cookie origin enumeration | Cleared with cookies/site data, preserved when only history is cleared |
+| `optional_plugin_download_settings_v1` | `OptionalPluginDownloadSettingsStore`; JSON key version `v1` | low (route mode and public mirror prefix) | No | Replaced by Plugin Download settings; corrupt values fall back to automatic/default mirror without changing plugin runtime state |
 | `browser_subscription_nodes`, `browser_subscription_selected_node` | `BrowserSubscriptionService`; historical key v0 with tolerant node JSON parsing | high | No | Removed/replaced by subscription settings only |
 | `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`; historical scalar keys v0 | high for content, low for settings | Content and enabled port are backed up | Clipboard clear removes app content only and never changes the Android system clipboard |
 | `calculation_history` | `HistoryService`; historical key v0 with tolerant JSON-list parsing | medium | Yes | Cleared by Calculator History |
