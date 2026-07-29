@@ -32,6 +32,9 @@ class ProxyServiceLocalEndpointAdapter implements LocalProxyEndpointProvider {
       _proxyService.isRunning ? _proxyService.localProxyPort : null;
 
   @override
+  Stream<void> get changes => _proxyService.runningStream.map<void>((_) {});
+
+  @override
   Future<int?> resolveAvailableLocalSocks5Port() async {
     final runningPort = localSocks5Port;
     if (_isValidPort(runningPort)) return runningPort;

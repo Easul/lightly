@@ -17,6 +17,9 @@ class _FakeProxyEndpointProvider implements LocalProxyEndpointProvider {
   int? get localSocks5Port => _port;
 
   @override
+  Stream<void> get changes => const Stream<void>.empty();
+
+  @override
   Future<int?> resolveAvailableLocalSocks5Port() async => _port;
 }
 

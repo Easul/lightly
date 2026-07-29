@@ -33,15 +33,40 @@ class TelegramTdlibService {
   final TelegramTdJsonCodec _codec = const TelegramTdJsonCodec();
   StreamSubscription<String>? _resultSubscription;
   StreamSubscription<void>? _disconnectSubscription;
+  StreamSubscription<void>? _proxyEndpointSubscription;
   Future<void> _authorizationQueue = Future<void>.value();
+  Future<void> _proxyConfigurationQueue = Future<void>.value();
   int _clientId = 0;
   int _requestId = 0;
   int? _configuredProxyPort;
   int? _tdlibParametersSubmittedClientId;
   TelegramCheckinConfig? _config;
 
-  LocalProxyEndpointProvider proxyEndpointProvider =
+  LocalProxyEndpointProvider _proxyEndpointProvider =
       const _NullProxyEndpointProvider();
+
+  LocalProxyEndpointProvider get proxyEndpointProvider =>
+      _proxyEndpointProvider;
+
+  set proxyEndpointProvider(LocalProxyEndpointProvider provider) {
+    if (identical(provider, _proxyEndpointProvider)) return;
+    final previousSubscription = _proxyEndpointSubscription;
+    if (previousSubscription != null) {
+      unawaited(previousSubscription.cancel());
+    }
+    _proxyEndpointProvider = provider;
+    _proxyEndpointSubscription = provider.changes.listen((_) {
+      if (_clientId == 0) return;
+      unawaited(
+        configureProxyIfAvailable().then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stackTrace) {
+            debugPrint('Telegram proxy refresh failed: $error');
+          },
+        ),
+      );
+    });
+  }
 
   Future<void> start(TelegramCheckinConfig config) async {
     _config = config;
@@ -231,9 +256,20 @@ class TelegramTdlibService {
     return response;
   }
 
-  Future<void> configureProxyIfAvailable() async {
+  Future<void> configureProxyIfAvailable() {
+    final operation = _proxyConfigurationQueue.then(
+      (_) => _configureProxyIfAvailable(),
+    );
+    _proxyConfigurationQueue = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  Future<void> _configureProxyIfAvailable() async {
     if (_clientId == 0) return;
-    final port = await proxyEndpointProvider.resolveAvailableLocalSocks5Port();
+    final port = await _proxyEndpointProvider.resolveAvailableLocalSocks5Port();
     if (port == null) {
       if (_configuredProxyPort != null) {
         await _expectOk('disableProxy');
@@ -437,6 +473,9 @@ class _NullProxyEndpointProvider implements LocalProxyEndpointProvider {
 
   @override
   int? get localSocks5Port => null;
+
+  @override
+  Stream<void> get changes => const Stream<void>.empty();
 
   @override
   Future<int?> resolveAvailableLocalSocks5Port() async => null;

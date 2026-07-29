@@ -14,6 +14,7 @@ void main() {
   test('initializes TDLib through the native plugin JSON contract', () async {
     const channel = MethodChannel(PlatformChannelNames.telegramPlugin);
     final requests = <Map<String, dynamic>>[];
+    final proxyReconfigured = Completer<void>();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           switch (call.method) {
@@ -28,6 +29,11 @@ void main() {
                   jsonDecode(arguments['requestJson']! as String)
                       as Map<String, dynamic>;
               requests.add(request);
+              if (request['@type'] == 'addProxy' &&
+                  request['port'] == 24444 &&
+                  !proxyReconfigured.isCompleted) {
+                proxyReconfigured.complete();
+              }
               final responseType = switch (request['@type']) {
                 'getAuthorizationState' =>
                   'authorizationStateWaitTdlibParameters',
@@ -64,7 +70,9 @@ void main() {
     final service = TelegramTdlibService.instance;
     final originalProxy = service.proxyEndpointProvider;
     addTearDown(() => service.proxyEndpointProvider = originalProxy);
-    service.proxyEndpointProvider = const _ProxyEndpoint(23333);
+    final proxyEndpoint = _ProxyEndpoint(23333);
+    addTearDown(proxyEndpoint.dispose);
+    service.proxyEndpointProvider = proxyEndpoint;
 
     await service.start(
       const TelegramCheckinConfig(
@@ -100,17 +108,39 @@ void main() {
     });
     await Future<void>.delayed(Duration.zero);
     expect(service.authStep.value, TelegramAuthStep.phone);
+
+    proxyEndpoint.updatePort(24444);
+    await proxyReconfigured.future;
+    await service.configureProxyIfAvailable();
+    final latestProxyRequest = requests.lastWhere(
+      (request) => request['@type'] == 'addProxy',
+    );
+    expect(latestProxyRequest['port'], 24444);
+    expect(service.proxyStatus.value, '已使用本地代理 127.0.0.1:24444');
   });
 }
 
 class _ProxyEndpoint implements LocalProxyEndpointProvider {
-  const _ProxyEndpoint(this.localSocks5Port);
+  _ProxyEndpoint(this._localSocks5Port);
+
+  final StreamController<void> _changes = StreamController<void>.broadcast();
+  int? _localSocks5Port;
 
   @override
-  final int? localSocks5Port;
+  int? get localSocks5Port => _localSocks5Port;
+
+  @override
+  Stream<void> get changes => _changes.stream;
 
   @override
   Future<int?> resolveAvailableLocalSocks5Port() async => localSocks5Port;
+
+  void updatePort(int? port) {
+    _localSocks5Port = port;
+    _changes.add(null);
+  }
+
+  Future<void> dispose() => _changes.close();
 }
 
 Future<void> _sendPluginResult(

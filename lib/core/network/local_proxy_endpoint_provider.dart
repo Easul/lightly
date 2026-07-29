@@ -12,5 +12,8 @@
 abstract class LocalProxyEndpointProvider {
   int? get localSocks5Port;
 
+  /// Emits when the endpoint may have started, stopped, or moved.
+  Stream<void> get changes => const Stream<void>.empty();
+
   Future<int?> resolveAvailableLocalSocks5Port() async => localSocks5Port;
 }
