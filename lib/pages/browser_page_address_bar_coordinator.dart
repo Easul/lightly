@@ -4,7 +4,6 @@ class BrowserAddressBarPlan {
   const BrowserAddressBarPlan._({
     required this.target,
     required this.wasFavoritesPage,
-    required this.shouldOpenNativeVideo,
     required this.shouldLoadInCurrentWebView,
     required this.shouldRebuildAfterAddressLoad,
     required this.shouldResetKeepAliveAfterAddressLoad,
@@ -14,7 +13,6 @@ class BrowserAddressBarPlan {
     : this._(
         target: null,
         wasFavoritesPage: false,
-        shouldOpenNativeVideo: false,
         shouldLoadInCurrentWebView: false,
         shouldRebuildAfterAddressLoad: false,
         shouldResetKeepAliveAfterAddressLoad: false,
@@ -22,7 +20,6 @@ class BrowserAddressBarPlan {
 
   final String? target;
   final bool wasFavoritesPage;
-  final bool shouldOpenNativeVideo;
   final bool shouldLoadInCurrentWebView;
   final bool shouldRebuildAfterAddressLoad;
   final bool shouldResetKeepAliveAfterAddressLoad;
@@ -42,7 +39,6 @@ class BrowserPageAddressBarCoordinator {
     required bool isProxyActive,
     required bool isFavoritesPage,
     required bool hasWebViewController,
-    required bool shouldOpenNativeVideo,
   }) {
     final trimmed = rawValue.trim();
     if (trimmed.isEmpty) {
@@ -53,21 +49,9 @@ class BrowserPageAddressBarCoordinator {
       trimmed,
       isProxyActive: isProxyActive,
     );
-    if (shouldOpenNativeVideo) {
-      return BrowserAddressBarPlan._(
-        target: target,
-        wasFavoritesPage: isFavoritesPage,
-        shouldOpenNativeVideo: true,
-        shouldLoadInCurrentWebView: false,
-        shouldRebuildAfterAddressLoad: false,
-        shouldResetKeepAliveAfterAddressLoad: false,
-      );
-    }
-
     return BrowserAddressBarPlan._(
       target: target,
       wasFavoritesPage: isFavoritesPage,
-      shouldOpenNativeVideo: false,
       shouldLoadInCurrentWebView: !isFavoritesPage && hasWebViewController,
       shouldRebuildAfterAddressLoad: isFavoritesPage,
       shouldResetKeepAliveAfterAddressLoad:

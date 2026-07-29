@@ -11,7 +11,6 @@ void main() {
         isProxyActive: false,
         isFavoritesPage: false,
         hasWebViewController: true,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.isEmpty, isTrue);
@@ -24,7 +23,6 @@ void main() {
         isProxyActive: false,
         isFavoritesPage: false,
         hasWebViewController: true,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.target, 'https://example.com');
@@ -39,7 +37,6 @@ void main() {
         isProxyActive: false,
         isFavoritesPage: false,
         hasWebViewController: true,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.target, 'https://www.baidu.com/s?wd=hello%20world');
@@ -51,7 +48,6 @@ void main() {
         isProxyActive: true,
         isFavoritesPage: false,
         hasWebViewController: true,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.target, 'https://www.google.com/search?q=hello%20world');
@@ -63,7 +59,6 @@ void main() {
         isProxyActive: false,
         isFavoritesPage: true,
         hasWebViewController: false,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.wasFavoritesPage, isTrue);
@@ -78,7 +73,6 @@ void main() {
         isProxyActive: false,
         isFavoritesPage: false,
         hasWebViewController: false,
-        shouldOpenNativeVideo: false,
       );
 
       expect(plan.shouldLoadInCurrentWebView, isFalse);
@@ -86,17 +80,16 @@ void main() {
       expect(plan.shouldResetKeepAliveAfterAddressLoad, isTrue);
     });
 
-    test('native video plan bypasses webview actions', () {
+    test('YouTube urls load in the current webview before resolution', () {
       final plan = coordinator.buildLoadPlan(
         rawValue: 'https://youtube.com/watch?v=abc',
         isProxyActive: false,
         isFavoritesPage: false,
         hasWebViewController: true,
-        shouldOpenNativeVideo: true,
       );
 
-      expect(plan.shouldOpenNativeVideo, isTrue);
-      expect(plan.shouldLoadInCurrentWebView, isFalse);
+      expect(plan.target, 'https://youtube.com/watch?v=abc');
+      expect(plan.shouldLoadInCurrentWebView, isTrue);
       expect(plan.shouldRebuildAfterAddressLoad, isFalse);
       expect(plan.shouldResetKeepAliveAfterAddressLoad, isFalse);
     });

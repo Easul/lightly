@@ -1084,23 +1084,14 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadAddress(String rawValue) async {
-    final resolvedInput = _resolveInput(rawValue.trim());
     final plan = _addressBarCoordinator.buildLoadPlan(
       rawValue: rawValue,
       isProxyActive: _isProxyActive,
       isFavoritesPage: _isFavoritesPage(_currentUrl),
       hasWebViewController: _webViewController != null,
-      shouldOpenNativeVideo:
-          resolvedInput.isNotEmpty &&
-          _shouldOpenNativeVideoFromUrl(resolvedInput),
     );
     final target = plan.target;
     if (target == null) {
-      return;
-    }
-
-    if (plan.shouldOpenNativeVideo) {
-      await _handleExplicitYoutubeInput(target);
       return;
     }
 
@@ -1158,18 +1149,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
     );
   }
 
-  bool _shouldOpenNativeVideoFromUrl(String url) {
-    return _statePredicates.shouldOpenNativeVideoFromUrl(
-      videoPlayerCoordinator: _videoPlayerCoordinator,
-      url: url,
-      settings: _settings,
-    );
-  }
-
   Future<void> _handleExplicitYoutubeInput(String url) async {
     _addressFocusNode.unfocus();
-    if (mounted &&
-        _statusCoordinator.shouldShowYoutubeResolving(_statusMessage)) {
+    await _pausePageMediaElements();
+    if (!mounted) {
+      return;
+    }
+    if (_statusCoordinator.shouldShowYoutubeResolving(_statusMessage)) {
       setState(() {
         _statusMessage = _statusCoordinator.youtubeResolving();
       });
@@ -1187,6 +1173,29 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
       });
     }
   }
+
+  Future<void> _pausePageMediaElements() async {
+    final controller = _webViewController;
+    if (controller == null) {
+      return;
+    }
+    try {
+      await controller.evaluateJavascript(source: _pausePageMediaScript);
+    } catch (_) {
+      // Navigation can replace the document while the pause script is queued.
+    }
+  }
+
+  static const String _pausePageMediaScript = '''
+(function(){
+  try {
+    var media = document.querySelectorAll('video, audio');
+    for (var i = 0; i < media.length; i++) {
+      try { media[i].pause(); } catch (e) {}
+    }
+  } catch (e) {}
+})();
+''';
 
   bool _shouldUseProxy([BrowserSettings? settings, bool? proxySupported]) {
     final effectiveSettings = settings ?? _settings;

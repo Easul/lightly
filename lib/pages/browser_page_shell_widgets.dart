@@ -242,17 +242,15 @@ class BrowserYoutubePlayBubble extends StatelessWidget {
                 color: Colors.transparent,
                 elevation: visible ? 10 : 0,
                 shadowColor: colorScheme.primary.withValues(alpha: 0.34),
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   onTap: onPressed,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(16),
                   child: Ink(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
-                    ),
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -262,33 +260,10 @@ class BrowserYoutubePlayBubble extends StatelessWidget {
                         color: colorScheme.onPrimary.withValues(alpha: 0.22),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: colorScheme.onPrimary.withValues(
-                              alpha: 0.18,
-                            ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: colorScheme.onPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '解析播放',
-                          style: TextStyle(
-                            color: colorScheme.onPrimary,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      size: 30,
+                      color: colorScheme.onPrimary,
                     ),
                   ),
                 ),

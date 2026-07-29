@@ -1,7 +1,6 @@
 import '../browser/browser_settings.dart';
 import '../browser/models/browser_tab_session.dart';
 import '../browser/services/browser_favorites_coordinator.dart';
-import '../browser/services/browser_video_player_coordinator.dart';
 import '../browser/utils/browser_url_utils.dart';
 
 class BrowserPageStatePredicates {
@@ -32,14 +31,6 @@ class BrowserPageStatePredicates {
 
   bool shouldRebuildAfterAddressLoad({required bool wasFavoritesPage}) {
     return wasFavoritesPage;
-  }
-
-  bool shouldOpenNativeVideoFromUrl({
-    required BrowserVideoPlayerCoordinator videoPlayerCoordinator,
-    required String url,
-    required BrowserSettings settings,
-  }) {
-    return videoPlayerCoordinator.shouldOpenNativeVideoFromUrl(url, settings);
   }
 
   bool canShowYoutubeScrollPlayButton({

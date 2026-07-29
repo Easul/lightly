@@ -3,6 +3,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/pages/browser_page_shell_widgets.dart';
 
 void main() {
+  testWidgets('YouTube resolve control is an icon-only rounded square', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              BrowserYoutubePlayBubble(visible: true, onPressed: () {}),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('解析播放'), findsNothing);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    final ink = tester.widget<Ink>(find.byType(Ink));
+    expect(ink.width, 52);
+    expect(ink.height, 52);
+    final decoration = ink.decoration! as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(16));
+  });
+
   testWidgets('freezing WebView keeps child mounted and attached', (
     tester,
   ) async {
