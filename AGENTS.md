@@ -1201,6 +1201,11 @@ The address bar lock icon opens a dialog for clearing current-site data:
   original `lightly.youtube.resolver` package. Publish AARs as GitHub Release assets rather than Git
   blobs; Lightly Actions must fetch a fixed HTTPS asset URL with a pinned SHA-256 before any APK
   build.
+- Use `yt-resolver.aar` as the canonical resolver Release asset name; the GitHub Release tag carries
+  its version. The binary repository may be private, but cross-repository access then requires a
+  fine-grained Contents: Read token in `YOUTUBE_RESOLVER_GITHUB_TOKEN` and authenticated
+  `gh release download`. The runtime companion repository must remain anonymously downloadable
+  unless Lightly gains a separate authenticated plugin-delivery design.
 - `BrowserSettings.nativeVideoParserApiBaseUrl` is a retired compatibility field. Keep its existing
   SharedPreferences/JSON/backup key and round-trip behavior, but do not expose it in settings or use
   it to gate playback. The native video player switch now gates YouTube resolution directly.

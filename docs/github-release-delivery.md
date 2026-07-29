@@ -65,7 +65,7 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 | 名称 | 示例 | 用途 |
 |---|---|---|
 | `PLUGIN_RELEASE_REPOSITORY` | `Easul/lightly-plugins` | companion Release 目标仓库 |
-| `YOUTUBE_RESOLVER_AAR_URL` | `https://github.com/<owner>/<repo>/releases/download/v1.0.0/lightly-youtube-resolver-v1.0.0.aar` | 固定 YouTube AAR 下载地址 |
+| `YOUTUBE_RESOLVER_AAR_URL` | `https://github.com/Easul/yt-resolver/releases/download/v0.0.1/yt-resolver.aar` | 固定 YouTube AAR 下载地址 |
 | `YOUTUBE_RESOLVER_AAR_SHA256` | `SHA256SUMS` 中的值 | 构建前校验 AAR |
 
 ### Repository secrets
@@ -76,7 +76,7 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 | `KEYSTORE_PASSWORD` | keystore 密码 |
 | `KEY_PASSWORD` | `upload` alias 密码 |
 | `PLUGIN_RELEASE_TOKEN` | 对 `lightly-plugins` 具有 Contents: Read and write 的 fine-grained token |
-| `YOUTUBE_RESOLVER_GITHUB_TOKEN` | 仅私有 AAR 仓库需要；公开仓库留空 |
+| `YOUTUBE_RESOLVER_GITHUB_TOKEN` | 仅私有 AAR 仓库需要；使用对 `yt-resolver` 有 Contents: Read 权限的 fine-grained token，公开仓库留空 |
 
 不要在 fork/PR 工作流中暴露这些 secrets，也不要使用 `pull_request_target` 执行来自 PR 的构建脚本。
 
@@ -85,29 +85,38 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 私有源码存在于 ignored 的 `extensions/youtube/` 时执行：
 
 ```bash
-YOUTUBE_RESOLVER_VERSION=v1.0.0 scripts/package_youtube_aar_release.sh
+scripts/package_youtube_aar_release.sh
 ```
 
 脚本会在 Debug 字节码上运行单元测试，构建启用 R8 的 Release AAR，使用 `javap` 验证
 `YouTubeResolverBridge.apiVersion()` 与 `resolve(...)` 反射签名，并拒绝桥接类之外仍留在
 `lightly.youtube.resolver` 包下的实现类，然后生成：
 
-- `build/youtube-release/lightly-youtube-resolver-v1.0.0.aar`
+- `build/youtube-release/yt-resolver.aar`
 - `build/youtube-release/SHA256SUMS`
 
 创建公开仓库后，可以在网页 Release 页面上传这两个文件，也可以使用：
 
 ```bash
-gh release create v1.0.0 \
-  build/youtube-release/lightly-youtube-resolver-v1.0.0.aar \
+gh release create v0.0.1 \
+  build/youtube-release/yt-resolver.aar \
   build/youtube-release/SHA256SUMS \
   --repo <owner>/<youtube-binary-repo> \
-  --title "YouTube resolver v1.0.0" \
+  --title "YouTube resolver v0.0.1" \
   --notes "R8-obfuscated binary dependency for Lightly."
 ```
 
 上传后把 Release asset URL 和 `SHA256SUMS` 的值写入上面的 Actions variables。升级 AAR 时必须使用
-新 tag、新文件名和新哈希，禁止覆盖旧 asset 后继续使用原 SHA。
+新 tag 和新哈希；每个 tag 可以继续使用同一个 `yt-resolver.aar` asset 名，但禁止覆盖旧 tag 的
+asset 后继续使用原 SHA。
+
+`yt-resolver` 可以设为私有仓库。此时 Lightly 仓库自身的 `GITHUB_TOKEN` 无权读取另一个私有仓库，
+必须配置 `YOUTUBE_RESOLVER_GITHUB_TOKEN`。下载脚本识别 GitHub Release URL 后会使用
+`gh release download` 获取私有 asset，再执行相同的 SHA-256 和桥接合同校验。这个 token 只供
+tag/手动 Release 工作流使用，不得写入 Variables、源码或 fork/PR 构建。
+
+`lightly-plugins` 与 `yt-resolver` 的可见性要求不同：前者由用户设备匿名下载，默认应保持公开；
+后者只在受控 CI 构建时下载，因此可以私有。
 
 ## `v*` Action 执行顺序
 

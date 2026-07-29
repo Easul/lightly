@@ -15,24 +15,49 @@ TOKEN="${YOUTUBE_RESOLVER_GITHUB_TOKEN:-}"
 
 mkdir -p "$(dirname "$OUTPUT_AAR")"
 TEMP_AAR="$OUTPUT_AAR.download"
-trap 'rm -f "$TEMP_AAR"' EXIT
+PRIVATE_DOWNLOAD_DIR=""
+cleanup() {
+  rm -f "$TEMP_AAR"
+  if [[ -n "$PRIVATE_DOWNLOAD_DIR" ]]; then
+    rm -rf "$PRIVATE_DOWNLOAD_DIR"
+  fi
+}
+trap cleanup EXIT
+rm -f "$TEMP_AAR"
 
-CURL_ARGS=(
-  --fail
-  --location
-  --proto '=https'
-  --proto-redir '=https'
-  --connect-timeout 20
-  --max-time 300
-  --retry 3
-  --retry-all-errors
-  --retry-delay 2
-  --output "$TEMP_AAR"
-)
-if [[ -n "$TOKEN" ]]; then
-  CURL_ARGS+=(--header "Authorization: Bearer $TOKEN")
+if [[ -n "$TOKEN" && "$URL" =~ ^https://github\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^/?#]+)$ ]]; then
+  command -v gh >/dev/null 2>&1 || {
+    echo "gh is required to download a private GitHub Release asset" >&2
+    exit 1
+  }
+  OWNER="${BASH_REMATCH[1]}"
+  REPOSITORY="${BASH_REMATCH[2]}"
+  RELEASE_TAG="${BASH_REMATCH[3]}"
+  ASSET_NAME="${BASH_REMATCH[4]}"
+  PRIVATE_DOWNLOAD_DIR="$(mktemp -d)"
+  GH_TOKEN="$TOKEN" gh release download "$RELEASE_TAG" \
+    --repo "$OWNER/$REPOSITORY" \
+    --pattern "$ASSET_NAME" \
+    --dir "$PRIVATE_DOWNLOAD_DIR"
+  mv "$PRIVATE_DOWNLOAD_DIR/$ASSET_NAME" "$TEMP_AAR"
+else
+  CURL_ARGS=(
+    --fail
+    --location
+    --proto '=https'
+    --proto-redir '=https'
+    --connect-timeout 20
+    --max-time 300
+    --retry 3
+    --retry-all-errors
+    --retry-delay 2
+    --output "$TEMP_AAR"
+  )
+  if [[ -n "$TOKEN" ]]; then
+    CURL_ARGS+=(--header "Authorization: Bearer $TOKEN")
+  fi
+  curl "${CURL_ARGS[@]}" "$URL"
 fi
-curl "${CURL_ARGS[@]}" "$URL"
 
 ACTUAL_SHA256="$(sha256sum "$TEMP_AAR" | awk '{print $1}')"
 if [[ "${ACTUAL_SHA256,,}" != "${EXPECTED_SHA256,,}" ]]; then

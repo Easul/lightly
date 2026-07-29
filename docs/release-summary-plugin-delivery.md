@@ -84,8 +84,9 @@ Lightly Release。这样用户不会下载到引用不存在插件 assets 的宿
 `YouTubeResolverBridge.resolve(...)` 的稳定反射合同。构建后脚本解包 `classes.jar` 并通过
 `javap` 检查两个公开方法：桥接合同缺失，或桥接类之外仍有实现类留在原包名下，都会失败。
 
-`package_youtube_aar_release.sh` 生成版本化 AAR 与 `SHA256SUMS`。公开 Actions 不需要 resolver 源码，
-只从版本化 Release URL 下载，并在 Gradle 运行前验证固定 SHA-256。
+`package_youtube_aar_release.sh` 默认生成 `yt-resolver.aar` 与 `SHA256SUMS`，版本由 GitHub Release
+tag 管理。公开 Actions 不需要 resolver 源码，只从固定 Release URL 下载，并在 Gradle 运行前验证
+固定 SHA-256；二进制仓库为私有时通过只读 token 和 `gh release download` 获取 asset。
 
 ## 测试覆盖
 

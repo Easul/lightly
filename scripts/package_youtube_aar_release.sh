@@ -2,9 +2,8 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${YOUTUBE_RESOLVER_VERSION:-v1.0.0}"
 OUTPUT_DIR="${YOUTUBE_RELEASE_OUTPUT_DIR:-$PROJECT_ROOT/build/youtube-release}"
-ASSET_NAME="lightly-youtube-resolver-${VERSION}.aar"
+ASSET_NAME="${YOUTUBE_RESOLVER_ASSET_NAME:-yt-resolver.aar}"
 ASSET_PATH="$OUTPUT_DIR/$ASSET_NAME"
 
 mkdir -p "$OUTPUT_DIR"
