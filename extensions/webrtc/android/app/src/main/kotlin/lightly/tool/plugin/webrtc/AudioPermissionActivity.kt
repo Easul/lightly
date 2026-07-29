@@ -9,20 +9,21 @@ import android.os.Bundle
 
 class AudioPermissionActivity : Activity() {
     private var completed = false
+    private var permissionRequestActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+        val missingPermissions = requiredPermissions().filterNot(::isPermissionGranted)
+        if (missingPermissions.isEmpty()) {
             return
         }
-        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+        permissionRequestActive = true
+        requestPermissions(missingPermissions.toTypedArray(), REQUEST_AUDIO_PERMISSIONS)
     }
 
     override fun onResume() {
         super.onResume()
-        if (!completed &&
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!completed && !permissionRequestActive && isPermissionGranted(Manifest.permission.RECORD_AUDIO)) {
             finishWithResult(true)
         }
     }
@@ -33,10 +34,21 @@ class AudioPermissionActivity : Activity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_RECORD_AUDIO) {
-            finishWithResult(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+        if (requestCode == REQUEST_AUDIO_PERMISSIONS) {
+            permissionRequestActive = false
+            finishWithResult(isPermissionGranted(Manifest.permission.RECORD_AUDIO))
         }
     }
+
+    private fun requiredPermissions(): List<String> = buildList {
+        add(Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+    }
+
+    private fun isPermissionGranted(permission: String): Boolean =
+        checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
     private fun finishWithResult(granted: Boolean) {
         if (completed) return
@@ -59,6 +71,6 @@ class AudioPermissionActivity : Activity() {
     }
 
     companion object {
-        private const val REQUEST_RECORD_AUDIO = 1
+        private const val REQUEST_AUDIO_PERMISSIONS = 1
     }
 }

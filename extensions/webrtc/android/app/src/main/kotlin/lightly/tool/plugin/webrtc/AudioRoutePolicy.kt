@@ -26,4 +26,7 @@ internal object AudioRoutePolicy {
         in bluetoothCommunicationDeviceTypes -> "bluetooth"
         else -> "unknown"
     }
+
+    fun isBluetoothCommunicationDeviceType(deviceType: Int): Boolean =
+        deviceType in bluetoothCommunicationDeviceTypes
 }

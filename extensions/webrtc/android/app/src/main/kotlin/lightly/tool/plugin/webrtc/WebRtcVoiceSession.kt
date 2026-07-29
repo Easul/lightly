@@ -46,6 +46,9 @@ internal class WebRtcVoiceSession(
     private var bluetoothScoStartedBySession = false
     private var audioRoutingActive = false
     private var audioDeviceCallback: AudioDeviceCallback? = null
+    private val audioRouteRefresh = Runnable {
+        if (audioRoutingActive) refreshAudioRoute()
+    }
 
     val prepared: Boolean
         get() = peerConnection != null
@@ -75,6 +78,8 @@ internal class WebRtcVoiceSession(
             localAudioEnabled = false
             hasRemoteDescription = false
             pendingRemoteCandidates.clear()
+            configureAudioRoute()
+            scheduleAudioRouteRefresh()
             emitLog("webrtc-native-prepared: controller=$controller track=${createdTrack.id()}")
         }.onFailure {
             close()
@@ -95,6 +100,7 @@ internal class WebRtcVoiceSession(
         audioDeviceModule?.setMicrophoneMute(!enabled)
         localAudioEnabled = enabled
         configureAudioRoute()
+        scheduleAudioRouteRefresh()
         emitLog("webrtc-native-local-audio: enabled=$enabled track=${track.enabled()}")
         emitState()
         return Result.success(Unit)
@@ -235,6 +241,8 @@ internal class WebRtcVoiceSession(
                 if (!isController) {
                     track.setVolume(RECEIVER_VOLUME_BOOST)
                 }
+                refreshAudioRoute()
+                scheduleAudioRouteRefresh()
                 emitLog(
                     "webrtc-native-remote-audio: track=${track.id()} enabled=${track.enabled()} receiver=${!isController}",
                 )
@@ -440,10 +448,8 @@ internal class WebRtcVoiceSession(
             previousAudioMode = manager.mode
             @Suppress("DEPRECATION")
             previousSpeakerphone = manager.isSpeakerphoneOn
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                @Suppress("DEPRECATION")
-                previousBluetoothSco = manager.isBluetoothScoOn
-            }
+            @Suppress("DEPRECATION")
+            previousBluetoothSco = manager.isBluetoothScoOn
         }
         audioRoutingActive = true
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -454,7 +460,7 @@ internal class WebRtcVoiceSession(
         }
         @Suppress("DEPRECATION")
         if (manager.isWiredHeadsetOn) {
-            stopLegacyBluetoothScoIfStarted(manager)
+            stopBluetoothScoIfStarted(manager)
             @Suppress("DEPRECATION")
             manager.isSpeakerphoneOn = false
             emitLog("webrtc-native-audio-route: wired-legacy")
@@ -474,7 +480,7 @@ internal class WebRtcVoiceSession(
             emitLog("webrtc-native-audio-route: bluetooth-legacy")
             return
         }
-        stopLegacyBluetoothScoIfStarted(manager)
+        stopBluetoothScoIfStarted(manager)
         @Suppress("DEPRECATION")
         manager.isSpeakerphoneOn = true
         emitLog("webrtc-native-audio-route: speaker")
@@ -482,9 +488,17 @@ internal class WebRtcVoiceSession(
 
     private fun configureModernAudioRoute(manager: AudioManager) {
         val devices = manager.availableCommunicationDevices
+        val outputDevices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val preferredType = AudioRoutePolicy.preferredCommunicationDeviceType(devices.map { it.type })
         val preferredDevice = devices.firstOrNull { it.type == preferredType }
+        emitLog(
+            "webrtc-native-audio-devices: available=${devices.typesForLog()} " +
+                "outputs=${outputDevices.typesForLog()} current=${manager.communicationDevice?.type}",
+        )
         if (preferredDevice != null) {
+            if (!AudioRoutePolicy.isBluetoothCommunicationDeviceType(preferredDevice.type)) {
+                stopBluetoothScoIfStarted(manager)
+            }
             @Suppress("DEPRECATION")
             manager.isSpeakerphoneOn = false
             val selected = manager.communicationDevice?.id == preferredDevice.id ||
@@ -498,6 +512,11 @@ internal class WebRtcVoiceSession(
             }
             emitLog("webrtc-native-audio-route-selection-failed: type=${preferredDevice.type}")
         }
+        if (isModernBluetoothHeadsetConnected(outputDevices)) {
+            startBluetoothScoFallback(manager)
+            return
+        }
+        stopBluetoothScoIfStarted(manager)
         manager.clearCommunicationDevice()
         @Suppress("DEPRECATION")
         manager.isSpeakerphoneOn = true
@@ -508,13 +527,13 @@ internal class WebRtcVoiceSession(
         if (previousAudioMode == null && audioDeviceCallback == null) return
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioRoutingActive = false
+        handler.removeCallbacks(audioRouteRefresh)
         audioDeviceCallback?.let(manager::unregisterAudioDeviceCallback)
         audioDeviceCallback = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             manager.clearCommunicationDevice()
-        } else {
-            stopLegacyBluetoothScoIfStarted(manager)
         }
+        stopBluetoothScoIfStarted(manager)
         previousAudioMode?.let { manager.mode = it }
         previousBluetoothSco?.let {
             @Suppress("DEPRECATION")
@@ -535,13 +554,13 @@ internal class WebRtcVoiceSession(
         val callback = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
                 handler.post {
-                    if (audioRoutingActive) configureAudioRoute()
+                    if (audioRoutingActive) refreshAudioRoute()
                 }
             }
 
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 handler.post {
-                    if (audioRoutingActive) configureAudioRoute()
+                    if (audioRoutingActive) refreshAudioRoute()
                 }
             }
         }
@@ -562,7 +581,47 @@ internal class WebRtcVoiceSession(
         }.getOrDefault(false)
     }
 
-    private fun stopLegacyBluetoothScoIfStarted(manager: AudioManager) {
+    @SuppressLint("MissingPermission")
+    private fun isModernBluetoothHeadsetConnected(outputDevices: Array<out AudioDeviceInfo>): Boolean {
+        if (outputDevices.any { AudioRoutePolicy.isBluetoothCommunicationDeviceType(it.type) }) {
+            return true
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val adapter = bluetoothManager?.adapter ?: return false
+        return runCatching {
+            buildList {
+                add(BluetoothProfile.HEADSET)
+                add(BluetoothProfile.HEARING_AID)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add(BluetoothProfile.LE_AUDIO)
+                }
+            }.any { profile ->
+                @Suppress("DEPRECATION")
+                adapter.getProfileConnectionState(profile) == BluetoothProfile.STATE_CONNECTED
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun startBluetoothScoFallback(manager: AudioManager) {
+        @Suppress("DEPRECATION")
+        manager.isSpeakerphoneOn = false
+        if (!bluetoothScoStartedBySession) {
+            @Suppress("DEPRECATION")
+            manager.startBluetoothSco()
+            bluetoothScoStartedBySession = true
+        }
+        @Suppress("DEPRECATION")
+        manager.isBluetoothScoOn = true
+        emitLog("webrtc-native-audio-route: bluetooth-sco-fallback")
+    }
+
+    private fun stopBluetoothScoIfStarted(manager: AudioManager) {
         if (!bluetoothScoStartedBySession) return
         @Suppress("DEPRECATION")
         manager.stopBluetoothSco()
@@ -570,6 +629,23 @@ internal class WebRtcVoiceSession(
         manager.isBluetoothScoOn = false
         bluetoothScoStartedBySession = false
     }
+
+    private fun refreshAudioRoute() {
+        runCatching(::configureAudioRoute).onFailure {
+            emitLog("webrtc-native-audio-route-error: ${it.javaClass.simpleName}")
+        }
+    }
+
+    private fun scheduleAudioRouteRefresh() {
+        handler.removeCallbacks(audioRouteRefresh)
+        handler.postDelayed(audioRouteRefresh, AUDIO_ROUTE_REFRESH_DELAY_MS)
+    }
+
+    private fun Array<out AudioDeviceInfo>.typesForLog(): String =
+        joinToString(prefix = "[", postfix = "]") { it.type.toString() }
+
+    private fun List<AudioDeviceInfo>.typesForLog(): String =
+        joinToString(prefix = "[", postfix = "]") { it.type.toString() }
 
     private fun createPeerConstraints() = MediaConstraints().apply {
         optional += MediaConstraints.KeyValuePair("DtlsSrtpKeyAgreement", "true")
@@ -590,5 +666,6 @@ internal class WebRtcVoiceSession(
 
     companion object {
         private const val RECEIVER_VOLUME_BOOST = 1.6
+        private const val AUDIO_ROUTE_REFRESH_DELAY_MS = 350L
     }
 }

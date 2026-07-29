@@ -2,7 +2,9 @@ package lightly.tool.plugin.webrtc
 
 import android.media.AudioDeviceInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AudioRoutePolicyTest {
@@ -53,5 +55,24 @@ class AudioRoutePolicyTest {
         )
 
         assertNull(selected)
+    }
+
+    @Test
+    fun `does not treat media-only bluetooth output as communication headset`() {
+        assertTrue(
+            AudioRoutePolicy.isBluetoothCommunicationDeviceType(
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            ),
+        )
+        assertTrue(
+            AudioRoutePolicy.isBluetoothCommunicationDeviceType(
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+            ),
+        )
+        assertFalse(
+            AudioRoutePolicy.isBluetoothCommunicationDeviceType(
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            ),
+        )
     }
 }
