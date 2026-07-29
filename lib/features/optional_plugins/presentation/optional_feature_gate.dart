@@ -35,12 +35,27 @@ class OptionalFeatureGate {
       return false;
     }
     if (status.installed) {
-      await _showMessage(
-        context,
-        title: '插件版本不兼容',
-        message: '请更新 ${descriptor.displayName} 后重试。',
+      final shouldUpdate = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('插件版本不兼容'),
+          content: Text('需要更新 ${descriptor.displayName} 后才能继续使用。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('下载更新'),
+            ),
+          ],
+        ),
       );
-      return false;
+      if (shouldUpdate != true || !context.mounted) {
+        return false;
+      }
+      return _downloadAndInstall(context, featureId);
     }
     final shouldInstall = await showDialog<bool>(
       context: context,

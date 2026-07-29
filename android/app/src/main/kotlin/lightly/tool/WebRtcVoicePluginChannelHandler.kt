@@ -224,7 +224,7 @@ class WebRtcVoicePluginChannelHandler(
         private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
             "lightly.tool.plugin.webrtc.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.webrtc.BIND"
-        private const val MINIMUM_API_VERSION = 2
+        private const val MINIMUM_API_VERSION = 3
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val REQUEST_AUDIO_PERMISSION = 49013
         private const val METHOD_CONNECT = "connect"

@@ -11,8 +11,10 @@ scripts/build_optional_plugins.sh
 ```
 
 The default output directory is `build/optional-plugins/`. Override `PLUGIN_VERSION_CODE`,
-`PLUGIN_VERSION_NAME`, `PLUGIN_API_VERSION`, `MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
-`PLUGIN_OUTPUT_DIR` when preparing a release. The script compares every plugin signing certificate
+`PLUGIN_VERSION_NAME`, `TELEGRAM_PLUGIN_API_VERSION`, `WEBRTC_PLUGIN_API_VERSION`,
+`EASYTIER_PLUGIN_API_VERSION`, `MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
+`PLUGIN_OUTPUT_DIR` when preparing a release. `PLUGIN_API_VERSION` remains a compatibility fallback
+for Telegram and EasyTier only; WebRTC defaults independently to API 3. The script compares every plugin signing certificate
 with `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`; set `LIGHTLY_APK` explicitly when
 the matching host APK is elsewhere. Upload the six `*-release.apk` files and
 `plugins.json` to the matching GitHub release in `Easul/lightly-plugins`.

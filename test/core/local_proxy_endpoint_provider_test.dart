@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:lightly/features/proxy/infrastructure/proxy_service_local_endpoint_adapter.dart';
@@ -42,6 +45,57 @@ void main() {
             host == '127.0.0.1' && port == 23333,
       );
       expect(await adapter.resolveAvailableLocalSocks5Port(), 23333);
+    });
+
+    test('adapter probes the persisted custom SOCKS5 port', () async {
+      final checkedPorts = <int>[];
+      final adapter = ProxyServiceLocalEndpointAdapter(
+        persistedPortLoader: () async => 24444,
+        listenerProbe: (host, port) async {
+          checkedPorts.add(port);
+          return host == '127.0.0.1' && port == 24444;
+        },
+      );
+
+      expect(await adapter.resolveAvailableLocalSocks5Port(), 24444);
+      expect(checkedPorts.first, 24444);
+    });
+
+    test('production probe requires a SOCKS5 method reply', () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final greeting = Completer<List<int>>();
+      final subscription = server.listen((socket) {
+        socket.listen((data) {
+          if (!greeting.isCompleted) greeting.complete(data);
+          socket.add(const <int>[0x05, 0x00]);
+        });
+      });
+      addTearDown(() async {
+        await subscription.cancel();
+        await server.close();
+      });
+      final adapter = ProxyServiceLocalEndpointAdapter(
+        persistedPortLoader: () async => server.port,
+      );
+
+      expect(await adapter.resolveAvailableLocalSocks5Port(), server.port);
+      expect(await greeting.future, const <int>[0x05, 0x01, 0x00]);
+    });
+
+    test('production probe rejects a non-SOCKS listener', () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final subscription = server.listen((socket) {
+        socket.listen((_) => socket.add(const <int>[0x4f, 0x4b]));
+      });
+      addTearDown(() async {
+        await subscription.cancel();
+        await server.close();
+      });
+      final adapter = ProxyServiceLocalEndpointAdapter(
+        persistedPortLoader: () async => server.port,
+      );
+
+      expect(await adapter.resolveAvailableLocalSocks5Port(), isNull);
     });
   });
 

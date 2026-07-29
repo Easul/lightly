@@ -64,16 +64,16 @@ void main() {
     );
 
     expect(requests.map((request) => request['@type']), <String>[
-      'addProxy',
       'getAuthorizationState',
       'setTdlibParameters',
+      'addProxy',
     ]);
-    final parameters = requests[2];
+    final parameters = requests[1];
     expect(parameters['api_id'], 12345);
     expect(parameters['api_hash'], 'test-hash');
     expect(parameters['database_directory'], isEmpty);
     expect(parameters['files_directory'], isEmpty);
-    expect(requests[0]['port'], 23333);
+    expect(requests[2]['port'], 23333);
     expect(service.proxyStatus.value, '已使用本地代理 127.0.0.1:23333');
 
     await _sendPluginResult(channel, <String, Object?>{

@@ -40,7 +40,7 @@ class OptionalFeatureCatalog {
           id: OptionalFeatureId.webRtcVoice,
           displayName: '远程语音插件',
           packageName: 'lightly.tool.plugin.webrtc',
-          minimumApiVersion: 2,
+          minimumApiVersion: 3,
         ),
         OptionalFeatureId.easyTier: OptionalFeatureDescriptor(
           id: OptionalFeatureId.easyTier,

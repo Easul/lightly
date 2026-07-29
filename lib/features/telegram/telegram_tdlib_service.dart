@@ -58,10 +58,10 @@ class TelegramTdlibService {
       _clientId = await _plugin.createClient();
     }
     authStep.value = TelegramAuthStep.loading;
-    // Apply the local SOCKS5 endpoint before the first TDLib request. TDLib can begin bootstrap
-    // networking as soon as getAuthorizationState is sent, so configuring it later can still
-    // leave the initial connection on a direct path even when the proxy is already running.
-    await configureProxyIfAvailable();
+    // Do NOT configure the proxy here: before setTdlibParameters, TDLib is in
+    // authorizationStateWaitTdlibParameters and rejects addProxy (no binlog yet). Sending it now
+    // makes configureProxyIfAvailable throw and aborts login. The proxy is applied right after
+    // setTdlibParameters instead (see _handleAuthorizationState).
     await _enqueueAuthorizationState(await _request('getAuthorizationState'));
   }
 
@@ -266,7 +266,6 @@ class TelegramTdlibService {
           authStep.value = TelegramAuthStep.error;
           return;
         }
-        await configureProxyIfAvailable();
         await _expectOk('setTdlibParameters', <String, Object?>{
           'use_test_dc': false,
           'database_directory': '',
@@ -285,6 +284,10 @@ class TelegramTdlibService {
           'enable_storage_optimizer': true,
           'ignore_file_names': true,
         });
+        // Apply the local SOCKS5 proxy immediately after parameters are set. TDLib only accepts
+        // addProxy once the binlog exists, and applying it here (before it settles on a route)
+        // keeps the initial connection on the proxy instead of racing a direct connection.
+        await configureProxyIfAvailable();
       case 'authorizationStateWaitPhoneNumber':
         await configureProxyIfAvailable();
         authStep.value = TelegramAuthStep.phone;

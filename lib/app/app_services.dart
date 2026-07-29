@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kProfileMode;
 
 import '../browser/data/app_database_adapter.dart';
+import '../browser/browser_settings_service.dart';
 import '../core/logging/runtime_logger.dart';
 import '../core/network/local_proxy_endpoint_provider.dart';
 import '../core/storage/app_database_provider.dart';
@@ -9,6 +10,7 @@ import '../features/local_sharing/simple_file_manager/simple_file_manager_servic
 import '../features/easytier/infrastructure/easytier_service.dart';
 import '../features/proxy/infrastructure/proxy_service.dart';
 import '../features/proxy/infrastructure/proxy_service_local_endpoint_adapter.dart';
+import '../features/proxy/domain/proxy_protocol.dart';
 import '../features/remote_control/infrastructure/remote_control_performance_monitor.dart';
 import '../features/remote_control/infrastructure/remote_control_service.dart';
 import '../features/local_sharing/clipboard/clipboard_http_server_service.dart';
@@ -38,6 +40,7 @@ class AppServices {
   /// constructor with fakes instead.
   factory AppServices.production() {
     final logService = AppLogService.instance;
+    final browserSettingsService = BrowserSettingsService();
     RemoteControlService().configureDiagnostics(
       runtimeLogger: logService,
       diagnostics: PerformanceMonitorService(),
@@ -63,7 +66,17 @@ class AppServices {
       logService: logService,
       lifecycleManager: AppLifecycleManager(),
       simpleFileManager: SimpleFileManagerService(runtimeLogger: logService),
-      localProxyEndpoint: ProxyServiceLocalEndpointAdapter(),
+      localProxyEndpoint: ProxyServiceLocalEndpointAdapter(
+        useRememberedPortFallback: false,
+        persistedPortLoader: () async {
+          final settings = await browserSettingsService.loadSettings();
+          if (!settings.shouldApplyProxy ||
+              settings.proxyProtocol == BrowserProxyProtocol.http) {
+            return null;
+          }
+          return settings.localProxyPort ?? 23333;
+        },
+      ),
       appDatabase: AppDatabaseAdapter(),
       sharedDownloadsAccess: SharedDownloadsDirectoryService(),
       runtimeCoordinator: AppRuntimeCoordinator.instance,

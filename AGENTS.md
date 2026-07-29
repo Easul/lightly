@@ -310,9 +310,12 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
   close native sessions when their host callback Binder dies; EasyTier must stop its native network
   and VPN when the last Lightly binding is lost, even though its active runtime is also promoted to
   a started foreground service. Normal app backgrounding keeps the binding and must not stop them.
-- The foreground-bootstrap protocol is optional-plugin API 2. When changing this mechanism, bump
-  the companion manifest and Service API together with `OptionalFeatureCatalog` so old APKs are
-  offered an update instead of being treated as compatible.
+- The shared foreground-bootstrap protocol is optional-plugin API 2. WebRTC voice is API 3 because
+  its permission Activity must start the microphone foreground service while the companion package
+  is still foreground. When changing a plugin mechanism, bump that companion's manifest and Service
+  API together with `OptionalFeatureCatalog` so old APKs are offered an update instead of being
+  treated as compatible. Keep release-manifest API versions per feature rather than assuming every
+  companion always shares one API number.
 - Companion manifests must use Lightly's `ic_launcher` and `ic_launcher_round` resources so the
   installer and system settings do not show the default Android application icon.
 - Release verification must unpack every companion APK and fail if Flutter/Dart runtime artifacts
@@ -548,9 +551,15 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
 - Do not mark the microphone permission Activity `noHistory`: opening Android's runtime permission
   UI temporarily backgrounds it on some ROMs, and `noHistory` can destroy it before the permission
   result is returned, making every microphone attempt appear denied.
-- The optional companion API is currently 2 because all service-owning plugins use the shared
-  foreground bootstrap protocol; keep the host catalog, manifests, service constants, and release
-  manifest aligned when changing it.
+- The companion `AudioPermissionActivity` must start `WebRtcVoicePluginService` as a
+  `microphone`-type foreground service while that Activity is still foreground. The Service must
+  confirm `startForeground(..., FOREGROUND_SERVICE_TYPE_MICROPHONE)` completed before `prepare`
+  opens the mic, and stop the foreground on `close`/prepare-failure/host death. Starting it later
+  from the already-background companion bound Service can be rejected on Android 14+/target SDK 36.
+  Android 11+ (and MIUI in particular) may also deliver empty audio to a plain bound service even
+  when `RECORD_AUDIO` is granted.
+- WebRTC voice companion API is 3; Telegram and EasyTier remain API 2. Keep the host catalog,
+  channel minimums, manifests, service constants, and per-feature release manifest aligned.
 - Missing/incompatible plugin must disable voice for the current session while preserving control
   and screen connectivity. Internal-proxy and no-tun paths must not prompt for the voice plugin.
 - Once both endpoints requested a direct voice-capable session, a transient plugin prepare or
@@ -1215,10 +1224,16 @@ void dispose() {
 - Keep TG Tools foreground/manual-refresh only. Recent chats, text history, text sending, and check-in must not introduce background polling or notification delivery.
 - One-click check-in sends only targets whose `enabled` switch is on; this flag is part of unified backup import/export.
 - TDLib requests must continue to follow the active local SOCKS5 proxy before login, chat loading, refresh, and sending.
-- Telegram must configure the local SOCKS5 endpoint before its first TDLib request. Do not rely
-  solely on the proxy owner's in-memory `isRunning` flag: after runtime reconstruction it can be
-  stale while the native listener is already active, so the production endpoint adapter should
-  verify the concrete loopback listener before falling back to direct connection.
+- Telegram must apply the local SOCKS5 endpoint immediately after `setTdlibParameters`, not before
+  it. TDLib stays in `authorizationStateWaitTdlibParameters` until parameters are set and rejects
+  `addProxy` while there (no binlog yet); sending it earlier makes `configureProxyIfAvailable` throw
+  and aborts login init, leaving TDLib on a direct connection. Do not rely solely on the proxy
+  owner's in-memory `isRunning` flag: after runtime reconstruction it can be stale while the native
+  listener is already active. The production endpoint adapter must load the persisted configured
+  local port as the authoritative stale-runtime fallback and complete a SOCKS5 method negotiation;
+  a raw TCP connect or the reconstructed default `23333` alone is not proof of the correct listener.
+  External HTTP proxy mode does not create the local mixed SOCKS5 listener and must not be reported
+  to TDLib as one.
 - Unified backup includes Telegram App ID, App Hash, phone number, targets, and commands; treat that
   backup as sensitive data and never write these values to runtime logs.
 - If the local proxy is unavailable, the UI must explicitly say Telegram is attempting a direct
@@ -1250,8 +1265,9 @@ void dispose() {
 - Do not start the TDLib receive loop from `createClient()`: the initial authorization update can
   arrive before Lightly stores the Binder-returned client ID and be discarded. Start it after the
   first client-scoped request is sent. Callback registration also happens before `createClient()`
-  and must not start the receive loop for the same reason. Configure the local SOCKS5 proxy before
-  `setTdlibParameters` so the initial TDLib network setup does not race a direct connection.
+  and must not start the receive loop for the same reason. Configure the local SOCKS5 proxy right
+  after `setTdlibParameters` (never before it — TDLib rejects `addProxy` until the binlog exists) so
+  the initial TDLib network setup follows the proxy instead of racing a direct connection.
 - Lightly's `TelegramTdlibService` uses the local `TelegramTdJsonCodec` for the limited request and
   response schema needed by TG Tools. Do not add the Flutter `tdlib` package or `libtdjson.so` back
   to the host merely for generated Dart model classes.

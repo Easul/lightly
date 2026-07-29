@@ -2,6 +2,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 
     <permission
@@ -19,7 +21,7 @@
         android:theme="@style/Theme.LightlyVoicePlugin">
         <meta-data
             android:name="lightly.plugin.API_VERSION"
-            android:value="2" />
+            android:value="3" />
         <meta-data
             android:name="lightly.plugin.FEATURE_ID"
             android:value="webrtc_voice" />
@@ -27,6 +29,7 @@
         <service
             android:name=".WebRtcVoicePluginService"
             android:exported="true"
+            android:foregroundServiceType="microphone"
             android:permission="lightly.tool.plugin.webrtc.permission.BIND_SERVICE">
             <intent-filter>
                 <action android:name="lightly.tool.plugin.webrtc.BIND" />
