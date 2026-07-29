@@ -39,3 +39,32 @@ it returns immediately to the foreground Lightly Activity. Keep `android:icon` a
 
 Do not publish the manifest until the corresponding APKs are signed with the same certificate as
 the Lightly build that declares the minimum version code.
+
+## Migration acceptance (2026-07-29)
+
+The native companion extraction is implementation-complete. The following manual matrix was
+verified on physical devices in addition to the automated host/plugin tests and release-content
+checks:
+
+- LAN and EasyTier WebRTC voice worked in both directions. Disconnect cleanup, temporary close,
+  full close, wired-headset routing, and Bluetooth-headset routing also completed normally.
+- EasyTier was exercised on Android 7 and Android 10 across arm64/armeabi-v7a packages, VPN and
+  no-tun modes, peer refresh, and remote-control runtime reuse.
+- Lightly cold-started and unrelated features remained usable without optional plugins on Android 7
+  and Android 13.
+- A profile-signed plugin was rejected by the release host while the matching release-signed plugin
+  worked. This is the expected same-signature isolation behavior, not a compatibility failure.
+- Installing the new Lightly APK over the previous version preserved browser, proxy, remote-control,
+  and Lightly-owned configuration.
+- A full Lightly data export, app-data clear, and import restored the Lightly-owned configuration in
+  scope for the unified backup.
+
+These checks close the optional-plugin migration acceptance gate. Keep absence, disabled-package,
+signature mismatch, incompatible API, corrupt download, and hash mismatch as explicit failure
+states in future installer changes; none may block host cold start or unrelated features.
+
+Google-account browser login cookies are a known non-blocking backup limitation. Unified backup can
+round-trip the cookies exposed by Android WebView for indexed origins, but it does not guarantee
+reconstruction of every Google authentication/session state across all related origins. Do not use
+Google login-session restoration as a release blocker for the companion migration, and do not claim
+that unified backup preserves every third-party login session.

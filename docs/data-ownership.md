@@ -74,6 +74,11 @@ SharedPreferences 清理来模拟停止；必须调用各自 service/gateway 的
 | WebView 全局 HTTP cache / app cache / temp children | `AppCacheMaintenanceService` 与 WebView API | 中 | 否 | “清理应用缓存”或计划清理；不得清历史、收藏、下载记录、配置或用户文件 |
 | Simple file manager root 中的用户文件 | 用户；`SimpleFileManagerService` 只提供访问 | 高 | 否 | 仅用户明确文件操作可改删；停止服务或清 app cache 不得删除 |
 
+WebView Cookie 备份只能往返 Android `CookieManager` 针对已索引 origin 暴露的 Cookie，不能保证
+重建 Google 等跨多个 origin、受系统/WebView 策略约束的完整登录会话。2026-07-29 真机清数据后
+导入已确认 Lightly-owned 配置恢复正常，但 Google 账号 Cookie 仍存在非阻断恢复差异。产品文案和
+发布验收不得宣称统一备份可以保留所有第三方登录状态。
+
 ## 统一备份边界
 
 当前统一备份 JSON schema version 为 `8`，包括：收藏、浏览设置、最多 1000 条历史聚合、计算器

@@ -78,6 +78,13 @@ an app data schema. Stop them through their services/gateways, never by clearing
 | WebView HTTP cache, app cache, temporary children | `AppCacheMaintenanceService` and WebView APIs | medium | No | App Cache cleanup only; it must preserve history, favorites, downloads, settings, and user files |
 | user files under the Simple File Manager root | User; service only provides access | high | No | Only explicit file operations modify/delete them |
 
+WebView cookie backup can only round-trip cookies exposed by Android `CookieManager` for indexed
+origins. It cannot guarantee reconstruction of complete login sessions, such as Google accounts,
+that span multiple origins or depend on system/WebView policy. A physical-device clear/import test
+on 2026-07-29 restored Lightly-owned configuration, while Google account cookies retained a
+non-blocking restoration difference. Product copy and release acceptance must not claim that unified
+backup preserves every third-party login session.
+
 ## Unified Backup Boundary
 
 The current unified JSON schema version is `8`. It includes favorites, browser settings, up to
