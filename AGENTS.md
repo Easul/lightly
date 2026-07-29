@@ -1153,19 +1153,30 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Peer URIs can be long enough to overflow narrow mobile layouts.
 - Keep peer rows bounded with ellipsis and preserve a selectable full-text view when needed.
 
-## Native Video Parser Setting
+## Native Android YouTube Resolver
 
-- The YouTube/native-player parser endpoint is user-configurable via `BrowserSettings.nativeVideoParserApiBaseUrl`.
+- The production YouTube resolver is a private, pure-Android AAR embedded in the Lightly APK. It
+  is not an optional companion APK and must not include Flutter or Dart runtime artifacts.
+- Keep private resolver source under ignored `extensions/youtube/` and the generated AAR at ignored
+  `android/app/libs/lightly-youtube-resolver.aar`. Do not stage or commit either path. Public source
+  may contain only the typed Dart gateway, Android reflection adapter, unavailable fallback, and
+  conditional build integration.
+- The public reflection contract is `lightly.youtube.resolver.YouTubeResolverBridge`, API 1. When
+  changing it, preserve old API compatibility where practical and keep its public methods from R8.
+- `scripts/build_youtube_aar.sh` is the local AAR build/injection path. Full Lightly release builds
+  must require or generate the AAR and verify that `YouTubeResolverBridge` is present in the APK.
+  Public/OSS builds must continue to compile without the AAR and return a clear unavailable error.
+- `BrowserSettings.nativeVideoParserApiBaseUrl` is a retired compatibility field. Keep its existing
+  SharedPreferences/JSON/backup key and round-trip behavior, but do not expose it in settings or use
+  it to gate playback. The native video player switch now gates YouTube resolution directly.
 - The active production playback surface is the floating player owned by
   `FloatingVideoPlayerCoordinator`; `BrowserVideoPlayerCoordinator` is only the browser settings and
   download facade. Browser URLs, external video intents, and download-record playback converge on
   that path. The retired `NativeVideoPlayerPage` was unreachable and has been removed. Do not
   reintroduce a parallel full-page player owner without an explicit lifecycle and migration plan.
-- Default parser endpoint: `https://parser.example.com`
-- The setting may contain either the parser service root or the full endpoint ending in `/parse`; endpoint construction must avoid producing `/parse/parse`.
-- If the parser input is empty, YouTube links must **not** trigger native-player/floating parse behavior even when the native video player switch is enabled.
 - Parser responses may include `title` alongside `urls`; keep that title visible in parsed video UI and use it as the initial download filename while preserving existing ellipsis and filename sanitization rules.
-- This setting is part of the normal settings JSON, so backup export/import automatically persists it.
+- Resolver results may include restricted request headers. Keep those headers confined to the local
+  video proxy/download path and never log cookies or complete `googlevideo` URLs.
 
 ## Local HTTP / Clipboard LAN Address Display
 
