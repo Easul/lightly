@@ -340,6 +340,9 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - The `v*` GitHub Action must publish companion assets before the Lightly Release. Build all
   artifacts with one keystore, embed the generated manifest, build the final host once, then run
   `scripts/verify_optional_plugin_bundle.sh` against that final host.
+- Companion Gradle wrapper scripts/jars are intentionally ignored. Release Actions must install
+  the wrapper-compatible Gradle 8.14 with `gradle/actions/setup-gradle` and pass the PATH executable
+  through `PLUGIN_GRADLEW`; do not commit wrapper jars merely to make tag builds work.
 
 ## Git Artifact Hygiene
 
