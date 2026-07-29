@@ -337,9 +337,12 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
   or sustained low throughput. Do not add IP geolocation to select a mirror. User mirror settings
   belong to `optional_plugin_download_settings_v1`; arbitrary mirrors must never bypass fixed
   size/hash/package/signature validation.
-- The `v*` GitHub Action must publish companion assets before the Lightly Release. Build all
-  artifacts with one keystore, embed the generated manifest, build the final host once, then run
-  `scripts/verify_optional_plugin_bundle.sh` against that final host.
+- The `v*` GitHub Action may skip companion builds when no companion contract/source changed and
+  reuse the latest published `plugins.json`; the reused manifest is still embedded and signed into
+  the new Lightly APK. When companions changed, the Action must publish them before the Lightly
+  Release, build all artifacts with one keystore, and run
+  `scripts/verify_optional_plugin_bundle.sh` against the final host. A signing-certificate change
+  always requires a forced companion rebuild even when source is unchanged.
 - Companion Gradle wrapper scripts/jars are intentionally ignored. Release Actions must install
   the wrapper-compatible Gradle 8.14 with `gradle/actions/setup-gradle` and pass the PATH executable
   through `PLUGIN_GRADLEW`; do not commit wrapper jars merely to make tag builds work.

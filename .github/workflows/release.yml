@@ -13,6 +13,15 @@ on:
         description: 'Version (e.g., v1.0.0)'
         required: true
         default: 'v1.0.7'
+      optional_plugins:
+        description: 'Optional companion APK handling'
+        required: true
+        type: choice
+        options:
+          - auto
+          - build
+          - reuse
+        default: auto
 
 jobs:
   build-android:
@@ -24,7 +33,8 @@ jobs:
       build_version: ${{ steps.version.outputs.build_version }}
       version_code: ${{ steps.version.outputs.version_code }}
       plugin_release_tag: ${{ steps.version.outputs.plugin_release_tag }}
-    
+      build_optional_plugins: ${{ steps.optional_plugins.outputs.build }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -123,10 +133,59 @@ jobs:
         YOUTUBE_RESOLVER_GITHUB_TOKEN: ${{ secrets.YOUTUBE_RESOLVER_GITHUB_TOKEN }}
       run: scripts/fetch_youtube_aar.sh
 
+    - name: Decide optional plugin build mode
+      id: optional_plugins
+      env:
+        REQUESTED_MODE: ${{ inputs.optional_plugins || vars.OPTIONAL_PLUGIN_BUILD_MODE || 'auto' }}
+      run: |
+        MODE="${REQUESTED_MODE,,}"
+        case "$MODE" in
+          build)
+            BUILD_PLUGINS=1
+            REASON="forced build"
+            ;;
+          reuse)
+            BUILD_PLUGINS=0
+            REASON="forced reuse"
+            ;;
+          auto)
+            BASE_TAG=$(git describe --tags --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)
+            if [ -z "$BASE_TAG" ]; then
+              BUILD_PLUGINS=1
+              REASON="no previous tag"
+            elif git diff --quiet "$BASE_TAG" "$GITHUB_SHA" -- \
+              extensions/telegram \
+              extensions/webrtc \
+              extensions/easytier \
+              scripts/build_optional_plugins.sh \
+              scripts/embed_optional_plugin_manifest.sh \
+              scripts/verify_optional_plugin_bundle.sh \
+              lib/features/optional_plugins \
+              lib/app/optional_feature_coordinator.dart \
+              android/app/src/main/aidl \
+              android/app/src/main/kotlin/lightly/tool/OptionalPluginActivationCoordinator.kt \
+              android/app/src/main/kotlin/lightly/tool/OptionalPluginChannelHandler.kt; then
+              BUILD_PLUGINS=0
+              REASON="no companion-related changes since $BASE_TAG"
+            else
+              BUILD_PLUGINS=1
+              REASON="companion-related changes since $BASE_TAG"
+            fi
+            ;;
+          *)
+            echo "Invalid optional plugin mode: $MODE" >&2
+            exit 1
+            ;;
+        esac
+        echo "build=$BUILD_PLUGINS" >> "$GITHUB_OUTPUT"
+        echo "Optional plugin mode: $MODE; build=$BUILD_PLUGINS ($REASON)"
+
     - name: Prepare Telegram TDLib dependency
+      if: steps.optional_plugins.outputs.build == '1'
       run: extensions/telegram/scripts/prepare_tdlib.sh
 
     - name: Build optional plugin APKs and manifest
+      if: steps.optional_plugins.outputs.build == '1'
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -141,6 +200,31 @@ jobs:
       run: |
         scripts/build_optional_plugins.sh
         scripts/embed_optional_plugin_manifest.sh
+
+    - name: Reuse latest published optional plugin manifest
+      if: steps.optional_plugins.outputs.build != '1'
+      env:
+        GH_TOKEN: ${{ secrets.PLUGIN_RELEASE_TOKEN }}
+        PLUGIN_RELEASE_REPOSITORY: ${{ vars.PLUGIN_RELEASE_REPOSITORY || 'Easul/lightly-plugins' }}
+      run: |
+        if [ -z "$GH_TOKEN" ]; then
+          echo "PLUGIN_RELEASE_TOKEN is required to reuse optional plugins" >&2
+          exit 1
+        fi
+        LATEST_PLUGIN_TAG=$(gh api \
+          "repos/$PLUGIN_RELEASE_REPOSITORY/releases/latest" \
+          --jq .tag_name)
+        if [ -z "$LATEST_PLUGIN_TAG" ]; then
+          echo "No published optional plugin release is available to reuse" >&2
+          exit 1
+        fi
+        mkdir -p build/optional-plugins
+        gh release download "$LATEST_PLUGIN_TAG" \
+          --repo "$PLUGIN_RELEASE_REPOSITORY" \
+          --pattern plugins.json \
+          --dir build/optional-plugins
+        scripts/embed_optional_plugin_manifest.sh
+        echo "Reused optional plugin manifest from $LATEST_PLUGIN_TAG"
 
     - name: Build multi-ABI APKs
       env:
@@ -160,6 +244,7 @@ jobs:
         echo "✅ Built multi-ABI APKs via scripts/build_multi_abi.sh"
 
     - name: Verify optional plugins against final Lightly APK
+      if: steps.optional_plugins.outputs.build == '1'
       run: scripts/verify_optional_plugin_bundle.sh
     
     - name: Show build artifacts
@@ -174,6 +259,7 @@ jobs:
         retention-days: 7
 
     - name: Upload optional plugin artifacts
+      if: steps.optional_plugins.outputs.build == '1'
       uses: actions/upload-artifact@v4
       with:
         name: optional-plugin-apks
@@ -196,6 +282,7 @@ jobs:
         path: dist/
 
     - name: Download optional plugin artifacts
+      if: needs.build-android.outputs.build_optional_plugins == '1'
       uses: actions/download-artifact@v4
       with:
         name: optional-plugin-apks
@@ -206,6 +293,7 @@ jobs:
         ls -lh dist/
 
     - name: Publish optional plugin release
+      if: needs.build-android.outputs.build_optional_plugins == '1'
       env:
         GH_TOKEN: ${{ secrets.PLUGIN_RELEASE_TOKEN }}
         PLUGIN_RELEASE_REPOSITORY: ${{ vars.PLUGIN_RELEASE_REPOSITORY || 'Easul/lightly-plugins' }}
