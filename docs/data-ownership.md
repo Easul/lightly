@@ -19,7 +19,7 @@ feature 目录变化而静默改变物理 key、表名、文件名或清除范�
 | `browser_history` | `BrowserHistoryService`（URL 聚合、标题、次数） | 中 | 是，最多导出 1000 条聚合记录 | “历史浏览”清除时与 visits 一起删除 |
 | `browser_history_visits` | `BrowserHistoryService`（逐次访问） | 中 | 否；导入历史会重新产生访问记录 | “历史浏览”清除时与 summary 一起删除 |
 | `browser_favorites` | `BrowserFavoriteService` | 中 | 是 | “收藏”可全量清除；清除后必须失效 favorite status cache |
-| `browser_downloads` | `BrowserDownloadStore` | 中 | 否 | 全局清除只删记录并停止任务，不删磁盘文件；单条删除由用户选择是否连文件一起删 |
+| `browser_downloads` | `BrowserDownloadStore` | 中 | 是，仅记录；导入会去重并把活动状态恢复为暂停 | 全局清除只删记录并停止任务，不删磁盘文件；单条删除由用户选择是否连文件一起删 |
 | `ai_chat_sessions` | `AiHistoryDatabase` | 高 | 否 | AI 聊天内按会话删除；删除会话时先删对应消息 |
 | `ai_chat_messages` | `AiHistoryDatabase` | 高 | 否 | 随会话删除或在 AI 聊天内单条删除；不得被浏览数据清理误删 |
 
@@ -48,7 +48,7 @@ Flutter `shared_preferences` 在 Android 上落到应用私有 preferences。下
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`；epoch ms | 低 | 否 | 仅调度提示；缓存清理成功后更新，设置导入不覆盖 |
 | `ai_tools_config` | `AiConfigStore`；历史 key v0，JSON 字段默认值兼容 | 高（API key） | 否 | AI 设置保存/覆盖；不得写入日志或普通备份 |
 | `translation_history` | `TranslationHistoryStore` 非 Android fallback；历史 key v0，最多 200 条 | 高（原文/译文） | 否 | 翻译历史清除；Android 上不读取此 key |
-| `telegram_checkin_config` | `TelegramCheckinStore`；backup schema version `8` 包含该对象 | 高（App ID/hash、手机号、目标/命令） | 是 | TG 设置保存/覆盖；不得记录到 runtime log |
+| `telegram_checkin_config` | `TelegramCheckinStore`；backup schema version `9` 包含该对象 | 高（App ID/hash、手机号、目标/命令） | 是 | TG 设置保存/覆盖；不得记录到 runtime log |
 
 ## Android 原生存储
 
@@ -67,9 +67,9 @@ SharedPreferences 清理来模拟停止；必须调用各自 service/gateway 的
 | app database path / `browser_data.db` | `AppDatabase` | 高 | 仅由统一备份选择性序列化部分表，不复制 DB 文件 | 由各 repository 按类别清理，不整库删除 |
 | app external `logs/runtime.log` | `AppLogService` | 高（已脱敏诊断） | 用户显式“导出日志”时复制到 Download | 关闭 runtime logging 时等待写队列后删除；缓存清理不负责删除 |
 | shared Download 或 app fallback 下的 `ruoqing-*.json` | `BrowserBackupFileWriter` | 高（备份含 Cookie、配置与私密内容） | 文件本身就是用户导出物 | 应用不自动删除；由用户/文件管理器处理 |
-| shared Download / app fallback 下载文件 | `BrowserDownloadService`（记录由 `BrowserDownloadStore`） | 取决于文件 | 不进入统一备份 | 全局清记录保留文件；单条“记录+文件”才删除对应文件 |
+| shared Download / app fallback 下载文件 | `BrowserDownloadService`（记录由 `BrowserDownloadStore`） | 取决于文件 | 文件不进入统一备份，仅备份下载记录及原保存路径 | 全局清记录保留文件；单条“记录+文件”才删除对应文件 |
 | Telegram 插件私有 files `/telegram/`（TDLib database/files） | `TelegramPluginService` / TDLib | 高（登录会话、聊天缓存） | 否 | 插件首次使用需重新登录；仅由明确的 Telegram logout/data reset 流程或卸载插件清除；普通 Lightly 数据清理不得删除 |
-| WebView Cookie store | Android WebView / `CookieManager`，origin index 由 `BrowserCookieOriginService` 持有 | 高 | 统一备份按 origin 枚举并导出支持的 Cookie | “Cookie 与站点数据”清除；清历史不清 Cookie |
+| WebView Cookie store | Android WebView / `CookieManager`，origin index 由 `BrowserCookieOriginService` 持有 | 高 | 统一备份按 origin 枚举并导出支持的 Cookie | “Cookie 与站点数据”清除；单站点清理按真实 domain/path 删除，并根据实际父域 Cookie 清理已索引的同站 origin；清历史不清 Cookie |
 | WebView local/session storage、IndexedDB、Cache API | Android WebView + 当前 WebView origin | 高 | 统一备份仅覆盖当前实现可枚举的 web storage | 全局站点数据或当前站点清理；当前站点清理不含 WebView 全局 HTTP cache |
 | WebView 全局 HTTP cache / app cache / temp children | `AppCacheMaintenanceService` 与 WebView API | 中 | 否 | “清理应用缓存”或计划清理；不得清历史、收藏、下载记录、配置或用户文件 |
 | Simple file manager root 中的用户文件 | 用户；`SimpleFileManagerService` 只提供访问 | 高 | 否 | 仅用户明确文件操作可改删；停止服务或清 app cache 不得删除 |
@@ -81,11 +81,12 @@ WebView Cookie 备份只能往返 Android `CookieManager` 针对已索引 origin
 
 ## 统一备份边界
 
-当前统一备份 JSON schema version 为 `8`，包括：收藏、浏览设置、最多 1000 条历史聚合、计算器
-历史、app 剪贴板内容/启用时端口、Cookie、可导出的 WebStorage、EasyTier profiles/selected id、
-Telegram 签到配置。
+当前统一备份 JSON schema version 为 `9`，包括：收藏、浏览设置、最多 1000 条历史聚合、全部下载
+记录、计算器历史、app 剪贴板内容/启用时端口、Cookie、可导出的 WebStorage、EasyTier
+profiles/selected id、Telegram 签到配置。下载文件本身不进入 JSON；导入下载记录按 URL、保存路径和
+创建时间去重，`pending`/`downloading` 状态恢复为 `paused`，避免产生没有实际任务的活动记录。
 
-明确不包括：下载记录和文件、tab session、订阅节点、AI 配置、AI 聊天、翻译历史、文件管理设置、
+明确不包括：下载文件、tab session、订阅节点、AI 配置、AI 聊天、翻译历史、文件管理设置、
 日志开关/文件、缓存调度时间、TDLib 数据库。增加任一数据类别前必须同时更新 backup schema、导入
 选择、敏感提示、测试和本文。
 
