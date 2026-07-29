@@ -1,6 +1,9 @@
 package lightly.tool.plugin.webrtc
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioDeviceCallback
@@ -39,6 +42,9 @@ internal class WebRtcVoiceSession(
     private var localAudioEnabled = false
     private var previousAudioMode: Int? = null
     private var previousSpeakerphone: Boolean? = null
+    private var previousBluetoothSco: Boolean? = null
+    private var bluetoothScoStartedBySession = false
+    private var audioRoutingActive = false
     private var audioDeviceCallback: AudioDeviceCallback? = null
 
     val prepared: Boolean
@@ -434,76 +440,135 @@ internal class WebRtcVoiceSession(
             previousAudioMode = manager.mode
             @Suppress("DEPRECATION")
             previousSpeakerphone = manager.isSpeakerphoneOn
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                @Suppress("DEPRECATION")
+                previousBluetoothSco = manager.isBluetoothScoOn
+            }
         }
+        audioRoutingActive = true
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
         registerAudioDeviceCallback(manager)
-        val wiredDevice = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            manager.availableCommunicationDevices.firstOrNull(::isWiredAudioDevice)
-        } else {
-            null
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && wiredDevice != null) {
-            @Suppress("DEPRECATION")
-            manager.isSpeakerphoneOn = false
-            if (manager.communicationDevice?.id != wiredDevice.id) {
-                manager.setCommunicationDevice(wiredDevice)
-            }
-            emitLog("webrtc-native-audio-route: wired type=${wiredDevice.type}")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            configureModernAudioRoute(manager)
             return
         }
         @Suppress("DEPRECATION")
         if (manager.isWiredHeadsetOn) {
+            stopLegacyBluetoothScoIfStarted(manager)
             @Suppress("DEPRECATION")
             manager.isSpeakerphoneOn = false
             emitLog("webrtc-native-audio-route: wired-legacy")
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            manager.clearCommunicationDevice()
+        if (isLegacyBluetoothHeadsetConnected(manager)) {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = false
+            @Suppress("DEPRECATION")
+            if (!manager.isBluetoothScoOn) {
+                @Suppress("DEPRECATION")
+                manager.startBluetoothSco()
+                bluetoothScoStartedBySession = true
+            }
+            @Suppress("DEPRECATION")
+            manager.isBluetoothScoOn = true
+            emitLog("webrtc-native-audio-route: bluetooth-legacy")
+            return
         }
+        stopLegacyBluetoothScoIfStarted(manager)
+        @Suppress("DEPRECATION")
+        manager.isSpeakerphoneOn = true
+        emitLog("webrtc-native-audio-route: speaker")
+    }
+
+    private fun configureModernAudioRoute(manager: AudioManager) {
+        val devices = manager.availableCommunicationDevices
+        val preferredType = AudioRoutePolicy.preferredCommunicationDeviceType(devices.map { it.type })
+        val preferredDevice = devices.firstOrNull { it.type == preferredType }
+        if (preferredDevice != null) {
+            @Suppress("DEPRECATION")
+            manager.isSpeakerphoneOn = false
+            val selected = manager.communicationDevice?.id == preferredDevice.id ||
+                manager.setCommunicationDevice(preferredDevice)
+            if (selected) {
+                emitLog(
+                    "webrtc-native-audio-route: " +
+                        "${AudioRoutePolicy.routeName(preferredDevice.type)} type=${preferredDevice.type}",
+                )
+                return
+            }
+            emitLog("webrtc-native-audio-route-selection-failed: type=${preferredDevice.type}")
+        }
+        manager.clearCommunicationDevice()
         @Suppress("DEPRECATION")
         manager.isSpeakerphoneOn = true
         emitLog("webrtc-native-audio-route: speaker")
     }
 
     private fun restoreAudioRoute() {
+        if (previousAudioMode == null && audioDeviceCallback == null) return
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioRoutingActive = false
         audioDeviceCallback?.let(manager::unregisterAudioDeviceCallback)
         audioDeviceCallback = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             manager.clearCommunicationDevice()
+        } else {
+            stopLegacyBluetoothScoIfStarted(manager)
         }
         previousAudioMode?.let { manager.mode = it }
+        previousBluetoothSco?.let {
+            @Suppress("DEPRECATION")
+            manager.isBluetoothScoOn = it
+        }
         previousSpeakerphone?.let {
             @Suppress("DEPRECATION")
             manager.isSpeakerphoneOn = it
         }
         previousAudioMode = null
         previousSpeakerphone = null
+        previousBluetoothSco = null
+        bluetoothScoStartedBySession = false
     }
 
     private fun registerAudioDeviceCallback(manager: AudioManager) {
         if (audioDeviceCallback != null) return
         val callback = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
-                handler.post(::configureAudioRoute)
+                handler.post {
+                    if (audioRoutingActive) configureAudioRoute()
+                }
             }
 
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-                handler.post(::configureAudioRoute)
+                handler.post {
+                    if (audioRoutingActive) configureAudioRoute()
+                }
             }
         }
         audioDeviceCallback = callback
         manager.registerAudioDeviceCallback(callback, handler)
     }
 
-    private fun isWiredAudioDevice(device: AudioDeviceInfo): Boolean = when (device.type) {
-        AudioDeviceInfo.TYPE_WIRED_HEADSET,
-        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-        AudioDeviceInfo.TYPE_USB_HEADSET,
-        AudioDeviceInfo.TYPE_USB_DEVICE,
-        AudioDeviceInfo.TYPE_USB_ACCESSORY -> true
-        else -> false
+    @SuppressLint("MissingPermission")
+    private fun isLegacyBluetoothHeadsetConnected(manager: AudioManager): Boolean {
+        val hasScoDevice = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+        if (hasScoDevice) return true
+        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        return runCatching {
+            @Suppress("DEPRECATION")
+            bluetoothManager?.adapter?.getProfileConnectionState(BluetoothProfile.HEADSET) ==
+                BluetoothProfile.STATE_CONNECTED
+        }.getOrDefault(false)
+    }
+
+    private fun stopLegacyBluetoothScoIfStarted(manager: AudioManager) {
+        if (!bluetoothScoStartedBySession) return
+        @Suppress("DEPRECATION")
+        manager.stopBluetoothSco()
+        @Suppress("DEPRECATION")
+        manager.isBluetoothScoOn = false
+        bluetoothScoStartedBySession = false
     }
 
     private fun createPeerConstraints() = MediaConstraints().apply {
