@@ -185,6 +185,14 @@ class SettingsPageHomeSections extends StatelessWidget {
                 ],
               ),
             ),
+            const Divider(height: 1),
+            SettingsTile(
+              icon: Icons.extension_outlined,
+              title: '插件下载',
+              subtitle: '下载线路、镜像与包内固定版本',
+              onTap: () =>
+                  Navigator.of(context).pushNamed('/optional-plugin-settings'),
+            ),
           ],
         ),
         const SizedBox(height: 12),

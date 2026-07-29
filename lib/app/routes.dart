@@ -8,6 +8,7 @@ import '../pages/downloads_page.dart';
 import '../pages/data_management_page.dart';
 import '../pages/about_version_page.dart';
 import '../pages/settings_page.dart';
+import '../pages/optional_plugin_settings_page.dart';
 import '../pages/browser_history_page.dart';
 import '../pages/easytier_settings_page.dart';
 import '../features/remote_control/presentation/pages/remote_control_page.dart';
@@ -40,6 +41,8 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
     '/data-management': (context) => const DataManagementPage(),
     '/about-version': (context) => const AboutVersionPage(),
     '/settings': (context) => const SettingsPage(),
+    '/optional-plugin-settings': (context) =>
+        const OptionalPluginSettingsPage(),
     '/local-http-settings': (context) =>
         const SettingsPage(initialSection: SettingsInitialSection.localHttp),
     '/browser-history': (context) => const BrowserHistoryPage(),

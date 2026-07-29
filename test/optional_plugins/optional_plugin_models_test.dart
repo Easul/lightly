@@ -16,10 +16,7 @@ void main() {
       ).minimumApiVersion,
       3,
     );
-    expect(
-      OptionalFeatureCatalog.manifestUrl,
-      startsWith('https://github.com/'),
-    );
+    expect(OptionalFeatureCatalog.manifestAsset, endsWith('plugins.json'));
   });
 
   test('status requires install trust enablement and compatible API', () {
