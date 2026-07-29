@@ -609,6 +609,12 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
     A2DP speaker as a voice headset. Start legacy SCO only for that session, stop it when wired audio
     takes priority or Bluetooth disconnects, and restore the previous SCO state when the session
     closes. A queued device callback must not reclaim the audio route after session shutdown.
+  - Android 12+ MIUI may omit the connected HFP / LE headset from communication-device discovery
+    until the standalone companion has `BLUETOOTH_CONNECT` (Nearby devices). Keep that permission in
+    the companion permission Activity, but do not make denial disable speaker-based voice when
+    `RECORD_AUDIO` is granted. Reapply routing after the WebRTC audio module and remote audio track
+    start; if an HFP headset is connected but modern communication-device selection is still absent,
+    request SCO once and let the device callback complete modern selection asynchronously.
 
 - Internal proxy mode intentionally does not provide WebRTC voice.
   - Test WebRTC voice over LAN or EasyTier direct remote-control connections, not the internal proxy path.
