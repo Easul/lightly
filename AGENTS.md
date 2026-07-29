@@ -1174,7 +1174,17 @@ The address bar lock icon opens a dialog for clearing current-site data:
   download facade. Browser URLs, external video intents, and download-record playback converge on
   that path. The retired `NativeVideoPlayerPage` was unreachable and has been removed. Do not
   reintroduce a parallel full-page player owner without an explicit lifecycle and migration plan.
-- Parser responses may include `title` alongside `urls`; keep that title visible in parsed video UI and use it as the initial download filename while preserving existing ellipsis and filename sanitization rules.
+- YouTube URLs submitted from the top address bar or favorites page must load in the browser first.
+  Resolution starts only from the explicit in-page play control after the watch page is open. Keep
+  that control as a compact `52 x 52` rounded square with only the play icon.
+- Before starting the private resolver, pause media elements in the visible browser WebView. This
+  avoids competing audio/decoder work while the short-lived resolver WebView is active.
+- Keep resolver polling light: trigger muted playback once, stop returning/parsing the full player
+  response after it has been captured, poll only the small captured-URL field after that, and parse
+  the full player-response JSON away from the Android main thread.
+- Resolver responses may include `title` alongside `streamUrl`; keep that title visible in parsed
+  video UI and use it as the initial download filename while preserving existing ellipsis and
+  filename sanitization rules.
 - Resolver results may include restricted request headers. Keep those headers confined to the local
   video proxy/download path and never log cookies or complete `googlevideo` URLs.
 
