@@ -312,16 +312,16 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - All Service-owning companions must use `OptionalPluginActivationCoordinator` before their first
   explicit `bindService()`. Do not reintroduce per-feature wake-up request codes or bypass its
   same-signature check; MIUI can reject a direct bind from `lightly.tool` to an installed plugin.
-- Companion runtime lifetime is subordinate to the Lightly host binding. Telegram and WebRTC must
-  close native sessions when their host callback Binder dies; EasyTier must stop its native network
-  and VPN when the last Lightly binding is lost, even though its active runtime is also promoted to
-  a started foreground service. Normal app backgrounding keeps the binding and must not stop them.
-- The shared foreground-bootstrap protocol is optional-plugin API 2. WebRTC voice is API 3 because
-  its permission Activity must start the microphone foreground service while the companion package
-  is still foreground. When changing a plugin mechanism, bump that companion's manifest and Service
-  API together with `OptionalFeatureCatalog` so old APKs are offered an update instead of being
-  treated as compatible. Keep release-manifest API versions per feature rather than assuming every
-  companion always shares one API number.
+- Companion runtime lifetime is subordinate to the Lightly host binding. Telegram, WebRTC, and
+  EasyTier must close their native runtime when the last Lightly binding or callback Binder is lost,
+  including when they have promoted an active runtime to a started foreground service. Normal app
+  backgrounding keeps the binding and must not stop them.
+- The base foreground-bootstrap protocol is optional-plugin API 2. Telegram and WebRTC are API 3:
+  Telegram's bootstrap Activity starts its `dataSync` foreground service before binding, while
+  WebRTC's permission Activity starts its microphone foreground service before opening the mic.
+  When changing a plugin mechanism, bump that companion's manifest and Service API together with
+  `OptionalFeatureCatalog` so old APKs are offered an update instead of being treated as compatible.
+  Keep release-manifest API versions per feature rather than assuming every companion shares one.
 - Companion manifests must use Lightly's `ic_launcher` and `ic_launcher_round` resources so the
   installer and system settings do not show the default Android application icon.
 - Release verification must unpack every companion APK and fail if Flutter/Dart runtime artifacts
@@ -569,7 +569,7 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
   `NetworkMonitorAutoDetect` while creating `PeerConnectionFactory`, and on MIUI a missing network
   state permission throws `SecurityException` across JNI, triggers `Check failed:
   !env->ExceptionCheck()`, and aborts the companion process on `network_thread`.
-- WebRTC voice companion API is 3; Telegram and EasyTier remain API 2. Keep the host catalog,
+- Telegram and WebRTC companion APIs are 3; EasyTier remains API 2. Keep the host catalog,
   channel minimums, manifests, service constants, and per-feature release manifest aligned.
 - Missing/incompatible plugin must disable voice for the current session while preserving control
   and screen connectivity. Internal-proxy and no-tun paths must not prompt for the voice plugin.
@@ -1283,6 +1283,11 @@ void dispose() {
   compatible.
 - TDLib crosses IPC only through bounded JSON requests/results. The plugin owns the single receive
   loop and rewrites `setTdlibParameters` database/files directories into its private sandbox.
+- A plain cross-package bound Service can be frozen by MIUI even while Lightly's Activity remains
+  visible. Telegram API 3 must start `TelegramPluginService` as a `dataSync` foreground service from
+  the signature-protected bootstrap Activity before binding. Keep its notification active while the
+  host binding owns TDLib, and stop the foreground service on unbind, callback death, or failed bind;
+  otherwise `td_receive()` stops and every later chat request times out despite a healthy SOCKS5 path.
 - Do not start the TDLib receive loop from `createClient()`: the initial authorization update can
   arrive before Lightly stores the Binder-returned client ID and be discarded. Start it after the
   first client-scoped request is sent. Callback registration also happens before `createClient()`
