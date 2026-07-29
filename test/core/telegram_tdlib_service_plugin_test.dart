@@ -42,6 +42,17 @@ void main() {
                   '@client_id': 42,
                 }),
               );
+              if (request['@type'] == 'getAuthorizationState') {
+                unawaited(
+                  _sendPluginResult(channel, <String, Object?>{
+                    '@type': 'updateAuthorizationState',
+                    '@client_id': 42,
+                    'authorization_state': <String, Object?>{
+                      '@type': 'authorizationStateWaitTdlibParameters',
+                    },
+                  }),
+                );
+              }
               return null;
           }
           return null;
@@ -74,6 +85,10 @@ void main() {
     expect(parameters['database_directory'], isEmpty);
     expect(parameters['files_directory'], isEmpty);
     expect(requests[2]['port'], 23333);
+    expect(
+      requests.where((request) => request['@type'] == 'setTdlibParameters'),
+      hasLength(1),
+    );
     expect(service.proxyStatus.value, '已使用本地代理 127.0.0.1:23333');
 
     await _sendPluginResult(channel, <String, Object?>{

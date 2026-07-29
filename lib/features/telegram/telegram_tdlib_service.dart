@@ -37,6 +37,7 @@ class TelegramTdlibService {
   int _clientId = 0;
   int _requestId = 0;
   int? _configuredProxyPort;
+  int? _tdlibParametersSubmittedClientId;
   TelegramCheckinConfig? _config;
 
   LocalProxyEndpointProvider proxyEndpointProvider =
@@ -52,10 +53,12 @@ class TelegramTdlibService {
       _disconnectSubscription ??= _plugin.disconnects.listen((_) {
         _clientId = 0;
         _configuredProxyPort = null;
+        _tdlibParametersSubmittedClientId = null;
         _failPendingRequests(StateError('Telegram 插件连接已断开'));
         authStep.value = TelegramAuthStep.error;
       });
       _clientId = await _plugin.createClient();
+      _tdlibParametersSubmittedClientId = null;
     }
     authStep.value = TelegramAuthStep.loading;
     // Do NOT configure the proxy here: before setTdlibParameters, TDLib is in
@@ -261,33 +264,7 @@ class TelegramTdlibService {
   Future<void> _handleAuthorizationState(TelegramJson state) async {
     switch (state['@type']) {
       case 'authorizationStateWaitTdlibParameters':
-        final config = _config;
-        if (config == null || !config.hasApiCredentials) {
-          authStep.value = TelegramAuthStep.error;
-          return;
-        }
-        await _expectOk('setTdlibParameters', <String, Object?>{
-          'use_test_dc': false,
-          'database_directory': '',
-          'files_directory': '',
-          'database_encryption_key': '',
-          'use_file_database': false,
-          'use_chat_info_database': true,
-          'use_message_database': true,
-          'use_secret_chats': false,
-          'api_id': config.apiId,
-          'api_hash': config.apiHash,
-          'system_language_code': 'zh-Hans',
-          'device_model': 'Android',
-          'system_version': Platform.operatingSystemVersion,
-          'application_version': '1.0.1',
-          'enable_storage_optimizer': true,
-          'ignore_file_names': true,
-        });
-        // Apply the local SOCKS5 proxy immediately after parameters are set. TDLib only accepts
-        // addProxy once the binlog exists, and applying it here (before it settles on a route)
-        // keeps the initial connection on the proxy instead of racing a direct connection.
-        await configureProxyIfAvailable();
+        await _submitTdlibParametersIfNeeded();
       case 'authorizationStateWaitPhoneNumber':
         await configureProxyIfAvailable();
         authStep.value = TelegramAuthStep.phone;
@@ -303,8 +280,59 @@ class TelegramTdlibService {
       case 'authorizationStateClosed':
         _clientId = 0;
         _configuredProxyPort = null;
+        _tdlibParametersSubmittedClientId = null;
         _failPendingRequests(StateError('Telegram 连接已关闭'));
         authStep.value = TelegramAuthStep.loggedOut;
+    }
+  }
+
+  Future<void> _submitTdlibParametersIfNeeded() async {
+    final clientId = _clientId;
+    if (clientId == 0 || _tdlibParametersSubmittedClientId == clientId) {
+      return;
+    }
+    final config = _config;
+    if (config == null || !config.hasApiCredentials) {
+      authStep.value = TelegramAuthStep.error;
+      return;
+    }
+
+    // getAuthorizationState can return the same state that TDLib also emits as an asynchronous
+    // authorization update. Mark the submission before awaiting the request so both paths share
+    // one idempotent transition for this client.
+    _tdlibParametersSubmittedClientId = clientId;
+    var parametersAccepted = false;
+    try {
+      await _expectOk('setTdlibParameters', <String, Object?>{
+        'use_test_dc': false,
+        'database_directory': '',
+        'files_directory': '',
+        'database_encryption_key': '',
+        'use_file_database': false,
+        'use_chat_info_database': true,
+        'use_message_database': true,
+        'use_secret_chats': false,
+        'api_id': config.apiId,
+        'api_hash': config.apiHash,
+        'system_language_code': 'zh-Hans',
+        'device_model': 'Android',
+        'system_version': Platform.operatingSystemVersion,
+        'application_version': '1.0.1',
+        'enable_storage_optimizer': true,
+        'ignore_file_names': true,
+      });
+      parametersAccepted = true;
+      if (_clientId != clientId) return;
+      // Apply the local SOCKS5 proxy immediately after parameters are set. TDLib only accepts
+      // addProxy once the binlog exists, and applying it here (before it settles on a route)
+      // keeps the initial connection on the proxy instead of racing a direct connection.
+      await configureProxyIfAvailable();
+    } catch (_) {
+      if (!parametersAccepted &&
+          _tdlibParametersSubmittedClientId == clientId) {
+        _tdlibParametersSubmittedClientId = null;
+      }
+      rethrow;
     }
   }
 
