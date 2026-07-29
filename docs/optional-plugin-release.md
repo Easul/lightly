@@ -40,6 +40,25 @@ it returns immediately to the foreground Lightly Activity. Keep `android:icon` a
 Do not publish the manifest until the corresponding APKs are signed with the same certificate as
 the Lightly build that declares the minimum version code.
 
+## Pinned delivery and GitHub Actions
+
+The release workflow builds the six companion APKs before the final Lightly APK, writes their exact
+URLs, sizes, and SHA-256 values to `plugins.json`, and embeds that file at
+`assets/optional_plugins/plugins.json`. The runtime installer reads the signed in-APK manifest; it
+does not trust `releases/latest/download/plugins.json`.
+
+At runtime, automatic delivery tries GitHub through the active Lightly proxy when available, or
+directly otherwise. A connection timeout, idle timeout, HTTP/redirect failure, or sustained speed
+below 48 KiB/s after the initial eight-second window causes a fresh direct mirror attempt. The
+Settings -> Plugin Download page also provides GitHub-only, mirror-only, and a custom HTTPS mirror
+prefix. IP geolocation is deliberately not used to choose a route.
+
+The workflow publishes the optional-plugin Release before the Lightly Release. Configure
+`PLUGIN_RELEASE_REPOSITORY`, `PLUGIN_RELEASE_TOKEN`, `YOUTUBE_RESOLVER_AAR_URL`, and
+`YOUTUBE_RESOLVER_AAR_SHA256` as described in
+[GitHub Release and Plugin Delivery](github-release-delivery.md). The final host APK and all six
+companion APKs are certificate-compared by `scripts/verify_optional_plugin_bundle.sh`.
+
 ## Migration acceptance (2026-07-29)
 
 The native companion extraction is implementation-complete. The following manual matrix was

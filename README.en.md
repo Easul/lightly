@@ -40,6 +40,12 @@ The project aims to keep browsing, connectivity, transfer, and device-control to
 - Telegram check-in tool and message text selection
 - Calculator and 2048 utility pages
 
+### Optional Plugins
+- Telegram, WebRTC voice, and EasyTier ship as same-signed pure-Android companion APKs
+- Lightly embeds compatible plugin URLs, ABI entries, sizes, and SHA-256 values instead of trusting a runtime remote manifest
+- Downloads support the configured Lightly proxy, direct GitHub access, timeout/sustained-slow mirror fallback, and a user-defined HTTPS mirror prefix
+- GitHub Actions build Lightly and all six ABI-specific plugin APKs with one release key and cross-check certificates before publishing
+
 ## Interface and Interaction
 
 - A muted green accent, soft gray background, and white content groups reduce heavy black surfaces and highly saturated warning colors
@@ -75,6 +81,9 @@ Requirements:
 ### Chinese
 - [Quick Start (CN)](docs/quickstart.md)
 - [Development Guide (CN)](docs/development.md)
+- [GitHub Release and Plugin Delivery (CN)](docs/github-release-delivery.md)
+- [Optional Plugin Release Guide](docs/optional-plugin-release.md)
+- [Plugin Delivery and YouTube Binary Change Summary (CN)](docs/release-summary-plugin-delivery.md)
 - [Architecture (CN)](docs/architecture.md)
 - [Architecture Migration Roadmap (CN)](docs/architecture-roadmap.md)
 - [Engineering Maintenance Backlog (CN)](docs/maintenance-backlog.md)

@@ -30,6 +30,16 @@ bash scripts/build_multi_abi.sh
 
 GitHub Actions 的 `.github/workflows/release.yml` 也调用该脚本；更新发布流程时应优先修改脚本，再让 CI 复用脚本行为，避免本地与 CI 的 ABI 过滤、混淆或版本规则漂移。
 
+## GitHub Actions 联合发布
+
+`v*` tag 不再只构建 Lightly。工作流会先获取固定 URL/SHA-256 的 R8 YouTube AAR，再构建 Telegram、
+WebRTC、EasyTier 的 32/64 位 companion，生成并嵌入 `plugins.json`，最后构建 Lightly。所有 companion
+与最终 Lightly 必须使用同一证书。
+
+发布顺序固定为先 `lightly-plugins`、后 Lightly；插件仓库发布失败时不得公开引用缺失 assets 的
+Lightly Release。所需 Variables、Secrets 和完整执行顺序见
+[GitHub Release 与插件交付](github-release-delivery.md)。
+
 ## 产物检查
 
 - [ ] `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` 存在。
@@ -37,6 +47,10 @@ GitHub Actions 的 `.github/workflows/release.yml` 也调用该脚本；更新�
 - [ ] 64 位包只包含 `arm64-v8a` 相关 native slice。
 - [ ] 32 位包只包含 `armeabi-v7a` 相关 native slice。
 - [ ] `build/app/outputs/symbols/` 存在并与本次构建对应。
+- [ ] APK 内 `assets/optional_plugins/plugins.json` 与 `build/optional-plugins/plugins.json` 一致。
+- [ ] 六个 companion APK 均存在、只有目标 ABI、没有 Flutter/Dart runtime。
+- [ ] `scripts/verify_optional_plugin_bundle.sh` 已确认 companion 与 Lightly 证书一致。
+- [ ] YouTube AAR SHA-256 与 Actions variable 一致，APK 内存在 `YouTubeResolverBridge`。
 
 ## 版本规则
 

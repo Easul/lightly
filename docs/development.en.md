@@ -183,6 +183,9 @@ docs: update xxx
 - Dart SDK constraints must stay compatible with the Flutter version; Flutter `3.41.6` ships with Dart `3.11.4`
 - The release workflow uses Java `17`
 - The release workflow reuses `scripts/build_multi_abi.sh`, so local and CI releases share the same multi-ABI build, obfuscation, split-debug-info, and versioning rules
+- The workflow also builds six optional companion APKs, embeds a pinned `plugins.json`, verifies
+  same-signature delivery, and fetches the R8 YouTube AAR by fixed URL/SHA-256. See
+  [GitHub Release and Plugin Delivery](github-release-delivery.md).
 
 ## Related Docs
 
