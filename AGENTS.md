@@ -589,6 +589,12 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
   - The native companion applies bounded `AudioTrack.setVolume(1.6)` only when it is the receiver, so the controlled device hears the controller louder without also amplifying controller-side monitoring and echo.
   - Keep this boost modest; large values can clip or increase echo on some phones.
 
+- Voice audio routing must follow wired-headset and USB-headset hot-plug changes.
+  - Do not unconditionally force `AudioManager.isSpeakerphoneOn = true`; on Android 12+ prefer the
+    active wired communication device through `setCommunicationDevice()`, and keep an
+    `AudioDeviceCallback` registered for the session so inserting or removing a headset updates the
+    route without rebuilding the WebRTC session.
+
 - Internal proxy mode intentionally does not provide WebRTC voice.
   - Test WebRTC voice over LAN or EasyTier direct remote-control connections, not the internal proxy path.
 
@@ -1239,6 +1245,10 @@ void dispose() {
   a raw TCP connect or the reconstructed default `23333` alone is not proof of the correct listener.
   External HTTP proxy mode does not create the local mixed SOCKS5 listener and must not be reported
   to TDLib as one.
+- Telegram must also follow local proxy runtime start/stop changes after its TDLib client already
+  exists. The endpoint adapter exposes runtime changes, and `TelegramTdlibService` must re-run its
+  serialized proxy configuration when the mixed SOCKS5 listener starts, stops, or restarts; do not
+  leave an already-created TDLib client permanently on the route detected at first authorization.
 - Unified backup includes Telegram App ID, App Hash, phone number, targets, and commands; treat that
   backup as sensitive data and never write these values to runtime logs.
 - If the local proxy is unavailable, the UI must explicitly say Telegram is attempting a direct
