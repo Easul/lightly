@@ -426,7 +426,7 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '首次使用独立插件或重装插件后需重新登录',
+                      '首次迁移到独立插件，或卸载插件后重新安装时需登录',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),

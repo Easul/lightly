@@ -134,7 +134,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('导入设置'),
                   subtitle: const Text(
-                    '包含 TG 的 API、手机号、目标与命令；不包含插件登录会话，重装后需重新登录',
+                    '包含 TG 的 API、手机号、目标与命令；不包含插件登录会话，卸载插件后重装需重新登录',
                   ),
                   value: importSettings,
                   onChanged: (value) => setDialogState(() {

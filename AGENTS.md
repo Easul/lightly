@@ -1287,7 +1287,14 @@ void dispose() {
   compatible.
 - The companion owns its private TDLib database/session. Android app sandboxes prevent an in-place
   migration from Lightly's old support directory, so the first companion launch requires Telegram
-  login again; normal Lightly upgrades and data import still restore API/check-in configuration.
+  login again. A same-package, same-signature APK update preserves the companion app data and TDLib
+  session; only uninstall/reinstall, clearing plugin data, or changing the signing identity loses
+  it. Normal Lightly upgrades and data import still restore API/check-in configuration.
+- Treat the Telegram companion API as a stable minimum-version contract. API 3 remains required
+  because API 2 lacks the verified MIUI `dataSync` foreground bootstrap, but future Lightly releases
+  must keep accepting an installed API 3 plugin while they use the same base operations. Additive
+  features should use capability detection or tolerant optional calls; raise the minimum API only
+  when an older plugin cannot execute the required flow safely.
 - The companion has no launcher Activity or Flutter engine. Lightly binds its exported Service
   through `lightly.tool.plugin.telegram.permission.BIND_SERVICE`, AIDL API 1, an explicit component,
   package visibility, and a same-signature check. Keep the host and plugin AIDL files byte-for-byte
