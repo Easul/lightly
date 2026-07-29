@@ -23,6 +23,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       build_version: ${{ steps.version.outputs.build_version }}
       version_code: ${{ steps.version.outputs.version_code }}
+      plugin_release_tag: ${{ steps.version.outputs.plugin_release_tag }}
     
     steps:
     - name: Checkout code
@@ -81,16 +82,19 @@ jobs:
         # Prefer origin/main so tag builds count main history instead of a detached tag-only ref.
         COMMIT_COUNT=$(git rev-list --count origin/main)
         VERSION_CODE=$((5000 + COMMIT_COUNT))
+        PLUGIN_RELEASE_TAG="plugins-${BUILD_VERSION//[^[:alnum:].+-]/-}"
         
         echo "version=${VERSION}" >> $GITHUB_OUTPUT
         echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
         echo "build_version=${BUILD_VERSION}" >> $GITHUB_OUTPUT
         echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
+        echo "plugin_release_tag=${PLUGIN_RELEASE_TAG}" >> $GITHUB_OUTPUT
         
         echo "📝 Version: ${VERSION}"
         echo "🔖 Commit: ${COMMIT_HASH}"
         echo "📦 Build Version: ${BUILD_VERSION}"
         echo "🔢 Version Code: ${VERSION_CODE}"
+        echo "🧩 Plugin Release: ${PLUGIN_RELEASE_TAG}"
     
     - name: Decode keystore
       env:
@@ -106,6 +110,31 @@ jobs:
           exit 1
         fi
         echo "✅ Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
+
+    - name: Fetch verified YouTube resolver AAR
+      env:
+        YOUTUBE_RESOLVER_AAR_URL: ${{ vars.YOUTUBE_RESOLVER_AAR_URL }}
+        YOUTUBE_RESOLVER_AAR_SHA256: ${{ vars.YOUTUBE_RESOLVER_AAR_SHA256 }}
+        YOUTUBE_RESOLVER_GITHUB_TOKEN: ${{ secrets.YOUTUBE_RESOLVER_GITHUB_TOKEN }}
+      run: scripts/fetch_youtube_aar.sh
+
+    - name: Prepare Telegram TDLib dependency
+      run: extensions/telegram/scripts/prepare_tdlib.sh
+
+    - name: Build optional plugin APKs and manifest
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        PLUGIN_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        PLUGIN_VERSION_NAME: ${{ steps.version.outputs.build_version }}
+        MINIMUM_LIGHTLY_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        PLUGIN_RELEASE_TAG: ${{ steps.version.outputs.plugin_release_tag }}
+        PLUGIN_RELEASE_REPOSITORY: ${{ vars.PLUGIN_RELEASE_REPOSITORY || 'Easul/lightly-plugins' }}
+        PLUGIN_GRADLE_OFFLINE: '0'
+        DEFER_LIGHTLY_CERT_VERIFY: '1'
+      run: |
+        scripts/build_optional_plugins.sh
+        scripts/embed_optional_plugin_manifest.sh
 
     - name: Build multi-ABI APKs
       env:
@@ -123,6 +152,9 @@ jobs:
         cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
           dist/app-armeabi-v7a-release.apk
         echo "✅ Built multi-ABI APKs via scripts/build_multi_abi.sh"
+
+    - name: Verify optional plugins against final Lightly APK
+      run: scripts/verify_optional_plugin_bundle.sh
     
     - name: Show build artifacts
       run: |
@@ -133,6 +165,15 @@ jobs:
       with:
         name: android-apks
         path: dist/*.apk
+        retention-days: 7
+
+    - name: Upload optional plugin artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: optional-plugin-apks
+        path: |
+          build/optional-plugins/*.apk
+          build/optional-plugins/plugins.json
         retention-days: 7
 
   release:
@@ -147,10 +188,36 @@ jobs:
       with:
         name: android-apks
         path: dist/
+
+    - name: Download optional plugin artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: optional-plugin-apks
+        path: optional-plugins/
     
     - name: Display artifacts
       run: |
         ls -lh dist/
+
+    - name: Publish optional plugin release
+      env:
+        GH_TOKEN: ${{ secrets.PLUGIN_RELEASE_TOKEN }}
+        PLUGIN_RELEASE_REPOSITORY: ${{ vars.PLUGIN_RELEASE_REPOSITORY || 'Easul/lightly-plugins' }}
+        PLUGIN_RELEASE_TAG: ${{ needs.build-android.outputs.plugin_release_tag }}
+      run: |
+        if [ -z "$GH_TOKEN" ]; then
+          echo "PLUGIN_RELEASE_TOKEN is required to publish optional plugins"
+          exit 1
+        fi
+        if gh release view "$PLUGIN_RELEASE_TAG" --repo "$PLUGIN_RELEASE_REPOSITORY" >/dev/null 2>&1; then
+          gh release upload "$PLUGIN_RELEASE_TAG" optional-plugins/* \
+            --repo "$PLUGIN_RELEASE_REPOSITORY" --clobber
+        else
+          gh release create "$PLUGIN_RELEASE_TAG" optional-plugins/* \
+            --repo "$PLUGIN_RELEASE_REPOSITORY" \
+            --title "$PLUGIN_RELEASE_TAG" \
+            --notes "Optional companion APKs pinned by Lightly ${{ needs.build-android.outputs.version }}."
+        fi
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
