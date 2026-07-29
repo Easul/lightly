@@ -222,7 +222,7 @@ class TelegramPluginChannelHandler(
         private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
             "lightly.tool.plugin.telegram.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.telegram.BIND"
-        private const val MINIMUM_API_VERSION = 2
+        private const val MINIMUM_API_VERSION = 3
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val METHOD_CONNECT = "connect"
         private const val METHOD_CREATE_CLIENT = "createClient"

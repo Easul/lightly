@@ -1,10 +1,16 @@
 package lightly.tool.plugin.telegram
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.RemoteCallbackList
 import android.util.Log
 import lightly.tool.plugin.telegram.ipc.ITelegramPluginCallback
@@ -23,6 +29,11 @@ class TelegramPluginService : Service() {
     private val receiving = AtomicBoolean(false)
     private val receiverLock = Any()
     private var receiverThread: Thread? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var hostBound = false
+    private val stopIfUnbound = Runnable {
+        if (!hostBound) stopRuntimeWhenHostIsGone()
+    }
     private val requestSanitizer by lazy {
         val root = java.io.File(filesDir, "telegram")
         TelegramRequestSanitizer(
@@ -74,14 +85,34 @@ class TelegramPluginService : Service() {
         }
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_START_FOREGROUND) {
+            startRuntimeForeground()
+            mainHandler.removeCallbacks(stopIfUnbound)
+            mainHandler.postDelayed(stopIfUnbound, HOST_BIND_TIMEOUT_MS)
+        }
+        return START_NOT_STICKY
+    }
+
     override fun onBind(intent: Intent?): IBinder {
         enforceTrustedCaller()
+        hostBound = true
+        mainHandler.removeCallbacks(stopIfUnbound)
         return binder
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        hostBound = false
+        stopRuntimeWhenHostIsGone()
+        return false
+    }
+
     override fun onDestroy() {
+        mainHandler.removeCallbacks(stopIfUnbound)
+        hostBound = false
         closeClients()
         stopReceiver()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         callbacks.kill()
         super.onDestroy()
     }
@@ -90,7 +121,33 @@ class TelegramPluginService : Service() {
         Log.i(LOG_TAG, "Lightly host disconnected; closing TDLib clients")
         closeClients()
         stopReceiver()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun startRuntimeForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL,
+                    "Lightly TG 工具",
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
+            )
+        }
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, NOTIFICATION_CHANNEL)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        val notification = builder
+            .setContentTitle("Lightly TG 工具正在运行")
+            .setContentText("正在维持 Telegram 会话")
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setOngoing(true)
+            .build()
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun closeClients() {
@@ -179,11 +236,16 @@ class TelegramPluginService : Service() {
     }
 
     companion object {
-        const val API_VERSION = 2
+        const val API_VERSION = 3
+        const val ACTION_START_FOREGROUND =
+            "lightly.tool.plugin.telegram.action.START_FOREGROUND"
         private const val LOG_TAG = "TelegramPlugin"
         private const val MAX_JSON_LENGTH = 512 * 1024
         private const val RECEIVE_TIMEOUT_SECONDS = 0.25
         private const val RECEIVER_STOP_TIMEOUT_MS = 1_000L
+        private const val HOST_BIND_TIMEOUT_MS = 10_000L
+        private const val NOTIFICATION_ID = 14601
+        private const val NOTIFICATION_CHANNEL = "lightly_telegram_runtime"
         private const val CLOSE_REQUEST = "{\"@type\":\"close\"}"
         private val LOGGED_REQUEST_TYPES = setOf(
             "getAuthorizationState",

@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <permission
         android:name="lightly.tool.plugin.telegram.permission.BIND_SERVICE"
@@ -16,7 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher_round">
         <meta-data
             android:name="lightly.plugin.API_VERSION"
-            android:value="2" />
+            android:value="3" />
         <meta-data
             android:name="lightly.plugin.FEATURE_ID"
             android:value="telegram" />
@@ -24,6 +26,7 @@
         <service
             android:name=".TelegramPluginService"
             android:exported="true"
+            android:foregroundServiceType="dataSync"
             android:permission="lightly.tool.plugin.telegram.permission.BIND_SERVICE">
             <intent-filter>
                 <action android:name="lightly.tool.plugin.telegram.BIND" />

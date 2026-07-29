@@ -34,7 +34,7 @@ class OptionalFeatureCatalog {
           id: OptionalFeatureId.telegram,
           displayName: 'TG 工具插件',
           packageName: 'lightly.tool.plugin.telegram',
-          minimumApiVersion: 2,
+          minimumApiVersion: 3,
         ),
         OptionalFeatureId.webRtcVoice: OptionalFeatureDescriptor(
           id: OptionalFeatureId.webRtcVoice,

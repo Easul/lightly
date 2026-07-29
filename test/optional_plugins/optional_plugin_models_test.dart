@@ -9,7 +9,7 @@ void main() {
     );
 
     expect(telegram.packageName, 'lightly.tool.plugin.telegram');
-    expect(telegram.minimumApiVersion, 2);
+    expect(telegram.minimumApiVersion, 3);
     expect(
       OptionalFeatureCatalog.descriptor(
         OptionalFeatureId.webRtcVoice,
