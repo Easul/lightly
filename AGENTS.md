@@ -1289,6 +1289,10 @@ void dispose() {
   and must not start the receive loop for the same reason. Configure the local SOCKS5 proxy right
   after `setTdlibParameters` (never before it — TDLib rejects `addProxy` until the binlog exists) so
   the initial TDLib network setup follows the proxy instead of racing a direct connection.
+- TDLib `receive()` is single-thread-only. When the host binding dies or the companion is rebound,
+  stop the existing receiver and wait for its bounded receive timeout to return before starting a
+  replacement thread. Starting a second receiver while the first is still inside `receive()` makes
+  TDLib abort natively and surfaces to Lightly as a generic Telegram request timeout.
 - Lightly's `TelegramTdlibService` uses the local `TelegramTdJsonCodec` for the limited request and
   response schema needed by TG Tools. Do not add the Flutter `tdlib` package or `libtdjson.so` back
   to the host merely for generated Dart model classes.
