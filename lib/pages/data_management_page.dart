@@ -106,6 +106,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     bool mergeFavorites = true;
     bool importSettings = true;
     bool importHistory = true;
+    bool importDownloads = true;
     bool importClipboard = true;
     bool importCalculatorHistory = true;
     bool importWebData = true;
@@ -147,6 +148,15 @@ class _DataManagementPageState extends State<DataManagementPage> {
                   value: importHistory,
                   onChanged: (value) => setDialogState(() {
                     importHistory = value ?? true;
+                  }),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('导入下载记录'),
+                  subtitle: const Text('仅恢复记录，不包含已下载或未完成的文件'),
+                  value: importDownloads,
+                  onChanged: (value) => setDialogState(() {
+                    importDownloads = value ?? true;
                   }),
                 ),
                 CheckboxListTile(
@@ -236,6 +246,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
         mergeFavorites: mergeFavorites,
         importSettings: importSettings,
         importHistory: importHistory,
+        importDownloads: importDownloads,
         importClipboard: importClipboard,
         importCalculatorHistory: importCalculatorHistory,
         importWebData: importWebData,

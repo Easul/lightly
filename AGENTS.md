@@ -964,11 +964,19 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - **Success message**: "已清除 ${host} 的 Cookie 与站点数据（不含全局缓存）"
 
 ### Technical implementation
-- Clears cookies for specific URL/domain via `CookieManager.deleteCookies()`
+- Enumerates cookies for the current URL/root and deletes each cookie with its actual domain/path.
+- When a real parent-domain cookie identifies a shared site boundary, also enumerate recorded
+  sibling origins from `BrowserCookieOriginService` (for example `mail.google.com` and
+  `accounts.google.com` under `.google.com`). Do not derive sibling scope from a naive last-two-label
+  rule because public suffixes such as `co.uk` are not site boundaries.
+- Older WebViews that omit cookie metadata use bounded current-host/parent-domain and current-path
+  fallbacks; this must remain a site-scoped operation and must not call `deleteAllCookies()`.
 - Clears localStorage/sessionStorage via injected JavaScript
-- Clears Cache API and IndexedDB via JavaScript
+- Awaits Cache API cleanup, service-worker unregister, and IndexedDB deletion through
+  `callAsyncJavaScript()` before reloading.
 - Calls `controller.webStorage.localStorage.clear()` and `sessionStorage.clear()`
-- On Android: calls `WebStorageManager.deleteOrigin()` for the origin
+- On Android: calls `WebStorageManager.deleteOrigin()` for the current and metadata-related indexed
+  origins
 - **Does NOT clear** global HTTP cache (WebView limitation)
 
 **Files**: `lib/pages/browser_page.dart` (`_showSiteSecurityDialog`, `_clearCurrentSiteData`)

@@ -21,7 +21,7 @@ code owner to `AppDatabase` without changing the filename, table names, or schem
 | `browser_history` | `BrowserHistoryService` (URL summary/title/count) | medium | Yes, up to 1,000 summary rows | Cleared with visits by the History action |
 | `browser_history_visits` | `BrowserHistoryService` (individual visits) | medium | No; imported summaries create new visits | Cleared with summaries by the History action |
 | `browser_favorites` | `BrowserFavoriteService` | medium | Yes | Favorites clear removes all rows and must invalidate the favorite-status cache |
-| `browser_downloads` | `BrowserDownloadStore` | medium | No | Global clear stops tasks and removes records only; per-item deletion may remove the file when explicitly selected |
+| `browser_downloads` | `BrowserDownloadStore` | medium | Yes, records only; import deduplicates and restores active states as paused | Global clear stops tasks and removes records only; per-item deletion may remove the file when explicitly selected |
 | `ai_chat_sessions` | `AiHistoryDatabase` | high | No | Deleted per session inside AI chat; session deletion removes its messages first |
 | `ai_chat_messages` | `AiHistoryDatabase` | high | No | Deleted with a session or individually inside AI chat; browser-data clearing must not remove it |
 
@@ -52,7 +52,7 @@ through their owner's parser.
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`; epoch ms | low | No | Scheduling hint updated after successful cleanup |
 | `ai_tools_config` | `AiConfigStore`; historical key v0 with JSON field defaults | high (API key) | No | AI settings replace it; it must not enter logs or ordinary backups |
 | `translation_history` | Non-Android `TranslationHistoryStore` fallback; historical key v0, max 200 rows | high | No | Translation-history clear removes it; Android does not read this key |
-| `telegram_checkin_config` | `TelegramCheckinStore`; included by backup schema `8` | high | Yes | TG settings/import replace it; never log its secrets |
+| `telegram_checkin_config` | `TelegramCheckinStore`; included by backup schema `9` | high | Yes | TG settings/import replace it; never log its secrets |
 
 ## Android Native Stores
 
@@ -71,9 +71,9 @@ an app data schema. Stop them through their services/gateways, never by clearing
 | app database path / `browser_data.db` | `AppDatabase` | high | Unified backup serializes selected rows; it does not copy the DB | Repositories clear categories; never delete the whole DB for a partial clear |
 | app external `logs/runtime.log` | `AppLogService` | high, sanitized diagnostics | Explicit Log Export copies it to Downloads | Disabling logging drains writes and deletes it |
 | shared Downloads or fallback `ruoqing-*.json` | `BrowserBackupFileWriter` | high | It is the user export | The app does not auto-delete exported backups |
-| downloaded files in shared Downloads/app fallback | `BrowserDownloadService`; records belong to `BrowserDownloadStore` | file-dependent | Not in unified backup | Global record clear preserves files; only explicit record-plus-file deletion removes one |
+| downloaded files in shared Downloads/app fallback | `BrowserDownloadService`; records belong to `BrowserDownloadStore` | file-dependent | Files are excluded; the backup contains records and their original saved paths | Global record clear preserves files; only explicit record-plus-file deletion removes one |
 | Telegram companion private files `/telegram/` TDLib data | `TelegramPluginService` / TDLib | high | No | First companion use requires login; only explicit Telegram logout/data reset or companion uninstall may clear it |
-| WebView cookies | Android WebView / `CookieManager`; origin index belongs to `BrowserCookieOriginService` | high | Exported per indexed origin where supported | Cookies/Site Data clear removes them; History clear preserves them |
+| WebView cookies | Android WebView / `CookieManager`; origin index belongs to `BrowserCookieOriginService` | high | Exported per indexed origin where supported | Current-site clear deletes real domain/path pairs and uses actual parent-domain cookies to include indexed same-site origins; History clear preserves them |
 | WebView local/session storage, IndexedDB, Cache API | Android WebView and each origin | high | Unified backup covers only currently enumerable web storage | Global or current-site clear; current-site clear excludes global HTTP cache |
 | WebView HTTP cache, app cache, temporary children | `AppCacheMaintenanceService` and WebView APIs | medium | No | App Cache cleanup only; it must preserve history, favorites, downloads, settings, and user files |
 | user files under the Simple File Manager root | User; service only provides access | high | No | Only explicit file operations modify/delete them |
@@ -87,11 +87,14 @@ backup preserves every third-party login session.
 
 ## Unified Backup Boundary
 
-The current unified JSON schema version is `8`. It includes favorites, browser settings, up to
-1,000 history summaries, calculator history, app clipboard content/enabled port, cookies,
-exportable WebStorage, EasyTier profiles/selected id, and Telegram check-in configuration.
+The current unified JSON schema version is `9`. It includes favorites, browser settings, up to
+1,000 history summaries, all download records, calculator history, app clipboard content/enabled
+port, cookies, exportable WebStorage, EasyTier profiles/selected id, and Telegram check-in
+configuration. Downloaded files are not embedded. Import deduplicates records by URL, saved path,
+and creation time, and restores `pending`/`downloading` records as `paused` so no inactive transfer
+appears to be running.
 
-It explicitly excludes download records/files, tab sessions, subscription nodes, AI configuration,
+It explicitly excludes downloaded files, tab sessions, subscription nodes, AI configuration,
 AI chat, translation history, file-manager settings, runtime-log state/files, cache timestamps, and
 the TDLib database. Adding a category requires a backup schema change, import choice, sensitivity
 copy, tests, and an update to this document.

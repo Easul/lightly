@@ -83,7 +83,7 @@ class BrowserDownloadStore {
 
   Future<List<BrowserDownloadRecord>> list({
     String? status,
-    int limit = 100,
+    int? limit = 100,
   }) async {
     final db = await _database.database;
     final normalizedStatus = status?.trim();
