@@ -40,6 +40,10 @@ WebRTC、EasyTier 的 32/64 位 companion，生成并嵌入 `plugins.json`，最
 Lightly Release。所需 Variables、Secrets 和完整执行顺序见
 [GitHub Release 与插件交付](github-release-delivery.md)。
 
+仅 Lightly 宿主变化时，Release 工作流的 `auto` 模式会复用最新已发布的插件 manifest，跳过 TDLib
+准备、六个 companion APK 构建、插件验签上传和新插件 Release。插件源码/合同变化或签名证书轮换时
+使用 `build` 强制完整联合构建；`reuse` 仅用于明确确认现有 companion 仍兼容的宿主发布。
+
 ## 产物检查
 
 - [ ] `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` 存在。

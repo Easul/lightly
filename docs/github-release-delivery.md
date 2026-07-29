@@ -65,7 +65,7 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 | 名称 | 示例 | 用途 |
 |---|---|---|
 | `PLUGIN_RELEASE_REPOSITORY` | `Easul/lightly-plugins` | companion Release 目标仓库 |
-| `YOUTUBE_RESOLVER_AAR_URL` | `https://github.com/Easul/yt-resolver/releases/download/v0.0.1/yt-resolver.aar` | 固定 YouTube AAR 下载地址 |
+| `YOUTUBE_RESOLVER_AAR_URL` | `https://github.com/Easul/yt-resolver/releases/download/<tag>/yt-resolver.aar` | 固定 YouTube AAR 下载地址 |
 | `YOUTUBE_RESOLVER_AAR_SHA256` | `SHA256SUMS` 中的值 | 构建前校验 AAR |
 
 ### Repository secrets
@@ -134,6 +134,20 @@ tag/手动 Release 工作流使用，不得写入 Variables、源码或 fork/PR 
 10. 将六个 companion 的签名与最终 Lightly APK 再次比较。
 11. 先发布 `lightly-plugins` Release。
 12. 插件发布成功后再发布 Lightly Release，避免公开引用缺失 assets 的 Lightly APK。
+
+### 跳过未变化的 companion
+
+Release 工作流支持 `auto`、`build`、`reuse` 三种 optional plugin 模式：
+
+- `auto`：比较上一个 Lightly tag；companion 源码、IPC 合同和打包脚本未变化时跳过六个 APK 构建。
+- `build`：强制重建、验签并发布 companion，适用于插件变更或签名证书轮换。
+- `reuse`：强制复用 `lightly-plugins` 最新 Release 的 `plugins.json`。
+
+手动运行工作流时通过 `optional_plugins` 选择；tag 自动发布可用 Repository Variable
+`OPTIONAL_PLUGIN_BUILD_MODE` 覆盖，未配置时默认为 `auto`。复用模式通过 `PLUGIN_RELEASE_TOKEN`
+从 companion 仓库下载、校验并嵌入 manifest，因此新 Lightly APK 内继续保存插件 URL、大小和
+SHA-256；只是不重复编译和发布未变化的 companion。
+签名证书变化时不得复用旧插件，必须选择 `build`。
 
 `workflow_dispatch` 只构建 Actions artifacts；推送 `v*` tag 才创建 GitHub Releases。
 
