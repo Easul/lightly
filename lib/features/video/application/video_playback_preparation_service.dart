@@ -50,7 +50,7 @@ class VideoPlaybackPreparationService<TSettings>
 
     final settings = await _loadSettings();
     if (!_isParserConfigured(settings)) {
-      throw const VideoResolutionException('请先在设置中配置 YouTube 解析接口');
+      throw const VideoResolutionException('请先在设置中开启原生视频播放');
     }
     final resolved = await _resolveVideoSource(requestedUrl, settings);
     final rawStreamUrl = resolved.streamUrl;

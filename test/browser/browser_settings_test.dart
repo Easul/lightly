@@ -251,7 +251,7 @@ void main() {
     });
 
     test(
-      'native video parser setting restores from json and trims trailing slash',
+      'legacy parser setting round-trips but no longer gates native playback',
       () {
         final settings = BrowserSettings.fromJson({
           'nativeVideoParserApiBaseUrl': 'https://parser.example.com///',

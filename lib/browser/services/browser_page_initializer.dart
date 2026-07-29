@@ -26,9 +26,9 @@ import '../../features/video/application/browser_video_detection_tracker.dart';
 import 'browser_video_player_coordinator.dart';
 import 'browser_video_playback_preparation_service.dart';
 import 'browser_tab_service.dart';
-import '../../features/video/infrastructure/external_api_video_source_resolver.dart';
 import '../../features/video/infrastructure/floating_video_platform_gateway.dart';
 import '../../features/video/infrastructure/video_proxy_server.dart';
+import '../../features/video/infrastructure/youtube_resolver_platform_gateway.dart';
 
 class BrowserPageServices {
   BrowserPageServices._({
@@ -103,14 +103,13 @@ class BrowserPageServices {
         BrowserVideoPlaybackPreparationService(
           loadSettings: settingsService.loadSettings,
           resolveVideoSource: (url, settings) {
-            final resolver = ExternalApiVideoSourceResolver(
-              apiBaseUrl: settings.normalizedNativeVideoParserApiBaseUrl,
-              proxyResolver: settings.shouldApplyProxy
-                  ? (uri) => proxyService.findProxyForDownload(
+            final resolver = YouTubeResolverPlatformGateway(
+              proxyRoute: settings.shouldApplyProxy
+                  ? proxyService.findProxyForDownload(
                       settings.proxyConfiguration,
-                      uri,
+                      Uri.parse(url),
                     )
-                  : null,
+                  : 'DIRECT',
             );
             return resolver.resolve(url);
           },

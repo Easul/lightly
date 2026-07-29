@@ -63,6 +63,12 @@ verify_apk_metadata() {
   if [[ -n "$APKANALYZER" ]]; then
     echo "🔍 Verifying $apk_name manifest..."
     "$APKANALYZER" manifest print "$apk_path" | grep -E 'versionCode|versionName' || true
+    if [[ "$PRIVATE_YOUTUBE_INCLUDED" == "1" ]]; then
+      echo "🔍 Verifying embedded YouTube resolver..."
+      "$APKANALYZER" dex code \
+        --class lightly.youtube.resolver.YouTubeResolverBridge \
+        "$apk_path" >/dev/null
+    fi
   else
     echo "⚠️  apkanalyzer not found; skipping manifest verification for $apk_name"
   fi
@@ -92,6 +98,14 @@ echo "   - Gradle workers max: $GRADLE_WORKERS"
 echo "   - arm64 heap: $ARM64_HEAP"
 echo "   - arm32 heap: $ARM32_HEAP"
 print_memory_snapshot
+
+PRIVATE_YOUTUBE_INCLUDED=0
+if [[ "${INCLUDE_PRIVATE_YOUTUBE:-1}" == "0" ]]; then
+  rm -f "$PROJECT_ROOT/android/app/libs/lightly-youtube-resolver.aar"
+else
+  REQUIRE_PRIVATE_YOUTUBE=1 "$PROJECT_ROOT/scripts/build_youtube_aar.sh"
+  PRIVATE_YOUTUBE_INCLUDED=1
+fi
 
 # Clean previous outputs
 echo "🧹 Cleaning previous APK outputs..."

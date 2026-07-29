@@ -82,7 +82,7 @@ void main() {
       final enabledSettings = BrowserSettings.defaults().copyWith(
         nativeVideoPlayerEnabled: true,
       );
-      final parserDisabledSettings = enabledSettings.copyWith(
+      final settingsWithLegacyParserEmpty = enabledSettings.copyWith(
         nativeVideoParserApiBaseUrl: '',
       );
 
@@ -96,7 +96,7 @@ void main() {
         );
       });
 
-      test('rejects desktop youtube, non-watch, and disabled parser cases', () {
+      test('rejects desktop youtube and non-watch pages', () {
         expect(
           predicates.canShowYoutubeScrollPlayButton(
             url: 'https://www.youtube.com/watch?v=abc123',
@@ -114,9 +114,9 @@ void main() {
         expect(
           predicates.canShowYoutubeScrollPlayButton(
             url: 'https://m.youtube.com/watch?v=abc123',
-            settings: parserDisabledSettings,
+            settings: settingsWithLegacyParserEmpty,
           ),
-          isFalse,
+          isTrue,
         );
       });
     });

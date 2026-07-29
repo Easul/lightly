@@ -94,3 +94,5 @@
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
+# Loaded reflectively by YouTubeResolverChannelHandler when the private AAR is bundled.
+-keep class lightly.youtube.resolver.YouTubeResolverBridge { public *; }

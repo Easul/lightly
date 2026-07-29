@@ -15,8 +15,7 @@ class BrowserVideoPlaybackPreparationService implements VideoPlaybackPreparer {
     void Function(String message)? onDebugLog,
   }) : _delegate = VideoPlaybackPreparationService<BrowserSettings>(
          loadSettings: loadSettings,
-         isParserConfigured: (settings) =>
-             settings.normalizedNativeVideoParserApiBaseUrl.isNotEmpty,
+         isParserConfigured: (settings) => settings.nativeVideoPlayerEnabled,
          resolveVideoSource: resolveVideoSource,
          ensureProxyServer: ensureProxyServer,
          buildProxyPlaybackUrl: buildProxyPlaybackUrl,

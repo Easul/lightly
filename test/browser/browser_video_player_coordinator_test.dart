@@ -50,7 +50,7 @@ void main() {
       final enabledSettings = BrowserSettings.defaults().copyWith(
         nativeVideoPlayerEnabled: true,
       );
-      final parserDisabledSettings = enabledSettings.copyWith(
+      final settingsWithLegacyParserEmpty = enabledSettings.copyWith(
         nativeVideoParserApiBaseUrl: '',
       );
       final disabledSettings = BrowserSettings.defaults().copyWith(
@@ -74,9 +74,9 @@ void main() {
       expect(
         coordinator.shouldOpenNativeVideoFromUrl(
           'https://www.youtube.com/watch?v=abc123',
-          parserDisabledSettings,
+          settingsWithLegacyParserEmpty,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         coordinator.shouldOpenNativeVideoFromUrl(

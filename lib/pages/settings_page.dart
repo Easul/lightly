@@ -651,15 +651,12 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildVideoSection() {
     return VideoSettingsSection(
       nativeVideoPlayerEnabled: _formController.nativeVideoPlayerEnabled,
-      nativeVideoParserApiController:
-          _formController.nativeVideoParserApiController,
       onNativeVideoPlayerEnabledChanged: (value) {
         setState(() {
           _formController.nativeVideoPlayerEnabled = value;
         });
         _markSectionDirty();
       },
-      onParserApiChanged: (_) => _markSectionDirty(),
     );
   }
 

@@ -16,6 +16,7 @@ val isProfileBuild = gradle.startParameter.taskNames.any {
 }
 val profileApplicationId = providers.environmentVariable("PROFILE_APPLICATION_ID").orNull
     ?.takeIf { isProfileBuild && it.isNotBlank() }
+val youtubeResolverAar = file("libs/lightly-youtube-resolver.aar")
 val excludedAbis = when (targetAbi) {
     "arm64-v8a" -> listOf("armeabi-v7a", "x86", "x86_64")
     "armeabi-v7a" -> listOf("arm64-v8a", "x86", "x86_64")
@@ -123,6 +124,12 @@ android {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    if (youtubeResolverAar.exists()) {
+        implementation(files(youtubeResolverAar))
+        println("[YouTube] Bundling private resolver AAR: $youtubeResolverAar")
+    } else {
+        println("[YouTube] Private resolver AAR not present; using unavailable stub")
+    }
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
 }

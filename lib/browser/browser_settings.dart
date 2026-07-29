@@ -196,8 +196,7 @@ class BrowserSettings {
   }
 
   bool get canResolveYoutubeWithNativePlayer {
-    return nativeVideoPlayerEnabled &&
-        normalizedNativeVideoParserApiBaseUrl.isNotEmpty;
+    return nativeVideoPlayerEnabled;
   }
 
   String get proxyProtocol => BrowserProxyProtocol.normalize(proxyScheme);

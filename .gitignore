@@ -62,6 +62,10 @@ key.properties
 # Proxy core native libraries - generated build outputs, do not commit unless explicitly requested
 /android/app/src/main/jniLibs/*/libproxy_core.so
 
+# Private YouTube resolver source and generated embedded AAR
+/extensions/youtube/
+/android/app/libs/lightly-youtube-resolver.aar
+
 # Rust build artifacts and caches - generated locally/CI only
 /rust/proxy-core/target/
 

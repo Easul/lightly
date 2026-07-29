@@ -37,8 +37,10 @@ void main() {
         var proxyStarted = false;
         Map<String, String>? capturedHeaders;
         final service = BrowserVideoPlaybackPreparationService(
-          loadSettings: () async =>
-              BrowserSettings.defaults().copyWith(proxyEnabled: false),
+          loadSettings: () async => BrowserSettings.defaults().copyWith(
+            nativeVideoPlayerEnabled: true,
+            proxyEnabled: false,
+          ),
           resolveVideoSource: (_, _) async => const ResolvedVideoSource(
             videoId: 'abc123',
             title: 'Resolved title',
@@ -83,6 +85,7 @@ void main() {
       var proxyStarted = false;
       final service = BrowserVideoPlaybackPreparationService(
         loadSettings: () async => BrowserSettings.defaults().copyWith(
+          nativeVideoPlayerEnabled: true,
           proxyEnabled: true,
           proxyHost: '127.0.0.1',
           proxyPort: 1080,
@@ -114,12 +117,11 @@ void main() {
       expect(prepared.resolvedTitle, 'Resolved title');
     });
 
-    test('fails youtube resolution when parser api setting is empty', () async {
+    test('fails youtube resolution when native playback is disabled', () async {
       var resolveCalls = 0;
       final service = BrowserVideoPlaybackPreparationService(
         loadSettings: () async => BrowserSettings.defaults().copyWith(
-          nativeVideoPlayerEnabled: true,
-          nativeVideoParserApiBaseUrl: '',
+          nativeVideoPlayerEnabled: false,
         ),
         resolveVideoSource: (_, _) async {
           resolveCalls++;
@@ -141,7 +143,7 @@ void main() {
           isA<VideoResolutionException>().having(
             (error) => error.message,
             'message',
-            '请先在设置中配置 YouTube 解析接口',
+            '请先在设置中开启原生视频播放',
           ),
         ),
       );
