@@ -3,8 +3,14 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN_OUTPUT_DIR="${PLUGIN_OUTPUT_DIR:-$PROJECT_ROOT/build/optional-plugins}"
-MAIN_COMMIT_COUNT="$(git -C "$PROJECT_ROOT" rev-list --count main)"
-PLUGIN_VERSION_CODE="${PLUGIN_VERSION_CODE:-$((5000 + MAIN_COMMIT_COUNT))}"
+if [[ -z "${PLUGIN_VERSION_CODE:-}" ]]; then
+  MAIN_COMMIT_COUNT="$(
+    git -C "$PROJECT_ROOT" rev-list --count main 2>/dev/null ||
+      git -C "$PROJECT_ROOT" rev-list --count origin/main 2>/dev/null ||
+      git -C "$PROJECT_ROOT" rev-list --count HEAD
+  )"
+  PLUGIN_VERSION_CODE="$((5000 + MAIN_COMMIT_COUNT))"
+fi
 PLUGIN_VERSION_NAME="${PLUGIN_VERSION_NAME:-$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>/dev/null || echo v1.0.0)+$(git -C "$PROJECT_ROOT" rev-parse --short=6 HEAD)}"
 TELEGRAM_PLUGIN_API_VERSION="${TELEGRAM_PLUGIN_API_VERSION:-3}"
 WEBRTC_PLUGIN_API_VERSION="${WEBRTC_PLUGIN_API_VERSION:-3}"
