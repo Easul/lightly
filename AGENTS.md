@@ -558,6 +558,11 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
   from the already-background companion bound Service can be rejected on Android 14+/target SDK 36.
   Android 11+ (and MIUI in particular) may also deliver empty audio to a plain bound service even
   when `RECORD_AUDIO` is granted.
+- The standalone WebRTC companion must declare `android.permission.ACCESS_NETWORK_STATE`; Android
+  permissions are not inherited from the Lightly host after extraction. WebRTC 125 starts
+  `NetworkMonitorAutoDetect` while creating `PeerConnectionFactory`, and on MIUI a missing network
+  state permission throws `SecurityException` across JNI, triggers `Check failed:
+  !env->ExceptionCheck()`, and aborts the companion process on `network_thread`.
 - WebRTC voice companion API is 3; Telegram and EasyTier remain API 2. Keep the host catalog,
   channel minimums, manifests, service constants, and per-feature release manifest aligned.
 - Missing/incompatible plugin must disable voice for the current session while preserving control
