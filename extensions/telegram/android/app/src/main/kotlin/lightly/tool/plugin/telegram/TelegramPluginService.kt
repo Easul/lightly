@@ -205,6 +205,7 @@ class TelegramPluginService : Service() {
     }
 
     private fun logAuthorizationUpdate(resultJson: String) {
+        if (!resultJson.contains("updateAuthorizationState")) return
         val type = runCatching { JSONObject(resultJson).optString("@type") }
             .getOrDefault("")
         if (type == "updateAuthorizationState") {
