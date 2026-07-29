@@ -15,8 +15,10 @@ import '../browser_settings_service.dart';
 import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../models/browser_favorite.dart';
 import '../models/browser_history_entry.dart';
+import '../models/browser_download_record.dart';
 import 'browser_favorite_service.dart';
 import 'browser_history_service.dart';
+import 'browser_download_store.dart';
 import 'browser_backup_file_writer.dart';
 import 'browser_backup_models.dart';
 import 'browser_backup_web_data_service.dart';
@@ -29,6 +31,7 @@ class BrowserBackupService {
     BrowserFavoriteService? favoriteService,
     BrowserSettingsService? settingsService,
     BrowserHistoryService? historyService,
+    BrowserDownloadStore? downloadStore,
     BrowserCookieOriginService? cookieOriginService,
     HistoryService? calculatorHistoryService,
     ClipboardStorageService? clipboardStorageService,
@@ -39,6 +42,7 @@ class BrowserBackupService {
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _settingsService = settingsService ?? BrowserSettingsService(),
        _historyService = historyService ?? BrowserHistoryService(),
+       _downloadStore = downloadStore ?? BrowserDownloadStore(),
        _cookieOriginService =
            cookieOriginService ?? BrowserCookieOriginService(),
        _calculatorHistoryService = calculatorHistoryService ?? HistoryService(),
@@ -54,6 +58,7 @@ class BrowserBackupService {
   final BrowserFavoriteService _favoriteService;
   final BrowserSettingsService _settingsService;
   final BrowserHistoryService _historyService;
+  final BrowserDownloadStore _downloadStore;
   final BrowserCookieOriginService _cookieOriginService;
   final HistoryService _calculatorHistoryService;
   final ClipboardStorageService _clipboardStorageService;
@@ -88,6 +93,7 @@ class BrowserBackupService {
     final favorites = await _favoriteService.query();
     final settings = await _settingsService.loadSettings();
     final history = await _historyService.query(limit: 1000);
+    final downloads = await _downloadStore.list(limit: null);
     final calculatorHistory = await _calculatorHistoryService.loadHistory();
     final clipboardContent = await _clipboardStorageService.loadContent();
     final clipboardPort = await _clipboardStorageService.loadServerPort();
@@ -112,6 +118,7 @@ class BrowserBackupService {
       favorites: favorites,
       settings: settings,
       history: history,
+      downloads: downloads,
       calculatorHistory: calculatorHistory,
       clipboardContent: clipboardContent,
       clipboardPort: clipboardEnabled ? clipboardPort : null,
@@ -148,6 +155,7 @@ class BrowserBackupService {
     bool mergeFavorites = true,
     bool importSettings = true,
     bool importHistory = true,
+    bool importDownloads = true,
     bool importClipboard = true,
     bool importCalculatorHistory = true,
     bool importWebData = true,
@@ -155,6 +163,7 @@ class BrowserBackupService {
   }) async {
     var favoritesImported = 0;
     var historyImported = 0;
+    var downloadsImported = 0;
     var calculatorImported = 0;
     var cookiesImported = 0;
     var webStorageImported = 0;
@@ -196,6 +205,25 @@ class BrowserBackupService {
           );
           historyImported++;
         } catch (_) {}
+      }
+    }
+
+    if (importDownloads && data.downloads.isNotEmpty) {
+      final existingDownloads = await _downloadStore.list(limit: null);
+      final existingKeys = existingDownloads
+          .map(_downloadDeduplicationKey)
+          .toSet();
+      for (final item in data.downloads.reversed) {
+        final normalized = _normalizeImportedDownload(item);
+        if (normalized == null) {
+          continue;
+        }
+        final key = _downloadDeduplicationKey(normalized);
+        if (!existingKeys.add(key)) {
+          continue;
+        }
+        await _downloadStore.insert(normalized);
+        downloadsImported++;
       }
     }
 
@@ -252,6 +280,7 @@ class BrowserBackupService {
     return ImportResult(
       favoritesImported: favoritesImported,
       historyImported: historyImported,
+      downloadsImported: downloadsImported,
       calculatorImported: calculatorImported,
       cookiesImported: cookiesImported,
       webStorageImported: webStorageImported,
@@ -260,6 +289,35 @@ class BrowserBackupService {
       clipboardUpdated: importClipboard,
       restoredOrigins: restoredOrigins.toList(growable: false),
     );
+  }
+
+  BrowserDownloadRecord? _normalizeImportedDownload(
+    BrowserDownloadRecord record,
+  ) {
+    if (record.url.trim().isEmpty ||
+        record.fileName.trim().isEmpty ||
+        record.createdAt.millisecondsSinceEpoch <= 0) {
+      return null;
+    }
+    final status = switch (record.status) {
+      'completed' || 'paused' || 'failed' => record.status,
+      'pending' || 'downloading' => 'paused',
+      _ => 'failed',
+    };
+    return BrowserDownloadRecord(
+      url: record.url,
+      fileName: record.fileName,
+      status: status,
+      savedPath: record.savedPath,
+      totalBytes: record.totalBytes < 0 ? 0 : record.totalBytes,
+      bytesReceived: record.bytesReceived < 0 ? 0 : record.bytesReceived,
+      createdAt: record.createdAt,
+    );
+  }
+
+  String _downloadDeduplicationKey(BrowserDownloadRecord record) {
+    return '${record.url}\u0000${record.savedPath ?? ''}\u0000'
+        '${record.createdAt.millisecondsSinceEpoch}';
   }
 
   String? validateImportJson(String json) {

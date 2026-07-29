@@ -108,8 +108,7 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   final BrowserWebViewStateReader _webViewStateReader =
       const BrowserWebViewStateReader();
   final BrowserPageRouteHandler _routeHandler = const BrowserPageRouteHandler();
-  final BrowserSiteDataManager _siteDataManager =
-      const BrowserSiteDataManager();
+  final BrowserSiteDataManager _siteDataManager = BrowserSiteDataManager();
   final BrowserPageExternalIntentHelper _externalIntentHelper =
       BrowserPageExternalIntentHelper();
   final BrowserPageLifecycleCoordinator _lifecycleCoordinator =

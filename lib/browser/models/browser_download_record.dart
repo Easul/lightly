@@ -55,6 +55,10 @@ class BrowserDownloadRecord {
     };
   }
 
+  Map<String, Object?> toBackupMap() {
+    return toMap()..remove('id');
+  }
+
   factory BrowserDownloadRecord.fromMap(Map<String, Object?> map) {
     return BrowserDownloadRecord(
       id: map['id'] as int?,
@@ -68,5 +72,9 @@ class BrowserDownloadRecord {
         (map['createdAt'] as num?)?.toInt() ?? 0,
       ),
     );
+  }
+
+  factory BrowserDownloadRecord.fromBackupMap(Map<String, Object?> map) {
+    return BrowserDownloadRecord.fromMap(map..remove('id'));
   }
 }

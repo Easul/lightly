@@ -5,6 +5,7 @@ import '../../features/easytier/domain/easytier_network_profile.dart';
 import '../../features/telegram/telegram_checkin_models.dart';
 import '../browser_settings.dart';
 import '../models/browser_favorite.dart';
+import '../models/browser_download_record.dart';
 import '../models/browser_history_entry.dart';
 
 class BrowserBackupData {
@@ -12,6 +13,7 @@ class BrowserBackupData {
     required this.favorites,
     required this.settings,
     required this.history,
+    required this.downloads,
     required this.calculatorHistory,
     required this.clipboardContent,
     required this.clipboardPort,
@@ -26,6 +28,7 @@ class BrowserBackupData {
   final List<BrowserFavorite> favorites;
   final BrowserSettings settings;
   final List<BrowserHistoryEntry> history;
+  final List<BrowserDownloadRecord> downloads;
   final List<CalculationHistory> calculatorHistory;
   final String clipboardContent;
   final int? clipboardPort;
@@ -38,11 +41,12 @@ class BrowserBackupData {
 
   Map<String, dynamic> toJson() {
     return {
-      'version': 8,
+      'version': 9,
       'exportedAt': exportedAt.toIso8601String(),
       'favorites': favorites.map((f) => f.toMap()).toList(),
       'settings': settings.toJson(),
       'history': history.map((h) => h.toMap()).toList(),
+      'downloads': downloads.map((item) => item.toBackupMap()).toList(),
       'calculatorHistory': calculatorHistory.map((h) => h.toJson()).toList(),
       'clipboardContent': clipboardContent,
       'clipboardPort': clipboardPort,
@@ -76,6 +80,13 @@ class BrowserBackupData {
           ),
         )
         .toList();
+    final downloads = (decoded['downloads'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => BrowserDownloadRecord.fromBackupMap(
+            Map<String, Object?>.from(item as Map),
+          ),
+        )
+        .toList();
     final calculatorHistory =
         (decoded['calculatorHistory'] as List<dynamic>? ?? const [])
             .map(
@@ -102,6 +113,7 @@ class BrowserBackupData {
       favorites: favorites,
       settings: settings,
       history: history,
+      downloads: downloads,
       calculatorHistory: calculatorHistory,
       clipboardContent: decoded['clipboardContent'] as String? ?? '',
       clipboardPort: (decoded['clipboardPort'] as num?)?.toInt(),
@@ -126,6 +138,7 @@ class ImportResult {
   const ImportResult({
     required this.favoritesImported,
     required this.historyImported,
+    required this.downloadsImported,
     required this.calculatorImported,
     required this.cookiesImported,
     required this.webStorageImported,
@@ -137,6 +150,7 @@ class ImportResult {
 
   final int favoritesImported;
   final int historyImported;
+  final int downloadsImported;
   final int calculatorImported;
   final int cookiesImported;
   final int webStorageImported;
@@ -150,6 +164,7 @@ class ImportResult {
     final parts = <String>[
       if (favoritesImported > 0) '$favoritesImported 个收藏',
       if (historyImported > 0) '$historyImported 条浏览历史',
+      if (downloadsImported > 0) '$downloadsImported 条下载记录',
       if (calculatorImported > 0) '$calculatorImported 条计算器历史',
       if (cookiesImported > 0) '$cookiesImported 个 Cookie',
       if (webStorageImported > 0) '$webStorageImported 个站点存储',

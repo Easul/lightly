@@ -48,7 +48,7 @@ Future<bool> showBrowserSiteDataClearConfirmation({
     builder: (context) => AlertDialog(
       title: const Text('清除当前网站数据'),
       content: Text(
-        '确定清除 ${currentUri.host} 的 Cookie 与站点数据吗？不包含 WebView 全局缓存。',
+        '确定清除 ${currentUri.host} 及其所属网站范围的 Cookie 与站点数据吗？不包含 WebView 全局缓存。',
       ),
       actions: [
         TextButton(

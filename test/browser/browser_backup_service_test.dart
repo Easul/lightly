@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/browser/browser_settings.dart';
 import 'package:lightly/browser/models/browser_favorite.dart';
+import 'package:lightly/browser/models/browser_download_record.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
@@ -15,6 +16,18 @@ void main() {
       favorites: const [],
       settings: BrowserSettings.defaults(),
       history: const [],
+      downloads: <BrowserDownloadRecord>[
+        BrowserDownloadRecord(
+          id: 42,
+          url: 'https://example.com/file.zip',
+          fileName: 'file.zip',
+          status: 'completed',
+          savedPath: '/storage/emulated/0/Download/file.zip',
+          totalBytes: 128,
+          bytesReceived: 128,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1234),
+        ),
+      ],
       calculatorHistory: const [],
       clipboardContent: 'hello',
       clipboardPort: 12345,
@@ -69,6 +82,9 @@ void main() {
     final restored = BrowserBackupData.fromJsonString(backup.toJsonString());
 
     expect(restored.cookies, backup.cookies);
+    expect(restored.downloads.single.id, isNull);
+    expect(restored.downloads.single.fileName, 'file.zip');
+    expect(restored.toJson()['version'], 9);
     expect(restored.webStorage, backup.webStorage);
     expect(restored.clipboardPort, 12345);
     expect(restored.selectedEasyTierProfileId, 'vpn-1');
@@ -88,10 +104,19 @@ void main() {
     expect(restored.telegramCheckinConfig.targets.single.enabled, isFalse);
   });
 
+  test('BrowserBackupData accepts backups without download records', () {
+    final restored = BrowserBackupData.fromJsonString(
+      '{"version":8,"settings":{},"favorites":[]}',
+    );
+
+    expect(restored.downloads, isEmpty);
+  });
+
   test('ImportResult reports restored site storage', () {
     const result = ImportResult(
       favoritesImported: 0,
       historyImported: 0,
+      downloadsImported: 3,
       calculatorImported: 0,
       cookiesImported: 2,
       webStorageImported: 1,
@@ -102,6 +127,7 @@ void main() {
     );
 
     expect(result.toString(), contains('2 个 Cookie'));
+    expect(result.toString(), contains('3 条下载记录'));
     expect(result.toString(), contains('1 个站点存储'));
   });
 
