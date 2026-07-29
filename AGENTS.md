@@ -296,6 +296,12 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 - Every optional plugin APK must be a pure Android companion. Do not package a FlutterEngine,
   Dart AOT runtime, `libflutter.so`, `libapp.so`, Flutter assets, or a second Flutter UI in
   Telegram, WebRTC, EasyTier, YouTube, or future companions.
+- Every companion is a separate Android sandbox and must declare all permissions needed by its
+  own runtime; permissions declared by Lightly are not inherited. In particular, companions that
+  create network sockets must declare `android.permission.INTERNET`, and companions that inspect
+  Android connectivity must also declare `android.permission.ACCESS_NETWORK_STATE`. A missing
+  `INTERNET` permission can surface only as native `EPERM` / `Failed to create a socket`, before
+  traffic ever reaches Lightly's local proxy listener.
 - Lightly owns all business UI, persisted configuration, backup/import, download prompts, and
   orchestration. Companion APKs own only native runtime/session resources, JNI libraries, and
   bounded capability APIs.
