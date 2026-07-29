@@ -400,14 +400,43 @@ class _TelegramCheckinPageState extends State<TelegramCheckinPage> {
       action = _restartLogin;
     }
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.telegram),
-        title: const Text('Telegram 账号'),
-        subtitle: Text('$label\n${_telegram.proxyStatus.value}'),
-        isThreeLine: true,
-        trailing: action == null
-            ? null
-            : TextButton(onPressed: action, child: const Text('继续')),
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.telegram),
+            title: const Text('Telegram 账号'),
+            subtitle: Text('$label\n${_telegram.proxyStatus.value}'),
+            isThreeLine: true,
+            trailing: action == null
+                ? null
+                : TextButton(onPressed: action, child: const Text('继续')),
+          ),
+          if (step == TelegramAuthStep.phone) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '首次使用独立插件或重装插件后需重新登录',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

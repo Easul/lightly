@@ -4,6 +4,8 @@ import 'package:lightly/browser/models/browser_favorite.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
+import 'package:lightly/features/easytier/domain/easytier_config.dart';
+import 'package:lightly/features/easytier/domain/easytier_network_profile.dart';
 import 'package:lightly/features/telegram/telegram_checkin_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,8 +33,23 @@ void main() {
           ],
         },
       ],
-      easyTierProfiles: const [],
-      selectedEasyTierProfileId: null,
+      easyTierProfiles: <EasyTierNetworkProfile>[
+        EasyTierNetworkProfile(
+          id: 'vpn-1',
+          name: '家庭网络',
+          config: EasyTierConfig(
+            instanceName: 'phone',
+            networkName: 'home',
+            networkSecret: 'secret',
+            ipv4: '10.126.126.8',
+            peers: const <String>['tcp://peer.example.com:11010'],
+            activePeerIndex: 0,
+          ),
+          createdAt: DateTime.parse('2026-05-20T00:00:00.000Z'),
+          updatedAt: DateTime.parse('2026-05-21T00:00:00.000Z'),
+        ),
+      ],
+      selectedEasyTierProfileId: 'vpn-1',
       telegramCheckinConfig: const TelegramCheckinConfig(
         apiId: 12345,
         apiHash: 'test_hash',
@@ -54,6 +71,13 @@ void main() {
     expect(restored.cookies, backup.cookies);
     expect(restored.webStorage, backup.webStorage);
     expect(restored.clipboardPort, 12345);
+    expect(restored.selectedEasyTierProfileId, 'vpn-1');
+    expect(restored.easyTierProfiles.single.id, 'vpn-1');
+    expect(restored.easyTierProfiles.single.config.networkName, 'home');
+    expect(restored.easyTierProfiles.single.config.networkSecret, 'secret');
+    expect(restored.easyTierProfiles.single.config.peers, const <String>[
+      'tcp://peer.example.com:11010',
+    ]);
     expect(restored.telegramCheckinConfig.apiId, 12345);
     expect(restored.telegramCheckinConfig.apiHash, 'test_hash');
     expect(restored.telegramCheckinConfig.phoneNumber, '+8613800000000');
