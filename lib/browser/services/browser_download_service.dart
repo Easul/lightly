@@ -258,10 +258,10 @@ class BrowserDownloadService {
           }
         },
         resolveOutputFile: allowResponseFileName
-            ? (response, currentFile) async {
+            ? (response, currentFile, finalUrl) async {
                 final resolvedFileName = _fileNameResolver.resolveFromResponse(
                   currentFileName: currentRecord.fileName,
-                  requestUrl: Uri.parse(url),
+                  requestUrl: finalUrl,
                   response: response,
                 );
                 if (resolvedFileName == null ||

@@ -8,7 +8,11 @@ typedef BrowserDownloadRetryCallback =
 typedef BrowserDownloadResponseValidator =
     void Function(HttpClientResponse response);
 typedef BrowserDownloadOutputFileResolver =
-    Future<File> Function(HttpClientResponse response, File currentFile);
+    Future<File> Function(
+      HttpClientResponse response,
+      File currentFile,
+      Uri finalUrl,
+    );
 typedef BrowserDownloadOutputFileChanged = Future<void> Function(File file);
 
 class BrowserDownloadCancelledException implements Exception {
@@ -158,23 +162,13 @@ class BrowserDownloadTransfer {
     var resumedFromBytes = await outputFile.exists()
         ? await outputFile.length()
         : 0;
-    final request = await _client.getUrl(url);
-    _applyRequestHeaders(request, requestHeaders);
-    if (resumedFromBytes > 0) {
-      request.headers.set(HttpHeaders.rangeHeader, 'bytes=$resumedFromBytes-');
-      final validator = _entityValidator;
-      if (validator != null && validator.isNotEmpty) {
-        request.headers.set(HttpHeaders.ifRangeHeader, validator);
-      }
-    }
-
-    late final HttpClientResponse response;
-    try {
-      response = await request.close().timeout(_idleTimeout);
-    } on TimeoutException {
-      request.abort();
-      rethrow;
-    }
+    final opened = await _openWithSafeRedirects(
+      url: url,
+      requestHeaders: requestHeaders,
+      resumedFromBytes: resumedFromBytes,
+    );
+    final response = opened.response;
+    final finalUrl = opened.finalUrl;
     if (response.statusCode == HttpStatus.requestedRangeNotSatisfiable &&
         resumedFromBytes > 0) {
       final serverTotal = _unsatisfiedRangeTotal(response);
@@ -204,6 +198,7 @@ class BrowserDownloadTransfer {
     final resolvedOutputFile = await resolveOutputFile?.call(
       response,
       outputFile,
+      finalUrl,
     );
     if (resolvedOutputFile != null &&
         resolvedOutputFile.path != outputFile.path) {
@@ -280,6 +275,95 @@ class BrowserDownloadTransfer {
       totalBytes: totalBytes,
       outputFile: outputFile,
     );
+  }
+
+  Future<({HttpClientResponse response, Uri finalUrl})> _openWithSafeRedirects({
+    required Uri url,
+    required Map<String, String> requestHeaders,
+    required int resumedFromBytes,
+  }) async {
+    const maxRedirects = 5;
+    const sensitiveHeaders = <String>{
+      HttpHeaders.authorizationHeader,
+      HttpHeaders.cookieHeader,
+      HttpHeaders.refererHeader,
+      'proxy-authorization',
+    };
+    var currentUrl = url;
+    var headers = Map<String, String>.from(requestHeaders);
+
+    for (var redirectCount = 0; ; redirectCount++) {
+      _throwIfCancelled();
+      if (!_isHttpUrl(currentUrl)) {
+        throw BrowserDownloadProtocolException(
+          'Unsupported download redirect scheme: ${currentUrl.scheme}',
+        );
+      }
+
+      final request = await _client.getUrl(currentUrl);
+      request.followRedirects = false;
+      _applyRequestHeaders(request, headers);
+      if (resumedFromBytes > 0) {
+        request.headers.set(
+          HttpHeaders.rangeHeader,
+          'bytes=$resumedFromBytes-',
+        );
+        final validator = _entityValidator;
+        if (validator != null && validator.isNotEmpty) {
+          request.headers.set(HttpHeaders.ifRangeHeader, validator);
+        }
+      }
+
+      final HttpClientResponse response;
+      try {
+        response = await request.close().timeout(_idleTimeout);
+      } on TimeoutException {
+        request.abort();
+        rethrow;
+      }
+      if (!response.isRedirect) {
+        return (response: response, finalUrl: currentUrl);
+      }
+
+      final location = response.headers.value(HttpHeaders.locationHeader);
+      if (location == null || location.trim().isEmpty) {
+        return (response: response, finalUrl: currentUrl);
+      }
+      if (redirectCount >= maxRedirects) {
+        await response.drain<void>();
+        throw const BrowserDownloadProtocolException(
+          'Download exceeded the redirect limit',
+        );
+      }
+
+      final nextUrl = currentUrl.resolve(location.trim());
+      if (!_isHttpUrl(nextUrl)) {
+        await response.drain<void>();
+        throw BrowserDownloadProtocolException(
+          'Unsupported download redirect scheme: ${nextUrl.scheme}',
+        );
+      }
+      await response.drain<void>();
+      if (!_hasSameOrigin(currentUrl, nextUrl)) {
+        headers = <String, String>{
+          for (final entry in headers.entries)
+            if (!sensitiveHeaders.contains(entry.key.toLowerCase()))
+              entry.key: entry.value,
+        };
+      }
+      currentUrl = nextUrl;
+    }
+  }
+
+  bool _isHttpUrl(Uri url) {
+    final scheme = url.scheme.toLowerCase();
+    return (scheme == 'http' || scheme == 'https') && url.host.isNotEmpty;
+  }
+
+  bool _hasSameOrigin(Uri first, Uri second) {
+    return first.scheme.toLowerCase() == second.scheme.toLowerCase() &&
+        first.host.toLowerCase() == second.host.toLowerCase() &&
+        first.port == second.port;
   }
 
   void _applyRequestHeaders(
