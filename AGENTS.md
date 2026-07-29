@@ -519,6 +519,11 @@ must not be used as the current design; fixed UDP/Opus audio has been replaced b
   remains absent for the configured cleanup window, host resources must be shut down.
 - Screen delivery favors freshness: preserve key frames and the newest pending delta frame rather
   than allowing stale H.264 deltas to accumulate in Dart/TCP queues.
+- Keep standard Annex-B H.264 access units zero-copy on the Android decode path. Do not split and
+  rejoin every frame merely to normalize start codes, and do not add per-frame decoder logs.
+- Remote-control diagnostics must count every video frame but retain detailed video samples at a
+  bounded cadence (currently 200 ms, plus every key frame). Do not restore per-frame `DateTime` and
+  stats-object allocation in `PerformanceMonitorService`.
 - In no-VPN mode, run EasyTier with `no_tun = true`, do not start Android `VpnService`, and use the
   no-tun SOCKS5 portal for controller control/screen sockets to `10.126.*`. WebRTC voice remains
   unavailable in this mode.
@@ -1024,6 +1029,9 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Keep the companion monitor loop in `EasyTierRuntimeController.kt` that polls
   `collectNetworkInfos()` and only starts `EasyTierVpnService` after `virtual_ipv4` becomes
   available.
+- Run that JNI collection/JSON parsing loop on its dedicated `EasyTierMonitor` thread. Binder and
+  UI status requests should read the latest monitored snapshot and only force a collection before
+  the first snapshot exists; do not perform duplicate periodic JNI collections on the main thread.
 - Also note: when `virtual_ipv4` becomes available, the Android `VpnService` must add the **EasyTier virtual subnet route itself** (for example `10.126.126.22/24`) in addition to any `proxy_cidrs`, otherwise Android 7 can bring up `tun0` and assign the address but still fail to route peer traffic correctly.
 
 ### Mobile DHCP caveat
