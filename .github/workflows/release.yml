@@ -42,6 +42,11 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '17'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.14'
     
     - name: Install dependencies
       run: flutter pub get
@@ -131,6 +136,7 @@ jobs:
         PLUGIN_RELEASE_TAG: ${{ steps.version.outputs.plugin_release_tag }}
         PLUGIN_RELEASE_REPOSITORY: ${{ vars.PLUGIN_RELEASE_REPOSITORY || 'Easul/lightly-plugins' }}
         PLUGIN_GRADLE_OFFLINE: '0'
+        PLUGIN_GRADLEW: gradle
         DEFER_LIGHTLY_CERT_VERIFY: '1'
       run: |
         scripts/build_optional_plugins.sh

@@ -54,7 +54,10 @@ require_command unzip
   echo "Android apksigner not found; set APKSIGNER explicitly" >&2
   exit 1
 }
-[[ -x "$GRADLEW" ]] || { echo "Gradle wrapper not found: $GRADLEW" >&2; exit 1; }
+if [[ "$GRADLEW" != */* ]]; then
+  GRADLEW="$(command -v "$GRADLEW" || true)"
+fi
+[[ -x "$GRADLEW" ]] || { echo "Gradle executable not found: $GRADLEW" >&2; exit 1; }
 LIGHTLY_CERT=""
 if [[ -f "$LIGHTLY_APK" ]]; then
   LIGHTLY_CERT="$($APKSIGNER verify --print-certs "$LIGHTLY_APK" 2>/dev/null | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"

@@ -122,7 +122,7 @@ tag/手动 Release 工作流使用，不得写入 Variables、源码或 fork/PR 
 
 `.github/workflows/release.yml` 按以下顺序执行：
 
-1. 固定 Flutter 3.41.6、Java 17、Rust Android targets。
+1. 固定 Flutter 3.41.6、Java 17、Gradle 8.14 和 Rust Android targets。
 2. 计算版本、`5000 + main commit count` 和 plugin release tag。
 3. 解码 Release keystore。
 4. 从固定 URL 下载 YouTube AAR 并校验 SHA-256。
