@@ -25,7 +25,6 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
     private var isConfigured = false
     private var width = 1080
     private var height = 2340
-    private var decodedFrameCount = 0
     private var latestSps: ByteArray? = null
     private var latestPps: ByteArray? = null
 
@@ -65,7 +64,6 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
 
     fun decode(data: ByteArray, isKeyFrame: Boolean, presentationTimeUs: Long) {
         if (!isConfigured || decoder == null) {
-            Log.d(TAG, "Dropping frame before decoder configured len=${data.size} key=$isKeyFrame")
             return
         }
 
@@ -77,18 +75,12 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
                 inputBuffer?.clear()
                 inputBuffer?.put(normalizedData)
                 decoder!!.queueInputBuffer(inputIndex, 0, normalizedData.size, presentationTimeUs, 0)
-            } else {
-                Log.d(TAG, "No input buffer available for frame len=${normalizedData.size} key=$isKeyFrame")
             }
 
             val bufferInfo = MediaCodec.BufferInfo()
             var outputIndex = decoder!!.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US)
             while (outputIndex >= 0) {
                 decoder!!.releaseOutputBuffer(outputIndex, true)
-                decodedFrameCount += 1
-                if (decodedFrameCount == 1 || decodedFrameCount % 30 == 0) {
-                    Log.i(TAG, "Rendered decoded frame #$decodedFrameCount size=${bufferInfo.size}")
-                }
                 onFrameDecoded(surface!!)
                 outputIndex = decoder!!.dequeueOutputBuffer(bufferInfo, 10000)
             }
@@ -113,17 +105,15 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
         if (!hasSps) output.write(sps)
         if (!hasPps) output.write(pps)
         output.write(normalizedData)
-        Log.d(TAG, "Prepended cached SPS/PPS to key frame len=${normalizedData.size}")
         return output.toByteArray()
     }
 
-    private fun normalizeFrameData(data: ByteArray): ByteArray {
+    internal fun normalizeFrameData(data: ByteArray): ByteArray {
         if (data.isEmpty()) return data
+        if (isAnnexB(data)) return data
         parseAnnexBNalUnits(data)?.let { return joinNalUnits(it) }
         tryParseAvccNalUnits(data)?.let {
-            val joined = joinNalUnits(it)
-            Log.d(TAG, "Converted AVCC frame to Annex-B len=${data.size} -> ${joined.size}")
-            return joined
+            return joinNalUnits(it)
         }
         return normalizeSingleNalUnit(data)
     }
@@ -225,7 +215,6 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
                 setByteBuffer("csd-0", ByteBuffer.wrap(normalizedSps))
                 setByteBuffer("csd-1", ByteBuffer.wrap(normalizedPps))
             }
-            decodedFrameCount = 0
             Log.i(TAG, "Decoder reconfigured with SPS/PPS")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reconfigure decoder", e)
@@ -337,7 +326,6 @@ class H264Decoder(private val onFrameDecoded: (Surface) -> Unit) {
 
     fun release() {
         isConfigured = false
-        decodedFrameCount = 0
         latestSps = null
         latestPps = null
         try {

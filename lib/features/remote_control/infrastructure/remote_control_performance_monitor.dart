@@ -91,6 +91,8 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
   static const int _maxStatsWindow = 100;
   static const int _reportIntervalSeconds = 10;
   static const int _audioSequenceModulo = 0x10000;
+  static const int _videoSampleIntervalMicros = 200000;
+  static const int _bitrateWindowMicros = 1000000;
 
   // 数据缓存
   final ListQueue<LatencyPoint> _latencyHistory = ListQueue<LatencyPoint>();
@@ -102,8 +104,11 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
 
   // 实时计数器
   int _frameCount = 0;
-  int _totalFrameBytes = 0;
-  DateTime? _lastFrameTime;
+  final Stopwatch _sessionClock = Stopwatch();
+  int? _lastFrameElapsedMicros;
+  int _lastVideoSampleElapsedMicros = -_videoSampleIntervalMicros;
+  int _bitrateWindowStartedMicros = 0;
+  int _bitrateWindowBytes = 0;
   double _currentFps = 0;
   int _currentBitrate = 0;
 
@@ -131,6 +136,9 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
   void startMonitoring() {
     if (_isMonitoring) return;
     _resetSessionState();
+    _sessionClock
+      ..reset()
+      ..start();
     _isMonitoring = true;
 
     _reportTimer = Timer.periodic(
@@ -144,8 +152,10 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
     _videoStatsHistory.clear();
     _audioStatsHistory.clear();
     _frameCount = 0;
-    _totalFrameBytes = 0;
-    _lastFrameTime = null;
+    _lastFrameElapsedMicros = null;
+    _lastVideoSampleElapsedMicros = -_videoSampleIntervalMicros;
+    _bitrateWindowStartedMicros = 0;
+    _bitrateWindowBytes = 0;
     _currentFps = 0;
     _currentBitrate = 0;
     _audioPacketCount = 0;
@@ -158,6 +168,7 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
   @override
   void stopMonitoring() {
     _isMonitoring = false;
+    _sessionClock.stop();
     _reportTimer?.cancel();
     _reportTimer = null;
   }
@@ -203,31 +214,39 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
   }) {
     if (!_isMonitoring) return;
 
-    final now = DateTime.now();
+    final elapsedMicros = _sessionClock.elapsedMicroseconds;
     _frameCount++;
-    _totalFrameBytes += frameSize;
+    _bitrateWindowBytes += frameSize;
 
-    if (_lastFrameTime != null) {
-      final intervalMs = now.difference(_lastFrameTime!).inMilliseconds;
-      if (intervalMs > 0) {
-        _currentFps = 1000.0 / intervalMs;
+    final previousFrameMicros = _lastFrameElapsedMicros;
+    if (previousFrameMicros != null) {
+      final intervalMicros = elapsedMicros - previousFrameMicros;
+      if (intervalMicros > 0) {
+        _currentFps = 1000000.0 / intervalMicros;
       }
     }
-    _lastFrameTime = now;
+    _lastFrameElapsedMicros = elapsedMicros;
 
-    // 计算实时码率 (bits per second)
-    if (_videoStatsHistory.isNotEmpty &&
-        now.difference(_videoStatsHistory.last.timestamp).inSeconds >= 1) {
+    final bitrateWindowElapsed = elapsedMicros - _bitrateWindowStartedMicros;
+    if (bitrateWindowElapsed >= _bitrateWindowMicros) {
       _currentBitrate =
-          (_totalFrameBytes * 8) ~/
-          math.max(
-            1,
-            now.difference(_videoStatsHistory.first.timestamp).inSeconds,
-          );
+          (_bitrateWindowBytes * 8 * 1000000) ~/ bitrateWindowElapsed;
+      _bitrateWindowStartedMicros = elapsedMicros;
+      _bitrateWindowBytes = 0;
     }
 
+    final shouldSample =
+        _videoStatsHistory.isEmpty ||
+        isKeyFrame ||
+        elapsedMicros - _lastVideoSampleElapsedMicros >=
+            _videoSampleIntervalMicros;
+    if (!shouldSample) {
+      return;
+    }
+    _lastVideoSampleElapsedMicros = elapsedMicros;
+
     final stats = VideoStatsPoint(
-      timestamp: now,
+      timestamp: DateTime.now(),
       fps: _currentFps,
       frameSize: frameSize,
       bitrate: _currentBitrate,
@@ -493,7 +512,10 @@ class PerformanceMonitorService implements RemoteControlDiagnostics {
     _audioStatsHistory.clear();
     _discoveryPaths.clear();
     _frameCount = 0;
-    _totalFrameBytes = 0;
+    _lastFrameElapsedMicros = null;
+    _lastVideoSampleElapsedMicros = -_videoSampleIntervalMicros;
+    _bitrateWindowStartedMicros = _sessionClock.elapsedMicroseconds;
+    _bitrateWindowBytes = 0;
     _audioPacketCount = 0;
     _totalAudioBytes = 0;
     _audioLossCount = 0;
