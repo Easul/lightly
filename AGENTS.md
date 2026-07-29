@@ -600,11 +600,15 @@ Remote-control WebRTC voice has several real-world pitfalls that must not be reg
   - The native companion applies bounded `AudioTrack.setVolume(1.6)` only when it is the receiver, so the controlled device hears the controller louder without also amplifying controller-side monitoring and echo.
   - Keep this boost modest; large values can clip or increase echo on some phones.
 
-- Voice audio routing must follow wired-headset and USB-headset hot-plug changes.
+- Voice audio routing must follow wired, USB, and Bluetooth headset hot-plug changes.
   - Do not unconditionally force `AudioManager.isSpeakerphoneOn = true`; on Android 12+ prefer the
-    active wired communication device through `setCommunicationDevice()`, and keep an
-    `AudioDeviceCallback` registered for the session so inserting or removing a headset updates the
-    route without rebuilding the WebRTC session.
+    active wired communication device, then Bluetooth SCO / BLE headset / hearing-aid devices,
+    through `setCommunicationDevice()`. Keep an `AudioDeviceCallback` registered for the session so
+    inserting or removing a headset updates the route without rebuilding the WebRTC session.
+  - Before Android 12, detect an actual connected Bluetooth HFP headset instead of treating every
+    A2DP speaker as a voice headset. Start legacy SCO only for that session, stop it when wired audio
+    takes priority or Bluetooth disconnects, and restore the previous SCO state when the session
+    closes. A queued device callback must not reclaim the audio route after session shutdown.
 
 - Internal proxy mode intentionally does not provide WebRTC voice.
   - Test WebRTC voice over LAN or EasyTier direct remote-control connections, not the internal proxy path.
