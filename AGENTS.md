@@ -832,8 +832,19 @@ looks unrelated to architecture work, but any move of proxy routing logic can si
 - Downloads started from WebView pages must preserve the WebView request context when the app's
   `HttpClient` takes over the transfer: load target-domain cookies from `CookieManager`, forward the
   callback user agent, and send a sanitized HTTP(S) referrer without user info, query, or fragment.
+- Download redirects must be followed explicitly with a bounded HTTP(S)-only limit. Preserve request
+  context only while the origin (scheme, host, and port) is unchanged; strip Cookie, Authorization,
+  Proxy-Authorization, and Referer before following a cross-origin redirect. Pass the final URL to
+  response filename resolution rather than depending on implicit `HttpClientResponse.redirects`.
 - Never write Cookie, Authorization, referrer query values, or other download credentials to logs or
   persisted download display URLs.
+- Resolved video session headers may flow through `ResolvedVideoSource.httpHeaders` to playback and
+  user-initiated downloads, but `VideoProxyServer` must keep them in bounded server-side memory and
+  expose only a random context token in its loopback URL. Bind that token to the exact target URL,
+  clear contexts when the proxy stops, accept only GET/HEAD HTTP(S) targets on the configured host
+  boundary allowlist, and do not follow upstream redirects or accept sensitive headers supplied by
+  an arbitrary local client. Never place Cookie/Authorization values or resolved stream URLs in
+  runtime logs.
 - File-hosting links can expire or redirect to a login/share page. If a non-HTML filename such as
   `.apk` ultimately receives `text/html` or XHTML, fail with a clear re-login/expired-link message
   before opening the output file; do not save the page body under the requested binary filename.
