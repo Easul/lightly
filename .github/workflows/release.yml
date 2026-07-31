@@ -3,6 +3,15 @@ name: Release Android APK
 permissions:
   contents: write
 
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.41.6'
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.14'
+
 on:
   push:
     tags:
@@ -12,7 +21,7 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.7'
+        default: 'v1.0.10'
       optional_plugins:
         description: 'Optional companion APK handling'
         required: true
@@ -44,19 +53,19 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.41.6'
+        flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: 'stable'
     
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: ${{ env.JAVA_VERSION }}
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
-        gradle-version: '8.14'
+        gradle-version: ${{ env.GRADLE_VERSION }}
     
     - name: Install dependencies
       run: flutter pub get
@@ -72,59 +81,60 @@ jobs:
     - name: Build proxy-core native libraries
       run: |
         ./scripts/build_proxy_core.sh --all
-        echo "✅ Proxy-core native libraries built"
         ls -lh android/app/src/main/jniLibs/*/libproxy_core.so
     
     - name: Get version info
       id: version
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        REF_NAME: ${{ github.ref_name }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        # Get short commit hash (6 characters)
         COMMIT_HASH=$(git rev-parse --short=6 HEAD)
-        
-        # Get version from tag or input
-        if [ "${{ github.event_name }}" == "push" ]; then
-          VERSION="${{ github.ref_name }}"
+
+        if [ "$EVENT_NAME" = "push" ]; then
+          VERSION="$REF_NAME"
         else
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="$INPUT_VERSION"
         fi
-        
-        # Build version label with commit hash: tag+commit
-        BUILD_VERSION="${VERSION}+${COMMIT_HASH}"
+
+        if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+          echo "Invalid release version: $VERSION" >&2
+          exit 1
+        fi
 
         git fetch --no-tags origin main:refs/remotes/origin/main
-
-        # Calculate version code from main branch commit count with offset (5000+count).
-        # Prefer origin/main so tag builds count main history instead of a detached tag-only ref.
         COMMIT_COUNT=$(git rev-list --count origin/main)
         VERSION_CODE=$((5000 + COMMIT_COUNT))
+        BUILD_VERSION="${VERSION}+${COMMIT_HASH}"
         PLUGIN_RELEASE_TAG="plugins-${BUILD_VERSION//[^[:alnum:].+-]/-}"
-        
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
-        echo "build_version=${BUILD_VERSION}" >> $GITHUB_OUTPUT
-        echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
-        echo "plugin_release_tag=${PLUGIN_RELEASE_TAG}" >> $GITHUB_OUTPUT
-        
-        echo "📝 Version: ${VERSION}"
-        echo "🔖 Commit: ${COMMIT_HASH}"
-        echo "📦 Build Version: ${BUILD_VERSION}"
-        echo "🔢 Version Code: ${VERSION_CODE}"
-        echo "🧩 Plugin Release: ${PLUGIN_RELEASE_TAG}"
+
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "commit_hash=${COMMIT_HASH}" >> "$GITHUB_OUTPUT"
+        echo "build_version=${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+        echo "plugin_release_tag=${PLUGIN_RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+        echo "Version: ${VERSION}"
+        echo "Commit: ${COMMIT_HASH}"
+        echo "Build version: ${BUILD_VERSION}"
+        echo "Android versionCode: ${VERSION_CODE}"
+        echo "Plugin release: ${PLUGIN_RELEASE_TAG}"
     
     - name: Decode keystore
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
         if [ -z "$KEYSTORE_BASE64" ]; then
-          echo "❌ ERROR: KEYSTORE_BASE64 secret is not set"
+          echo "KEYSTORE_BASE64 secret is not set" >&2
           exit 1
         fi
         echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
         if [ ! -f "android/app/upload-keystore.jks" ] || [ ! -s "android/app/upload-keystore.jks" ]; then
-          echo "❌ ERROR: Keystore file not created or empty"
+          echo "Keystore file was not created or is empty" >&2
           exit 1
         fi
-        echo "✅ Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
+        echo "Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
 
     - name: Fetch verified YouTube resolver AAR
       env:
@@ -241,7 +251,12 @@ jobs:
           dist/app-arm64-v8a-release.apk
         cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
           dist/app-armeabi-v7a-release.apk
-        echo "✅ Built multi-ABI APKs via scripts/build_multi_abi.sh"
+        (
+          cd dist
+          sha256sum *.apk > SHA256SUMS
+          sha256sum -c SHA256SUMS
+        )
+        echo "Built and verified multi-ABI APKs via scripts/build_multi_abi.sh"
 
     - name: Verify optional plugins against final Lightly APK
       if: steps.optional_plugins.outputs.build == '1'
@@ -250,12 +265,15 @@ jobs:
     - name: Show build artifacts
       run: |
         ls -lh dist/
+        cat dist/SHA256SUMS
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: android-apks
-        path: dist/*.apk
+        path: |
+          dist/*.apk
+          dist/SHA256SUMS
         retention-days: 7
 
     - name: Upload optional plugin artifacts
@@ -273,8 +291,11 @@ jobs:
     needs: build-android
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    
+
     steps:
+    - name: Checkout release metadata
+      uses: actions/checkout@v4
+
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
@@ -287,10 +308,36 @@ jobs:
       with:
         name: optional-plugin-apks
         path: optional-plugins/
-    
-    - name: Display artifacts
+
+    - name: Verify release artifacts
       run: |
         ls -lh dist/
+        (
+          cd dist
+          sha256sum -c SHA256SUMS
+        )
+
+    - name: Prepare versioned release notes
+      env:
+        VERSION: ${{ needs.build-android.outputs.version }}
+        COMMIT_HASH: ${{ needs.build-android.outputs.commit_hash }}
+        BUILD_VERSION: ${{ needs.build-android.outputs.build_version }}
+        VERSION_CODE: ${{ needs.build-android.outputs.version_code }}
+      run: |
+        NOTES_PATH="docs/releases/${VERSION}.md"
+        if [ -f "$NOTES_PATH" ]; then
+          cp "$NOTES_PATH" release-body.md
+        else
+          printf '# Lightly %s\n\nSee the generated commit notes below.\n' \
+            "$VERSION" > release-body.md
+        fi
+        {
+          printf '\n## 构建信息 / Build Information\n\n'
+          printf -- '- Version: `%s`\n' "$VERSION"
+          printf -- '- Build label: `%s`\n' "$BUILD_VERSION"
+          printf -- '- Commit: `%s`\n' "$COMMIT_HASH"
+          printf -- '- Android versionCode: `%s`\n' "$VERSION_CODE"
+        } >> release-body.md
 
     - name: Publish optional plugin release
       if: needs.build-android.outputs.build_optional_plugins == '1'
@@ -300,7 +347,7 @@ jobs:
         PLUGIN_RELEASE_TAG: ${{ needs.build-android.outputs.plugin_release_tag }}
       run: |
         if [ -z "$GH_TOKEN" ]; then
-          echo "PLUGIN_RELEASE_TOKEN is required to publish optional plugins"
+          echo "PLUGIN_RELEASE_TOKEN is required to publish optional plugins" >&2
           exit 1
         fi
         if gh release view "$PLUGIN_RELEASE_TAG" --repo "$PLUGIN_RELEASE_REPOSITORY" >/dev/null 2>&1; then
@@ -312,58 +359,18 @@ jobs:
             --title "$PLUGIN_RELEASE_TAG" \
             --notes "Optional companion APKs pinned by Lightly ${{ needs.build-android.outputs.version }}."
         fi
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+
+    - name: Create or update Lightly release
+      uses: softprops/action-gh-release@v2
       with:
-        files: dist/*.apk
-        generate_release_notes: true
-        body: |
-          ## Android Release ${{ github.ref_name }}
-          
-          ### 📱 下载安装包
-          
-          根据你的设备架构选择合适的 APK：
-          
-          | 文件名 | 架构 | 适用设备 |
-          |--------|------|----------|
-          | `app-arm64-v8a-release.apk` | ARM64 (64位) | 大多数现代安卓设备 |
-          | `app-armeabi-v7a-release.apk` | ARMv7 (32位) | 老旧设备或低内存设备 |
-          
-          ### 🔧 安装说明
-          
-          1. 下载适合你设备架构的 APK
-          2. 允许安装未知来源应用
-          3. 安装 APK
-          
-          ### 🚀 功能特性
-
-          - 浏览器保留完整标签页、下载、收藏、视频播放、站点数据清理与备份恢复能力，新增浏览历史管理、桌面/移动视口切换与 Web 调试控制台
-          - 远程控制支持屏幕观看、触摸/键盘/全局动作注入、轨迹滑动、远端标注、剪贴板同步与 WebRTC 双向语音
-          - EasyTier P2P VPN 可用于跨网络远控，并支持 VPN 与 no-VPN/no-tun 两种运行方式
-          - 新增 AI 翻译与对话工具、Telegram 签到工具，视频播放支持缓存与测速控制
-          - 发布包继续提供 arm64-v8a 与 armeabi-v7a 两个 ABI 分包
-
-          ### 🔄 本次修改说明
-
-          - 新增 AI 翻译与对话工具（流式响应、历史持久化、AI 配置管理、Markdown 渲染）
-          - 新增 Telegram 签到工具（TDLib 集成、消息文本选择、经本地代理收发）
-          - 新增独立浏览历史页（查看/搜索/清理）、桌面模式与移动视口切换、Web 调试控制台、窄屏分页操作面板
-          - 视频播放支持媒体缓存与测速控制，时间覆盖层可显示毫秒；下载记录与文件分离，可独立删除
-          - 修复 SOCKS5 回复原子化、Hysteria2 IPv6 目标、弹窗与外部链接 URL 编码保留、强制刷新卡死页面等多项浏览器与代理问题
-          - 重构 WebView 各控制器、Android 通道、代理设置表单与远控平台接入，优化 AI 聊天流式性能
-          - 版本号展示（`vX.Y.Z+<6位提交号>`）并支持设置页点击复制
-          
-          ### 📝 版本信息
-          
-          - **版本**: ${{ github.ref_name }}
-          - **提交**: ${{ needs.build-android.outputs.commit_hash }}
-          - **构建时间**: ${{ github.event.head_commit.timestamp }}
-          
-          ### ⚠️ 注意事项
-          
-          - 首次安装可能需要授予无障碍服务权限（用于远程控制）
-          - VPN 功能需要系统 VPN 权限
-          - 录屏功能需要屏幕录制权限
+        body_path: release-body.md
+        files: |
+          dist/app-arm64-v8a-release.apk
+          dist/app-armeabi-v7a-release.apk
+          dist/SHA256SUMS
+        generate_release_notes: false
+        fail_on_unmatched_files: true
+        overwrite_files: true
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
