@@ -93,3 +93,4 @@ Recommended order for a first tour:
 - [Architecture](architecture.en.md)
 - [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](release-summary-v1.0.8.en.md)
+- [v1.0.10 Release Summary](release-summary-v1.0.10.en.md)

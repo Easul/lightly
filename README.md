@@ -2,9 +2,11 @@
 
 [English](README.en.md)
 
-一款以 Flutter 构建的 Android 浏览器与设备工具箱，集成了**远程控制**能力，同时支持 VLESS 代理、EasyTier P2P VPN、视频播放、本地文件服务、文件简易管理、剪贴板同步等功能。
+Lightly 是一款面向 Android 的浏览器与设备工具箱，把网页浏览、代理与 P2P 网络、文件传输、
+媒体播放和远程控制放在同一套轻量界面中。应用以 Flutter 构建，网络核心和 Android 平台能力由
+Rust/Kotlin 提供；Telegram、WebRTC 语音与 EasyTier 原生运行时按需安装，不重复打包 Flutter。
 
-Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和设备控制整理在一套轻量、清晰的界面中。
+当前发布重点见 [v1.0.10 完整更新说明](docs/release-summary-v1.0.10.md)。
 
 ## 功能概览
 
@@ -21,8 +23,9 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - 标签页管理与会话恢复
 - 地址栏建议与常用页面入口
 - 收藏管理、页面长按操作与紧凑型“更多”工具面板
-- 视频检测、悬浮播放、后台音频
-- 下载管理（支持独立删除下载记录与文件）、站点数据清理与浏览历史管理
+- 视频检测、YouTube 原生解析、悬浮播放、后台音频
+- 可恢复下载：保留登录态请求上下文、跨重定向安全控制、断点续传、可靠文件名解析
+- 下载记录与文件独立管理，支持按站点清理 Cookie、WebStorage、IndexedDB 和 Service Worker
 - 桌面模式与移动视口切换、Web 调试控制台
 - 窄屏分页操作面板
 
@@ -41,10 +44,19 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - 计算器与 2048 小工具
 
 ### 可选插件
-- Telegram、WebRTC 语音和 EasyTier 以同签名纯 Android companion APK 提供
+- Telegram、WebRTC 语音和 EasyTier 以同签名纯 Android companion APK 提供，宿主 APK 不再重复携带这些原生运行时
 - Lightly 内置与当前宿主版本匹配的插件 URL、ABI、大小和 SHA-256，不在运行时信任远程 manifest
 - 插件下载支持 Lightly 代理、GitHub 直连、持续低速/超时后镜像回退，以及用户自定义 HTTPS 镜像前缀
 - GitHub Actions 使用同一 Release keystore 构建 Lightly 与六个 ABI 插件包，并在发布前交叉验证签名
+
+## v1.0.10 重点变化
+
+- 完成应用级运行时协调与 feature-first 模块迁移，明确 Browser、Proxy、EasyTier、Remote Control、Video 等资源的唯一 owner。
+- 将 Telegram TDLib、WebRTC 语音和 EasyTier JNI/FFI 抽离为按需安装的纯 Android companion，补齐 MIUI 前台启动、Binder 生命周期和同签名校验。
+- 集成私有 Android YouTube resolver；解析结果携带的 Cookie/请求头只进入受限的本地播放与下载链路。
+- 下载器支持 WebView Cookie/User-Agent/Referer、受控重定向、自动重试、Range 续传、失败记录重试和更可靠的服务端文件名。
+- 修复代理绕过域名的边界匹配，避免 `googlevideo.com` 被错误当作 `google.com` 直连；同时优化浏览器弹层、远控视频、Telegram 与 EasyTier 热路径。
+- 重写 GitHub Release 流程：可复用未变化插件、固定并校验 YouTube AAR、生成 APK SHA-256，并从版本化文档发布详细说明。
 
 ## 界面与交互
 
@@ -95,6 +107,7 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - [浏览器 / 远控模块地图](docs/browser_remote_module_map.md)
 - [v1.0.7 功能更新摘要](docs/release-summary-v1.0.7.md)
 - [v1.0.8 功能更新摘要](docs/release-summary-v1.0.8.md)
+- [v1.0.10 完整更新说明](docs/release-summary-v1.0.10.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
 - [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
 
@@ -108,6 +121,7 @@ Lightly 的目标不是堆叠复杂入口，而是把浏览、连接、传输和
 - [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
+- [v1.0.10 Release Summary](docs/release-summary-v1.0.10.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
