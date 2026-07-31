@@ -2,9 +2,13 @@
 
 [中文](README.md)
 
-Lightly is a Flutter-based Android browser and device toolbox with built-in **remote control** capabilities, alongside VLESS proxy support, EasyTier P2P VPN, media playback, local file serving, simple file management, and clipboard sync.
+Lightly is an Android browser and device toolbox that brings web browsing, proxy and P2P networking,
+file transfer, media playback, and remote control into one lightweight interface. Flutter owns the
+product UI, while Rust and Kotlin provide the networking core and Android platform capabilities.
+Telegram, WebRTC voice, and EasyTier native runtimes are installed only when needed and do not ship a
+second Flutter runtime.
 
-The project aims to keep browsing, connectivity, transfer, and device-control tools inside one lightweight and clearly organized interface instead of exposing a collection of unrelated screens.
+See the [complete v1.0.10 release summary](docs/release-summary-v1.0.10.en.md) for the current release.
 
 ## Features
 
@@ -21,8 +25,9 @@ The project aims to keep browsing, connectivity, transfer, and device-control to
 - Tab management and session restore
 - Address bar suggestions and favorites entry points
 - Favorites management, long-press page actions, and a compact More tools panel
-- Video detection, floating playback, and background audio
-- Download management (with independent deletion of download records and files), site-data clearing, and browser history management
+- Video detection, native YouTube resolution, floating playback, and background audio
+- Resilient downloads with authenticated WebView context, secure redirects, retries, range resume, and server filename resolution
+- Independent download-record/file management and site-scoped Cookie, WebStorage, IndexedDB, and Service Worker clearing
 - Desktop mode and mobile viewport switching, web debug console
 - Paginated action panel for narrow screens
 
@@ -41,10 +46,19 @@ The project aims to keep browsing, connectivity, transfer, and device-control to
 - Calculator and 2048 utility pages
 
 ### Optional Plugins
-- Telegram, WebRTC voice, and EasyTier ship as same-signed pure-Android companion APKs
+- Telegram, WebRTC voice, and EasyTier ship as same-signed pure-Android companion APKs, keeping their native runtimes out of the host APK
 - Lightly embeds compatible plugin URLs, ABI entries, sizes, and SHA-256 values instead of trusting a runtime remote manifest
 - Downloads support the configured Lightly proxy, direct GitHub access, timeout/sustained-slow mirror fallback, and a user-defined HTTPS mirror prefix
 - GitHub Actions build Lightly and all six ABI-specific plugin APKs with one release key and cross-check certificates before publishing
+
+## v1.0.10 Highlights
+
+- Completed application runtime coordination and the feature-first migration, with one explicit owner for Browser, Proxy, EasyTier, Remote Control, and Video resources.
+- Extracted Telegram TDLib, WebRTC voice, and EasyTier JNI/FFI into on-demand pure-Android companions with MIUI foreground bootstrap, Binder lifecycle cleanup, and same-signature verification.
+- Integrated the private Android YouTube resolver while confining returned cookies and request headers to the restricted local playback/download path.
+- Added authenticated download context, controlled redirects, automatic retries, range resume, failed-download retry, and stronger server filename handling.
+- Fixed proxy bypass host-boundary matching so `googlevideo.com` is not incorrectly treated as a `google.com` direct route, and reduced Browser, remote-video, Telegram, and EasyTier hot-path work.
+- Reworked GitHub Releases to reuse unchanged companions, pin and verify the YouTube AAR, publish APK SHA-256 checksums, and source detailed notes from versioned documentation.
 
 ## Interface and Interaction
 
@@ -95,6 +109,7 @@ Requirements:
 - [Browser / Remote Module Map (CN)](docs/browser_remote_module_map.md)
 - [v1.0.7 Release Summary (CN)](docs/release-summary-v1.0.7.md)
 - [v1.0.8 Release Summary (CN)](docs/release-summary-v1.0.8.md)
+- [v1.0.10 Release Summary (CN)](docs/release-summary-v1.0.10.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
 - [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
 
@@ -108,6 +123,7 @@ Requirements:
 - [UI Design Guidelines](docs/ui-design.en.md)
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
+- [v1.0.10 Release Summary](docs/release-summary-v1.0.10.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 

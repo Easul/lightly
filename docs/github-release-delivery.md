@@ -65,8 +65,8 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 | 名称 | 示例 | 用途 |
 |---|---|---|
 | `PLUGIN_RELEASE_REPOSITORY` | `Easul/lightly-plugins` | companion Release 目标仓库 |
-| `YOUTUBE_RESOLVER_AAR_URL` | `https://github.com/Easul/yt-resolver/releases/download/<tag>/yt-resolver.aar` | 固定 YouTube AAR 下载地址 |
-| `YOUTUBE_RESOLVER_AAR_SHA256` | `SHA256SUMS` 中的值 | 构建前校验 AAR |
+| `YOUTUBE_RESOLVER_AAR_URL` | `<private-https-release-asset-url>` | 固定 YouTube AAR 下载地址 |
+| `YOUTUBE_RESOLVER_AAR_SHA256` | `<64-character-sha256>` | 构建前校验 AAR；必须来自同一 tag 的 `SHA256SUMS` |
 
 ### Repository secrets
 
@@ -76,46 +76,47 @@ https://ghfast.top/https://github.com/Easul/lightly-plugins/releases/download/pl
 | `KEYSTORE_PASSWORD` | keystore 密码 |
 | `KEY_PASSWORD` | `upload` alias 密码 |
 | `PLUGIN_RELEASE_TOKEN` | 对 `lightly-plugins` 具有 Contents: Read and write 的 fine-grained token |
-| `YOUTUBE_RESOLVER_GITHUB_TOKEN` | 仅私有 AAR 仓库需要；使用对 `yt-resolver` 有 Contents: Read 权限的 fine-grained token，公开仓库留空 |
+| `YOUTUBE_RESOLVER_GITHUB_TOKEN` | 仅私有 AAR 仓库需要；使用对 `<private-resolver-repository>` 有 Contents: Read 权限的 fine-grained token，公开仓库留空 |
 
 不要在 fork/PR 工作流中暴露这些 secrets，也不要使用 `pull_request_target` 执行来自 PR 的构建脚本。
 
 ## YouTube AAR 发布
 
-私有源码存在于 ignored 的 `extensions/youtube/` 时执行：
+resolver 源码位于独立私有仓库。提交到其 feature 分支并合并到 `main` 后，先等待主分支 CI 完成
+测试、R8 和反射 API 校验，再创建新的不可变 `v*` tag。tag CI 会重新构建并发布 resolver AAR
+与 `SHA256SUMS`。
+
+本地发布前验证：
 
 ```bash
-scripts/package_youtube_aar_release.sh
+cd <private-resolver-checkout>
+scripts/build_release.sh
 ```
 
 脚本会在 Debug 字节码上运行单元测试，构建启用 R8 的 Release AAR，使用 `javap` 验证
 `YouTubeResolverBridge.apiVersion()` 与 `resolve(...)` 反射签名，并拒绝桥接类之外仍留在
 `lightly.youtube.resolver` 包下的实现类，然后生成：
 
-- `build/youtube-release/yt-resolver.aar`
-- `build/youtube-release/SHA256SUMS`
+- `dist/<resolver-asset>.aar`
+- `dist/SHA256SUMS`
 
-创建公开仓库后，可以在网页 Release 页面上传这两个文件，也可以使用：
+推送新 tag：
 
 ```bash
-gh release create v0.0.1 \
-  build/youtube-release/yt-resolver.aar \
-  build/youtube-release/SHA256SUMS \
-  --repo <owner>/<youtube-binary-repo> \
-  --title "YouTube resolver v0.0.1" \
-  --notes "R8-obfuscated binary dependency for Lightly."
+git tag -a <resolver-version-tag> -m "Release <resolver-version-tag>"
+git push origin <resolver-version-tag>
 ```
 
 上传后把 Release asset URL 和 `SHA256SUMS` 的值写入上面的 Actions variables。升级 AAR 时必须使用
-新 tag 和新哈希；每个 tag 可以继续使用同一个 `yt-resolver.aar` asset 名，但禁止覆盖旧 tag 的
+新 tag 和新哈希；每个 tag 可以继续使用同一个 resolver asset 名，但禁止覆盖旧 tag 的
 asset 后继续使用原 SHA。
 
-`yt-resolver` 可以设为私有仓库。此时 Lightly 仓库自身的 `GITHUB_TOKEN` 无权读取另一个私有仓库，
+resolver 可以放在私有仓库。此时 Lightly 仓库自身的 `GITHUB_TOKEN` 无权读取另一个私有仓库，
 必须配置 `YOUTUBE_RESOLVER_GITHUB_TOKEN`。下载脚本识别 GitHub Release URL 后会使用
 `gh release download` 获取私有 asset，再执行相同的 SHA-256 和桥接合同校验。这个 token 只供
 tag/手动 Release 工作流使用，不得写入 Variables、源码或 fork/PR 构建。
 
-`lightly-plugins` 与 `yt-resolver` 的可见性要求不同：前者由用户设备匿名下载，默认应保持公开；
+companion 产物仓库与 resolver 仓库的可见性要求不同：前者由用户设备匿名下载，默认应保持公开；
 后者只在受控 CI 构建时下载，因此可以私有。
 
 ## `v*` Action 执行顺序
@@ -123,17 +124,19 @@ tag/手动 Release 工作流使用，不得写入 Variables、源码或 fork/PR 
 `.github/workflows/release.yml` 按以下顺序执行：
 
 1. 固定 Flutter 3.41.6、Java 17、Gradle 8.14 和 Rust Android targets。
-2. 计算版本、`5000 + main commit count` 和 plugin release tag。
-3. 解码 Release keystore。
-4. 从固定 URL 下载 YouTube AAR 并校验 SHA-256。
-5. 下载并校验 Telegram TDLib 预编译依赖。
-6. 使用同一 keystore 构建六个 companion APK。
-7. 检查 ABI、Flutter/Dart runtime 泄漏、插件间签名，并生成 `plugins.json`。
-8. 校验 manifest 后嵌入 Lightly assets。
-9. 构建 Lightly 两个 ABI Release APK。
-10. 将六个 companion 的签名与最终 Lightly APK 再次比较。
-11. 先发布 `lightly-plugins` Release。
-12. 插件发布成功后再发布 Lightly Release，避免公开引用缺失 assets 的 Lightly APK。
+2. 校验 tag/手动版本格式，计算 `5000 + main commit count` 和 plugin release tag。
+3. 解码 Release keystore，构建两个 ABI 的 proxy-core。
+4. 从固定 URL 下载 YouTube AAR，校验 SHA-256、桥接 API 和 R8 包边界。
+5. 根据 `auto` / `build` / `reuse` 决定 companion 处理方式。
+6. 需要重建时准备 TDLib，使用同一 keystore 构建六个 companion，检查 ABI、Flutter/Dart runtime
+   泄漏与插件间签名，并生成 `plugins.json`；复用时下载最近发布的 manifest。
+7. 校验 manifest 后嵌入 Lightly assets。
+8. 构建 Lightly 两个 ABI Release APK，生成并回验 `SHA256SUMS`。
+9. 重建 companion 时，将六个插件的签名与最终 Lightly APK 再次比较，并先发布
+   `lightly-plugins` Release。
+10. 从 `docs/releases/<tag>.md` 读取版本化说明，追加 commit、build label 和 Android
+    versionCode，再创建或更新 Lightly Release。
+11. 发布两个 APK 与 `SHA256SUMS`；任何预期产物缺失或校验失败都会终止发布。
 
 ### 跳过未变化的 companion
 

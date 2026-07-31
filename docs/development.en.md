@@ -200,5 +200,6 @@ docs: update xxx
 - [Remote Control Regression Checklist](remote_control_regression_checklist.md)
 - [v1.0.7 Release Summary](release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](release-summary-v1.0.8.en.md)
+- [v1.0.10 Release Summary](release-summary-v1.0.10.en.md)
 - [EasyTier Build Notes](easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](easytier-state-sharing.en.md)

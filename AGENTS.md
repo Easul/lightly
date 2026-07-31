@@ -1201,6 +1201,17 @@ The address bar lock icon opens a dialog for clearing current-site data:
 
 - The production YouTube resolver is a private, pure-Android AAR embedded in the Lightly APK. It
   is not an optional companion APK and must not include Flutter or Dart runtime artifacts.
+- Treat the resolver repository identity and release coordinates as private operational metadata.
+  Public `README*`, `docs/`, `.github/workflows/`, and GitHub Release text must not contain the
+  private repository owner/name, a real resolver asset URL, a concrete resolver tag, or its actual
+  SHA-256. Documentation must use `YOUTUBE_RESOLVER_AAR_URL`,
+  `YOUTUBE_RESOLVER_AAR_SHA256`, `YOUTUBE_RESOLVER_GITHUB_TOKEN`, or explicit placeholders such as
+  `<private-resolver-repository>` and `<64-character-sha256>`.
+- Keep real resolver release coordinates only in GitHub Actions Variables/Secrets and controlled
+  release operations. The Lightly workflow must consume those values through `${{ vars.* }}` and
+  `${{ secrets.* }}`; never hardcode them into tracked workflow YAML, scripts, docs, examples, or
+  release notes. Before committing related documentation or CI changes, search the public files for
+  leaked repository names, release URLs, concrete resolver tags, and hashes.
 - Keep private resolver source under ignored `extensions/youtube/` and the generated AAR at ignored
   `android/app/libs/lightly-youtube-resolver.aar`. Do not stage or commit either path. Public source
   may contain only the typed Dart gateway, Android reflection adapter, unavailable fallback, and
