@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../services/browser_user_agent_metadata_gateway.dart';
 import '../utils/browser_popup_raw_url_capture.dart';
 import '../utils/browser_site_compatibility_script.dart';
 
 const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+const _browserDesktopViewportWidth = 980.0;
 
 class BrowserWebViewHost extends StatelessWidget {
   const BrowserWebViewHost({
@@ -42,6 +44,7 @@ class BrowserWebViewHost extends StatelessWidget {
     this.onEnterFullscreen,
     this.onExitFullscreen,
     this.pullToRefreshController,
+    this.userAgentMetadataGateway = const BrowserUserAgentMetadataGateway(),
   });
 
   final bool enabled;
@@ -116,6 +119,7 @@ class BrowserWebViewHost extends StatelessWidget {
   final void Function(InAppWebViewController controller)? onEnterFullscreen;
   final void Function(InAppWebViewController controller)? onExitFullscreen;
   final PullToRefreshController? pullToRefreshController;
+  final BrowserUserAgentMetadataGateway userAgentMetadataGateway;
 
   static BrowserWebViewViewportPolicy viewportPolicyForUrl(
     String initialUrl, {
@@ -150,6 +154,7 @@ class BrowserWebViewHost extends StatelessWidget {
     String initialUrl, {
     bool desktopModeEnabled = false,
     String desktopUserAgentOverride = '',
+    double webViewLogicalWidth = _browserDesktopViewportWidth,
   }) {
     final viewportPolicy = viewportPolicyForUrl(
       initialUrl,
@@ -184,6 +189,22 @@ class BrowserWebViewHost extends StatelessWidget {
       allowsBackForwardNavigationGestures: true,
       allowsInlineMediaPlayback: true,
       userAgent: viewportPolicy.userAgent,
+      initialScale: desktopModeEnabled
+          ? desktopInitialScaleForWidth(webViewLogicalWidth)
+          : 0,
+      requestedWithHeaderOriginAllowList: const <String>{},
+    );
+  }
+
+  static int desktopInitialScaleForWidth(double logicalWidth) {
+    if (!logicalWidth.isFinite || logicalWidth <= 0) {
+      return 100;
+    }
+    // WebView.setInitialScale() is already expressed as a density-independent
+    // percentage, so Flutter's devicePixelRatio must not be applied here.
+    return (logicalWidth / _browserDesktopViewportWidth * 100).round().clamp(
+      1,
+      500,
     );
   }
 
@@ -194,6 +215,7 @@ class BrowserWebViewHost extends StatelessWidget {
       initialUrl,
       desktopModeEnabled: desktopModeEnabled,
       desktopUserAgentOverride: desktopUserAgentOverride,
+      webViewLogicalWidth: MediaQuery.sizeOf(context).width,
     );
     final initialUserScripts = _initialUserScriptsForMode(
       desktopModeEnabled: desktopModeEnabled,
@@ -242,9 +264,9 @@ class BrowserWebViewHost extends StatelessWidget {
         RepaintBoundary(
           child: InAppWebView(
             windowId: windowId,
-            initialUrlRequest: windowId == null && shouldLoadInitialUrl
-                ? URLRequest(url: WebUri(initialUrl))
-                : null,
+            // Delay the first main-frame request until Android has installed
+            // the WebView inset policy and optional desktop UA metadata.
+            initialUrlRequest: null,
             keepAlive: keepAlive,
             initialSettings: webViewSettings,
             initialUserScripts: initialUserScripts,
@@ -285,6 +307,17 @@ class BrowserWebViewHost extends StatelessWidget {
                 },
               );
               onWebViewCreated(controller);
+              if (windowId == null) {
+                unawaited(
+                  _prepareInitialNavigation(
+                    controller,
+                    desktopUserAgent: desktopModeEnabled
+                        ? webViewSettings.userAgent
+                        : null,
+                    shouldLoadInitialUrl: shouldLoadInitialUrl,
+                  ),
+                );
+              }
             },
             shouldOverrideUrlLoading: shouldOverrideUrlLoading,
             onCreateWindow: onCreateWindow,
@@ -344,6 +377,33 @@ class BrowserWebViewHost extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _prepareInitialNavigation(
+    InAppWebViewController controller, {
+    required String? desktopUserAgent,
+    required bool shouldLoadInitialUrl,
+  }) async {
+    final viewId = controller.getViewId();
+    if (viewId != null) {
+      try {
+        await userAgentMetadataGateway.prepareWebView(
+          webViewId: viewId,
+          desktopUserAgent: desktopUserAgent,
+        );
+      } catch (_) {
+        // Navigation can still proceed on WebViews without the compat feature.
+      }
+    }
+    if (shouldLoadInitialUrl) {
+      try {
+        await controller.loadUrl(
+          urlRequest: URLRequest(url: WebUri(initialUrl)),
+        );
+      } catch (_) {
+        // Normal WebView error callbacks own user-visible navigation failures.
+      }
+    }
   }
 
   UnmodifiableListView<UserScript>? _initialUserScriptsForMode({

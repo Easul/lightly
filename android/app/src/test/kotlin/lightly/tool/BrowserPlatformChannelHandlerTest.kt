@@ -88,6 +88,58 @@ class BrowserPlatformChannelHandlerTest {
         assertNull(result.successValue)
         assertNull(result.errorCode)
     }
+
+    @Test
+    fun `desktop metadata handler forwards normalized arguments`() {
+        var appliedId: String? = null
+        var appliedUserAgent: String? = null
+        val handler = BrowserUserAgentMetadataHandler { webViewId, desktopUserAgent ->
+            appliedId = webViewId
+            appliedUserAgent = desktopUserAgent
+            true
+        }
+        val result = RecordingResult()
+
+        val handled = handler.handle(
+            MethodCall(
+                "prepareBrowserWebView",
+                mapOf("webViewId" to 42, "desktopUserAgent" to " Desktop UA "),
+            ),
+            result,
+        )
+
+        assertTrue(handled)
+        assertEquals("42", appliedId)
+        assertEquals("Desktop UA", appliedUserAgent)
+        assertEquals(true, result.successValue)
+    }
+
+    @Test
+    fun `desktop user agent platform follows custom override`() {
+        assertEquals("Windows", desktopPlatformForUserAgent("Windows NT 10.0").name)
+        assertEquals("macOS", desktopPlatformForUserAgent("Macintosh; Intel Mac OS X").name)
+        assertEquals("Chrome OS", desktopPlatformForUserAgent("CrOS x86_64").name)
+        assertEquals("Linux", desktopPlatformForUserAgent("X11; Linux x86_64").name)
+    }
+
+    @Test
+    fun `webview preparation accepts mobile mode without desktop metadata`() {
+        var appliedUserAgent = "not-called"
+        val handler = BrowserUserAgentMetadataHandler { _, desktopUserAgent ->
+            appliedUserAgent = desktopUserAgent ?: "mobile"
+            true
+        }
+        val result = RecordingResult()
+
+        val handled = handler.handle(
+            MethodCall("prepareBrowserWebView", mapOf("webViewId" to "tab-2")),
+            result,
+        )
+
+        assertTrue(handled)
+        assertEquals("mobile", appliedUserAgent)
+        assertEquals(true, result.successValue)
+    }
 }
 
 private class FakeBrowserProxyOverride(

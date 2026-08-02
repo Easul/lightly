@@ -112,9 +112,6 @@ class BrowserProxyNode {
 
 class BrowserSettings {
   static const List<String> _builtInProxyBypassDomains = <String>[
-    'google.com',
-    'gstatic.com',
-    'googleapis.com',
     'example-site.com',
     'challenges.cloudflare.com',
   ];

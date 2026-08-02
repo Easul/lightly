@@ -263,6 +263,7 @@ void main() {
         proxyScheme: BrowserProxyProtocol.http,
         proxyHost: 'proxy.example.com',
         proxyPort: 8080,
+        proxyBypassDomains: 'google.com',
       );
 
       final result = service.findProxyForDownload(

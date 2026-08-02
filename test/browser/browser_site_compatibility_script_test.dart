@@ -38,15 +38,19 @@ void main() {
           );
 
       expect(script, isNotNull);
-      expect(script, contains('desktopWidth = 1366'));
+      expect(script, contains('minimumDesktopWidth = 980'));
       expect(script, contains("'width=' + desktopWidth"));
       expect(script, contains('data-lightly-original-content'));
+      expect(script, contains('querySelectorAll'));
+      expect(script, contains('data-lightly-desktop-viewport'));
       expect(script, contains('desktopUserAgentData'));
       expect(script, contains('mobile: false'));
-      expect(script, contains('maxTouchPoints'));
-      expect(script, contains('window.matchMedia'));
       expect(script, contains('MutationObserver'));
       expect(script, contains('__lightlyApplyDesktopEnvironment'));
+      expect(script, isNot(contains('maxTouchPoints')));
+      expect(script, isNot(contains('window.matchMedia')));
+      expect(script, isNot(contains('window.screen')));
+      expect(script, isNot(contains('minWidth')));
     });
 
     test('desktop environment override uses custom user agent', () {
@@ -58,6 +62,18 @@ void main() {
 
       expect(script, isNotNull);
       expect(script, contains(r'Custom \"Desktop\" UA'));
+    });
+
+    test('derives desktop client hints from a custom Linux user agent', () {
+      final script =
+          BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl(
+            'https://duck.ai',
+            desktopUserAgent:
+                'Mozilla/5.0 (X11; Linux x86_64) Chrome/148.0.0.0',
+          );
+
+      expect(script, contains('desktopPlatform = "Linux"'));
+      expect(script, contains('desktopNavigatorPlatform = "Linux x86_64"'));
     });
 
     test('does not inject desktop viewport override for local files', () {

@@ -291,6 +291,21 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 
 ## Build Size & Code Optimization Guidelines
 
+### Release dependency and native-asset hygiene
+
+- Remove direct dependencies that are no longer imported by production or test code. Before
+  removal, search all supported source and test trees; do not remove a development dependency that
+  is still required by tests merely because production does not import it.
+- Development-only native assets must never enter a Release APK. Flutter tests that use
+  `sqflite_common_ffi` can leave `build/native_assets/android/**/libsqlite3.so`; always run the
+  canonical cleanup before a Release build instead of reusing those intermediates.
+- The Lightly host Release APK must not contain `libsqlite3.so` or `libtdjson.so`. The canonical
+  build script must inspect APK entries and fail when either library is present. SQLite FFI is only
+  a desktop test backend, while TDLib belongs only to the Telegram companion.
+- When an APK grows unexpectedly, compare its compressed entries with a known-good build before
+  removing working application code. Confirm that every packaged native library, asset, and Android
+  plugin has a production owner.
+
 ### Optional companion APK policy
 
 - Every optional plugin APK must be a pure Android companion. Do not package a FlutterEngine,
@@ -687,11 +702,13 @@ Some sites (e.g., `example-site.com`) use Cloudflare challenge/bot detection tha
 ### Built-in proxy bypass for affected sites
 
 The browser maintains a built-in bypass list in `BrowserSettings._builtInProxyBypassDomains` that includes:
-- `google.com`, `gstatic.com`, `googleapis.com` (for Google auth flows)
 - `example-site.com` (Cloudflare challenge compatibility)
 - `challenges.cloudflare.com` (challenge platform direct access)
 
 **Do not remove** these bypass entries without verifying the sites work through the full proxy path.
+Do not add Google, Gmail, gstatic, or googleapis domains to the built-in bypass list. Networks that
+require the Lightly proxy for Google can otherwise load the Gmail shell while its sync requests go
+direct and report offline. Users who need direct Google routing can use the custom bypass setting.
 
 ### Guidelines for adding new bypass entries
 
@@ -821,7 +838,27 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Runtime `InAppWebViewController.setSettings()` is not reliable enough for this mode switch on all Android WebView paths. Prefer recreating retained WebViews / keepAlives so the next native WebView is created with the correct user agent, `preferredContentMode`, `useWideViewPort`, and `loadWithOverviewMode`.
 - The More-sheet toggle should flip from BrowserPage's current in-memory setting, not only the latest persisted setting, otherwise a stale page state can make the button appear to do nothing or switch the wrong way.
 - Custom desktop UA is a desktop-mode-only override from Settings → General. Keep mobile mode on the built-in mobile UA unless X / YouTube are re-tested.
-- Desktop mode compatibility should be generic for all web URLs, not a growing list of site-specific branches. Keep the desktop-only `BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl()` injection at WebView creation/load-stop, and make it present a desktop UA, desktop-width viewport, non-mobile UA-CH (`navigator.userAgentData.mobile=false`), desktop screen dimensions, non-touch `maxTouchPoints`, and desktop-like `matchMedia` results. Do not apply it in mobile mode.
+- Desktop mode compatibility should be generic for all web URLs, not a growing list of site-specific
+  branches. Keep the desktop-only `BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl()`
+  injection at WebView creation/load-stop, and make it present a desktop UA, an approximately
+  980-pixel wide viewport, and non-mobile UA-CH (`navigator.userAgentData.mobile=false`). Android
+  Chrome's internal Request Desktop Site path marks the navigation as a desktop-UA override and
+  makes Blink ignore viewport meta; public Android WebView does not expose that navigation-level
+  switch, so Lightly must keep its document-start viewport override and reapply it when pages insert
+  or replace viewport tags. Do not fake desktop screen dimensions, remove touch support, override
+  pointer/hover `matchMedia`, or force `html/body` minimum widths: those exceed normal Android
+  WebView desktop mode and make responsive sites such as X render differently from established
+  mobile browsers such as Via.
+- `WebView.setInitialScale()` takes a density-independent percentage. Fit the 980 CSS-pixel desktop
+  viewport with `logical WebView width / 980 * 100`; never multiply by Flutter's
+  `devicePixelRatio`, or a 3x phone will turn the intended approximately 41% fit scale into a 124%
+  zoom that visually resembles mobile layout.
+- The app window is edge-to-edge, while `BrowserBottomBar` already owns the system navigation-bar
+  safe area. Embedded browser WebViews must consume that duplicate navigation-bar inset before the
+  first page load while preserving IME insets. Otherwise fixed web toolbars such as X and YouTube
+  reserve the same bottom inset again, leaving a blank strip between the webpage toolbar and
+  Lightly's back/forward bar.
+- On Android WebView versions supporting `USER_AGENT_METADATA`, apply desktop metadata through the typed browser platform gateway before the first main-frame URL is loaded. This controls the HTTP `Sec-CH-UA-Mobile` and `Sec-CH-UA-Platform` headers used by server-rendered sites such as X and Duck.ai. Do not emulate this by canceling and replaying navigation callbacks because that can lose POST bodies and redirect state.
 - When switching to desktop mode, normalize `m.youtube.com` URLs to `www.youtube.com`; do not add the reverse rewrite for mobile mode unless YouTube mobile layout and native parser flows are re-tested.
 - Related files:
   - `lib/browser/widgets/browser_webview_host.dart`

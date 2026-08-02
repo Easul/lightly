@@ -58,7 +58,15 @@ build_release_for_abi() {
 verify_apk_metadata() {
   local apk_path="$1"
   local apk_name
+  local forbidden_library
   apk_name="$(basename "$apk_path")"
+
+  for forbidden_library in libsqlite3.so libtdjson.so; do
+    if unzip -Z1 "$apk_path" | grep "/${forbidden_library}$" >/dev/null; then
+      echo "Error: $apk_name contains forbidden host library $forbidden_library" >&2
+      return 1
+    fi
+  done
 
   if [[ -n "$APKANALYZER" ]]; then
     echo "🔍 Verifying $apk_name manifest..."
