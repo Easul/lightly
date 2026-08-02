@@ -291,6 +291,21 @@ This project now includes a mixed HTTP + SOCKS5 proxy. Telegram has specific SOC
 
 ## Build Size & Code Optimization Guidelines
 
+### Release dependency and native-asset hygiene
+
+- Remove direct dependencies that are no longer imported by production or test code. Before
+  removal, search all supported source and test trees; do not remove a development dependency that
+  is still required by tests merely because production does not import it.
+- Development-only native assets must never enter a Release APK. Flutter tests that use
+  `sqflite_common_ffi` can leave `build/native_assets/android/**/libsqlite3.so`; always run the
+  canonical cleanup before a Release build instead of reusing those intermediates.
+- The Lightly host Release APK must not contain `libsqlite3.so` or `libtdjson.so`. The canonical
+  build script must inspect APK entries and fail when either library is present. SQLite FFI is only
+  a desktop test backend, while TDLib belongs only to the Telegram companion.
+- When an APK grows unexpectedly, compare its compressed entries with a known-good build before
+  removing working application code. Confirm that every packaged native library, asset, and Android
+  plugin has a production owner.
+
 ### Optional companion APK policy
 
 - Every optional plugin APK must be a pure Android companion. Do not package a FlutterEngine,
