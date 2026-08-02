@@ -19,7 +19,7 @@ class BrowserSiteCompatibilityScript {
     final effectiveUserAgent = desktopUserAgent.trim().isEmpty
         ? defaultDesktopUserAgent
         : desktopUserAgent.trim();
-    return _desktopEnvironmentSource(effectiveUserAgent);
+    return _desktopViewportSource(effectiveUserAgent);
   }
 
   static String? bottomNavigationFixForUrl(String? rawUrl) {
@@ -72,16 +72,21 @@ class BrowserSiteCompatibilityScript {
         host.endsWith('.twitter.com');
   }
 
-  static String _desktopEnvironmentSource(String desktopUserAgent) {
+  static String _desktopViewportSource(String desktopUserAgent) {
     final encodedUserAgent = jsonEncode(desktopUserAgent);
+    final encodedPlatform = jsonEncode(
+      _desktopClientHintPlatform(desktopUserAgent),
+    );
+    final encodedNavigatorPlatform = jsonEncode(
+      _desktopNavigatorPlatform(desktopUserAgent),
+    );
     return '''
       (function() {
-        var desktopWidth = 1366;
-        var desktopHeight = 768;
+        var minimumDesktopWidth = 980;
         var desktopUserAgent = $encodedUserAgent;
-        var content =
-          'width=' + desktopWidth +
-          ', initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes';
+        var desktopPlatform = $encodedPlatform;
+        var desktopNavigatorPlatform = $encodedNavigatorPlatform;
+        var nativeUserAgentData = navigator.userAgentData;
 
         function defineGetter(target, property, getter) {
           if (!target) {
@@ -100,65 +105,62 @@ class BrowserSiteCompatibilityScript {
           return match ? match[1] : '131';
         }
 
-        function desktopUserAgentData() {
+        function desktopBrands() {
+          if (nativeUserAgentData && Array.isArray(nativeUserAgentData.brands)) {
+            return nativeUserAgentData.brands.map(function(item) {
+              return { brand: item.brand, version: item.version };
+            });
+          }
           var major = chromeMajorVersion();
-          var brands = [
+          return [
             { brand: 'Google Chrome', version: major },
             { brand: 'Chromium', version: major },
             { brand: 'Not A(Brand', version: '24' }
           ];
+        }
+
+        function desktopUserAgentData() {
+          var brands = desktopBrands();
           return {
             brands: brands,
             mobile: false,
-            platform: 'Windows',
+            platform: desktopPlatform,
             getHighEntropyValues: function(hints) {
-              var values = {
-                brands: brands,
-                mobile: false,
-                platform: 'Windows',
-                architecture: 'x86',
-                bitness: '64',
-                model: '',
-                platformVersion: '10.0.0',
-                uaFullVersion: major + '.0.0.0',
-                fullVersionList: brands
-              };
-              var result = {};
-              (hints || []).forEach(function(hint) {
-                if (Object.prototype.hasOwnProperty.call(values, hint)) {
-                  result[hint] = values[hint];
+              var requestedHints = Array.isArray(hints) ? hints : [];
+              var nativeValues = nativeUserAgentData &&
+                      typeof nativeUserAgentData.getHighEntropyValues === 'function'
+                  ? nativeUserAgentData.getHighEntropyValues(requestedHints)
+                  : Promise.resolve({});
+              return Promise.resolve(nativeValues).then(function(values) {
+                var result = Object.assign({}, values || {});
+                result.brands = brands;
+                result.mobile = false;
+                result.platform = desktopPlatform;
+                if (requestedHints.indexOf('model') !== -1) {
+                  result.model = '';
                 }
+                return result;
               });
-              return Promise.resolve(result);
             },
             toJSON: function() {
-              return { brands: brands, mobile: false, platform: 'Windows' };
+              return {
+                brands: brands,
+                mobile: false,
+                platform: desktopPlatform
+              };
             }
           };
         }
 
         function applyDesktopNavigator() {
           var navProto = window.Navigator && window.Navigator.prototype;
-          var appVersion = desktopUserAgent.replace(/^Mozilla\\//, '');
           var userAgentData = desktopUserAgentData();
-          [
-            window.navigator,
-            navProto
-          ].forEach(function(target) {
+          [window.navigator, navProto].forEach(function(target) {
             defineGetter(target, 'userAgent', function() {
               return desktopUserAgent;
             });
-            defineGetter(target, 'appVersion', function() {
-              return appVersion;
-            });
             defineGetter(target, 'platform', function() {
-              return 'Win32';
-            });
-            defineGetter(target, 'vendor', function() {
-              return 'Google Inc.';
-            });
-            defineGetter(target, 'maxTouchPoints', function() {
-              return 0;
+              return desktopNavigatorPlatform;
             });
             defineGetter(target, 'userAgentData', function() {
               return userAgentData;
@@ -166,135 +168,15 @@ class BrowserSiteCompatibilityScript {
           });
         }
 
-        function applyDesktopScreen() {
-          [
-            window.screen,
-            window.Screen && window.Screen.prototype
-          ].forEach(function(target) {
-            defineGetter(target, 'width', function() {
-              return desktopWidth;
-            });
-            defineGetter(target, 'availWidth', function() {
-              return desktopWidth;
-            });
-            defineGetter(target, 'height', function() {
-              return desktopHeight;
-            });
-            defineGetter(target, 'availHeight', function() {
-              return desktopHeight - 40;
-            });
-          });
-          defineGetter(window, 'outerWidth', function() {
-            return desktopWidth;
-          });
-          defineGetter(window, 'outerHeight', function() {
-            return desktopHeight;
-          });
-          defineGetter(window, 'innerWidth', function() {
-            return Math.max(desktopWidth, document.documentElement.clientWidth || 0);
-          });
-        }
-
-        function evaluateDesktopMedia(query) {
-          var groups = String(query || '').toLowerCase().split(',');
-          var anyEvaluated = false;
-          for (var i = 0; i < groups.length; i += 1) {
-            var group = groups[i];
-            var matched = true;
-            var evaluated = false;
-
-            group.replace(
-              /\\(\\s*(min|max)-(device-)?width\\s*:\\s*([0-9.]+)px\\s*\\)/g,
-              function(_, bound, _device, value) {
-                evaluated = true;
-                var width = parseFloat(value);
-                if (bound === 'min') {
-                  matched = matched && desktopWidth >= width;
-                } else {
-                  matched = matched && desktopWidth <= width;
-                }
-                return _;
-              }
-            );
-
-            if (/\\(\\s*(any-)?pointer\\s*:\\s*coarse\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = false;
-            }
-            if (/\\(\\s*(any-)?pointer\\s*:\\s*fine\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = matched && true;
-            }
-            if (/\\(\\s*(any-)?hover\\s*:\\s*none\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = false;
-            }
-            if (/\\(\\s*(any-)?hover\\s*:\\s*hover\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = matched && true;
-            }
-            if (/\\(\\s*orientation\\s*:\\s*portrait\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = false;
-            }
-            if (/\\(\\s*orientation\\s*:\\s*landscape\\s*\\)/.test(group)) {
-              evaluated = true;
-              matched = matched && true;
-            }
-
-            if (evaluated) {
-              anyEvaluated = true;
-              if (matched) {
-                return true;
-              }
-            }
-          }
-          return anyEvaluated ? false : null;
-        }
-
-        function applyDesktopMatchMedia() {
-          if (!window.matchMedia || window.__lightlyDesktopMatchMediaPatched) {
-            return;
-          }
-          var nativeMatchMedia = window.matchMedia.bind(window);
-          window.matchMedia = function(query) {
-            var mediaQueryList = nativeMatchMedia(query);
-            var desktopMatch = evaluateDesktopMedia(query);
-            if (desktopMatch === null) {
-              return mediaQueryList;
-            }
-            defineGetter(mediaQueryList, 'matches', function() {
-              return desktopMatch;
-            });
-            return mediaQueryList;
-          };
-          window.__lightlyDesktopMatchMediaPatched = true;
-        }
-
-        function applyDesktopStyle() {
-          if (!document.documentElement) {
-            return;
-          }
-          document.documentElement.style.minWidth = '1024px';
-          if (document.body) {
-            document.body.style.minWidth = '1024px';
-          }
-
-          var head = document.head ||
-              document.getElementsByTagName('head')[0] ||
-              document.documentElement;
-          var style = document.getElementById('lightly-desktop-mode-style');
-          if (!style) {
-            style = document.createElement('style');
-            style.id = 'lightly-desktop-mode-style';
-            head.appendChild(style);
-          }
-          style.textContent = [
-            'html, body { min-width: 1024px !important; }',
-            '@media (hover: none), (pointer: coarse), (max-width: 1023px) {',
-            '  html, body { min-width: 1024px !important; }',
-            '}'
-          ].join('\\n');
+        function desktopViewportContent() {
+          var currentWidth = Math.max(
+            window.innerWidth || 0,
+            document.documentElement
+              ? document.documentElement.clientWidth || 0
+              : 0
+          );
+          var desktopWidth = Math.max(minimumDesktopWidth, currentWidth);
+          return 'width=' + desktopWidth + ', user-scalable=yes';
         }
 
         function applyDesktopViewport() {
@@ -316,16 +198,14 @@ class BrowserSiteCompatibilityScript {
               meta.getAttribute('content') || ''
             );
           }
+          var content = desktopViewportContent();
           if (meta.getAttribute('content') !== content) {
             meta.setAttribute('content', content);
           }
-          applyDesktopStyle();
         }
 
         function applyDesktopEnvironment() {
           applyDesktopNavigator();
-          applyDesktopScreen();
-          applyDesktopMatchMedia();
           applyDesktopViewport();
         }
 
@@ -373,6 +253,29 @@ class BrowserSiteCompatibilityScript {
         window.addEventListener('pageshow', applyDesktopEnvironment);
       })();
     ''';
+  }
+
+  static String _desktopClientHintPlatform(String userAgent) {
+    if (userAgent.contains('Windows')) {
+      return 'Windows';
+    }
+    if (userAgent.contains('Macintosh') || userAgent.contains('Mac OS X')) {
+      return 'macOS';
+    }
+    if (userAgent.contains('CrOS')) {
+      return 'Chrome OS';
+    }
+    return 'Linux';
+  }
+
+  static String _desktopNavigatorPlatform(String userAgent) {
+    if (userAgent.contains('Windows')) {
+      return 'Win32';
+    }
+    if (userAgent.contains('Macintosh') || userAgent.contains('Mac OS X')) {
+      return 'MacIntel';
+    }
+    return 'Linux x86_64';
   }
 
   static String _wrapStyle(String id, String css) {
