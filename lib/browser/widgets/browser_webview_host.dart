@@ -155,7 +155,6 @@ class BrowserWebViewHost extends StatelessWidget {
     bool desktopModeEnabled = false,
     String desktopUserAgentOverride = '',
     double webViewLogicalWidth = _browserDesktopViewportWidth,
-    double devicePixelRatio = 1,
   }) {
     final viewportPolicy = viewportPolicyForUrl(
       initialUrl,
@@ -191,31 +190,22 @@ class BrowserWebViewHost extends StatelessWidget {
       allowsInlineMediaPlayback: true,
       userAgent: viewportPolicy.userAgent,
       initialScale: desktopModeEnabled
-          ? desktopInitialScaleForWidth(
-              webViewLogicalWidth,
-              devicePixelRatio: devicePixelRatio,
-            )
+          ? desktopInitialScaleForWidth(webViewLogicalWidth)
           : 0,
       requestedWithHeaderOriginAllowList: const <String>{},
     );
   }
 
-  static int desktopInitialScaleForWidth(
-    double logicalWidth, {
-    required double devicePixelRatio,
-  }) {
-    if (!logicalWidth.isFinite ||
-        logicalWidth <= 0 ||
-        !devicePixelRatio.isFinite ||
-        devicePixelRatio <= 0) {
+  static int desktopInitialScaleForWidth(double logicalWidth) {
+    if (!logicalWidth.isFinite || logicalWidth <= 0) {
       return 100;
     }
-    return (logicalWidth *
-            devicePixelRatio /
-            _browserDesktopViewportWidth *
-            100)
-        .round()
-        .clamp(1, 500);
+    // WebView.setInitialScale() is already expressed as a density-independent
+    // percentage, so Flutter's devicePixelRatio must not be applied here.
+    return (logicalWidth / _browserDesktopViewportWidth * 100).round().clamp(
+      1,
+      500,
+    );
   }
 
   @override
@@ -226,7 +216,6 @@ class BrowserWebViewHost extends StatelessWidget {
       desktopModeEnabled: desktopModeEnabled,
       desktopUserAgentOverride: desktopUserAgentOverride,
       webViewLogicalWidth: MediaQuery.sizeOf(context).width,
-      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
     final initialUserScripts = _initialUserScriptsForMode(
       desktopModeEnabled: desktopModeEnabled,
@@ -275,10 +264,9 @@ class BrowserWebViewHost extends StatelessWidget {
         RepaintBoundary(
           child: InAppWebView(
             windowId: windowId,
-            initialUrlRequest:
-                windowId == null && shouldLoadInitialUrl && !desktopModeEnabled
-                ? URLRequest(url: WebUri(initialUrl))
-                : null,
+            // Delay the first main-frame request until Android has installed
+            // the WebView inset policy and optional desktop UA metadata.
+            initialUrlRequest: null,
             keepAlive: keepAlive,
             initialSettings: webViewSettings,
             initialUserScripts: initialUserScripts,
@@ -319,11 +307,13 @@ class BrowserWebViewHost extends StatelessWidget {
                 },
               );
               onWebViewCreated(controller);
-              if (desktopModeEnabled && windowId == null) {
+              if (windowId == null) {
                 unawaited(
-                  _prepareDesktopInitialNavigation(
+                  _prepareInitialNavigation(
                     controller,
-                    desktopUserAgent: webViewSettings.userAgent ?? '',
+                    desktopUserAgent: desktopModeEnabled
+                        ? webViewSettings.userAgent
+                        : null,
                     shouldLoadInitialUrl: shouldLoadInitialUrl,
                   ),
                 );
@@ -389,20 +379,20 @@ class BrowserWebViewHost extends StatelessWidget {
     );
   }
 
-  Future<void> _prepareDesktopInitialNavigation(
+  Future<void> _prepareInitialNavigation(
     InAppWebViewController controller, {
-    required String desktopUserAgent,
+    required String? desktopUserAgent,
     required bool shouldLoadInitialUrl,
   }) async {
     final viewId = controller.getViewId();
     if (viewId != null) {
       try {
-        await userAgentMetadataGateway.applyDesktopMetadata(
+        await userAgentMetadataGateway.prepareWebView(
           webViewId: viewId,
-          userAgent: desktopUserAgent,
+          desktopUserAgent: desktopUserAgent,
         );
       } catch (_) {
-        // The existing JS compatibility layer remains the older-WebView fallback.
+        // Navigation can still proceed on WebViews without the compat feature.
       }
     }
     if (shouldLoadInitialUrl) {

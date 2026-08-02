@@ -41,6 +41,8 @@ void main() {
       expect(script, contains('minimumDesktopWidth = 980'));
       expect(script, contains("'width=' + desktopWidth"));
       expect(script, contains('data-lightly-original-content'));
+      expect(script, contains('querySelectorAll'));
+      expect(script, contains('data-lightly-desktop-viewport'));
       expect(script, contains('desktopUserAgentData'));
       expect(script, contains('mobile: false'));
       expect(script, contains('MutationObserver'));

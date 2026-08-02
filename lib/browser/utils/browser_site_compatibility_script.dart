@@ -186,22 +186,28 @@ class BrowserSiteCompatibilityScript {
           var head = document.head ||
               document.getElementsByTagName('head')[0] ||
               document.documentElement;
-          var meta = document.querySelector('meta[name="viewport"]');
-          if (!meta) {
-            meta = document.createElement('meta');
+          var metas = Array.prototype.slice.call(
+            document.querySelectorAll('meta[name="viewport" i]')
+          );
+          if (metas.length === 0) {
+            var meta = document.createElement('meta');
             meta.name = 'viewport';
+            meta.setAttribute('data-lightly-desktop-viewport', 'true');
             head.appendChild(meta);
-          }
-          if (!meta.hasAttribute('data-lightly-original-content')) {
-            meta.setAttribute(
-              'data-lightly-original-content',
-              meta.getAttribute('content') || ''
-            );
+            metas.push(meta);
           }
           var content = desktopViewportContent();
-          if (meta.getAttribute('content') !== content) {
-            meta.setAttribute('content', content);
-          }
+          metas.forEach(function(meta) {
+            if (!meta.hasAttribute('data-lightly-original-content')) {
+              meta.setAttribute(
+                'data-lightly-original-content',
+                meta.getAttribute('content') || ''
+              );
+            }
+            if (meta.getAttribute('content') !== content) {
+              meta.setAttribute('content', content);
+            }
+          });
         }
 
         function applyDesktopEnvironment() {

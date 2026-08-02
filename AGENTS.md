@@ -838,7 +838,26 @@ When a site consistently returns "You don't have permission" or Cloudflare chall
 - Runtime `InAppWebViewController.setSettings()` is not reliable enough for this mode switch on all Android WebView paths. Prefer recreating retained WebViews / keepAlives so the next native WebView is created with the correct user agent, `preferredContentMode`, `useWideViewPort`, and `loadWithOverviewMode`.
 - The More-sheet toggle should flip from BrowserPage's current in-memory setting, not only the latest persisted setting, otherwise a stale page state can make the button appear to do nothing or switch the wrong way.
 - Custom desktop UA is a desktop-mode-only override from Settings → General. Keep mobile mode on the built-in mobile UA unless X / YouTube are re-tested.
-- Desktop mode compatibility should be generic for all web URLs, not a growing list of site-specific branches. Keep the desktop-only `BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl()` injection at WebView creation/load-stop, and make it present a desktop UA, an approximately 980-pixel wide viewport, and non-mobile UA-CH (`navigator.userAgentData.mobile=false`). `BrowserWebViewHost` must also set the native initial scale from the available physical width (`logical width * devicePixelRatio / 980`) before the first load; `WebView.setInitialScale()` does not account for screen density, and changing a viewport meta element at document start does not by itself change Android WebView's already-established CSS layout width. Do not apply these settings in mobile mode. Do not fake desktop screen dimensions, remove touch support, override pointer/hover `matchMedia`, or force `html/body` minimum widths: those exceed normal Android WebView desktop mode and make responsive sites such as X render differently from established mobile browsers such as Via.
+- Desktop mode compatibility should be generic for all web URLs, not a growing list of site-specific
+  branches. Keep the desktop-only `BrowserSiteCompatibilityScript.desktopViewportOverrideForUrl()`
+  injection at WebView creation/load-stop, and make it present a desktop UA, an approximately
+  980-pixel wide viewport, and non-mobile UA-CH (`navigator.userAgentData.mobile=false`). Android
+  Chrome's internal Request Desktop Site path marks the navigation as a desktop-UA override and
+  makes Blink ignore viewport meta; public Android WebView does not expose that navigation-level
+  switch, so Lightly must keep its document-start viewport override and reapply it when pages insert
+  or replace viewport tags. Do not fake desktop screen dimensions, remove touch support, override
+  pointer/hover `matchMedia`, or force `html/body` minimum widths: those exceed normal Android
+  WebView desktop mode and make responsive sites such as X render differently from established
+  mobile browsers such as Via.
+- `WebView.setInitialScale()` takes a density-independent percentage. Fit the 980 CSS-pixel desktop
+  viewport with `logical WebView width / 980 * 100`; never multiply by Flutter's
+  `devicePixelRatio`, or a 3x phone will turn the intended approximately 41% fit scale into a 124%
+  zoom that visually resembles mobile layout.
+- The app window is edge-to-edge, while `BrowserBottomBar` already owns the system navigation-bar
+  safe area. Embedded browser WebViews must consume that duplicate navigation-bar inset before the
+  first page load while preserving IME insets. Otherwise fixed web toolbars such as X and YouTube
+  reserve the same bottom inset again, leaving a blank strip between the webpage toolbar and
+  Lightly's back/forward bar.
 - On Android WebView versions supporting `USER_AGENT_METADATA`, apply desktop metadata through the typed browser platform gateway before the first main-frame URL is loaded. This controls the HTTP `Sec-CH-UA-Mobile` and `Sec-CH-UA-Platform` headers used by server-rendered sites such as X and Duck.ai. Do not emulate this by canceling and replaying navigation callbacks because that can lose POST bodies and redirect state.
 - When switching to desktop mode, normalize `m.youtube.com` URLs to `www.youtube.com`; do not add the reverse rewrite for mobile mode unless YouTube mobile layout and native parser flows are re-tested.
 - Related files:

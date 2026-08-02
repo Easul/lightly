@@ -9,17 +9,19 @@ class BrowserUserAgentMetadataGateway {
 
   final MethodChannel _channel;
 
-  Future<bool> applyDesktopMetadata({
+  Future<bool> prepareWebView({
     required Object webViewId,
-    required String userAgent,
+    String? desktopUserAgent,
   }) async {
     return await _channel.invokeMethod<bool>(
-          _applyDesktopMetadataMethod,
-          <String, Object>{'webViewId': webViewId, 'userAgent': userAgent},
+          _prepareWebViewMethod,
+          <String, Object?>{
+            'webViewId': webViewId,
+            'desktopUserAgent': desktopUserAgent,
+          },
         ) ??
         false;
   }
 
-  static const String _applyDesktopMetadataMethod =
-      'applyDesktopUserAgentMetadata';
+  static const String _prepareWebViewMethod = 'prepareBrowserWebView';
 }
