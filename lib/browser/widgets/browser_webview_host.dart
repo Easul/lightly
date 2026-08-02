@@ -11,6 +11,7 @@ import '../utils/browser_site_compatibility_script.dart';
 const _browserMobileUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+const _browserDesktopViewportWidth = 980.0;
 
 class BrowserWebViewHost extends StatelessWidget {
   const BrowserWebViewHost({
@@ -153,6 +154,8 @@ class BrowserWebViewHost extends StatelessWidget {
     String initialUrl, {
     bool desktopModeEnabled = false,
     String desktopUserAgentOverride = '',
+    double webViewLogicalWidth = _browserDesktopViewportWidth,
+    double devicePixelRatio = 1,
   }) {
     final viewportPolicy = viewportPolicyForUrl(
       initialUrl,
@@ -187,8 +190,32 @@ class BrowserWebViewHost extends StatelessWidget {
       allowsBackForwardNavigationGestures: true,
       allowsInlineMediaPlayback: true,
       userAgent: viewportPolicy.userAgent,
+      initialScale: desktopModeEnabled
+          ? desktopInitialScaleForWidth(
+              webViewLogicalWidth,
+              devicePixelRatio: devicePixelRatio,
+            )
+          : 0,
       requestedWithHeaderOriginAllowList: const <String>{},
     );
+  }
+
+  static int desktopInitialScaleForWidth(
+    double logicalWidth, {
+    required double devicePixelRatio,
+  }) {
+    if (!logicalWidth.isFinite ||
+        logicalWidth <= 0 ||
+        !devicePixelRatio.isFinite ||
+        devicePixelRatio <= 0) {
+      return 100;
+    }
+    return (logicalWidth *
+            devicePixelRatio /
+            _browserDesktopViewportWidth *
+            100)
+        .round()
+        .clamp(1, 500);
   }
 
   @override
@@ -198,6 +225,8 @@ class BrowserWebViewHost extends StatelessWidget {
       initialUrl,
       desktopModeEnabled: desktopModeEnabled,
       desktopUserAgentOverride: desktopUserAgentOverride,
+      webViewLogicalWidth: MediaQuery.sizeOf(context).width,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
     final initialUserScripts = _initialUserScriptsForMode(
       desktopModeEnabled: desktopModeEnabled,

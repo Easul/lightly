@@ -59,7 +59,33 @@ void main() {
       expect(settings.useWideViewPort, isTrue);
       expect(settings.loadWithOverviewMode, isTrue);
       expect(settings.preferredContentMode, UserPreferredContentMode.DESKTOP);
+      expect(settings.initialScale, 100);
       expect(settings.requestedWithHeaderOriginAllowList, isEmpty);
+    });
+
+    test('desktop mode fits a 980px layout viewport to a phone width', () {
+      final settings = BrowserWebViewHost.settingsForUrl(
+        'https://x.com',
+        desktopModeEnabled: true,
+        webViewLogicalWidth: 406,
+        devicePixelRatio: 3,
+      );
+
+      expect(settings.initialScale, 124);
+      expect(
+        BrowserWebViewHost.desktopInitialScaleForWidth(
+          904,
+          devicePixelRatio: 3,
+        ),
+        277,
+      );
+      expect(
+        BrowserWebViewHost.desktopInitialScaleForWidth(
+          1200,
+          devicePixelRatio: 1,
+        ),
+        122,
+      );
     });
 
     test('desktop mode uses custom user agent override when provided', () {
@@ -84,6 +110,7 @@ void main() {
       expect(settings.useWideViewPort, isFalse);
       expect(settings.loadWithOverviewMode, isFalse);
       expect(settings.preferredContentMode, UserPreferredContentMode.MOBILE);
+      expect(settings.initialScale, 0);
     });
   });
 }
