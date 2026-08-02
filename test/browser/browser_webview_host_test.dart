@@ -59,6 +59,7 @@ void main() {
       expect(settings.useWideViewPort, isTrue);
       expect(settings.loadWithOverviewMode, isTrue);
       expect(settings.preferredContentMode, UserPreferredContentMode.DESKTOP);
+      expect(settings.requestedWithHeaderOriginAllowList, isEmpty);
     });
 
     test('desktop mode uses custom user agent override when provided', () {

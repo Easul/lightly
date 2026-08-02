@@ -9,6 +9,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
+import com.pichillilorenzo.flutter_inappwebview_android.InAppWebViewFlutterPlugin
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
@@ -150,6 +151,12 @@ class MainActivity : FlutterActivity() {
                 storageAccessChannelHandler,
                 externalIntentChannelHandler,
                 proxyFloatingModeChannelHandler,
+                BrowserUserAgentMetadataHandler(
+                    AndroidBrowserUserAgentMetadataRuntime(
+                        flutterEngine.plugins.get(InAppWebViewFlutterPlugin::class.java)
+                            as? InAppWebViewFlutterPlugin,
+                    ),
+                ),
             ),
         ).register(flutterEngine.dartExecutor.binaryMessenger)
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../services/browser_user_agent_metadata_gateway.dart';
 import '../utils/browser_popup_raw_url_capture.dart';
 import '../utils/browser_site_compatibility_script.dart';
 
@@ -42,6 +43,7 @@ class BrowserWebViewHost extends StatelessWidget {
     this.onEnterFullscreen,
     this.onExitFullscreen,
     this.pullToRefreshController,
+    this.userAgentMetadataGateway = const BrowserUserAgentMetadataGateway(),
   });
 
   final bool enabled;
@@ -116,6 +118,7 @@ class BrowserWebViewHost extends StatelessWidget {
   final void Function(InAppWebViewController controller)? onEnterFullscreen;
   final void Function(InAppWebViewController controller)? onExitFullscreen;
   final PullToRefreshController? pullToRefreshController;
+  final BrowserUserAgentMetadataGateway userAgentMetadataGateway;
 
   static BrowserWebViewViewportPolicy viewportPolicyForUrl(
     String initialUrl, {
@@ -184,6 +187,7 @@ class BrowserWebViewHost extends StatelessWidget {
       allowsBackForwardNavigationGestures: true,
       allowsInlineMediaPlayback: true,
       userAgent: viewportPolicy.userAgent,
+      requestedWithHeaderOriginAllowList: const <String>{},
     );
   }
 
@@ -242,7 +246,8 @@ class BrowserWebViewHost extends StatelessWidget {
         RepaintBoundary(
           child: InAppWebView(
             windowId: windowId,
-            initialUrlRequest: windowId == null && shouldLoadInitialUrl
+            initialUrlRequest:
+                windowId == null && shouldLoadInitialUrl && !desktopModeEnabled
                 ? URLRequest(url: WebUri(initialUrl))
                 : null,
             keepAlive: keepAlive,
@@ -285,6 +290,15 @@ class BrowserWebViewHost extends StatelessWidget {
                 },
               );
               onWebViewCreated(controller);
+              if (desktopModeEnabled && windowId == null) {
+                unawaited(
+                  _prepareDesktopInitialNavigation(
+                    controller,
+                    desktopUserAgent: webViewSettings.userAgent ?? '',
+                    shouldLoadInitialUrl: shouldLoadInitialUrl,
+                  ),
+                );
+              }
             },
             shouldOverrideUrlLoading: shouldOverrideUrlLoading,
             onCreateWindow: onCreateWindow,
@@ -344,6 +358,33 @@ class BrowserWebViewHost extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _prepareDesktopInitialNavigation(
+    InAppWebViewController controller, {
+    required String desktopUserAgent,
+    required bool shouldLoadInitialUrl,
+  }) async {
+    final viewId = controller.getViewId();
+    if (viewId != null) {
+      try {
+        await userAgentMetadataGateway.applyDesktopMetadata(
+          webViewId: viewId,
+          userAgent: desktopUserAgent,
+        );
+      } catch (_) {
+        // The existing JS compatibility layer remains the older-WebView fallback.
+      }
+    }
+    if (shouldLoadInitialUrl) {
+      try {
+        await controller.loadUrl(
+          urlRequest: URLRequest(url: WebUri(initialUrl)),
+        );
+      } catch (_) {
+        // Normal WebView error callbacks own user-visible navigation failures.
+      }
+    }
   }
 
   UnmodifiableListView<UserScript>? _initialUserScriptsForMode({

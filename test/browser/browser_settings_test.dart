@@ -281,29 +281,31 @@ void main() {
       expect(settings.toJson()['proxyPacketEncoding'], 'xudp');
     });
 
-    test('bypasses proxy for google auth related domains', () {
+    test('does not force Google traffic to bypass the proxy', () {
       final settings = BrowserSettings.defaults();
 
       expect(
         settings.shouldBypassProxyForUri(
           Uri.parse('https://accounts.google.com'),
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         settings.shouldBypassProxyForUri(Uri.parse('https://apis.google.com')),
-        isTrue,
+        isFalse,
       );
       expect(
         settings.shouldBypassProxyForUri(
           Uri.parse('https://fonts.gstatic.com'),
         ),
-        isTrue,
+        isFalse,
       );
     });
 
     test('matches bypass domains only on host boundaries', () {
-      final settings = BrowserSettings.defaults();
+      final settings = BrowserSettings.defaults().copyWith(
+        proxyBypassDomains: 'google.com',
+      );
 
       expect(
         settings.shouldBypassProxyForUri(
@@ -354,7 +356,7 @@ void main() {
       );
 
       expect(settings.proxyBypassDomainList, contains('example.com'));
-      expect(settings.proxyBypassDomainList, contains('google.com'));
+      expect(settings.proxyBypassDomainList, isNot(contains('google.com')));
       expect(settings.proxyBypassDomainList, contains('example-site.com'));
       expect(
         settings.proxyBypassDomainList,
