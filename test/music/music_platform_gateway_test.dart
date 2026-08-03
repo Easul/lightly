@@ -21,6 +21,7 @@ void main() {
               <String, Object?>{'uri': 'content://song/1', 'title': '歌曲'},
             ];
           }
+          if (call.method == 'deleteLocalAudio') return true;
           return null;
         });
   });
@@ -70,5 +71,15 @@ void main() {
         .handlePlatformMessage(channel.name, message, (_) {});
 
     expect((await received.future)['playing'], isTrue);
+  });
+
+  test('maps local audio deletion to the Android contract', () async {
+    final deleted = await gateway.deleteLocalAudio('content://song/1');
+
+    expect(deleted, isTrue);
+    expect(calls.single.method, 'deleteLocalAudio');
+    expect(calls.single.arguments, <String, Object?>{
+      'uri': 'content://song/1',
+    });
   });
 }

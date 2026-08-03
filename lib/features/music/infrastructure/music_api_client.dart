@@ -22,6 +22,16 @@ class MusicApiClient {
   MusicApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   static const int searchLimit = 10;
+  // Match the API's normal browser request profile. Keep compression to
+  // codec supported by dart:io's HttpClient auto-decompression.
+  static const Map<String, String> requestHeaders = <String, String>{
+    'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64; rv:153.0) '
+        'Gecko/20100101 Firefox/153.0',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Encoding': 'gzip',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  };
 
   final http.Client _client;
 
@@ -104,13 +114,7 @@ class MusicApiClient {
       apiBaseUrl,
     ).resolve(endpoint).replace(queryParameters: query);
     final response = await _client
-        .get(
-          uri,
-          headers: const <String, String>{
-            'User-Agent': 'Mozilla/5.0 Lightly Music Player',
-            'Accept': 'application/json',
-          },
-        )
+        .get(uri, headers: requestHeaders)
         .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
       final serverMessage = _responseMessage(response.body);

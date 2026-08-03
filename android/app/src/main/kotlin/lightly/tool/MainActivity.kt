@@ -192,7 +192,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
+        if (musicPlayerChannelHandler.handleActivityResult(requestCode, resultCode)) {
+            return
+        } else if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
             return
         } else if (optionalPluginActivationCoordinator.handleActivityResult(requestCode, resultCode)) {
             return

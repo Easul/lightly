@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/storage/shared_downloads_access.dart';
 import '../../../services/media_scanner_service.dart';
 import '../domain/music_track.dart';
+import 'music_api_client.dart';
 
 class MusicDownloadService {
   MusicDownloadService({
@@ -29,6 +30,11 @@ class MusicDownloadService {
       nonAndroidFallbackFolderName: 'music',
     );
     final request = http.Request('GET', Uri.parse(track.sourceUri));
+    request.headers.addAll(<String, String>{
+      'User-Agent': MusicApiClient.requestHeaders['User-Agent']!,
+      'Accept': 'audio/*, */*;q=0.8',
+      'Accept-Encoding': 'identity',
+    });
     final response = await _client
         .send(request)
         .timeout(const Duration(seconds: 25));

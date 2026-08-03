@@ -34,9 +34,11 @@ void main() {
   group('Music API client', () {
     test('uses documented pagination and maps search fields', () async {
       late Uri requestedUri;
+      late Map<String, String> requestedHeaders;
       final client = MusicApiClient(
         client: MockClient((request) async {
           requestedUri = request.url;
+          requestedHeaders = request.headers;
           return http.Response.bytes(
             utf8.encode(
               jsonEncode(<String, Object?>{
@@ -70,6 +72,8 @@ void main() {
       expect(requestedUri.queryParameters['limit'], '10');
       expect(requestedUri.queryParameters['offset'], '10');
       expect(requestedUri.queryParameters['keyword'], '海底');
+      expect(requestedHeaders['User-Agent'], contains('Firefox/153.0'));
+      expect(requestedHeaders['Accept-Encoding'], 'gzip');
       expect(result.total, 300);
       expect(result.tracks.single.title, '海底');
       expect(result.tracks.single.artist, '一支榴莲');
@@ -222,5 +226,21 @@ void main() {
         expect(await store.listGroups(), ['通勤']);
       },
     );
+
+    test('deletes one music record by its stable track key', () async {
+      const track = MusicTrack(
+        trackKey: 'local:content://song/2',
+        title: '待删除',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://song/2',
+        sourceType: MusicSourceType.local,
+      );
+      await store.save(track);
+
+      await store.delete(track.trackKey);
+
+      expect(await store.get(track.trackKey), isNull);
+    });
   });
 }

@@ -223,6 +223,18 @@ class MusicPlayerController extends ChangeNotifier {
     return updated;
   }
 
+  Future<void> deleteLocalTrack(MusicTrack track) async {
+    if (track.sourceType == MusicSourceType.online) {
+      throw StateError('在线歌曲没有本地文件');
+    }
+    if (_currentTrack?.trackKey == track.trackKey) {
+      await stop();
+    }
+    final deleted = await _platform.deleteLocalAudio(track.sourceUri);
+    if (!deleted) throw StateError('未能删除歌曲文件');
+    await _library.delete(track.trackKey);
+  }
+
   void replaceCurrentTrack(MusicTrack track) => _replaceCurrent(track);
 
   void _replaceCurrent(MusicTrack track) {

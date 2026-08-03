@@ -2,6 +2,7 @@ package lightly.tool
 
 import android.Manifest
 import android.app.Activity
+import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,6 +23,8 @@ class MusicPlayerChannelHandler(
     private var pendingAudioIntent: Map<String, Any?>? = null
     private var pendingAudioPermission: MethodChannel.Result? = null
     private var pendingNotificationPermission: MethodChannel.Result? = null
+    private var pendingDeleteResult: MethodChannel.Result? = null
+    private var pendingDeleteUri: Uri? = null
 
     fun register(messenger: BinaryMessenger) {
         channel = MethodChannel(messenger, CHANNEL_NAME).also { registered ->
@@ -77,7 +80,29 @@ class MusicPlayerChannelHandler(
         return false
     }
 
+    fun handleActivityResult(requestCode: Int, resultCode: Int): Boolean {
+        if (requestCode != DELETE_AUDIO_REQUEST) return false
+        val result = pendingDeleteResult ?: return true
+        val uri = pendingDeleteUri
+        pendingDeleteResult = null
+        pendingDeleteUri = null
+        if (resultCode != Activity.RESULT_OK || uri == null) {
+            result.success(false)
+            return true
+        }
+        try {
+            val deleted = activity.contentResolver.delete(uri, null, null) > 0
+            result.success(deleted || !contentUriExists(uri))
+        } catch (error: Exception) {
+            result.error("DELETE_FAILED", error.message ?: "Unable to delete audio", null)
+        }
+        return true
+    }
+
     fun shutdown() {
+        pendingDeleteResult?.error("ACTIVITY_CLOSED", "Activity closed during delete", null)
+        pendingDeleteResult = null
+        pendingDeleteUri = null
         MusicPlaybackService.stateListener = null
         channel?.setMethodCallHandler(null)
         channel = null
@@ -86,6 +111,7 @@ class MusicPlayerChannelHandler(
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "scanLocalMusic" -> scanLocalMusic(result)
+            "deleteLocalAudio" -> deleteLocalAudio(call, result)
             "hasAudioPermission" -> result.success(hasAudioPermission())
             "requestAudioPermission" -> requestAudioPermission(result)
             "requestNotificationPermission" -> requestNotificationPermission(result)
@@ -107,6 +133,89 @@ class MusicPlayerChannelHandler(
             }
             else -> result.notImplemented()
         }
+    }
+
+    private fun deleteLocalAudio(call: MethodCall, result: MethodChannel.Result) {
+        val rawUri = call.argument<String>("uri")?.trim().orEmpty()
+        if (rawUri.isEmpty()) {
+            result.error("INVALID_URI", "Audio URI is empty", null)
+            return
+        }
+        val uri = Uri.parse(rawUri)
+        when (uri.scheme?.lowercase()) {
+            "file" -> {
+                val path = uri.path
+                if (path.isNullOrEmpty()) {
+                    result.error("INVALID_URI", "File path is empty", null)
+                    return
+                }
+                val file = File(path)
+                result.success(!file.exists() || file.delete())
+            }
+            "content" -> deleteContentAudio(uri, result)
+            else -> result.error("UNSUPPORTED_URI", "Only local audio can be deleted", null)
+        }
+    }
+
+    private fun deleteContentAudio(uri: Uri, result: MethodChannel.Result) {
+        if (pendingDeleteResult != null) {
+            result.error("IN_PROGRESS", "Another audio deletion is in progress", null)
+            return
+        }
+        try {
+            val deleted = activity.contentResolver.delete(uri, null, null) > 0
+            result.success(deleted || !contentUriExists(uri))
+        } catch (recoverable: RecoverableSecurityException) {
+            requestDeleteConfirmation(uri, recoverable.userAction.actionIntent.intentSender, result)
+        } catch (security: SecurityException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val sender = runCatching {
+                    MediaStore.createDeleteRequest(
+                        activity.contentResolver,
+                        listOf(uri),
+                    ).intentSender
+                }.getOrNull()
+                if (sender != null) {
+                    requestDeleteConfirmation(uri, sender, result)
+                } else {
+                    result.error("DELETE_PERMISSION_DENIED", security.message, null)
+                }
+            } else {
+                result.error("DELETE_PERMISSION_DENIED", security.message, null)
+            }
+        } catch (error: Exception) {
+            result.error("DELETE_FAILED", error.message, null)
+        }
+    }
+
+    private fun requestDeleteConfirmation(
+        uri: Uri,
+        sender: android.content.IntentSender,
+        result: MethodChannel.Result,
+    ) {
+        pendingDeleteResult = result
+        pendingDeleteUri = uri
+        try {
+            activity.startIntentSenderForResult(
+                sender,
+                DELETE_AUDIO_REQUEST,
+                null,
+                0,
+                0,
+                0,
+            )
+        } catch (error: Exception) {
+            pendingDeleteResult = null
+            pendingDeleteUri = null
+            result.error("DELETE_CONFIRMATION_FAILED", error.message, null)
+        }
+    }
+
+    private fun contentUriExists(uri: Uri): Boolean {
+        return runCatching {
+            activity.contentResolver.query(uri, arrayOf(MediaStore.Audio.Media._ID), null, null, null)
+                ?.use { it.moveToFirst() } == true
+        }.getOrDefault(true)
     }
 
     private fun dispatch(action: String, result: MethodChannel.Result) {
@@ -326,5 +435,6 @@ class MusicPlayerChannelHandler(
         const val CHANNEL_NAME = "lightly_music_player"
         private const val AUDIO_PERMISSION_REQUEST = 4701
         private const val NOTIFICATION_PERMISSION_REQUEST = 4702
+        private const val DELETE_AUDIO_REQUEST = 4703
     }
 }

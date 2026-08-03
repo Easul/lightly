@@ -123,6 +123,15 @@ class MusicLibraryStore {
     return save(track.copyWith(groupName: groupName.trim()));
   }
 
+  Future<void> delete(String trackKey) async {
+    final db = await _db;
+    await db.delete(
+      table,
+      where: 'trackKey = ?',
+      whereArgs: <Object?>[trackKey],
+    );
+  }
+
   Future<List<String>> listGroups() async {
     final db = await _db;
     final rows = await db.rawQuery(

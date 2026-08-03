@@ -20,7 +20,10 @@ Music metadata lives in the existing `browser_data.db` database. Schema version
   backup and are rebuilt by scanning or normal use.
 - Clear/delete: a device rescan replaces the local-source index while retaining
   favorite/group/lyrics for tracks with the same key. It does not delete audio
-  files. Downloaded and online rows are not removed by a local rescan.
+  files. Downloaded and online rows are not removed by a local rescan. Explicit
+  local-song deletion removes the MediaStore/file item first and deletes its
+  database row only after Android confirms the physical deletion. Canceling a
+  scoped-storage confirmation keeps the row intact.
 
 The API base URL and key must both be entered manually in Music Settings. They
 are stored separately in SharedPreferences under
@@ -30,7 +33,8 @@ a source/build-time default, enters the unified backup, or may be logged.
 ## Android Runtime
 
 - `MusicPlayerChannelHandler` owns MediaStore scanning, runtime permissions,
-  external `audio/*` intent metadata, and the typed Flutter channel.
+  scoped-storage deletion confirmation, external `audio/*` intent metadata,
+  and the typed Flutter channel.
 - `MusicPlaybackService` owns `MediaPlayer`, `MediaSession`, audio focus, and the
   optional public lock-screen/notification controls.
 - Disabling the system toolbar removes the foreground notification. Playback

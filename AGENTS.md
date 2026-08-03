@@ -1355,6 +1355,12 @@ The address bar lock icon opens a dialog for clearing current-site data:
   manually in Music Settings. Do not hardcode, log, back up, or seed either value at build time.
 - Android external `audio/*` intents, MediaStore results, and downloaded files must converge on the
   same music controller and playback detail page. System notification controls remain user-toggleable.
+- Explicit local-song deletion must remove the physical MediaStore/file item before deleting its
+  `music_tracks` row. On scoped-storage Android versions, use the system delete confirmation and
+  keep the database row when the user cancels or physical deletion fails.
+- Open local `content://` audio through `ContentResolver` and a readable file descriptor before
+  preparing `MediaPlayer`. Online API, playback, and download requests use a stable browser-style
+  User-Agent; advertise only response compression codecs the active Dart client can decode.
 - Source of truth: `docs/music-player.md`.
 
 ## Scope discipline

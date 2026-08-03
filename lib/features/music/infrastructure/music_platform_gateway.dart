@@ -35,6 +35,14 @@ class MusicPlatformGateway {
         .toList(growable: false);
   }
 
+  Future<bool> deleteLocalAudio(String uri) async {
+    return await _channel.invokeMethod<bool>(
+          'deleteLocalAudio',
+          <String, Object?>{'uri': uri},
+        ) ??
+        false;
+  }
+
   Future<bool> hasAudioPermission() async {
     return await _channel.invokeMethod<bool>('hasAudioPermission') ?? false;
   }

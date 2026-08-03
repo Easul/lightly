@@ -166,6 +166,33 @@ class _MusicTrackPageState extends State<MusicTrackPage>
     if (mounted) setState(() {});
   }
 
+  Future<void> _deleteTrack() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除本地歌曲？'),
+        content: Text('将同时删除“${_track.title}”的本地文件和音乐记录，此操作不可恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _player.deleteLocalTrack(_track);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      _toast('删除失败：$error');
+    }
+  }
+
   Future<void> _download() async {
     if (_downloading || _track.sourceType == MusicSourceType.downloaded) return;
     setState(() => _downloading = true);
@@ -224,6 +251,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
             onSelected: (value) {
               if (value == 'group') unawaited(_setGroup());
               if (value == 'download') unawaited(_download());
+              if (value == 'delete') unawaited(_deleteTrack());
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
@@ -240,6 +268,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                   child: ListTile(
                     leading: Icon(Icons.download_rounded),
                     title: Text('下载歌曲'),
+                  ),
+                ),
+              if (_track.sourceType != MusicSourceType.online)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline_rounded),
+                    title: Text('删除本地文件和记录'),
                   ),
                 ),
             ],

@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 
 class MusicPlaybackService : Service() {
@@ -34,6 +35,7 @@ class MusicPlaybackService : Service() {
     private var album = ""
     private var artworkUri: String? = null
     private var pendingSeekMs: Int? = null
+    private var sourceScheme = ""
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         if (change == AudioManager.AUDIOFOCUS_LOSS ||
@@ -80,6 +82,7 @@ class MusicPlaybackService : Service() {
 
     private fun startTrack(intent: Intent) {
         val uri = intent.getStringExtra("uri") ?: return
+        sourceScheme = Uri.parse(uri).scheme?.lowercase().orEmpty()
         notificationEnabled = intent.getBooleanExtra("notificationEnabled", true)
         trackKey = intent.getStringExtra("trackKey") ?: uri
         title = intent.getStringExtra("title") ?: "未知歌曲"
@@ -94,50 +97,85 @@ class MusicPlaybackService : Service() {
         updateNotification()
         emitState()
         try {
-            mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build(),
-                )
-                setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-                setDataSource(applicationContext, Uri.parse(uri))
-                setOnPreparedListener {
-                    buffering = false
-                    requestAudioFocus()
-                    pendingSeekMs?.let(it::seekTo)
-                    pendingSeekMs = null
-                    it.start()
-                    updateMediaSessionState()
-                    updateNotification()
-                    emitState()
-                }
-                setOnBufferingUpdateListener { _, _ -> emitState() }
-                setOnCompletionListener {
-                    buffering = false
-                    completed = true
-                    updateMediaSessionState()
-                    updateNotification()
-                    emitState()
-                }
-                setOnErrorListener { _, what, extra ->
-                    buffering = false
-                    updateMediaSessionState(error = true)
-                    releasePlayer()
-                    removeForegroundNotification()
-                    emitState(error = mediaErrorMessage(what, extra))
-                    stopSelf()
-                    true
-                }
-                prepareAsync()
+            val player = MediaPlayer()
+            mediaPlayer = player
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+            )
+            player.setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
+            player.setOnPreparedListener {
+                buffering = false
+                requestAudioFocus()
+                pendingSeekMs?.let(it::seekTo)
+                pendingSeekMs = null
+                it.start()
+                updateMediaSessionState()
+                updateNotification()
+                emitState()
             }
+            player.setOnBufferingUpdateListener { _, _ -> emitState() }
+            player.setOnCompletionListener {
+                buffering = false
+                completed = true
+                updateMediaSessionState()
+                updateNotification()
+                emitState()
+            }
+            player.setOnErrorListener { _, what, extra ->
+                Log.e(LOG_TAG, "MediaPlayer error what=$what extra=$extra scheme=$sourceScheme")
+                buffering = false
+                updateMediaSessionState(error = true)
+                releasePlayer()
+                removeForegroundNotification()
+                emitState(error = mediaErrorMessage(what, extra))
+                stopSelf()
+                true
+            }
+            configureDataSource(player, uri)
+            player.prepareAsync()
         } catch (error: Exception) {
+            Log.e(
+                LOG_TAG,
+                "Unable to open audio scheme=$sourceScheme type=${error.javaClass.simpleName}",
+            )
             buffering = false
             releasePlayer()
             removeForegroundNotification()
             emitState(error = "无法打开音频（${error.javaClass.simpleName}）")
             stopSelf()
+        }
+    }
+
+    private fun configureDataSource(player: MediaPlayer, rawUri: String) {
+        val uri = Uri.parse(rawUri)
+        when (uri.scheme?.lowercase()) {
+            "content" -> {
+                val descriptor = contentResolver.openAssetFileDescriptor(uri, "r")
+                    ?: throw IllegalArgumentException("Audio content is unavailable")
+                descriptor.use {
+                    if (it.declaredLength >= 0) {
+                        player.setDataSource(it.fileDescriptor, it.startOffset, it.declaredLength)
+                    } else {
+                        player.setDataSource(it.fileDescriptor)
+                    }
+                }
+            }
+            "file" -> player.setDataSource(
+                uri.path ?: throw IllegalArgumentException("Audio file path is empty"),
+            )
+            "http", "https" -> player.setDataSource(
+                applicationContext,
+                uri,
+                mapOf(
+                    "User-Agent" to BROWSER_USER_AGENT,
+                    "Accept" to "audio/*,*/*;q=0.8",
+                    "Accept-Encoding" to "identity",
+                ),
+            )
+            else -> player.setDataSource(applicationContext, uri)
         }
     }
 
@@ -148,6 +186,7 @@ class MusicPlaybackService : Service() {
             MediaPlayer.MEDIA_ERROR_UNSUPPORTED -> "格式不支持"
             MediaPlayer.MEDIA_ERROR_TIMED_OUT -> "读取超时"
             MediaPlayer.MEDIA_ERROR_SERVER_DIED -> "媒体服务异常"
+            -38 -> "播放器状态异常"
             else -> "未知错误"
         }
         return "播放失败：$reason（$what/$extra）"
@@ -382,6 +421,9 @@ class MusicPlaybackService : Service() {
         const val ACTION_SET_NOTIFICATION = "lightly.music.SET_NOTIFICATION"
         private const val NOTIFICATION_CHANNEL = "lightly_music_playback"
         private const val NOTIFICATION_ID = 4700
+        private const val LOG_TAG = "LightlyMusic"
+        private const val BROWSER_USER_AGENT =
+            "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
         private val stateLock = Any()
         private var lastState: Map<String, Any?> = mapOf(
             "trackKey" to "",
