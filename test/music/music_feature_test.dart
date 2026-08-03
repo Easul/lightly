@@ -91,6 +91,41 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('surfaces a bounded server authentication message', () async {
+      final client = MusicApiClient(
+        client: MockClient(
+          (request) async => http.Response.bytes(
+            utf8.encode(
+              jsonEncode(<String, Object?>{
+                'code': 401,
+                'msg': '缺少 apikey 参数，请先登录并查看个人密钥',
+              }),
+            ),
+            401,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.search(
+          apiBaseUrl: 'https://music.test/api',
+          keyword: 'test',
+          page: 1,
+          apiKey: '',
+        ),
+        throwsA(
+          predicate(
+            (error) =>
+                error is MusicApiException &&
+                error.message.contains('缺少 apikey 参数'),
+          ),
+        ),
+      );
+    });
   });
 
   group('Music settings', () {

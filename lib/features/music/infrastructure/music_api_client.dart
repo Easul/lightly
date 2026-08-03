@@ -113,7 +113,9 @@ class MusicApiClient {
         )
         .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
-      throw MusicApiException('请求失败（HTTP ${response.statusCode}）');
+      final serverMessage = _responseMessage(response.body);
+      final suffix = serverMessage == null ? '' : '：$serverMessage';
+      throw MusicApiException('请求失败（HTTP ${response.statusCode}）$suffix');
     }
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (decoded is! Map<String, dynamic>) {
@@ -123,6 +125,19 @@ class MusicApiClient {
       throw MusicApiException('${decoded['msg'] ?? '音乐接口请求失败'}');
     }
     return decoded;
+  }
+}
+
+String? _responseMessage(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map) return null;
+    final message = decoded['msg']?.toString().trim();
+    if (message == null || message.isEmpty) return null;
+    final normalized = message.replaceAll(RegExp(r'[\r\n]+'), ' ');
+    return normalized.length <= 160 ? normalized : normalized.substring(0, 160);
+  } on Object {
+    return null;
   }
 }
 
