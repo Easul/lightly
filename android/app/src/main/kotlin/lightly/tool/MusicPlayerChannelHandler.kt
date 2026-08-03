@@ -1,0 +1,312 @@
+package lightly.tool
+
+import android.Manifest
+import android.app.Activity
+import android.content.ContentUris
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import java.io.File
+
+class MusicPlayerChannelHandler(
+    private val activity: Activity,
+) {
+    private var channel: MethodChannel? = null
+    private var pendingAudioIntent: Map<String, Any?>? = null
+    private var pendingAudioPermission: MethodChannel.Result? = null
+    private var pendingNotificationPermission: MethodChannel.Result? = null
+
+    fun register(messenger: BinaryMessenger) {
+        channel = MethodChannel(messenger, CHANNEL_NAME).also { registered ->
+            registered.setMethodCallHandler(::handle)
+        }
+        MusicPlaybackService.stateListener = { state ->
+            activity.runOnUiThread {
+                channel?.invokeMethod("onPlaybackState", state)
+            }
+        }
+    }
+
+    fun publishExternalAudioIntent(uri: String, mimeType: String?, intentFlags: Int) {
+        persistUriPermissionIfOffered(Uri.parse(uri), intentFlags)
+        val metadata = resolveAudioMetadata(Uri.parse(uri)).toMutableMap().apply {
+            put("uri", uri)
+            put("mimeType", mimeType)
+        }
+        pendingAudioIntent = metadata
+        activity.runOnUiThread {
+            channel?.invokeMethod("onExternalAudioIntent", metadata)
+        }
+    }
+
+    private fun persistUriPermissionIfOffered(uri: Uri, intentFlags: Int) {
+        if (uri.scheme != "content" ||
+            intentFlags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION == 0
+        ) {
+            return
+        }
+        val takeFlags = intentFlags and
+            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        runCatching {
+            activity.contentResolver.takePersistableUriPermission(uri, takeFlags)
+        }
+    }
+
+    fun handleRequestPermissionsResult(requestCode: Int): Boolean {
+        when (requestCode) {
+            AUDIO_PERMISSION_REQUEST -> {
+                val result = pendingAudioPermission ?: return true
+                pendingAudioPermission = null
+                result.success(hasAudioPermission())
+                return true
+            }
+            NOTIFICATION_PERMISSION_REQUEST -> {
+                val result = pendingNotificationPermission ?: return true
+                pendingNotificationPermission = null
+                result.success(hasNotificationPermission())
+                return true
+            }
+        }
+        return false
+    }
+
+    fun shutdown() {
+        MusicPlaybackService.stateListener = null
+        channel?.setMethodCallHandler(null)
+        channel = null
+    }
+
+    private fun handle(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "scanLocalMusic" -> scanLocalMusic(result)
+            "hasAudioPermission" -> result.success(hasAudioPermission())
+            "requestAudioPermission" -> requestAudioPermission(result)
+            "requestNotificationPermission" -> requestNotificationPermission(result)
+            "play" -> dispatchPlayback(call, MusicPlaybackService.ACTION_PLAY, result)
+            "resume" -> dispatch(MusicPlaybackService.ACTION_RESUME, result)
+            "pause" -> dispatch(MusicPlaybackService.ACTION_PAUSE, result)
+            "stop" -> dispatch(MusicPlaybackService.ACTION_STOP, result)
+            "seekTo" -> dispatchPlayback(call, MusicPlaybackService.ACTION_SEEK, result)
+            "setNotificationEnabled" -> dispatchPlayback(
+                call,
+                MusicPlaybackService.ACTION_SET_NOTIFICATION,
+                result,
+            )
+            "getState" -> result.success(MusicPlaybackService.currentState())
+            "getPendingAudioIntent" -> {
+                val pending = pendingAudioIntent
+                pendingAudioIntent = null
+                result.success(pending)
+            }
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun dispatch(action: String, result: MethodChannel.Result) {
+        MusicPlaybackService.dispatch(activity, Intent(activity, MusicPlaybackService::class.java).apply {
+            this.action = action
+        })
+        result.success(null)
+    }
+
+    private fun dispatchPlayback(
+        call: MethodCall,
+        action: String,
+        result: MethodChannel.Result,
+    ) {
+        val intent = Intent(activity, MusicPlaybackService::class.java).apply {
+            this.action = action
+            call.argument<String>("uri")?.let { putExtra("uri", it) }
+            call.argument<String>("trackKey")?.let { putExtra("trackKey", it) }
+            call.argument<String>("title")?.let { putExtra("title", it) }
+            call.argument<String>("artist")?.let { putExtra("artist", it) }
+            call.argument<String>("album")?.let { putExtra("album", it) }
+            call.argument<String>("artworkUri")?.let { putExtra("artworkUri", it) }
+            call.argument<Int>("positionMs")?.let { putExtra("positionMs", it) }
+            call.argument<Boolean>("notificationEnabled")?.let {
+                putExtra("notificationEnabled", it)
+            }
+            call.argument<Boolean>("enabled")?.let {
+                putExtra("notificationEnabled", it)
+            }
+        }
+        MusicPlaybackService.dispatch(activity, intent)
+        result.success(null)
+    }
+
+    private fun scanLocalMusic(result: MethodChannel.Result) {
+        if (!hasAudioPermission()) {
+            result.error("PERMISSION_DENIED", "Audio permission is required", null)
+            return
+        }
+        try {
+            val projection = mutableListOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+            )
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                projection.add(MediaStore.Audio.Media.DATA)
+            }
+            val songs = mutableListOf<Map<String, Any?>>()
+            activity.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection.toTypedArray(),
+                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                null,
+                "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                val dataColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val albumId = cursor.getLong(albumIdColumn)
+                    songs.add(
+                        mapOf(
+                            "id" to id,
+                            "uri" to ContentUris.withAppendedId(
+                                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                                id,
+                            ).toString(),
+                            "title" to cursor.getString(titleColumn),
+                            "artist" to cleanUnknown(cursor.getString(artistColumn), "未知歌手"),
+                            "album" to cleanUnknown(cursor.getString(albumColumn), "未知专辑"),
+                            "artworkUri" to "content://media/external/audio/albumart/$albumId",
+                            "durationMs" to cursor.getLong(durationColumn),
+                            "displayName" to cursor.getString(nameColumn),
+                            "path" to if (dataColumn >= 0) cursor.getString(dataColumn) else null,
+                        ),
+                    )
+                }
+            }
+            result.success(songs)
+        } catch (error: Exception) {
+            result.error("SCAN_FAILED", error.message, null)
+        }
+    }
+
+    private fun resolveAudioMetadata(uri: Uri): Map<String, Any?> {
+        val fallbackName = uri.lastPathSegment?.substringAfterLast('/') ?: "本地歌曲"
+        val values = mutableMapOf<String, Any?>(
+            "title" to File(fallbackName).nameWithoutExtension,
+            "artist" to "未知歌手",
+            "album" to "未知专辑",
+            "displayName" to fallbackName,
+            "path" to if (uri.scheme == "file") uri.path else null,
+            "durationMs" to 0L,
+        )
+        runCatching {
+            activity.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use
+                fun read(column: String): String? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0) cursor.getString(index) else null
+                }
+                fun readLong(column: String): Long? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0) cursor.getLong(index) else null
+                }
+                values["title"] = read(MediaStore.Audio.Media.TITLE)
+                    ?: read(MediaStore.Audio.Media.DISPLAY_NAME)?.substringBeforeLast('.')
+                    ?: values["title"]
+                values["artist"] = cleanUnknown(read(MediaStore.Audio.Media.ARTIST), "未知歌手")
+                values["album"] = cleanUnknown(read(MediaStore.Audio.Media.ALBUM), "未知专辑")
+                values["displayName"] = read(MediaStore.Audio.Media.DISPLAY_NAME) ?: fallbackName
+                values["durationMs"] = readLong(MediaStore.Audio.Media.DURATION) ?: 0L
+                val albumId = readLong(MediaStore.Audio.Media.ALBUM_ID)
+                if (albumId != null) {
+                    values["artworkUri"] = "content://media/external/audio/albumart/$albumId"
+                }
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    values["path"] = read(MediaStore.Audio.Media.DATA)
+                }
+            }
+        }
+        return values
+    }
+
+    private fun requestAudioPermission(result: MethodChannel.Result) {
+        if (hasAudioPermission()) {
+            result.success(true)
+            return
+        }
+        if (pendingAudioPermission != null) {
+            result.error("IN_PROGRESS", "Audio permission request already in progress", null)
+            return
+        }
+        pendingAudioPermission = result
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(audioPermission()),
+            AUDIO_PERMISSION_REQUEST,
+        )
+    }
+
+    private fun requestNotificationPermission(result: MethodChannel.Result) {
+        if (hasNotificationPermission()) {
+            result.success(true)
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(true)
+            return
+        }
+        if (pendingNotificationPermission != null) {
+            result.error("IN_PROGRESS", "Notification permission request already in progress", null)
+            return
+        }
+        pendingNotificationPermission = result
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            NOTIFICATION_PERMISSION_REQUEST,
+        )
+    }
+
+    private fun hasAudioPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return ContextCompat.checkSelfPermission(activity, audioPermission()) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasNotificationPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun audioPermission(): String {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+    }
+
+    private fun cleanUnknown(value: String?, fallback: String): String {
+        return value?.takeUnless { it.isBlank() || it == "<unknown>" } ?: fallback
+    }
+
+    companion object {
+        const val CHANNEL_NAME = "lightly_music_player"
+        private const val AUDIO_PERMISSION_REQUEST = 4701
+        private const val NOTIFICATION_PERMISSION_REQUEST = 4702
+    }
+}

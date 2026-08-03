@@ -1339,6 +1339,24 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Full-width Chinese parentheses `（ ）` must be normalized to ASCII `()` before evaluation.
 - On short screens/small windows, the calculator body must remain scrollable/adaptive so the bottom keypad row is never pushed off-screen after showing results.
 
+## Music Player Storage / Runtime Boundaries
+
+- Music metadata, local-scan results, downloaded/online state, favorites, groups, and cached lyrics
+  live in the existing `browser_data.db` `music_tracks` table. Do not introduce a second music
+  database; `AppDatabase` owns the schema and `MusicLibraryStore` accesses it through
+  `AppDatabaseProvider`.
+- `MusicPlaybackService` is the single Android playback owner. Flutter pages submit intent through
+  `MusicPlayerController` / `MusicPlatformGateway`; do not add page-owned `MediaPlayer` or raw music
+  MethodChannels.
+- A local rescan replaces only local-source index rows and must retain favorite/group/lyrics for a
+  stable track key. It must not delete downloaded files or online/downloaded rows.
+- The music API base URL and key belong to `music_player_api_base_url_v1` and
+  `music_player_api_key_v1`. Both are sensitive, excluded from unified backup, and must be entered
+  manually in Music Settings. Do not hardcode, log, back up, or seed either value at build time.
+- Android external `audio/*` intents, MediaStore results, and downloaded files must converge on the
+  same music controller and playback detail page. System notification controls remain user-toggleable.
+- Source of truth: `docs/music-player.md`.
+
 ## Scope discipline
 
 - Keep the browser lightweight.

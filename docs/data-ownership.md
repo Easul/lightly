@@ -48,6 +48,7 @@ Flutter `shared_preferences` 在 Android 上落到应用私有 preferences。下
 | `app_log_enabled` | `AppLogService`；布尔值 | 低 | 否 | 关闭记录时写 `false`、等待队列并删除 `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`；epoch ms | 低 | 否 | 仅调度提示；缓存清理成功后更新，设置导入不覆盖 |
 | `ai_tools_config` | `AiConfigStore`；历史 key v0，JSON 字段默认值兼容 | 高（API key） | 否 | AI 设置保存/覆盖；不得写入日志或普通备份 |
+| `music_player_api_base_url_v1` / `music_player_api_key_v1` | `MusicSettingsStore`；字符串，默认空 | 高（私有 API 配置） | 否 | 仅由音乐设置手动保存/覆盖；不得硬编码、记录或导出 |
 | `translation_history` | `TranslationHistoryStore` 非 Android fallback；历史 key v0，最多 200 条 | 高（原文/译文） | 否 | 翻译历史清除；Android 上不读取此 key |
 | `telegram_checkin_config` | `TelegramCheckinStore`；backup schema version `9` 包含该对象 | 高（App ID/hash、手机号、目标/命令） | 是 | TG 设置保存/覆盖；不得记录到 runtime log |
 

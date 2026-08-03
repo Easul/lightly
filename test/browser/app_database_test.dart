@@ -30,13 +30,15 @@ void main() {
     await databaseFactory.deleteDatabase(databasePath);
   });
 
-  test('upgrades schema v3 to v4 without replacing existing data', () async {
-    final legacyDatabase = await databaseFactory.openDatabase(
-      databasePath,
-      options: OpenDatabaseOptions(
-        version: 3,
-        onCreate: (database, version) async {
-          await database.execute('''
+  test(
+    'upgrades schema v3 to current without replacing existing data',
+    () async {
+      final legacyDatabase = await databaseFactory.openDatabase(
+        databasePath,
+        options: OpenDatabaseOptions(
+          version: 3,
+          onCreate: (database, version) async {
+            await database.execute('''
             CREATE TABLE ${AppDatabase.historyTable} (
               id INTEGER PRIMARY KEY,
               url TEXT NOT NULL,
@@ -45,7 +47,7 @@ void main() {
               visitCount INTEGER NOT NULL DEFAULT 1
             )
           ''');
-          await database.execute('''
+            await database.execute('''
             CREATE TABLE ${AppDatabase.historyVisitsTable} (
               id INTEGER PRIMARY KEY,
               url TEXT NOT NULL,
@@ -53,7 +55,7 @@ void main() {
               visitedAt INTEGER NOT NULL
             )
           ''');
-          await database.execute('''
+            await database.execute('''
             CREATE TABLE ${AppDatabase.downloadTable} (
               id INTEGER PRIMARY KEY,
               url TEXT NOT NULL,
@@ -65,7 +67,7 @@ void main() {
               createdAt INTEGER NOT NULL
             )
           ''');
-          await database.execute('''
+            await database.execute('''
             CREATE TABLE ${AppDatabase.favoriteTable} (
               id INTEGER PRIMARY KEY,
               url TEXT NOT NULL,
@@ -74,32 +76,34 @@ void main() {
               sortOrder INTEGER NOT NULL DEFAULT 0
             )
           ''');
-          await database.insert(AppDatabase.historyTable, <String, Object?>{
-            'url': 'https://legacy.example',
-            'title': 'Legacy',
-            'visitedAt': 1,
-            'visitCount': 2,
-          });
-          await database.insert(AppDatabase.favoriteTable, <String, Object?>{
-            'url': 'https://favorite.example',
-            'title': 'Favorite',
-            'createdAt': 1,
-            'sortOrder': 0,
-          });
-        },
-      ),
-    );
-    await legacyDatabase.close();
+            await database.insert(AppDatabase.historyTable, <String, Object?>{
+              'url': 'https://legacy.example',
+              'title': 'Legacy',
+              'visitedAt': 1,
+              'visitCount': 2,
+            });
+            await database.insert(AppDatabase.favoriteTable, <String, Object?>{
+              'url': 'https://favorite.example',
+              'title': 'Favorite',
+              'createdAt': 1,
+              'sortOrder': 0,
+            });
+          },
+        ),
+      );
+      await legacyDatabase.close();
 
-    appDatabase = AppDatabase.forTesting(databasePath);
-    final upgraded = await appDatabase!.database;
+      appDatabase = AppDatabase.forTesting(databasePath);
+      final upgraded = await appDatabase!.database;
 
-    expect(await upgraded.getVersion(), AppDatabase.schemaVersion);
-    expect(await _rowCount(upgraded, AppDatabase.historyTable), 1);
-    expect(await _rowCount(upgraded, AppDatabase.favoriteTable), 1);
-    expect(await _rowCount(upgraded, AiHistoryDatabase.sessionTable), 0);
-    expect(await _rowCount(upgraded, AiHistoryDatabase.messageTable), 0);
-  });
+      expect(await upgraded.getVersion(), AppDatabase.schemaVersion);
+      expect(await _rowCount(upgraded, AppDatabase.historyTable), 1);
+      expect(await _rowCount(upgraded, AppDatabase.favoriteTable), 1);
+      expect(await _rowCount(upgraded, AiHistoryDatabase.sessionTable), 0);
+      expect(await _rowCount(upgraded, AiHistoryDatabase.messageTable), 0);
+      expect(await _rowCount(upgraded, AppDatabase.musicTrackTable), 0);
+    },
+  );
 
   test('repositories clear only the data category they own', () async {
     appDatabase = AppDatabase.forTesting(databasePath);

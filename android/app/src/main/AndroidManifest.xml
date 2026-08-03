@@ -6,6 +6,8 @@
         android:name="${applicationId}.permission.ACCESS_OPTIONAL_PLUGIN_DATA"
         android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="lightly.tool.plugin.telegram.permission.BIND_SERVICE" />
     <uses-permission android:name="lightly.tool.plugin.webrtc.permission.BIND_SERVICE" />
     <uses-permission android:name="lightly.tool.plugin.easytier.permission.BIND_SERVICE" />
@@ -21,6 +23,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -171,6 +174,15 @@
                 <data android:scheme="file" />
                 <data android:mimeType="video/*" />
             </intent-filter>
+            <!-- 音频文件：统一进入音乐工具播放器 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
             <!-- 视频文件：content:// scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -207,6 +219,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback"
             android:stopWithTask="true" />
+        <service
+            android:name=".MusicPlaybackService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
         <service
             android:name=".TimeOverlayService"
             android:enabled="true"

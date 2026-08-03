@@ -52,6 +52,7 @@ through their owner's parser.
 | `app_log_enabled` | `AppLogService`; boolean | low | No | Disabling writes `false`, drains queued writes, and deletes `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`; epoch ms | low | No | Scheduling hint updated after successful cleanup |
 | `ai_tools_config` | `AiConfigStore`; historical key v0 with JSON field defaults | high (API key) | No | AI settings replace it; it must not enter logs or ordinary backups |
+| `music_player_api_base_url_v1` / `music_player_api_key_v1` | `MusicSettingsStore`; strings defaulting to empty | high (private API configuration) | No | Only Music Settings may save/replace them; never hardcode, log, or export them |
 | `translation_history` | Non-Android `TranslationHistoryStore` fallback; historical key v0, max 200 rows | high | No | Translation-history clear removes it; Android does not read this key |
 | `telegram_checkin_config` | `TelegramCheckinStore`; included by backup schema `9` | high | Yes | TG settings/import replace it; never log its secrets |
 

@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'app/app.dart';
 import 'app/app_services.dart';
 import 'features/ai/ai_history_database.dart';
+import 'features/music/application/music_player_controller.dart';
+import 'features/music/infrastructure/music_library_store.dart';
 import 'features/telegram/telegram_tdlib_service.dart';
+import 'services/app_toast.dart';
 
 // Re-export so existing `package:lightly/main.dart` importers (e.g. tests)
 // keep resolving `MyApp` after it moved to `lib/app/app.dart`.
@@ -27,6 +30,7 @@ Future<void> main() async {
   // does not depend on the concrete database class. Done before runApp, so
   // every page that reads AI history is constructed after the provider is wired.
   AiHistoryDatabase.instance.databaseProvider = services.appDatabase;
+  MusicLibraryStore.instance.databaseProvider = services.appDatabase;
 
   // 初始化应用生命周期管理器，确保服务默认关闭状态
   await services.runtimeCoordinator.initializePersistedServices();
@@ -46,6 +50,18 @@ Future<void> main() async {
     () async {
       await appLogService.log('Application bootstrap start');
       runApp(const MyApp());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          MusicPlayerController.instance.initialize(
+            onExternalTrackOpened: (_) async {
+              await AppToast.navigatorKey.currentState?.pushNamed(
+                '/music-player',
+                arguments: true,
+              );
+            },
+          ),
+        );
+      });
     },
     (Object error, StackTrace stackTrace) {
       unawaited(appLogService.logUnhandledError(error, stackTrace));
