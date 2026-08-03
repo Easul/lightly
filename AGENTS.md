@@ -1258,6 +1258,14 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - `scripts/build_youtube_aar.sh` is the local AAR build/injection path. Full Lightly release builds
   must require or generate the AAR and verify that `YouTubeResolverBridge` is present in the APK.
   Public/OSS builds must continue to compile without the AAR and return a clear unavailable error.
+- Local private-resolver source builds must allow Gradle to resolve missing dependencies by default;
+  a fresh dependency may not exist in the developer cache. `YOUTUBE_RESOLVER_OFFLINE=1` is the
+  explicit opt-in for a fully cached offline build. Gradle automatically loads user-level init
+  scripts, so repository build scripts must not hardcode, delete, or bypass `~/.gradle/init.d`.
+- The private resolver keeps `RepositoriesMode.FAIL_ON_PROJECT_REPOS`. User-level Gradle mirrors
+  must therefore be injected through settings-level `pluginManagement.repositories` and
+  `dependencyResolutionManagement.repositories`, not `allprojects { project.repositories }`.
+  Do not weaken the resolver repository policy or clear caches to work around an init-script error.
 - Release AARs must enable library-level R8. Preserve only the reflected API 1 bridge methods and
   verify their exact public signatures with `javap`; no implementation class may remain under the
   original `lightly.youtube.resolver` package. Publish AARs as GitHub Release assets rather than Git
