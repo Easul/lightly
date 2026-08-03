@@ -10,6 +10,7 @@ Future<MusicSettings?> showMusicSettingsDialog(
   final apiKeyController = TextEditingController(text: initial.apiKey);
   var quality = initial.quality;
   var notificationEnabled = initial.notificationEnabled;
+  var obscureApiKey = true;
   return showDialog<MusicSettings>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
@@ -31,11 +32,22 @@ Future<MusicSettings?> showMusicSettingsDialog(
               const SizedBox(height: 14),
               TextField(
                 controller: apiKeyController,
-                obscureText: true,
+                obscureText: obscureApiKey,
                 autocorrect: false,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'API Key',
-                  prefixIcon: Icon(Icons.key_rounded),
+                  prefixIcon: const Icon(Icons.key_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: obscureApiKey ? '显示 API Key' : '隐藏 API Key',
+                    onPressed: () {
+                      setDialogState(() => obscureApiKey = !obscureApiKey);
+                    },
+                    icon: Icon(
+                      obscureApiKey
+                          ? Icons.visibility_rounded
+                          : Icons.visibility_off_rounded,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 14),

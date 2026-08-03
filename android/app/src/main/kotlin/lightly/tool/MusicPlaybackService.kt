@@ -121,24 +121,36 @@ class MusicPlaybackService : Service() {
                     updateNotification()
                     emitState()
                 }
-                setOnErrorListener { _, _, _ ->
+                setOnErrorListener { _, what, extra ->
                     buffering = false
                     updateMediaSessionState(error = true)
                     releasePlayer()
                     removeForegroundNotification()
-                    emitState(error = "播放失败")
+                    emitState(error = mediaErrorMessage(what, extra))
                     stopSelf()
                     true
                 }
                 prepareAsync()
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             buffering = false
             releasePlayer()
             removeForegroundNotification()
-            emitState(error = "无法打开音频")
+            emitState(error = "无法打开音频（${error.javaClass.simpleName}）")
             stopSelf()
         }
+    }
+
+    private fun mediaErrorMessage(what: Int, extra: Int): String {
+        val reason = when (what) {
+            MediaPlayer.MEDIA_ERROR_IO -> "读取失败"
+            MediaPlayer.MEDIA_ERROR_MALFORMED -> "文件损坏或编码不支持"
+            MediaPlayer.MEDIA_ERROR_UNSUPPORTED -> "格式不支持"
+            MediaPlayer.MEDIA_ERROR_TIMED_OUT -> "读取超时"
+            MediaPlayer.MEDIA_ERROR_SERVER_DIED -> "媒体服务异常"
+            else -> "未知错误"
+        }
+        return "播放失败：$reason（$what/$extra）"
     }
 
     private fun resumePlayback() {

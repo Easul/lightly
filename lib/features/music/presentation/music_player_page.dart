@@ -205,7 +205,9 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     if (_loadingLibrary) {
       return const Center(child: CircularProgressIndicator());
     }
-    final deviceQueue = <MusicTrack>[..._downloadedTracks, ..._localTracks];
+    final downloadedTracks = _filterGroup(_downloadedTracks);
+    final localTracks = _filterGroup(_localTracks);
+    final deviceQueue = <MusicTrack>[...downloadedTracks, ...localTracks];
     return RefreshIndicator(
       onRefresh: _scanLocalMusic,
       child: ListView(
@@ -215,7 +217,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
             children: [
               Expanded(
                 child: Text(
-                  '${_localTracks.length + _downloadedTracks.length} 首歌曲',
+                  '${localTracks.length + downloadedTracks.length} 首歌曲',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
@@ -234,21 +236,23 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
             ],
           ),
           const SizedBox(height: 8),
-          if (_localTracks.isEmpty && _downloadedTracks.isEmpty)
+          _buildGroupFilters(),
+          if (_groups.isNotEmpty) const SizedBox(height: 8),
+          if (localTracks.isEmpty && downloadedTracks.isEmpty)
             const MusicEmptyState(
               icon: Icons.library_music_outlined,
               label: '暂无本机歌曲',
             )
           else ...[
-            if (_downloadedTracks.isNotEmpty) ...[
+            if (downloadedTracks.isNotEmpty) ...[
               const MusicSectionTitle(label: '已下载'),
-              ..._downloadedTracks.map(
+              ...downloadedTracks.map(
                 (track) => _trackTile(track, queue: deviceQueue),
               ),
             ],
-            if (_localTracks.isNotEmpty) ...[
+            if (localTracks.isNotEmpty) ...[
               const MusicSectionTitle(label: '设备音乐'),
-              ..._localTracks.map(
+              ...localTracks.map(
                 (track) => _trackTile(track, queue: deviceQueue),
               ),
             ],
@@ -327,38 +331,11 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   }
 
   Widget _buildFavoritesTab() {
-    final filtered = _selectedGroup == null
-        ? _favorites
-        : _favorites
-              .where((track) => track.groupName == _selectedGroup)
-              .toList();
+    final filtered = _filterGroup(_favorites);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
       children: [
-        if (_groups.isNotEmpty)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('全部'),
-                  selected: _selectedGroup == null,
-                  onSelected: (_) => setState(() => _selectedGroup = null),
-                ),
-                const SizedBox(width: 8),
-                ..._groups.map(
-                  (group) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(group),
-                      selected: _selectedGroup == group,
-                      onSelected: (_) => setState(() => _selectedGroup = group),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _buildGroupFilters(),
         if (_groups.isNotEmpty) const SizedBox(height: 8),
         if (filtered.isEmpty)
           const MusicEmptyState(
@@ -369,6 +346,39 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           ...filtered.map((track) => _trackTile(track, queue: filtered)),
       ],
     );
+  }
+
+  Widget _buildGroupFilters() {
+    if (_groups.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('全部'),
+            selected: _selectedGroup == null,
+            onSelected: (_) => setState(() => _selectedGroup = null),
+          ),
+          const SizedBox(width: 8),
+          ..._groups.map(
+            (group) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(group),
+                selected: _selectedGroup == group,
+                onSelected: (_) => setState(() => _selectedGroup = group),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<MusicTrack> _filterGroup(List<MusicTrack> tracks) {
+    final group = _selectedGroup;
+    if (group == null) return tracks;
+    return tracks.where((track) => track.groupName == group).toList();
   }
 
   Widget _trackTile(MusicTrack track, {List<MusicTrack>? queue}) =>

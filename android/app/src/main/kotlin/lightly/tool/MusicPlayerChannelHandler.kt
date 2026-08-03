@@ -185,7 +185,7 @@ class MusicPlayerChannelHandler(
                                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                                 id,
                             ).toString(),
-                            "title" to cursor.getString(titleColumn),
+                            "title" to repairMediaText(cursor.getString(titleColumn)),
                             "artist" to cleanUnknown(cursor.getString(artistColumn), "未知歌手"),
                             "album" to cleanUnknown(cursor.getString(albumColumn), "未知专辑"),
                             "artworkUri" to "content://media/external/audio/albumart/$albumId",
@@ -223,8 +223,8 @@ class MusicPlayerChannelHandler(
                     val index = cursor.getColumnIndex(column)
                     return if (index >= 0) cursor.getLong(index) else null
                 }
-                values["title"] = read(MediaStore.Audio.Media.TITLE)
-                    ?: read(MediaStore.Audio.Media.DISPLAY_NAME)?.substringBeforeLast('.')
+                values["title"] = repairMediaText(read(MediaStore.Audio.Media.TITLE))
+                    ?: repairMediaText(read(MediaStore.Audio.Media.DISPLAY_NAME)?.substringBeforeLast('.'))
                     ?: values["title"]
                 values["artist"] = cleanUnknown(read(MediaStore.Audio.Media.ARTIST), "未知歌手")
                 values["album"] = cleanUnknown(read(MediaStore.Audio.Media.ALBUM), "未知专辑")
@@ -301,7 +301,25 @@ class MusicPlayerChannelHandler(
     }
 
     private fun cleanUnknown(value: String?, fallback: String): String {
-        return value?.takeUnless { it.isBlank() || it == "<unknown>" } ?: fallback
+        return repairMediaText(value)?.takeUnless { it == "<unknown>" } ?: fallback
+    }
+
+    // A few legacy ID3 tags are UTF-8 bytes decoded as Latin-1 by MediaStore.
+    // Repair only when the candidate produces CJK text, avoiding changes to real
+    // names that legitimately contain accented Latin characters.
+    private fun repairMediaText(value: String?): String? {
+        val text = value?.trim()?.takeUnless { it.isEmpty() || it == "null" } ?: return null
+        if (text.any(::isCjk) || text.count { it in '\u00C0'..'\u00FF' } < 2) {
+            return text
+        }
+        val repaired = runCatching {
+            String(text.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+        }.getOrNull()
+        return if (repaired != null && repaired.any(::isCjk)) repaired else text
+    }
+
+    private fun isCjk(value: Char): Boolean {
+        return value in '\u3400'..'\u4DBF' || value in '\u4E00'..'\u9FFF'
     }
 
     companion object {
