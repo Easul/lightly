@@ -1361,6 +1361,12 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Open local `content://` audio through `ContentResolver` and a readable file descriptor before
   preparing `MediaPlayer`. Online API, playback, and download requests use a stable browser-style
   User-Agent; advertise only response compression codecs the active Dart client can decode.
+- The music controller's initialization is asynchronous; search, settings, and remote playback
+  must await the same initialization future before reading persisted API configuration. The API
+  client accepts either the `/api/` base or a full known music endpoint URL and must normalize it
+  without duplicating the endpoint path.
+- Do not call `MediaPlayer.getDuration()` or `getCurrentPosition()` during `prepareAsync()`. On
+  affected MIUI builds this emits native `-38` and invokes the playback error callback.
 - Source of truth: `docs/music-player.md`.
 
 ## Scope discipline

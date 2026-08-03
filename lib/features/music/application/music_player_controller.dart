@@ -44,6 +44,7 @@ class MusicPlayerController extends ChangeNotifier {
   bool _completionAdvanceInProgress = false;
   String? _playbackError;
   bool _initialized = false;
+  Future<void>? _initializationFuture;
   ExternalTrackOpened? _onExternalTrackOpened;
 
   MusicSettings get settings => _settings;
@@ -56,10 +57,18 @@ class MusicPlayerController extends ChangeNotifier {
   bool get hasPrevious => _queueIndex > 0;
   bool get hasNext => _queueIndex >= 0 && _queueIndex + 1 < _queue.length;
 
-  Future<void> initialize({ExternalTrackOpened? onExternalTrackOpened}) async {
+  Future<void> initialize({ExternalTrackOpened? onExternalTrackOpened}) {
     if (onExternalTrackOpened != null) {
       _onExternalTrackOpened = onExternalTrackOpened;
     }
+    final existing = _initializationFuture;
+    if (existing != null) return existing;
+    final future = _initializeInternal();
+    _initializationFuture = future;
+    return future;
+  }
+
+  Future<void> _initializeInternal() async {
     if (_initialized) return;
     _initialized = true;
     _platform.setHandlers(
@@ -96,6 +105,14 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<MusicSearchPage> search(String keyword, int page) {
+    return _searchAfterInitialization(keyword, page);
+  }
+
+  Future<MusicSearchPage> _searchAfterInitialization(
+    String keyword,
+    int page,
+  ) async {
+    await initialize();
     _requireApiConfiguration();
     return _api.search(
       apiBaseUrl: _settings.apiBaseUrl,
@@ -142,6 +159,7 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<MusicTrack> ensurePlayable(MusicTrack track) async {
+    await initialize();
     if (!track.isRemote ||
         (track.sourceType != MusicSourceType.online &&
             track.sourceUri.trim().isNotEmpty)) {
@@ -157,6 +175,7 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<MusicTrack> ensureLyrics(MusicTrack track) async {
+    await initialize();
     final stored = await _library.get(track.trackKey) ?? track;
     if ((stored.lyric?.isNotEmpty ?? false) || !stored.isRemote) return stored;
     _requireApiConfiguration();

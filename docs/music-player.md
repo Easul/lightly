@@ -29,6 +29,8 @@ The API base URL and key must both be entered manually in Music Settings. They
 are stored separately in SharedPreferences under
 `music_player_api_base_url_v1` and `music_player_api_key_v1`. Neither value has
 a source/build-time default, enters the unified backup, or may be logged.
+The base URL may be entered as `https://host/api/` or as a full known endpoint
+URL; the client normalizes the latter before appending request parameters.
 
 ## Android Runtime
 
@@ -37,6 +39,9 @@ a source/build-time default, enters the unified backup, or may be logged.
   and the typed Flutter channel.
 - `MusicPlaybackService` owns `MediaPlayer`, `MediaSession`, audio focus, and the
   optional public lock-screen/notification controls.
+- Do not query `MediaPlayer` position or duration while it is preparing. Some
+  MIUI media stacks report `-38` and enter the error callback when `getDuration()`
+  is called in the preparing state.
 - Disabling the system toolbar removes the foreground notification. Playback
   may then be reclaimed by Android after Lightly leaves the foreground.
 - External audio intents enter the same controller and database path as songs

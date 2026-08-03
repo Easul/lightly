@@ -153,6 +153,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   }
 
   Future<void> _showSettings() async {
+    await _player.initialize();
+    if (!mounted) return;
     final settings = await showMusicSettingsDialog(context, _player.settings);
     if (settings == null) return;
     await _player.updateSettings(settings);

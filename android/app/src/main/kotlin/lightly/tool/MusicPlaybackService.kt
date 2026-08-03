@@ -36,6 +36,7 @@ class MusicPlaybackService : Service() {
     private var artworkUri: String? = null
     private var pendingSeekMs: Int? = null
     private var sourceScheme = ""
+    private var prepared = false
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         if (change == AudioManager.AUDIOFOCUS_LOSS ||
@@ -90,6 +91,7 @@ class MusicPlaybackService : Service() {
         album = intent.getStringExtra("album") ?: "未知专辑"
         artworkUri = intent.getStringExtra("artworkUri")
         buffering = true
+        prepared = false
         completed = false
         pendingSeekMs = null
         releasePlayer()
@@ -108,6 +110,7 @@ class MusicPlaybackService : Service() {
             player.setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
             player.setOnPreparedListener {
                 buffering = false
+                prepared = true
                 requestAudioFocus()
                 pendingSeekMs?.let(it::seekTo)
                 pendingSeekMs = null
@@ -127,6 +130,7 @@ class MusicPlaybackService : Service() {
             player.setOnErrorListener { _, what, extra ->
                 Log.e(LOG_TAG, "MediaPlayer error what=$what extra=$extra scheme=$sourceScheme")
                 buffering = false
+                prepared = false
                 updateMediaSessionState(error = true)
                 releasePlayer()
                 removeForegroundNotification()
@@ -142,6 +146,7 @@ class MusicPlaybackService : Service() {
                 "Unable to open audio scheme=$sourceScheme type=${error.javaClass.simpleName}",
             )
             buffering = false
+            prepared = false
             releasePlayer()
             removeForegroundNotification()
             emitState(error = "无法打开音频（${error.javaClass.simpleName}）")
@@ -228,6 +233,7 @@ class MusicPlaybackService : Service() {
         releasePlayer()
         audioManager.abandonAudioFocus(focusListener)
         buffering = false
+        prepared = false
         completed = false
         trackKey = ""
         removeForegroundNotification()
@@ -242,6 +248,7 @@ class MusicPlaybackService : Service() {
             runCatching { player.release() }
         }
         mediaPlayer = null
+        prepared = false
     }
 
     private fun requestAudioFocus() {
@@ -381,10 +388,12 @@ class MusicPlaybackService : Service() {
     }
 
     private fun safePosition(player: MediaPlayer?): Int {
+        if (!prepared) return 0
         return player?.runCatching { currentPosition }?.getOrDefault(0) ?: 0
     }
 
     private fun safeDuration(player: MediaPlayer?): Int {
+        if (!prepared) return 0
         return player?.runCatching { duration }?.getOrDefault(0)?.takeIf { it > 0 } ?: 0
     }
 

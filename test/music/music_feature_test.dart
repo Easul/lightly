@@ -96,6 +96,28 @@ void main() {
       );
     });
 
+    test('accepts a full endpoint URL without duplicating its path', () async {
+      late Uri requestedUri;
+      final client = MusicApiClient(
+        client: MockClient((request) async {
+          requestedUri = request.url;
+          return http.Response(
+            jsonEncode(<String, Object?>{'code': 200, 'data': <Object?>[]}),
+            200,
+          );
+        }),
+      );
+
+      await client.search(
+        apiBaseUrl: 'https://music.test/api/163_search?old=query',
+        keyword: 'test',
+        page: 1,
+        apiKey: 'key',
+      );
+
+      expect(requestedUri.path, '/api/163_search');
+    });
+
     test('surfaces a bounded server authentication message', () async {
       final client = MusicApiClient(
         client: MockClient(

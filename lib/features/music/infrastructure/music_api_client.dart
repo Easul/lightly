@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -113,9 +114,14 @@ class MusicApiClient {
     final uri = _parseBaseUri(
       apiBaseUrl,
     ).resolve(endpoint).replace(queryParameters: query);
+    developer.log('request endpoint=/$endpoint', name: 'LightlyMusicApi');
     final response = await _client
         .get(uri, headers: requestHeaders)
         .timeout(const Duration(seconds: 20));
+    developer.log(
+      'response endpoint=/$endpoint status=${response.statusCode}',
+      name: 'LightlyMusicApi',
+    );
     if (response.statusCode != 200) {
       final serverMessage = _responseMessage(response.body);
       final suffix = serverMessage == null ? '' : '：$serverMessage';
@@ -126,6 +132,10 @@ class MusicApiClient {
       throw const FormatException('音乐接口返回格式无效');
     }
     if ((decoded['code'] as num?)?.toInt() != 200) {
+      developer.log(
+        'response endpoint=/$endpoint returned code=${decoded['code']}',
+        name: 'LightlyMusicApi',
+      );
       throw MusicApiException('${decoded['msg'] ?? '音乐接口请求失败'}');
     }
     return decoded;
@@ -152,7 +162,15 @@ Uri _parseBaseUri(String value) {
       uri.host.isEmpty) {
     throw const FormatException('音乐 API 地址必须是有效的 HTTP(S) 地址');
   }
-  final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
+  var basePath = uri.path;
+  final endpointSuffix = RegExp(
+    r'/163_(?:search|music|lyric)/?$',
+    caseSensitive: false,
+  );
+  if (endpointSuffix.hasMatch(basePath)) {
+    basePath = basePath.substring(0, basePath.lastIndexOf('/'));
+  }
+  final path = basePath.endsWith('/') ? basePath : '$basePath/';
   return uri.replace(path: path);
 }
 
