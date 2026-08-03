@@ -60,7 +60,7 @@ void main() {
       );
 
       final result = await client.search(
-        apiBaseUrl: 'https://music.test/api/',
+        apiBaseUrl: 'https://music.test/api',
         keyword: '海底',
         page: 2,
         apiKey: 'key',

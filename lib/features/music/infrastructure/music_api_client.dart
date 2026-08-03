@@ -133,7 +133,8 @@ Uri _parseBaseUri(String value) {
       uri.host.isEmpty) {
     throw const FormatException('音乐 API 地址必须是有效的 HTTP(S) 地址');
   }
-  return uri;
+  final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
+  return uri.replace(path: path);
 }
 
 class MusicApiException implements Exception {
