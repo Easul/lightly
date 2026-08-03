@@ -46,9 +46,25 @@ album metadata.
   modes are list loop (default, wraps to the first song), single-song loop, and
   shuffle. A queue comes from the currently filtered group/search list so
   automatic advancement must not cross into a different group.
+- The controller also retains the active online search session while the page is
+  absent. Search requests use batches of 50; reaching the end appends the next
+  batch and extends the active queue only when the current song belongs to that
+  search. The page keeps the search field fixed above the scrolling results and
+  highlights the active track after automatic or lock-screen advancement.
 - Do not query `MediaPlayer` position or duration while it is preparing. Some
   MIUI media stacks report `-38` and enter the error callback when `getDuration()`
   is called in the preparing state.
+- Slider dragging is a Flutter-local preview and submits one native seek on
+  release. Music downloads stream response chunks to disk and report throttled
+  progress rather than buffering the body or rebuilding on every chunk.
+- MediaStore `content://` stays authoritative for playback and deletion. When
+  volume and relative-path metadata are available, `localPath` carries a derived
+  `/storage/...` display path without replacing the content URI.
+- Notification and lock-screen controls include previous/play-pause/next. Their
+  skip commands return to the controller queue through the typed platform
+  gateway. Android resolves local album art and caches bounded remote artwork
+  under app cache for `MediaSession` and notification display, with the default
+  icon as fallback.
 - Disabling the system toolbar removes the foreground notification. Playback
   may then be reclaimed by Android after Lightly leaves the foreground.
 - Local, online, and favorite lists reserve bottom scroll padding for the mini

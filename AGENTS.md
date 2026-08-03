@@ -1372,6 +1372,22 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Music playback modes are controller-owned in-memory state: list loop (default), single-song
   loop, and shuffle. The active queue must be the current filtered group/search list; automatic
   advancement and wrap-around must not cross into a different group.
+- Online search state is also controller-owned in memory so leaving and reopening the page does not
+  detach the visible results from the active playback queue. Search loads 50 tracks at a time and
+  appends near the list end; update the active queue only when its current track belongs to that
+  search session. Clearing search content must not stop current playback.
+- Keep the online search field outside its scrollable results. Seek sliders should preview locally
+  while dragging and issue one native seek when released; do not send a MethodChannel seek for
+  every pointer update.
+- Music downloads must consume the HTTP response stream incrementally, write chunks to disk, and
+  throttle UI progress updates. Downloaded `music_tracks` rows are the music download-history
+  source of truth; do not create a second download table for music.
+- MediaStore `content://` remains the stable playback/deletion URI on scoped-storage Android. A
+  derived `/storage/...` value may be stored in `localPath` for display when MediaStore exposes
+  enough volume/relative-path metadata, but it must not replace the content URI runtime contract.
+- Notification and lock-screen previous/next commands return to the controller-owned queue through
+  the typed music gateway. Android may cache remote artwork in app cache and publish local/remote
+  artwork through `MediaSession`; unavailable artwork keeps the existing default icon.
 - Keep enough bottom padding in local, online, and favorite lists for the mini player plus the
   system safe area so the final track can scroll fully above the controls.
 - Source of truth: `docs/music-player.md`.

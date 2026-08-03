@@ -45,7 +45,10 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   List<MusicLyricLine> _lyrics = const <MusicLyricLine>[];
   bool _loadingLyrics = false;
   bool _downloading = false;
+  double? _downloadProgress;
+  double? _seekPreviewMs;
   int _activeLyric = -1;
+  int _trackLoadRequestId = 0;
 
   bool get _isCurrent => _player.currentTrack?.trackKey == _track.trackKey;
   Duration get _position => _isCurrent ? _player.position : Duration.zero;
@@ -69,25 +72,40 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   }
 
   Future<void> _loadStoredTrackAndLyrics() async {
-    final stored = await _library.get(_track.trackKey);
-    if (stored != null) _track = stored;
-    if (_track.isRemote && !(_track.lyric?.isNotEmpty ?? false)) {
+    final requestId = ++_trackLoadRequestId;
+    var loadedTrack = await _library.get(_track.trackKey) ?? _track;
+    if (requestId != _trackLoadRequestId) return;
+    if (loadedTrack.isRemote && !(loadedTrack.lyric?.isNotEmpty ?? false)) {
       if (mounted) setState(() => _loadingLyrics = true);
       try {
-        _track = await _player.ensureLyrics(_track);
+        loadedTrack = await _player.ensureLyrics(loadedTrack);
       } catch (error) {
         _toast('$error');
       } finally {
-        if (mounted) setState(() => _loadingLyrics = false);
+        if (mounted && requestId == _trackLoadRequestId) {
+          setState(() => _loadingLyrics = false);
+        }
       }
     }
-    _lyrics = parseLrc(_track.lyric);
-    if (mounted) setState(() {});
+    if (!mounted || requestId != _trackLoadRequestId) return;
+    _track = loadedTrack;
+    _lyrics = parseLrc(loadedTrack.lyric);
+    setState(() {});
   }
 
   void _handlePlayerChanged() {
     final current = _player.currentTrack;
-    if (current?.trackKey == _track.trackKey) _track = current!;
+    if (current?.trackKey == _track.trackKey) {
+      _track = current!;
+    } else if (current != null &&
+        (widget.queue?.any((track) => track.trackKey == current.trackKey) ??
+            false)) {
+      _track = current;
+      _lyrics = parseLrc(current.lyric);
+      _activeLyric = -1;
+      _seekPreviewMs = null;
+      unawaited(_loadStoredTrackAndLyrics());
+    }
     _syncRotation();
     final index = activeLyricIndex(_lyrics, _position);
     if (index != _activeLyric) {
@@ -144,6 +162,16 @@ class _MusicTrackPageState extends State<MusicTrackPage>
     }
   }
 
+  Future<void> _commitSeek(double value) async {
+    try {
+      await _player.seek(Duration(milliseconds: value.round()));
+    } catch (error) {
+      _toast('$error');
+    } finally {
+      if (mounted) setState(() => _seekPreviewMs = null);
+    }
+  }
+
   Future<void> _toggleFavorite() async {
     try {
       _track = await _player.setFavorite(_track, !_track.isFavorite);
@@ -195,7 +223,10 @@ class _MusicTrackPageState extends State<MusicTrackPage>
 
   Future<void> _download() async {
     if (_downloading || _track.sourceType == MusicSourceType.downloaded) return;
-    setState(() => _downloading = true);
+    setState(() {
+      _downloading = true;
+      _downloadProgress = null;
+    });
     try {
       var playable = await _player.ensurePlayable(_track);
       var preferShared = true;
@@ -214,6 +245,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
         playable,
         preferSharedDownloads: preferShared,
         requestSharedAccessIfNeeded: requestPermission,
+        onProgress: (receivedBytes, totalBytes) {
+          if (!mounted) return;
+          setState(() {
+            _downloadProgress = totalBytes == null || totalBytes <= 0
+                ? null
+                : (receivedBytes / totalBytes).clamp(0, 1).toDouble();
+          });
+        },
       );
       _track = await _library.save(playable);
       _player.replaceCurrentTrack(_track);
@@ -222,7 +261,12 @@ class _MusicTrackPageState extends State<MusicTrackPage>
     } catch (error) {
       _toast('下载失败：$error');
     } finally {
-      if (mounted) setState(() => _downloading = false);
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _downloadProgress = null;
+        });
+      }
     }
   }
 
@@ -231,9 +275,10 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   @override
   Widget build(BuildContext context) {
     final durationMs = _duration.inMilliseconds.clamp(1, 1 << 31).toDouble();
-    final positionMs = _position.inMilliseconds
+    final positionMs = (_seekPreviewMs ?? _position.inMilliseconds.toDouble())
         .clamp(0, durationMs.toInt())
         .toDouble();
+    final displayPosition = Duration(milliseconds: positionMs.round());
     return Scaffold(
       appBar: AppBar(
         title: const Text('正在播放'),
@@ -321,9 +366,10 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                     disabledForegroundColor: Colors.white,
                   ),
                   icon: _downloading || _player.isBuffering
-                      ? const SizedBox.square(
+                      ? SizedBox.square(
                           dimension: 24,
                           child: CircularProgressIndicator(
+                            value: _downloading ? _downloadProgress : null,
                             strokeWidth: 2.5,
                             color: Colors.white,
                           ),
@@ -349,10 +395,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                   Slider(
                     value: positionMs,
                     max: durationMs,
+                    onChangeStart: _isCurrent
+                        ? (value) => setState(() => _seekPreviewMs = value)
+                        : null,
                     onChanged: _isCurrent
-                        ? (value) => unawaited(
-                            _player.seek(Duration(milliseconds: value.round())),
-                          )
+                        ? (value) => setState(() => _seekPreviewMs = value)
+                        : null,
+                    onChangeEnd: _isCurrent
+                        ? (value) => unawaited(_commitSeek(value))
                         : null,
                   ),
                   Padding(
@@ -360,7 +410,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(_formatDuration(_position)),
+                        Text(_formatDuration(displayPosition)),
                         Text(_formatDuration(_duration)),
                       ],
                     ),

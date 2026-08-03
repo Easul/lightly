@@ -74,8 +74,8 @@ void main() {
       );
 
       expect(requestedUri.path, '/api/163_search');
-      expect(requestedUri.queryParameters['limit'], '10');
-      expect(requestedUri.queryParameters['offset'], '10');
+      expect(requestedUri.queryParameters['limit'], '50');
+      expect(requestedUri.queryParameters['offset'], '50');
       expect(requestedUri.queryParameters['keyword'], '海底');
       expect(requestedHeaders['User-Agent'], contains('Firefox/153.0'));
       expect(requestedHeaders['Accept-Encoding'], 'gzip');
@@ -369,6 +369,73 @@ void main() {
       expect(controller.playbackMode, MusicPlaybackMode.shuffle);
       await controller.next();
       expect(controller.currentTrack?.trackKey, second.trackKey);
+    });
+
+    test('keeps and incrementally extends the active search session', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'music_player_api_base_url_v1': 'https://music.test/api/',
+        'music_player_api_key_v1': 'key',
+      });
+      const channel = MethodChannel('music_search_session_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final api = MusicApiClient(
+        client: MockClient((request) async {
+          final offset = int.parse(request.url.queryParameters['offset']!);
+          final count = offset == 0 ? 50 : 1;
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode(<String, Object?>{
+                'code': 200,
+                'total': 51,
+                'data': List<Object?>.generate(
+                  count,
+                  (index) => <String, Object?>{
+                    'id': offset + index,
+                    'name': '歌曲 ${offset + index}',
+                    'artist': '歌手',
+                    'album': '专辑',
+                  },
+                ),
+              }),
+            ),
+            200,
+          );
+        }),
+      );
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        api: api,
+        library: store,
+      );
+
+      await controller.search('保留的搜索');
+
+      expect(controller.searchKeyword, '保留的搜索');
+      expect(controller.searchResults, hasLength(50));
+      expect(controller.searchHasMore, isTrue);
+
+      await controller.loadMoreSearchResults();
+
+      expect(controller.searchResults, hasLength(51));
+      expect(controller.searchHasMore, isFalse);
+
+      controller.clearSearch();
+      expect(controller.searchKeyword, isEmpty);
+      expect(controller.searchResults, isEmpty);
     });
   });
 }

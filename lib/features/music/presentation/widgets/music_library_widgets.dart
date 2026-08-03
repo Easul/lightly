@@ -6,17 +6,61 @@ import '../../application/music_player_controller.dart';
 import '../../domain/music_track.dart';
 import 'music_track_artwork.dart';
 
-class MusicMiniPlayer extends StatelessWidget {
+class MusicMiniPlayer extends StatefulWidget {
   const MusicMiniPlayer({super.key, required this.player, required this.onTap});
 
   final MusicPlayerController player;
   final Future<void> Function(MusicTrack track) onTap;
 
   @override
+  State<MusicMiniPlayer> createState() => _MusicMiniPlayerState();
+}
+
+class _MusicMiniPlayerState extends State<MusicMiniPlayer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rotation = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 18),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    widget.player.addListener(_syncRotation);
+    _syncRotation();
+  }
+
+  @override
+  void didUpdateWidget(covariant MusicMiniPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.player != widget.player) {
+      oldWidget.player.removeListener(_syncRotation);
+      widget.player.addListener(_syncRotation);
+      _syncRotation();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.player.removeListener(_syncRotation);
+    _rotation.dispose();
+    super.dispose();
+  }
+
+  void _syncRotation() {
+    if (widget.player.isPlaying) {
+      if (!_rotation.isAnimating) _rotation.repeat();
+    } else {
+      _rotation.stop();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: player,
+      animation: widget.player,
       builder: (context, _) {
+        final player = widget.player;
         final track = player.currentTrack;
         if (track == null) return const SizedBox.shrink();
         return Material(
@@ -24,11 +68,14 @@ class MusicMiniPlayer extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: ListTile(
-              onTap: () => unawaited(onTap(track)),
-              leading: MusicTrackArtwork(
-                track: track,
-                size: 42,
-                circular: true,
+              onTap: () => unawaited(widget.onTap(track)),
+              leading: RotationTransition(
+                turns: _rotation,
+                child: MusicTrackArtwork(
+                  track: track,
+                  size: 42,
+                  circular: true,
+                ),
               ),
               title: Text(
                 track.title,

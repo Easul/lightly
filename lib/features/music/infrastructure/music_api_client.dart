@@ -7,10 +7,15 @@ import 'package:http/http.dart' as http;
 import '../domain/music_track.dart';
 
 class MusicSearchPage {
-  const MusicSearchPage({required this.tracks, required this.total});
+  const MusicSearchPage({
+    required this.tracks,
+    required this.total,
+    required this.hasMore,
+  });
 
   final List<MusicTrack> tracks;
   final int total;
+  final bool hasMore;
 }
 
 class MusicLyrics {
@@ -23,7 +28,7 @@ class MusicLyrics {
 class MusicApiClient {
   MusicApiClient({http.Client? client}) : _client = client ?? http.Client();
 
-  static const int searchLimit = 10;
+  static const int searchLimit = 50;
   // Match the API's normal browser request profile. Keep compression to
   // codec supported by dart:io's HttpClient auto-decompression.
   static const Map<String, String> requestHeaders = <String, String>{
@@ -58,6 +63,7 @@ class MusicApiClient {
     return MusicSearchPage(
       tracks: tracks,
       total: payload.total ?? tracks.length,
+      hasMore: tracks.length == searchLimit,
     );
   }
 

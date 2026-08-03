@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -21,6 +23,12 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
+import java.util.concurrent.Executors
 
 class MusicPlaybackService : Service() {
     private var mediaPlayer: MediaPlayer? = null
@@ -34,9 +42,12 @@ class MusicPlaybackService : Service() {
     private var artist = ""
     private var album = ""
     private var artworkUri: String? = null
+    private var artworkBitmap: Bitmap? = null
+    private var artworkRequestId = 0
     private var pendingSeekMs: Int? = null
     private var sourceScheme = ""
     private var prepared = false
+    private val artworkExecutor = Executors.newSingleThreadExecutor()
     private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         if (change == AudioManager.AUDIOFOCUS_LOSS ||
@@ -55,6 +66,8 @@ class MusicPlaybackService : Service() {
                 override fun onPause() = pausePlayback()
                 override fun onStop() = stopPlayback()
                 override fun onSeekTo(pos: Long) = seekTo(pos.toInt())
+                override fun onSkipToPrevious() = requestPlaybackCommand("previous")
+                override fun onSkipToNext() = requestPlaybackCommand("next")
             })
             isActive = true
         }
@@ -69,6 +82,8 @@ class MusicPlaybackService : Service() {
             ACTION_RESUME -> resumePlayback()
             ACTION_PAUSE -> pausePlayback()
             ACTION_TOGGLE -> if (mediaPlayer?.isPlaying == true) pausePlayback() else resumePlayback()
+            ACTION_PREVIOUS -> requestPlaybackCommand("previous")
+            ACTION_NEXT -> requestPlaybackCommand("next")
             ACTION_SEEK -> seekTo(intent.getIntExtra("positionMs", 0))
             ACTION_SET_NOTIFICATION -> {
                 notificationEnabled = intent.getBooleanExtra("notificationEnabled", true)
@@ -90,6 +105,7 @@ class MusicPlaybackService : Service() {
         artist = intent.getStringExtra("artist") ?: "未知歌手"
         album = intent.getStringExtra("album") ?: "未知专辑"
         artworkUri = intent.getStringExtra("artworkUri")
+        artworkBitmap = null
         buffering = true
         prepared = false
         completed = false
@@ -97,6 +113,7 @@ class MusicPlaybackService : Service() {
         releasePlayer()
         updateMediaSessionMetadata()
         updateNotification()
+        loadArtworkAsync(artworkUri, trackKey)
         emitState()
         try {
             val player = MediaPlayer()
@@ -261,13 +278,15 @@ class MusicPlaybackService : Service() {
     }
 
     private fun updateMediaSessionMetadata() {
-        mediaSession.setMetadata(
-            MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, artist)
-                .putString(MediaMetadata.METADATA_KEY_ALBUM, album)
-                .build(),
-        )
+        val metadata = MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_TITLE, title)
+            .putString(MediaMetadata.METADATA_KEY_ARTIST, artist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, album)
+        artworkBitmap?.let { bitmap ->
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
+            metadata.putBitmap(MediaMetadata.METADATA_KEY_ART, bitmap)
+        }
+        mediaSession.setMetadata(metadata.build())
         updateMediaSessionState()
     }
 
@@ -286,6 +305,8 @@ class MusicPlaybackService : Service() {
                     PlaybackState.ACTION_PLAY or
                         PlaybackState.ACTION_PAUSE or
                         PlaybackState.ACTION_PLAY_PAUSE or
+                        PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                        PlaybackState.ACTION_SKIP_TO_NEXT or
                         PlaybackState.ACTION_SEEK_TO or
                         PlaybackState.ACTION_STOP,
                 )
@@ -308,15 +329,27 @@ class MusicPlaybackService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val toggleIntent = PendingIntent.getService(
+        val previousIntent = PendingIntent.getService(
             this,
             1,
+            Intent(this, MusicPlaybackService::class.java).setAction(ACTION_PREVIOUS),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val toggleIntent = PendingIntent.getService(
+            this,
+            2,
             Intent(this, MusicPlaybackService::class.java).setAction(ACTION_TOGGLE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val nextIntent = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, MusicPlaybackService::class.java).setAction(ACTION_NEXT),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val stopIntent = PendingIntent.getService(
             this,
-            2,
+            4,
             Intent(this, MusicPlaybackService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -335,16 +368,19 @@ class MusicPlaybackService : Service() {
             .setOnlyAlertOnce(true)
             .setOngoing(playing || buffering)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setLargeIcon(artworkBitmap)
+            .addAction(android.R.drawable.ic_media_previous, "上一首", previousIntent)
             .addAction(
                 if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 if (playing) "暂停" else "播放",
                 toggleIntent,
             )
+            .addAction(android.R.drawable.ic_media_next, "下一首", nextIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "关闭", stopIntent)
             .setStyle(
                 Notification.MediaStyle()
                     .setMediaSession(mediaSession.sessionToken)
-                    .setShowActionsInCompactView(0, 1),
+                    .setShowActionsInCompactView(0, 1, 2),
             )
             .build()
         startForeground(NOTIFICATION_ID, notification)
@@ -387,6 +423,89 @@ class MusicPlaybackService : Service() {
         stateListener?.invoke(state)
     }
 
+    private fun requestPlaybackCommand(command: String) {
+        playbackCommandListener?.invoke(command)
+    }
+
+    private fun loadArtworkAsync(rawUri: String?, expectedTrackKey: String) {
+        val requestId = ++artworkRequestId
+        val value = rawUri?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        artworkExecutor.execute {
+            val bitmap = runCatching { loadArtwork(value) }.getOrNull() ?: return@execute
+            handler.post {
+                if (requestId != artworkRequestId || trackKey != expectedTrackKey) {
+                    return@post
+                }
+                artworkBitmap = constrainArtwork(bitmap)
+                updateMediaSessionMetadata()
+                updateNotification()
+            }
+        }
+    }
+
+    private fun loadArtwork(rawUri: String): Bitmap? {
+        val uri = Uri.parse(rawUri)
+        return when (uri.scheme?.lowercase()) {
+            "content" -> contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
+            "file" -> uri.path?.let(BitmapFactory::decodeFile)
+            "http", "https" -> loadRemoteArtwork(rawUri)
+            else -> null
+        }
+    }
+
+    private fun loadRemoteArtwork(rawUri: String): Bitmap? {
+        val directory = File(cacheDir, "music_artwork").apply { mkdirs() }
+        val cacheFile = File(directory, "${sha256(rawUri)}.img")
+        if (cacheFile.isFile && cacheFile.length() in 1..MAX_ARTWORK_BYTES) {
+            BitmapFactory.decodeFile(cacheFile.path)?.let { return it }
+        }
+        val connection = (URL(rawUri).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 12_000
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", BROWSER_USER_AGENT)
+            setRequestProperty("Accept", "image/*")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return null
+            val output = ByteArrayOutputStream()
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(16 * 1024)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > MAX_ARTWORK_BYTES) return null
+                    output.write(buffer, 0, count)
+                }
+            }
+            val bytes = output.toByteArray()
+            runCatching { cacheFile.writeBytes(bytes) }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun constrainArtwork(bitmap: Bitmap): Bitmap {
+        val largest = maxOf(bitmap.width, bitmap.height)
+        if (largest <= MAX_ARTWORK_EDGE) return bitmap
+        val scale = MAX_ARTWORK_EDGE.toFloat() / largest
+        return Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).toInt().coerceAtLeast(1),
+            (bitmap.height * scale).toInt().coerceAtLeast(1),
+            true,
+        )
+    }
+
+    private fun sha256(value: String): String {
+        return MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
+    }
+
     private fun safePosition(player: MediaPlayer?): Int {
         if (!prepared) return 0
         return player?.runCatching { currentPosition }?.getOrDefault(0) ?: 0
@@ -415,6 +534,8 @@ class MusicPlaybackService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(positionReporter)
+        artworkRequestId++
+        artworkExecutor.shutdownNow()
         releasePlayer()
         mediaSession.release()
         super.onDestroy()
@@ -425,6 +546,8 @@ class MusicPlaybackService : Service() {
         const val ACTION_RESUME = "lightly.music.RESUME"
         const val ACTION_PAUSE = "lightly.music.PAUSE"
         const val ACTION_TOGGLE = "lightly.music.TOGGLE"
+        const val ACTION_PREVIOUS = "lightly.music.PREVIOUS"
+        const val ACTION_NEXT = "lightly.music.NEXT"
         const val ACTION_STOP = "lightly.music.STOP"
         const val ACTION_SEEK = "lightly.music.SEEK"
         const val ACTION_SET_NOTIFICATION = "lightly.music.SET_NOTIFICATION"
@@ -433,6 +556,8 @@ class MusicPlaybackService : Service() {
         private const val LOG_TAG = "LightlyMusic"
         private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0"
+        private const val MAX_ARTWORK_BYTES = 5L * 1024L * 1024L
+        private const val MAX_ARTWORK_EDGE = 512
         private val stateLock = Any()
         private var lastState: Map<String, Any?> = mapOf(
             "trackKey" to "",
@@ -443,6 +568,7 @@ class MusicPlaybackService : Service() {
             "durationMs" to 0,
         )
         var stateListener: ((Map<String, Any?>) -> Unit)? = null
+        var playbackCommandListener: ((String) -> Unit)? = null
 
         fun currentState(): Map<String, Any?> = synchronized(stateLock) { lastState.toMap() }
 

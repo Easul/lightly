@@ -9,11 +9,13 @@ class MusicTrackTile extends StatelessWidget {
     required this.track,
     required this.onTap,
     required this.onFavorite,
+    this.isCurrent = false,
   });
 
   final MusicTrack track;
   final VoidCallback onTap;
   final VoidCallback onFavorite;
+  final bool isCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,10 @@ class MusicTrackTile extends StatelessWidget {
       MusicSourceType.online => Theme.of(context).colorScheme.secondary,
     };
     return ListTile(
+      selected: isCurrent,
+      selectedTileColor: Theme.of(
+        context,
+      ).colorScheme.primaryContainer.withValues(alpha: 0.35),
       onTap: onTap,
       leading: MusicTrackArtwork(track: track),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -52,17 +58,28 @@ class MusicTrackTile extends StatelessWidget {
           ],
         ],
       ),
-      trailing: IconButton(
-        tooltip: track.isFavorite ? '取消收藏' : '收藏',
-        onPressed: onFavorite,
-        icon: Icon(
-          track.isFavorite
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          color: track.isFavorite
-              ? Theme.of(context).colorScheme.primary
-              : null,
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCurrent)
+            Icon(
+              Icons.graphic_eq_rounded,
+              color: Theme.of(context).colorScheme.primary,
+              size: 20,
+            ),
+          IconButton(
+            tooltip: track.isFavorite ? '取消收藏' : '收藏',
+            onPressed: onFavorite,
+            icon: Icon(
+              track.isFavorite
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              color: track.isFavorite
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+          ),
+        ],
       ),
     );
   }

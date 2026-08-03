@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 
 typedef MusicPlaybackEventHandler = void Function(Map<Object?, Object?> event);
+typedef MusicPlaybackCommandHandler = void Function(String command);
 typedef ExternalMusicIntentHandler = void Function(Map<Object?, Object?> event);
 
 class MusicPlatformGateway {
@@ -14,6 +15,7 @@ class MusicPlatformGateway {
 
   void setHandlers({
     MusicPlaybackEventHandler? onPlaybackState,
+    MusicPlaybackCommandHandler? onPlaybackCommand,
     ExternalMusicIntentHandler? onExternalAudioIntent,
   }) {
     _channel.setMethodCallHandler((call) async {
@@ -21,6 +23,9 @@ class MusicPlatformGateway {
       if (arguments is! Map) return;
       if (call.method == 'onPlaybackState') {
         onPlaybackState?.call(arguments);
+      } else if (call.method == 'onPlaybackCommand') {
+        final command = arguments['command']?.toString();
+        if (command != null) onPlaybackCommand?.call(command);
       } else if (call.method == 'onExternalAudioIntent') {
         onExternalAudioIntent?.call(arguments);
       }

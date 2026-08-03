@@ -50,7 +50,18 @@ class MusicPlayerController extends ChangeNotifier {
   Future<void>? _initializationFuture;
   ExternalTrackOpened? _onExternalTrackOpened;
   MusicPlaybackMode _playbackMode = MusicPlaybackMode.listLoop;
+  String _searchKeyword = '';
+  List<MusicTrack> _searchResults = const <MusicTrack>[];
+  int _searchPage = 0;
+  int _searchTotal = 0;
+  bool _searching = false;
+  bool _searchHasMore = false;
+  String? _searchError;
+  int _searchRequestId = 0;
+  bool _playbackCommandInProgress = false;
   final Random _random = Random();
+  final ValueNotifier<int> _searchRevision = ValueNotifier<int>(0);
+  final ValueNotifier<String?> _activeTrackKey = ValueNotifier<String?>(null);
 
   MusicSettings get settings => _settings;
   MusicTrack? get currentTrack => _currentTrack;
@@ -62,6 +73,14 @@ class MusicPlayerController extends ChangeNotifier {
   MusicPlaybackMode get playbackMode => _playbackMode;
   bool get hasPrevious => _queue.length > 1;
   bool get hasNext => _queue.length > 1;
+  String get searchKeyword => _searchKeyword;
+  List<MusicTrack> get searchResults => _searchResults;
+  int get searchTotal => _searchTotal;
+  bool get isSearching => _searching;
+  bool get searchHasMore => _searchHasMore;
+  String? get searchError => _searchError;
+  ValueListenable<int> get searchChanges => _searchRevision;
+  ValueListenable<String?> get activeTrackKeyChanges => _activeTrackKey;
 
   String get playbackModeLabel => switch (_playbackMode) {
     MusicPlaybackMode.listLoop => '列表循环',
@@ -85,6 +104,8 @@ class MusicPlayerController extends ChangeNotifier {
     _initialized = true;
     _platform.setHandlers(
       onPlaybackState: _handlePlaybackState,
+      onPlaybackCommand: (command) =>
+          unawaited(_handlePlaybackCommand(command)),
       onExternalAudioIntent: (event) => unawaited(_handleExternalIntent(event)),
     );
     _settings = await _settingsStore.load();
@@ -93,7 +114,7 @@ class MusicPlayerController extends ChangeNotifier {
     _handlePlaybackState(state);
     final activeTrackKey = state['trackKey']?.toString() ?? '';
     if (activeTrackKey.isNotEmpty) {
-      _currentTrack = await _library.get(activeTrackKey);
+      _setCurrentTrack(await _library.get(activeTrackKey));
     }
     final pending = await _platform.getPendingAudioIntent();
     if (pending != null && pending.isNotEmpty) {
@@ -116,22 +137,114 @@ class MusicPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<MusicSearchPage> search(String keyword, int page) {
-    return _searchAfterInitialization(keyword, page);
+  Future<void> search(String keyword) async {
+    final normalized = keyword.trim();
+    if (normalized.isEmpty) return;
+    final requestId = ++_searchRequestId;
+    _searchKeyword = normalized;
+    _searchResults = const <MusicTrack>[];
+    _searchPage = 0;
+    _searchTotal = 0;
+    _searchHasMore = true;
+    _searchError = null;
+    _searching = true;
+    _notifySearchChanged();
+    try {
+      await _loadSearchPage(requestId: requestId, page: 1, append: false);
+    } catch (error) {
+      if (requestId == _searchRequestId) {
+        _searchError = '$error';
+      }
+      rethrow;
+    } finally {
+      if (requestId == _searchRequestId) {
+        _searching = false;
+        _notifySearchChanged();
+      }
+    }
   }
 
-  Future<MusicSearchPage> _searchAfterInitialization(
-    String keyword,
-    int page,
-  ) async {
+  Future<void> loadMoreSearchResults() async {
+    if (_searching || !_searchHasMore || _searchKeyword.isEmpty) return;
+    final requestId = _searchRequestId;
+    _searching = true;
+    _searchError = null;
+    _notifySearchChanged();
+    try {
+      await _loadSearchPage(
+        requestId: requestId,
+        page: _searchPage + 1,
+        append: true,
+      );
+    } catch (error) {
+      if (requestId == _searchRequestId) {
+        _searchError = '$error';
+      }
+      rethrow;
+    } finally {
+      if (requestId == _searchRequestId) {
+        _searching = false;
+        _notifySearchChanged();
+      }
+    }
+  }
+
+  Future<void> _loadSearchPage({
+    required int requestId,
+    required int page,
+    required bool append,
+  }) async {
     await initialize();
     _requireApiConfiguration();
-    return _api.search(
+    final result = await _api.search(
       apiBaseUrl: _settings.apiBaseUrl,
-      keyword: keyword,
+      keyword: _searchKeyword,
       page: page,
       apiKey: _settings.apiKey,
     );
+    final tracks = await Future.wait(
+      result.tracks.map(
+        (track) async => await _library.get(track.trackKey) ?? track,
+      ),
+    );
+    if (requestId != _searchRequestId) return;
+    final merged = append ? <MusicTrack>[..._searchResults, ...tracks] : tracks;
+    _searchResults = List<MusicTrack>.unmodifiable(
+      <String, MusicTrack>{
+        for (final track in merged) track.trackKey: track,
+      }.values,
+    );
+    _searchPage = page;
+    _searchTotal = result.total;
+    _searchHasMore = result.hasMore;
+    updateActiveQueue(_searchResults);
+    _notifySearchChanged();
+  }
+
+  void clearSearch() {
+    _searchRequestId++;
+    _searchKeyword = '';
+    _searchResults = const <MusicTrack>[];
+    _searchPage = 0;
+    _searchTotal = 0;
+    _searchHasMore = false;
+    _searchError = null;
+    _searching = false;
+    _notifySearchChanged();
+  }
+
+  void updateActiveQueue(List<MusicTrack> tracks) {
+    final currentKey = _currentTrack?.trackKey;
+    if (currentKey == null ||
+        !_queue.any((track) => track.trackKey == currentKey)) {
+      return;
+    }
+    final nextIndex = tracks.indexWhere(
+      (track) => track.trackKey == currentKey,
+    );
+    if (nextIndex < 0) return;
+    _queue = List<MusicTrack>.unmodifiable(tracks);
+    _queueIndex = nextIndex;
   }
 
   Future<void> playTrack(MusicTrack track, {List<MusicTrack>? queue}) async {
@@ -148,14 +261,16 @@ class MusicPlayerController extends ChangeNotifier {
       _queueIndex = 0;
     }
     _buffering = true;
-    _currentTrack = track;
+    _setCurrentTrack(track);
     notifyListeners();
     try {
       var playable = await ensurePlayable(track);
       playable = await _library.save(
         playable.copyWith(lastPlayedAt: DateTime.now()),
       );
-      _currentTrack = playable;
+      _setCurrentTrack(playable);
+      _replaceQueuedTrack(playable);
+      _replaceSearchTrack(playable);
       await _platform.play(
         uri: playable.sourceUri,
         trackKey: playable.trackKey,
@@ -225,7 +340,7 @@ class MusicPlayerController extends ChangeNotifier {
     await _platform.stop();
     _playing = false;
     _position = Duration.zero;
-    _currentTrack = null;
+    _setCurrentTrack(null);
     _queue = const <MusicTrack>[];
     _queueIndex = -1;
     notifyListeners();
@@ -299,14 +414,16 @@ class MusicPlayerController extends ChangeNotifier {
   void replaceCurrentTrack(MusicTrack track) => _replaceCurrent(track);
 
   void _replaceCurrent(MusicTrack track) {
-    if (_currentTrack?.trackKey == track.trackKey) _currentTrack = track;
+    if (_currentTrack?.trackKey == track.trackKey) _setCurrentTrack(track);
+    _replaceQueuedTrack(track);
+    _replaceSearchTrack(track);
     notifyListeners();
   }
 
   void _handlePlaybackState(Map<Object?, Object?> state) {
     if (state.containsKey('trackKey') &&
         (state['trackKey']?.toString() ?? '').isEmpty) {
-      _currentTrack = null;
+      _setCurrentTrack(null);
       _queue = const <MusicTrack>[];
       _queueIndex = -1;
     }
@@ -325,6 +442,20 @@ class MusicPlayerController extends ChangeNotifier {
     } else if (_queue.isNotEmpty && !_completionAdvanceInProgress) {
       _completionAdvanceInProgress = true;
       unawaited(_advanceAfterCompletion());
+    }
+  }
+
+  Future<void> _handlePlaybackCommand(String command) async {
+    if (_playbackCommandInProgress) return;
+    _playbackCommandInProgress = true;
+    try {
+      if (command == 'previous' && hasPrevious) {
+        await previous();
+      } else if (command == 'next' && hasNext) {
+        await next();
+      }
+    } finally {
+      _playbackCommandInProgress = false;
     }
   }
 
@@ -357,5 +488,38 @@ class MusicPlayerController extends ChangeNotifier {
     if (_settings.apiKey.trim().isEmpty) {
       throw StateError('请先在音乐设置中填写 API Key');
     }
+  }
+
+  void _setCurrentTrack(MusicTrack? track) {
+    _currentTrack = track;
+    final key = track?.trackKey;
+    if (_activeTrackKey.value != key) _activeTrackKey.value = key;
+  }
+
+  void _replaceQueuedTrack(MusicTrack track) {
+    final index = _queue.indexWhere((item) => item.trackKey == track.trackKey);
+    if (index < 0) return;
+    final updated = _queue.toList(growable: false);
+    updated[index] = track;
+    _queue = List<MusicTrack>.unmodifiable(updated);
+  }
+
+  void _replaceSearchTrack(MusicTrack track) {
+    if (!_searchResults.any((item) => item.trackKey == track.trackKey)) return;
+    _searchResults = _searchResults
+        .map((item) => item.trackKey == track.trackKey ? track : item)
+        .toList(growable: false);
+    _notifySearchChanged();
+  }
+
+  void _notifySearchChanged() {
+    _searchRevision.value++;
+  }
+
+  @override
+  void dispose() {
+    _searchRevision.dispose();
+    _activeTrackKey.dispose();
+    super.dispose();
   }
 }

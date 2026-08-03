@@ -35,6 +35,11 @@ class MusicPlayerChannelHandler(
                 channel?.invokeMethod("onPlaybackState", state)
             }
         }
+        MusicPlaybackService.playbackCommandListener = { command ->
+            activity.runOnUiThread {
+                channel?.invokeMethod("onPlaybackCommand", mapOf("command" to command))
+            }
+        }
     }
 
     fun publishExternalAudioIntent(uri: String, mimeType: String?, intentFlags: Int) {
@@ -104,6 +109,7 @@ class MusicPlayerChannelHandler(
         pendingDeleteResult = null
         pendingDeleteUri = null
         MusicPlaybackService.stateListener = null
+        MusicPlaybackService.playbackCommandListener = null
         channel?.setMethodCallHandler(null)
         channel = null
     }
@@ -265,7 +271,10 @@ class MusicPlayerChannelHandler(
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.DISPLAY_NAME,
             )
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                projection.add(MediaStore.MediaColumns.RELATIVE_PATH)
+                projection.add(MediaStore.MediaColumns.VOLUME_NAME)
+            } else {
                 projection.add(MediaStore.Audio.Media.DATA)
             }
             val songs = mutableListOf<Map<String, Any?>>()
@@ -284,9 +293,28 @@ class MusicPlayerChannelHandler(
                 val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                 val dataColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                val relativePathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+                } else {
+                    -1
+                }
+                val volumeNameColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+                } else {
+                    -1
+                }
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
                     val albumId = cursor.getLong(albumIdColumn)
+                    val displayName = cursor.getString(nameColumn)
+                    val displayPath = buildDisplayPath(
+                        dataPath = dataColumn.takeIf { it >= 0 }?.let(cursor::getString),
+                        relativePath = relativePathColumn.takeIf { it >= 0 }
+                            ?.let(cursor::getString),
+                        volumeName = volumeNameColumn.takeIf { it >= 0 }
+                            ?.let(cursor::getString),
+                        displayName = displayName,
+                    )
                     songs.add(
                         mapOf(
                             "id" to id,
@@ -299,8 +327,8 @@ class MusicPlayerChannelHandler(
                             "album" to cleanUnknown(cursor.getString(albumColumn), "未知专辑"),
                             "artworkUri" to "content://media/external/audio/albumart/$albumId",
                             "durationMs" to cursor.getLong(durationColumn),
-                            "displayName" to cursor.getString(nameColumn),
-                            "path" to if (dataColumn >= 0) cursor.getString(dataColumn) else null,
+                            "displayName" to displayName,
+                            "path" to displayPath,
                         ),
                     )
                 }
@@ -343,12 +371,42 @@ class MusicPlayerChannelHandler(
                 if (albumId != null) {
                     values["artworkUri"] = "content://media/external/audio/albumart/$albumId"
                 }
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    values["path"] = read(MediaStore.Audio.Media.DATA)
-                }
+                values["path"] = buildDisplayPath(
+                    dataPath = read(MediaStore.Audio.Media.DATA),
+                    relativePath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        read(MediaStore.MediaColumns.RELATIVE_PATH)
+                    } else {
+                        null
+                    },
+                    volumeName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        read(MediaStore.MediaColumns.VOLUME_NAME)
+                    } else {
+                        null
+                    },
+                    displayName = values["displayName"]?.toString(),
+                )
             }
         }
         return values
+    }
+
+    private fun buildDisplayPath(
+        dataPath: String?,
+        relativePath: String?,
+        volumeName: String?,
+        displayName: String?,
+    ): String? {
+        dataPath?.trim()?.takeIf { it.startsWith("/storage/") }?.let { return it }
+        val relative = relativePath?.trim('/')?.takeIf { it.isNotEmpty() } ?: return null
+        val name = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val root = when {
+            volumeName.isNullOrBlank() || volumeName == MediaStore.VOLUME_EXTERNAL_PRIMARY -> {
+                "/storage/emulated/0"
+            }
+            volumeName == MediaStore.VOLUME_EXTERNAL -> return null
+            else -> "/storage/$volumeName"
+        }
+        return "$root/$relative/$name".replace(Regex("/{2,}"), "/")
     }
 
     private fun requestAudioPermission(result: MethodChannel.Result) {

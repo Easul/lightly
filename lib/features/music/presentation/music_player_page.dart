@@ -5,12 +5,13 @@ import 'package:flutter/material.dart';
 import '../../../services/app_toast.dart';
 import '../application/music_player_controller.dart';
 import '../domain/music_track.dart';
-import '../infrastructure/music_api_client.dart';
 import '../infrastructure/music_library_store.dart';
 import '../infrastructure/music_platform_gateway.dart';
+import 'music_downloads_page.dart';
 import 'music_player_dialogs.dart';
 import 'music_track_page.dart';
 import 'widgets/music_library_widgets.dart';
+import 'widgets/music_online_search_view.dart';
 import 'widgets/music_track_tile.dart';
 
 class MusicPlayerPage extends StatefulWidget {
@@ -21,26 +22,17 @@ class MusicPlayerPage extends StatefulWidget {
 }
 
 class _MusicPlayerPageState extends State<MusicPlayerPage> {
-  static const double _miniPlayerClearance = 120;
   final MusicPlayerController _player = MusicPlayerController.instance;
   final MusicLibraryStore _library = MusicLibraryStore.instance;
   final MusicPlatformGateway _platform = MusicPlatformGateway.instance;
-  final TextEditingController _searchController = TextEditingController();
 
   List<MusicTrack> _localTracks = const <MusicTrack>[];
   List<MusicTrack> _downloadedTracks = const <MusicTrack>[];
   List<MusicTrack> _favorites = const <MusicTrack>[];
-  List<MusicTrack> _searchResults = const <MusicTrack>[];
   List<String> _groups = const <String>[];
   String? _selectedGroup;
-  int _searchPage = 1;
-  int _searchTotal = 0;
   bool _loadingLibrary = true;
-  bool _searching = false;
-  String? _searchError;
   bool _scanning = false;
-
-  int get _pageCount => (_searchTotal / MusicApiClient.searchLimit).ceil();
 
   @override
   void initState() {
@@ -56,12 +48,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         unawaited(_openTrack(current));
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   Future<void> _reloadLibrary() async {
@@ -106,37 +92,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     }
   }
 
-  Future<void> _search({int page = 1}) async {
-    final keyword = _searchController.text.trim();
-    if (keyword.isEmpty) return;
-    FocusScope.of(context).unfocus();
-    debugPrint('[MusicSearch] submit hasKeyword=true page=$page');
-    setState(() {
-      _searching = true;
-      _searchError = null;
-    });
-    try {
-      final result = await _player.search(keyword, page);
-      final tracks = await Future.wait(
-        result.tracks.map(
-          (track) async => await _library.get(track.trackKey) ?? track,
-        ),
-      );
-      if (!mounted) return;
-      setState(() {
-        _searchResults = tracks;
-        _searchTotal = result.total;
-        _searchPage = page;
-      });
-    } catch (error) {
-      debugPrint('[MusicSearch] failure type=${error.runtimeType}');
-      if (mounted) setState(() => _searchError = '$error');
-      _toast('$error');
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
-  }
-
   Future<void> _openTrack(MusicTrack track, {List<MusicTrack>? queue}) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -152,7 +107,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       setState(() {
         _localTracks = _replace(_localTracks, updated);
         _downloadedTracks = _replace(_downloadedTracks, updated);
-        _searchResults = _replace(_searchResults, updated);
       });
       await _reloadLibrary();
     } catch (error) {
@@ -169,6 +123,13 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     _toast('音乐设置已保存');
   }
 
+  Future<void> _showDownloads() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const MusicDownloadsPage()));
+    await _reloadLibrary();
+  }
+
   void _toast(String message) => unawaited(AppToast.show(message));
 
   @override
@@ -179,10 +140,28 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         appBar: AppBar(
           title: const Text('音乐'),
           actions: [
-            IconButton(
-              tooltip: '音乐设置',
-              onPressed: () => unawaited(_showSettings()),
-              icon: const Icon(Icons.tune_rounded),
+            PopupMenuButton<String>(
+              tooltip: '音乐菜单',
+              onSelected: (value) {
+                if (value == 'downloads') unawaited(_showDownloads());
+                if (value == 'settings') unawaited(_showSettings());
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'downloads',
+                  child: ListTile(
+                    leading: Icon(Icons.download_done_rounded),
+                    title: Text('下载记录'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'settings',
+                  child: ListTile(
+                    leading: Icon(Icons.tune_rounded),
+                    title: Text('音乐设置'),
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: const TabBar(
@@ -196,12 +175,22 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         body: Column(
           children: [
             Expanded(
-              child: TabBarView(
-                children: [
-                  _buildLocalTab(),
-                  _buildSearchTab(),
-                  _buildFavoritesTab(),
-                ],
+              child: AnimatedBuilder(
+                animation: _player.activeTrackKeyChanges,
+                builder: (context, _) => TabBarView(
+                  children: [
+                    _buildLocalTab(),
+                    MusicOnlineSearchView(
+                      player: _player,
+                      bottomPadding: _musicListPadding(context).bottom,
+                      onOpenTrack: (track, queue) =>
+                          _openTrack(track, queue: queue),
+                      onToggleFavorite: _toggleFavorite,
+                      onError: _toast,
+                    ),
+                    _buildFavoritesTab(),
+                  ],
+                ),
               ),
             ),
             MusicMiniPlayer(player: _player, onTap: _openTrack),
@@ -272,82 +261,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     );
   }
 
-  Widget _buildSearchTab() {
-    return ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: _musicListPadding(context),
-      children: [
-        TextField(
-          controller: _searchController,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (_) => unawaited(_search()),
-          decoration: InputDecoration(
-            hintText: '歌曲、歌手或专辑',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: IconButton(
-              tooltip: '搜索',
-              onPressed: _searching ? null : () => unawaited(_search()),
-              icon: _searching
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.arrow_forward_rounded),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (_searchError != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              _searchError!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        if (_searchResults.isEmpty && !_searching)
-          const MusicEmptyState(
-            icon: Icons.travel_explore_rounded,
-            label: '搜索在线歌曲',
-          )
-        else
-          ..._searchResults.map(
-            (track) => _trackTile(track, queue: _searchResults),
-          ),
-        if (_searchResults.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  tooltip: '上一页',
-                  onPressed: _searching || _searchPage <= 1
-                      ? null
-                      : () => unawaited(_search(page: _searchPage - 1)),
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                SizedBox(
-                  width: 88,
-                  child: Text(
-                    '$_searchPage / ${_pageCount.clamp(1, 9999)}',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '下一页',
-                  onPressed: _searching || _searchPage >= _pageCount
-                      ? null
-                      : () => unawaited(_search(page: _searchPage + 1)),
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildFavoritesTab() {
     final filtered = _filterGroup(_favorites);
     return ListView(
@@ -403,6 +316,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       MusicTrackTile(
         key: ValueKey(track.trackKey),
         track: track,
+        isCurrent: _player.currentTrack?.trackKey == track.trackKey,
         onTap: () => unawaited(_openTrack(track, queue: queue)),
         onFavorite: () => unawaited(_toggleFavorite(track)),
       );
@@ -412,7 +326,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       12,
       12,
       12,
-      _miniPlayerClearance + MediaQuery.viewPaddingOf(context).bottom,
+      12 + MediaQuery.viewPaddingOf(context).bottom,
     );
   }
 }

@@ -22,6 +22,7 @@ class MusicDownloadService {
     MusicTrack track, {
     required bool preferSharedDownloads,
     required bool requestSharedAccessIfNeeded,
+    void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) async {
     final directory = await _downloadsAccess.resolveDirectory(
       preferSharedDownloads: preferSharedDownloads,
@@ -44,14 +45,30 @@ class MusicDownloadService {
     final extension = _extensionFor(track.sourceUri, response.headers);
     final baseName = _sanitizeFileName('${track.artist} - ${track.title}');
     final output = await _uniqueFile(directory, '$baseName$extension');
-    final sink = output.openWrite();
+    final file = await output.open(mode: FileMode.write);
+    var receivedBytes = 0;
+    final totalBytes = response.contentLength;
+    final progressClock = Stopwatch()..start();
     try {
-      await response.stream.timeout(const Duration(seconds: 30)).pipe(sink);
+      await for (final chunk in response.stream.timeout(
+        const Duration(seconds: 30),
+      )) {
+        await file.writeFrom(chunk);
+        receivedBytes += chunk.length;
+        if (progressClock.elapsedMilliseconds >= 180 ||
+            (totalBytes != null && receivedBytes >= totalBytes)) {
+          onProgress?.call(receivedBytes, totalBytes);
+          progressClock.reset();
+        }
+      }
+      await file.flush();
+      onProgress?.call(receivedBytes, totalBytes);
     } catch (_) {
-      await sink.close();
+      await file.close();
       if (await output.exists()) await output.delete();
       rethrow;
     }
+    await file.close();
     await MediaScannerService.scanFile(output.path);
     return track.copyWith(
       sourceUri: output.uri.toString(),

@@ -73,6 +73,20 @@ void main() {
     expect((await received.future)['playing'], isTrue);
   });
 
+  test('maps lock-screen previous and next commands', () async {
+    final received = Completer<String>();
+    gateway.setHandlers(onPlaybackCommand: received.complete);
+    final message = const StandardMethodCodec().encodeMethodCall(
+      const MethodCall('onPlaybackCommand', <String, Object?>{
+        'command': 'next',
+      }),
+    );
+    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .handlePlatformMessage(channel.name, message, (_) {});
+
+    expect(await received.future, 'next');
+  });
+
   test('maps local audio deletion to the Android contract', () async {
     final deleted = await gateway.deleteLocalAudio('content://song/1');
 
