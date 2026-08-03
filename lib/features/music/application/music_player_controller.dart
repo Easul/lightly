@@ -39,6 +39,7 @@ class MusicPlayerController extends ChangeNotifier {
   );
   MusicTrack? _currentTrack;
   List<MusicTrack> _queue = const <MusicTrack>[];
+  List<MusicTrack> _downloadedQueue = const <MusicTrack>[];
   int _queueIndex = -1;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -65,6 +66,7 @@ class MusicPlayerController extends ChangeNotifier {
 
   MusicSettings get settings => _settings;
   MusicTrack? get currentTrack => _currentTrack;
+  List<MusicTrack> get downloadedQueue => _downloadedQueue;
   Duration get position => _position;
   Duration get duration => _duration;
   bool get isPlaying => _playing;
@@ -110,6 +112,7 @@ class MusicPlayerController extends ChangeNotifier {
     );
     _settings = await _settingsStore.load();
     await _platform.setNotificationEnabled(_settings.notificationEnabled);
+    _downloadedQueue = await _buildDownloadedQueue();
     final state = await _platform.getState();
     _handlePlaybackState(state);
     final activeTrackKey = state['trackKey']?.toString() ?? '';
@@ -202,11 +205,7 @@ class MusicPlayerController extends ChangeNotifier {
       page: page,
       apiKey: _settings.apiKey,
     );
-    final tracks = await Future.wait(
-      result.tracks.map(
-        (track) async => await _library.get(track.trackKey) ?? track,
-      ),
-    );
+    final tracks = result.tracks;
     if (requestId != _searchRequestId) return;
     final merged = append ? <MusicTrack>[..._searchResults, ...tracks] : tracks;
     _searchResults = List<MusicTrack>.unmodifiable(
@@ -261,13 +260,22 @@ class MusicPlayerController extends ChangeNotifier {
       _queueIndex = 0;
     }
     _buffering = true;
-    _setCurrentTrack(track);
+    final isLocalDevice =
+        track.sourceType == MusicSourceType.local && track.localPath != null;
+    if (!isLocalDevice) {
+      _setCurrentTrack(track);
+    }
     notifyListeners();
     try {
       var playable = await ensurePlayable(track);
-      playable = await _library.save(
-        playable.copyWith(lastPlayedAt: DateTime.now()),
-      );
+      if (isLocalDevice) {
+        playable = playable.copyWith(lastPlayedAt: DateTime.now());
+      } else {
+        playable = await _library.save(
+          playable.copyWith(lastPlayedAt: DateTime.now()),
+        );
+      }
+      _replaceDownloadedQueueTrack(playable);
       _setCurrentTrack(playable);
       _replaceQueuedTrack(playable);
       _replaceSearchTrack(playable);
@@ -288,6 +296,15 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<MusicTrack> ensurePlayable(MusicTrack track) async {
     await initialize();
+    if (!track.isRemote &&
+        track.localPath != null &&
+        track.sourceUri.startsWith('file://')) {
+      final contentUri = await _resolveMediaStoreUri(track.localPath!);
+      if (contentUri != null && contentUri != track.sourceUri) {
+        return track.copyWith(sourceUri: contentUri);
+      }
+      return track;
+    }
     if (!track.isRemote ||
         (track.sourceType != MusicSourceType.online &&
             track.sourceUri.trim().isNotEmpty)) {
@@ -302,10 +319,27 @@ class MusicPlayerController extends ChangeNotifier {
     );
   }
 
+  Future<String?> _resolveMediaStoreUri(String path) async {
+    try {
+      await _platform.markLocalTrackPlayed(path);
+      final metadata = await _platform.resolveLocalMetadata(path);
+      final uri = metadata?['uri']?.toString().trim();
+      if (uri == null || uri.isEmpty) return null;
+      return uri;
+    } on Object catch (error) {
+      debugPrint('[Music] resolve MediaStore uri failed: $error');
+      return null;
+    }
+  }
+
   Future<MusicTrack> ensureLyrics(MusicTrack track) async {
     await initialize();
-    final stored = await _library.get(track.trackKey) ?? track;
-    if ((stored.lyric?.isNotEmpty ?? false) || !stored.isRemote) return stored;
+    final stored = track.lyric != null
+        ? track
+        : await _library.get(track.trackKey) ?? track;
+    if ((stored.lyric?.isNotEmpty ?? false) || !stored.isRemote) {
+      return stored;
+    }
     _requireApiConfiguration();
     final lyrics = await _api.lyrics(
       apiBaseUrl: _settings.apiBaseUrl,
@@ -344,6 +378,11 @@ class MusicPlayerController extends ChangeNotifier {
     _queue = const <MusicTrack>[];
     _queueIndex = -1;
     notifyListeners();
+  }
+
+  void detachQueue() {
+    _queue = const <MusicTrack>[];
+    _queueIndex = -1;
   }
 
   void cyclePlaybackMode() {
@@ -417,7 +456,64 @@ class MusicPlayerController extends ChangeNotifier {
     if (_currentTrack?.trackKey == track.trackKey) _setCurrentTrack(track);
     _replaceQueuedTrack(track);
     _replaceSearchTrack(track);
+    _replaceDownloadedQueueTrack(track);
     notifyListeners();
+  }
+
+  Future<void> registerDownloadedTrack(MusicTrack track) async {
+    final stored = await _library.get(track.trackKey);
+    if (stored != null &&
+        stored.lyric == null &&
+        track.lyric != null &&
+        stored.sourceUri != track.sourceUri) {
+      final pruned = stored.copyWith(lyric: '', translatedLyric: '');
+      await _library.save(pruned);
+      _replaceDownloadedQueueTrack(pruned);
+    } else {
+      _replaceDownloadedQueueTrack(stored ?? track);
+    }
+    notifyListeners();
+  }
+
+  Future<List<MusicTrack>> _buildDownloadedQueue() async {
+    final downloaded = await _library.list(
+      sourceType: MusicSourceType.downloaded,
+    );
+    downloaded.sort(
+      (a, b) =>
+          (b.updatedAt ?? DateTime(0)).compareTo(a.updatedAt ?? DateTime(0)),
+    );
+    final seenPaths = <String>{};
+    final queue = <MusicTrack>[];
+    for (final track in downloaded) {
+      final path = track.localPath;
+      if (path == null || !seenPaths.add(path)) continue;
+      final localKey = 'local:$path';
+      final scanned = await _library.get(localKey);
+      queue.add(
+        scanned?.copyWith(
+              lyric: track.lyric,
+              translatedLyric: track.translatedLyric,
+              artworkUrl: track.artworkUrl ?? scanned.artworkUrl,
+            ) ??
+            track,
+      );
+    }
+    return List<MusicTrack>.unmodifiable(queue);
+  }
+
+  void _replaceDownloadedQueueTrack(MusicTrack track) {
+    final path = track.localPath;
+    if (path == null) return;
+    final index = _downloadedQueue.indexWhere((item) => item.localPath == path);
+    if (index < 0) return;
+    final updated = _downloadedQueue.toList(growable: false);
+    final existing = updated[index];
+    updated[index] = track.copyWith(
+      lyric: existing.lyric ?? track.lyric,
+      translatedLyric: existing.translatedLyric ?? track.translatedLyric,
+    );
+    _downloadedQueue = List<MusicTrack>.unmodifiable(updated);
   }
 
   void _handlePlaybackState(Map<Object?, Object?> state) {
@@ -446,7 +542,7 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> _handlePlaybackCommand(String command) async {
-    if (_playbackCommandInProgress) return;
+    if (_playbackCommandInProgress || _queue.isEmpty) return;
     _playbackCommandInProgress = true;
     try {
       if (command == 'previous' && hasPrevious) {
@@ -472,6 +568,14 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<void> _handleExternalIntent(Map<Object?, Object?> event) async {
     final track = MusicTrack.fromPlatformMap(event);
+    final path = track.localPath;
+    if (track.sourceType == MusicSourceType.local &&
+        path != null &&
+        path.isNotEmpty) {
+      await playTrack(track);
+      await _onExternalTrackOpened?.call(track);
+      return;
+    }
     final saved = await _library.save(track);
     await playTrack(saved);
     await _onExternalTrackOpened?.call(saved);

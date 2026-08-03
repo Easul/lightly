@@ -13,7 +13,6 @@ class MusicOnlineSearchView extends StatefulWidget {
     required this.player,
     required this.bottomPadding,
     required this.onOpenTrack,
-    required this.onToggleFavorite,
     required this.onError,
   });
 
@@ -21,7 +20,6 @@ class MusicOnlineSearchView extends StatefulWidget {
   final double bottomPadding;
   final Future<void> Function(MusicTrack track, List<MusicTrack> queue)
   onOpenTrack;
-  final Future<void> Function(MusicTrack track) onToggleFavorite;
   final ValueChanged<String> onError;
 
   @override
@@ -187,7 +185,6 @@ class _MusicOnlineSearchViewState extends State<MusicOnlineSearchView> {
                     isCurrent:
                         widget.player.currentTrack?.trackKey == track.trackKey,
                     onTap: () => unawaited(widget.onOpenTrack(track, tracks)),
-                    onFavorite: () => unawaited(widget.onToggleFavorite(track)),
                   );
                 },
               );

@@ -17,10 +17,16 @@ import 'widgets/music_track_artwork.dart';
 import 'widgets/music_track_metadata.dart';
 
 class MusicTrackPage extends StatefulWidget {
-  const MusicTrackPage({super.key, required this.track, this.queue});
+  const MusicTrackPage({
+    super.key,
+    required this.track,
+    this.queue,
+    this.leavePlayerQueueOnExit = false,
+  });
 
   final MusicTrack track;
   final List<MusicTrack>? queue;
+  final bool leavePlayerQueueOnExit;
 
   @override
   State<MusicTrackPage> createState() => _MusicTrackPageState();
@@ -66,6 +72,9 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   @override
   void dispose() {
     _player.removeListener(_handlePlayerChanged);
+    if (widget.leavePlayerQueueOnExit) {
+      _player.detachQueue();
+    }
     _rotation.dispose();
     _lyricScrollController.dispose();
     super.dispose();
@@ -173,6 +182,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   }
 
   Future<void> _toggleFavorite() async {
+    if (_track.isRemote) return;
     try {
       _track = await _player.setFavorite(_track, !_track.isFavorite);
       if (mounted) setState(() {});
@@ -255,7 +265,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
         },
       );
       _track = await _library.save(playable);
-      _player.replaceCurrentTrack(_track);
+      await _player.registerDownloadedTrack(_track);
       if (mounted) setState(() {});
       _toast('歌曲已保存到 ${_track.localPath}');
     } catch (error) {
@@ -283,15 +293,16 @@ class _MusicTrackPageState extends State<MusicTrackPage>
       appBar: AppBar(
         title: const Text('正在播放'),
         actions: [
-          IconButton(
-            tooltip: _track.isFavorite ? '取消收藏' : '收藏',
-            onPressed: () => unawaited(_toggleFavorite()),
-            icon: Icon(
-              _track.isFavorite
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
+          if (!_track.isRemote)
+            IconButton(
+              tooltip: _track.isFavorite ? '取消收藏' : '收藏',
+              onPressed: () => unawaited(_toggleFavorite()),
+              icon: Icon(
+                _track.isFavorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+              ),
             ),
-          ),
           AnimatedBuilder(
             animation: _player,
             builder: (context, _) => IconButton(
@@ -430,6 +441,20 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                         tooltip: _isCurrent && _player.isPlaying ? '暂停' : '播放',
                         onPressed: () => unawaited(_playOrPause()),
                         iconSize: 30,
+                        style: IconButton.styleFrom(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.30),
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          disabledBackgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          disabledForegroundColor: Theme.of(
+                            context,
+                          ).colorScheme.outline,
+                        ),
                         icon: Icon(
                           _isCurrent && _player.isPlaying
                               ? Icons.pause_rounded

@@ -313,6 +313,71 @@ void main() {
       expect(await store.get(track.trackKey), isNull);
     });
 
+    test('merges downloaded tracks with scanned device rows', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      const channel = MethodChannel('music_downloaded_queue_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            if (call.method == 'resolveLocalMetadata') {
+              return <String, Object?>{
+                'uri': 'content://media/external/audio/media/11',
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      const downloaded = MusicTrack(
+        trackKey: 'online:55',
+        remoteId: '55',
+        title: '下载歌曲',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file:///storage/emulated/0/Download/music/a.mp3',
+        localPath: '/storage/emulated/0/Download/music/a.mp3',
+        sourceType: MusicSourceType.downloaded,
+        lyric: '[00:01.00]下载歌词',
+        artworkUrl: 'https://image.test/cover.jpg',
+      );
+      const scanned = MusicTrack(
+        trackKey: 'local:/storage/emulated/0/Download/music/a.mp3',
+        title: '扫描标题',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://media/external/audio/media/11',
+        localPath: '/storage/emulated/0/Download/music/a.mp3',
+        sourceType: MusicSourceType.local,
+      );
+      await store.save(downloaded);
+      await store.save(scanned);
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        library: store,
+      );
+
+      await controller.initialize();
+
+      expect(controller.downloadedQueue, hasLength(1));
+      final merged = controller.downloadedQueue.single;
+      expect(merged.trackKey, scanned.trackKey);
+      expect(merged.lyric, downloaded.lyric);
+      expect(merged.artworkUrl, downloaded.artworkUrl);
+
+      await controller.playTrack(merged);
+
+      expect(controller.currentTrack?.trackKey, scanned.trackKey);
+      expect(await store.get('online:55'), isNotNull);
+    });
+
     test('cycles within the current queue for all playback modes', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       const channel = MethodChannel('music_mode_test');

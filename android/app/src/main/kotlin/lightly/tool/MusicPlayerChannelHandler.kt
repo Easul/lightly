@@ -117,6 +117,8 @@ class MusicPlayerChannelHandler(
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "scanLocalMusic" -> scanLocalMusic(result)
+            "markLocalTrackPlayed" -> markLocalTrackPlayed(call, result)
+            "resolveLocalMetadata" -> resolveLocalMetadata(call, result)
             "deleteLocalAudio" -> deleteLocalAudio(call, result)
             "hasAudioPermission" -> result.success(hasAudioPermission())
             "requestAudioPermission" -> requestAudioPermission(result)
@@ -254,6 +256,72 @@ class MusicPlayerChannelHandler(
         }
         MusicPlaybackService.dispatch(activity, intent)
         result.success(null)
+    }
+
+    private fun markLocalTrackPlayed(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")?.trim().orEmpty()
+        if (path.isEmpty()) {
+            result.error("INVALID_PATH", "Audio path is empty", null)
+            return
+        }
+        if (!hasAudioPermission()) {
+            result.success(null)
+            return
+        }
+        try {
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Audio.Media.DATE_MODIFIED, System.currentTimeMillis() / 1000L)
+            }
+            activity.contentResolver.update(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                values,
+                "${MediaStore.Audio.Media.DATA} = ?",
+                arrayOf(path),
+            )
+            result.success(null)
+        } catch (error: Exception) {
+            result.success(null)
+        }
+    }
+
+    private fun resolveLocalMetadata(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")?.trim().orEmpty()
+        if (path.isEmpty()) {
+            result.error("INVALID_PATH", "Audio path is empty", null)
+            return
+        }
+        if (!hasAudioPermission()) {
+            result.success(null)
+            return
+        }
+        try {
+            val metadata = activity.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.DURATION,
+                ),
+                "${MediaStore.Audio.Media.DATA} = ?",
+                arrayOf(path),
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val id = cursor.getLong(0)
+                val albumId = cursor.getLong(1)
+                mapOf<String, Any?>(
+                    "uri" to ContentUris.withAppendedId(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        id,
+                    ).toString(),
+                    "artworkUri" to "content://media/external/audio/albumart/$albumId",
+                    "durationMs" to cursor.getLong(2),
+                )
+            }
+            result.success(metadata)
+        } catch (error: Exception) {
+            result.success(null)
+        }
     }
 
     private fun scanLocalMusic(result: MethodChannel.Result) {

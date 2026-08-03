@@ -27,12 +27,13 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   final MusicPlatformGateway _platform = MusicPlatformGateway.instance;
 
   List<MusicTrack> _localTracks = const <MusicTrack>[];
-  List<MusicTrack> _downloadedTracks = const <MusicTrack>[];
   List<MusicTrack> _favorites = const <MusicTrack>[];
   List<String> _groups = const <String>[];
   String? _selectedGroup;
   bool _loadingLibrary = true;
   bool _scanning = false;
+  bool _selectionMode = false;
+  final Set<String> _selectedTrackKeys = <String>{};
 
   @override
   void initState() {
@@ -53,17 +54,21 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Future<void> _reloadLibrary() async {
     final results = await Future.wait<Object>([
       _library.list(sourceType: MusicSourceType.local),
-      _library.list(sourceType: MusicSourceType.downloaded),
       _library.list(favoritesOnly: true),
       _library.listGroups(),
     ]);
     if (!mounted) return;
+    final localTracks = results[0] as List<MusicTrack>;
     setState(() {
-      _localTracks = results[0] as List<MusicTrack>;
-      _downloadedTracks = results[1] as List<MusicTrack>;
-      _favorites = results[2] as List<MusicTrack>;
-      _groups = results[3] as List<String>;
+      _localTracks = localTracks;
+      _favorites = (results[1] as List<MusicTrack>)
+          .where((track) => !track.isRemote)
+          .toList(growable: false);
+      _groups = results[2] as List<String>;
       _loadingLibrary = false;
+      final localKeys = localTracks.map((track) => track.trackKey).toSet();
+      _selectedTrackKeys.removeWhere((key) => !localKeys.contains(key));
+      if (_selectedTrackKeys.isEmpty) _selectionMode = false;
     });
   }
 
@@ -93,21 +98,20 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   }
 
   Future<void> _openTrack(MusicTrack track, {List<MusicTrack>? queue}) async {
+    final effectiveQueue =
+        queue ?? (track.isRemote ? null : _filterGroup(_localTracks));
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MusicTrackPage(track: track, queue: queue),
+        builder: (_) => MusicTrackPage(track: track, queue: effectiveQueue),
       ),
     );
     await _reloadLibrary();
   }
 
   Future<void> _toggleFavorite(MusicTrack track) async {
+    if (track.isRemote) return;
     try {
-      final updated = await _player.setFavorite(track, !track.isFavorite);
-      setState(() {
-        _localTracks = _replace(_localTracks, updated);
-        _downloadedTracks = _replace(_downloadedTracks, updated);
-      });
+      await _player.setFavorite(track, !track.isFavorite);
       await _reloadLibrary();
     } catch (error) {
       _toast('收藏操作失败：$error');
@@ -128,6 +132,55 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const MusicDownloadsPage()));
     await _reloadLibrary();
+  }
+
+  void _toggleSelection(String trackKey, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedTrackKeys.add(trackKey);
+        _selectionMode = true;
+      } else {
+        _selectedTrackKeys.remove(trackKey);
+        if (_selectedTrackKeys.isEmpty) _selectionMode = false;
+      }
+    });
+  }
+
+  void _selectAllLocal(List<MusicTrack> tracks) {
+    setState(() {
+      _selectionMode = true;
+      _selectedTrackKeys
+        ..clear()
+        ..addAll(tracks.map((track) => track.trackKey));
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedTrackKeys.clear();
+    });
+  }
+
+  Future<void> _groupSelectedTracks() async {
+    final selected = _localTracks
+        .where((track) => _selectedTrackKeys.contains(track.trackKey))
+        .toList(growable: false);
+    if (selected.isEmpty) return;
+    final groups = await _library.listGroups();
+    if (!mounted) return;
+    final group = await showMusicGroupDialog(
+      context,
+      currentGroup: '',
+      existingGroups: groups,
+    );
+    if (group == null) return;
+    for (final track in selected) {
+      await _player.setGroup(track, group);
+    }
+    _exitSelection();
+    await _reloadLibrary();
+    _toast('已将 ${selected.length} 首歌曲加入分组');
   }
 
   void _toast(String message) => unawaited(AppToast.show(message));
@@ -178,6 +231,9 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
               child: AnimatedBuilder(
                 animation: _player.activeTrackKeyChanges,
                 builder: (context, _) => TabBarView(
+                  physics: _selectionMode
+                      ? const NeverScrollableScrollPhysics()
+                      : null,
                   children: [
                     _buildLocalTab(),
                     MusicOnlineSearchView(
@@ -185,7 +241,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                       bottomPadding: _musicListPadding(context).bottom,
                       onOpenTrack: (track, queue) =>
                           _openTrack(track, queue: queue),
-                      onToggleFavorite: _toggleFavorite,
                       onError: _toast,
                     ),
                     _buildFavoritesTab(),
@@ -204,9 +259,58 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     if (_loadingLibrary) {
       return const Center(child: CircularProgressIndicator());
     }
-    final downloadedTracks = _filterGroup(_downloadedTracks);
     final localTracks = _filterGroup(_localTracks);
-    final deviceQueue = <MusicTrack>[...downloadedTracks, ...localTracks];
+    if (_selectionMode) {
+      return ListView(
+        padding: _musicListPadding(context),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '已选 \${_selectedTrackKeys.length} 首',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              TextButton(
+                onPressed: localTracks.isEmpty
+                    ? null
+                    : () => _selectAllLocal(localTracks),
+                child: const Text('全选'),
+              ),
+              TextButton(
+                onPressed: _selectedTrackKeys.isEmpty
+                    ? null
+                    : () => unawaited(_groupSelectedTracks()),
+                child: const Text('加入分组'),
+              ),
+              TextButton(onPressed: _exitSelection, child: const Text('取消')),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (localTracks.isEmpty)
+            const MusicEmptyState(
+              icon: Icons.library_music_outlined,
+              label: '暂无本机歌曲',
+            )
+          else
+            ...localTracks.map(
+              (track) => MusicTrackTile(
+                key: ValueKey(track.trackKey),
+                track: track,
+                isCurrent: _player.currentTrack?.trackKey == track.trackKey,
+                selected: _selectedTrackKeys.contains(track.trackKey),
+                onSelectChanged: (value) =>
+                    _toggleSelection(track.trackKey, value),
+                onTap: () => _toggleSelection(
+                  track.trackKey,
+                  !_selectedTrackKeys.contains(track.trackKey),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
     return RefreshIndicator(
       onRefresh: _scanLocalMusic,
       child: ListView(
@@ -216,46 +320,36 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
             children: [
               Expanded(
                 child: Text(
-                  '${localTracks.length + downloadedTracks.length} 首歌曲',
+                  '${localTracks.length} 首歌曲',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              FilledButton.icon(
+              IconButton.filledTonal(
+                tooltip: _scanning ? '扫描中' : '重新扫描',
                 onPressed: _scanning
                     ? null
                     : () => unawaited(_scanLocalMusic()),
+                iconSize: 18,
+                visualDensity: VisualDensity.compact,
                 icon: _scanning
                     ? const SizedBox.square(
-                        dimension: 16,
+                        dimension: 14,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh_rounded),
-                label: Text(_scanning ? '扫描中' : '重新扫描'),
               ),
             ],
           ),
           const SizedBox(height: 8),
           _buildGroupFilters(),
           if (_groups.isNotEmpty) const SizedBox(height: 8),
-          if (localTracks.isEmpty && downloadedTracks.isEmpty)
+          if (localTracks.isEmpty)
             const MusicEmptyState(
               icon: Icons.library_music_outlined,
               label: '暂无本机歌曲',
             )
-          else ...[
-            if (downloadedTracks.isNotEmpty) ...[
-              const MusicSectionTitle(label: '已下载'),
-              ...downloadedTracks.map(
-                (track) => _trackTile(track, queue: deviceQueue),
-              ),
-            ],
-            if (localTracks.isNotEmpty) ...[
-              const MusicSectionTitle(label: '设备音乐'),
-              ...localTracks.map(
-                (track) => _trackTile(track, queue: deviceQueue),
-              ),
-            ],
-          ],
+          else
+            ...localTracks.map((track) => _trackTile(track)),
         ],
       ),
     );
@@ -318,7 +412,12 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         track: track,
         isCurrent: _player.currentTrack?.trackKey == track.trackKey,
         onTap: () => unawaited(_openTrack(track, queue: queue)),
-        onFavorite: () => unawaited(_toggleFavorite(track)),
+        onFavorite: track.isRemote
+            ? null
+            : () => unawaited(_toggleFavorite(track)),
+        onSelectChanged: track.sourceType == MusicSourceType.local
+            ? (value) => _toggleSelection(track.trackKey, value)
+            : null,
       );
 
   EdgeInsets _musicListPadding(BuildContext context) {
@@ -329,12 +428,4 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       12 + MediaQuery.viewPaddingOf(context).bottom,
     );
   }
-}
-
-List<MusicTrack> _replace(List<MusicTrack> source, MusicTrack replacement) {
-  return source
-      .map(
-        (track) => track.trackKey == replacement.trackKey ? replacement : track,
-      )
-      .toList(growable: false);
 }

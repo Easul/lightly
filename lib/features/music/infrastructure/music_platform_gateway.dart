@@ -48,6 +48,20 @@ class MusicPlatformGateway {
         false;
   }
 
+  Future<void> markLocalTrackPlayed(String path) {
+    return _channel.invokeMethod<void>(
+      'markLocalTrackPlayed',
+      <String, Object?>{'path': path},
+    );
+  }
+
+  Future<Map<Object?, Object?>?> resolveLocalMetadata(String path) {
+    return _channel.invokeMapMethod<Object?, Object?>(
+      'resolveLocalMetadata',
+      <String, Object?>{'path': path},
+    );
+  }
+
   Future<bool> hasAudioPermission() async {
     return await _channel.invokeMethod<bool>('hasAudioPermission') ?? false;
   }
