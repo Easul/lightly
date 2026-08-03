@@ -153,7 +153,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
       if (_isCurrent) {
         await _player.togglePlayPause();
       } else {
-        await _player.playTrack(_track, queue: widget.queue);
+        await _player.playTrack(_track, queue: widget.queue ?? _player.queue);
       }
     } catch (error) {
       _toast('$error');
@@ -267,7 +267,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
       _track = await _library.save(playable);
       await _player.registerDownloadedTrack(_track);
       if (mounted) setState(() {});
-      _toast('歌曲已保存到 ${_track.localPath}');
+      _toast('歌曲已保存到 ${_track.localPath ?? _track.sourceUri}');
     } catch (error) {
       _toast('下载失败：$error');
     } finally {
@@ -318,13 +318,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
               if (value == 'delete') unawaited(_deleteTrack());
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'group',
-                child: ListTile(
-                  leading: Icon(Icons.folder_outlined),
-                  title: Text('歌曲分组'),
+              if (!_track.isRemote)
+                const PopupMenuItem(
+                  value: 'group',
+                  child: ListTile(
+                    leading: Icon(Icons.folder_outlined),
+                    title: Text('歌曲分组'),
+                  ),
                 ),
-              ),
               if (_track.isRemote &&
                   _track.sourceType != MusicSourceType.downloaded)
                 const PopupMenuItem(
@@ -431,7 +432,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                     children: [
                       IconButton(
                         tooltip: '上一首',
-                        onPressed: _player.hasPrevious
+                        onPressed: _player.hasPrevious && _isCurrent
                             ? () => unawaited(_player.previous())
                             : null,
                         icon: const Icon(Icons.skip_previous_rounded),
@@ -464,7 +465,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                       const SizedBox(width: 12),
                       IconButton(
                         tooltip: '下一首',
-                        onPressed: _player.hasNext
+                        onPressed: _player.hasNext && _isCurrent
                             ? () => unawaited(_player.next())
                             : null,
                         icon: const Icon(Icons.skip_next_rounded),

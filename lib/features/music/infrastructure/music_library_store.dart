@@ -103,7 +103,7 @@ class MusicLibraryStore {
           groupName: previous?.groupName ?? '',
           lyric: previous?.lyric,
           translatedLyric: previous?.translatedLyric,
-          updatedAt: DateTime.now(),
+          updatedAt: previous?.updatedAt ?? DateTime.now(),
           lastPlayedAt: previous?.lastPlayedAt,
         );
         await transaction.insert(

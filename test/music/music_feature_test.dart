@@ -294,6 +294,21 @@ void main() {
         expect(track?.groupName, '通勤');
         expect(track?.lyric, '[00:01.00]歌词');
         expect(await store.listGroups(), ['通勤']);
+
+        final stored = await store.get(initial.trackKey);
+        await store.replaceLocalTracks(const <MusicTrack>[
+          MusicTrack(
+            trackKey: 'local:content://song/1',
+            title: '再次扫描标题',
+            artist: '歌手',
+            album: '新专辑',
+            sourceUri: 'content://song/1',
+            sourceType: MusicSourceType.local,
+            durationMs: 1234,
+          ),
+        ]);
+        final rescanned = await store.get(initial.trackKey);
+        expect(rescanned?.updatedAt, stored?.updatedAt);
       },
     );
 

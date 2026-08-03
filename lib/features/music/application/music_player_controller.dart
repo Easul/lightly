@@ -66,6 +66,7 @@ class MusicPlayerController extends ChangeNotifier {
 
   MusicSettings get settings => _settings;
   MusicTrack? get currentTrack => _currentTrack;
+  List<MusicTrack> get queue => _queue;
   List<MusicTrack> get downloadedQueue => _downloadedQueue;
   Duration get position => _position;
   Duration get duration => _duration;
@@ -448,6 +449,15 @@ class MusicPlayerController extends ChangeNotifier {
     final deleted = await _platform.deleteLocalAudio(track.sourceUri);
     if (!deleted) throw StateError('未能删除歌曲文件');
     await _library.delete(track.trackKey);
+    _removeQueueTrack(track.trackKey);
+    _downloadedQueue = List<MusicTrack>.unmodifiable(
+      _downloadedQueue.where(
+        (item) =>
+            item.trackKey != track.trackKey &&
+            (track.localPath == null || item.localPath != track.localPath),
+      ),
+    );
+    notifyListeners();
   }
 
   void replaceCurrentTrack(MusicTrack track) => _replaceCurrent(track);
@@ -458,6 +468,20 @@ class MusicPlayerController extends ChangeNotifier {
     _replaceSearchTrack(track);
     _replaceDownloadedQueueTrack(track);
     notifyListeners();
+  }
+
+  void _removeQueueTrack(String trackKey) {
+    final index = _queue.indexWhere((item) => item.trackKey == trackKey);
+    if (index < 0) return;
+    final updated = _queue.toList(growable: false)..removeAt(index);
+    _queue = List<MusicTrack>.unmodifiable(updated);
+    if (_queue.isEmpty) {
+      _queueIndex = -1;
+    } else if (index < _queueIndex) {
+      _queueIndex--;
+    } else if (_queueIndex >= _queue.length) {
+      _queueIndex = 0;
+    }
   }
 
   Future<void> registerDownloadedTrack(MusicTrack track) async {

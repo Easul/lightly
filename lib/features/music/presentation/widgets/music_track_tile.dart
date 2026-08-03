@@ -12,6 +12,7 @@ class MusicTrackTile extends StatelessWidget {
     this.isCurrent = false,
     this.selected,
     this.onSelectChanged,
+    this.onDelete,
   });
 
   final MusicTrack track;
@@ -20,6 +21,7 @@ class MusicTrackTile extends StatelessWidget {
   final bool isCurrent;
   final bool? selected;
   final ValueChanged<bool>? onSelectChanged;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +41,16 @@ class MusicTrackTile extends StatelessWidget {
     };
     final selectionMode = selected != null && onSelectChanged != null;
     final favoriteAction = onFavorite;
+    final deletable = onDelete != null;
     return ListTile(
       selected: isCurrent,
       selectedTileColor: Theme.of(
         context,
       ).colorScheme.primaryContainer.withValues(alpha: 0.35),
       onTap: selectionMode ? () => onSelectChanged!(!selected!) : onTap,
-      onLongPress: onSelectChanged == null
+      onLongPress: deletable
+          ? () => _showTrackActions(context)
+          : onSelectChanged == null
           ? null
           : () => onSelectChanged!(true),
       leading: MusicTrackArtwork(track: track),
@@ -99,6 +104,44 @@ class MusicTrackTile extends StatelessWidget {
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showTrackActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onSelectChanged != null)
+              ListTile(
+                leading: const Icon(Icons.library_add_check_outlined),
+                title: const Text('批量管理'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onSelectChanged!(true);
+                },
+              ),
+            if (onDelete != null)
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  '删除文件',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onDelete!();
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

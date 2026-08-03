@@ -21,6 +21,8 @@ class MusicPlayerPage extends StatefulWidget {
   State<MusicPlayerPage> createState() => _MusicPlayerPageState();
 }
 
+enum MusicLibraryTab { local, favorites }
+
 class _MusicPlayerPageState extends State<MusicPlayerPage> {
   final MusicPlayerController _player = MusicPlayerController.instance;
   final MusicLibraryStore _library = MusicLibraryStore.instance;
@@ -32,8 +34,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   String? _selectedGroup;
   bool _loadingLibrary = true;
   bool _scanning = false;
-  bool _selectionMode = false;
+  MusicLibraryTab _selectionTab = MusicLibraryTab.local;
   final Set<String> _selectedTrackKeys = <String>{};
+
+  bool get _selectionMode => _selectedTrackKeys.isNotEmpty;
 
   @override
   void initState() {
@@ -66,9 +70,11 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           .toList(growable: false);
       _groups = results[2] as List<String>;
       _loadingLibrary = false;
-      final localKeys = localTracks.map((track) => track.trackKey).toSet();
-      _selectedTrackKeys.removeWhere((key) => !localKeys.contains(key));
-      if (_selectedTrackKeys.isEmpty) _selectionMode = false;
+      final validKeys = <String>{
+        ...localTracks.map((track) => track.trackKey),
+        ..._favorites.map((track) => track.trackKey),
+      };
+      _selectedTrackKeys.removeWhere((key) => !validKeys.contains(key));
     });
   }
 
@@ -134,21 +140,19 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     await _reloadLibrary();
   }
 
-  void _toggleSelection(String trackKey, bool selected) {
+  void _toggleSelection(MusicLibraryTab tab, String trackKey, bool selected) {
     setState(() {
       if (selected) {
+        if (!_selectionMode) _selectionTab = tab;
         _selectedTrackKeys.add(trackKey);
-        _selectionMode = true;
       } else {
         _selectedTrackKeys.remove(trackKey);
-        if (_selectedTrackKeys.isEmpty) _selectionMode = false;
       }
     });
   }
 
-  void _selectAllLocal(List<MusicTrack> tracks) {
+  void _selectAll(List<MusicTrack> tracks) {
     setState(() {
-      _selectionMode = true;
       _selectedTrackKeys
         ..clear()
         ..addAll(tracks.map((track) => track.trackKey));
@@ -157,7 +161,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
 
   void _exitSelection() {
     setState(() {
-      _selectionMode = false;
       _selectedTrackKeys.clear();
     });
   }
@@ -181,6 +184,78 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     _exitSelection();
     await _reloadLibrary();
     _toast('已将 ${selected.length} 首歌曲加入分组');
+  }
+
+  Future<void> _deleteSelectedTracks() async {
+    final pool = _selectionTab == MusicLibraryTab.local
+        ? _localTracks
+        : _favorites;
+    final selected = pool
+        .where((track) => _selectedTrackKeys.contains(track.trackKey))
+        .toList(growable: false);
+    if (selected.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('删除 ${selected.length} 首歌曲？'),
+        content: const Text('将同时删除本地文件和音乐记录，此操作不可恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    var deletedCount = 0;
+    for (final track in selected) {
+      try {
+        await _player.deleteLocalTrack(track);
+        deletedCount++;
+      } on Object {
+        // 跳过删除失败的歌曲，继续处理其他歌曲。
+      }
+    }
+    _exitSelection();
+    await _reloadLibrary();
+    _toast(
+      deletedCount == selected.length
+          ? '已删除 $deletedCount 首歌曲'
+          : '已删除 $deletedCount 首，${selected.length - deletedCount} 首删除失败',
+    );
+  }
+
+  Future<void> _confirmDeleteTrack(MusicTrack track) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除本地歌曲？'),
+        content: Text('将同时删除“${track.title}”的本地文件和音乐记录，此操作不可恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _player.deleteLocalTrack(track);
+      await _reloadLibrary();
+      _toast('已删除');
+    } catch (error) {
+      _toast('删除失败：$error');
+    }
   }
 
   void _toast(String message) => unawaited(AppToast.show(message));
@@ -260,55 +335,12 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       return const Center(child: CircularProgressIndicator());
     }
     final localTracks = _filterGroup(_localTracks);
-    if (_selectionMode) {
-      return ListView(
-        padding: _musicListPadding(context),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '已选 \${_selectedTrackKeys.length} 首',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-              TextButton(
-                onPressed: localTracks.isEmpty
-                    ? null
-                    : () => _selectAllLocal(localTracks),
-                child: const Text('全选'),
-              ),
-              TextButton(
-                onPressed: _selectedTrackKeys.isEmpty
-                    ? null
-                    : () => unawaited(_groupSelectedTracks()),
-                child: const Text('加入分组'),
-              ),
-              TextButton(onPressed: _exitSelection, child: const Text('取消')),
-            ],
-          ),
-          const SizedBox(height: 4),
-          if (localTracks.isEmpty)
-            const MusicEmptyState(
-              icon: Icons.library_music_outlined,
-              label: '暂无本机歌曲',
-            )
-          else
-            ...localTracks.map(
-              (track) => MusicTrackTile(
-                key: ValueKey(track.trackKey),
-                track: track,
-                isCurrent: _player.currentTrack?.trackKey == track.trackKey,
-                selected: _selectedTrackKeys.contains(track.trackKey),
-                onSelectChanged: (value) =>
-                    _toggleSelection(track.trackKey, value),
-                onTap: () => _toggleSelection(
-                  track.trackKey,
-                  !_selectedTrackKeys.contains(track.trackKey),
-                ),
-              ),
-            ),
-        ],
+    if (_selectionMode && _selectionTab == MusicLibraryTab.local) {
+      return _buildSelectionList(
+        tracks: localTracks,
+        emptyIcon: Icons.library_music_outlined,
+        emptyLabel: '暂无本机歌曲',
+        showGroupAction: true,
       );
     }
     return RefreshIndicator(
@@ -357,6 +389,14 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
 
   Widget _buildFavoritesTab() {
     final filtered = _filterGroup(_favorites);
+    if (_selectionMode && _selectionTab == MusicLibraryTab.favorites) {
+      return _buildSelectionList(
+        tracks: filtered,
+        emptyIcon: Icons.favorite_border_rounded,
+        emptyLabel: '暂无收藏歌曲',
+        showGroupAction: false,
+      );
+    }
     return ListView(
       padding: _musicListPadding(context),
       children: [
@@ -400,25 +440,95 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     );
   }
 
+  Widget _buildSelectionList({
+    required List<MusicTrack> tracks,
+    required IconData emptyIcon,
+    required String emptyLabel,
+    required bool showGroupAction,
+  }) {
+    return ListView(
+      padding: _musicListPadding(context),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '已选 ${_selectedTrackKeys.length} 首',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            TextButton(
+              onPressed: tracks.isEmpty ? null : () => _selectAll(tracks),
+              child: const Text('全选'),
+            ),
+            if (showGroupAction)
+              TextButton(
+                onPressed: _selectedTrackKeys.isEmpty
+                    ? null
+                    : () => unawaited(_groupSelectedTracks()),
+                child: const Text('加入分组'),
+              ),
+            TextButton(
+              onPressed: _selectedTrackKeys.isEmpty
+                  ? null
+                  : () => unawaited(_deleteSelectedTracks()),
+              child: Text(
+                '删除',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+            TextButton(onPressed: _exitSelection, child: const Text('取消')),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (tracks.isEmpty)
+          MusicEmptyState(icon: emptyIcon, label: emptyLabel)
+        else
+          ...tracks.map(
+            (track) => MusicTrackTile(
+              key: ValueKey(track.trackKey),
+              track: track,
+              isCurrent: _player.currentTrack?.trackKey == track.trackKey,
+              selected: _selectedTrackKeys.contains(track.trackKey),
+              onSelectChanged: (value) =>
+                  _toggleSelection(_selectionTab, track.trackKey, value),
+              onTap: () => _toggleSelection(
+                _selectionTab,
+                track.trackKey,
+                !_selectedTrackKeys.contains(track.trackKey),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   List<MusicTrack> _filterGroup(List<MusicTrack> tracks) {
     final group = _selectedGroup;
     if (group == null) return tracks;
     return tracks.where((track) => track.groupName == group).toList();
   }
 
-  Widget _trackTile(MusicTrack track, {List<MusicTrack>? queue}) =>
-      MusicTrackTile(
-        key: ValueKey(track.trackKey),
-        track: track,
-        isCurrent: _player.currentTrack?.trackKey == track.trackKey,
-        onTap: () => unawaited(_openTrack(track, queue: queue)),
-        onFavorite: track.isRemote
-            ? null
-            : () => unawaited(_toggleFavorite(track)),
-        onSelectChanged: track.sourceType == MusicSourceType.local
-            ? (value) => _toggleSelection(track.trackKey, value)
-            : null,
-      );
+  Widget _trackTile(
+    MusicTrack track, {
+    List<MusicTrack>? queue,
+  }) => MusicTrackTile(
+    key: ValueKey(track.trackKey),
+    track: track,
+    isCurrent: _player.currentTrack?.trackKey == track.trackKey,
+    onTap: () => unawaited(_openTrack(track, queue: queue)),
+    onFavorite: track.isRemote ? null : () => unawaited(_toggleFavorite(track)),
+    onSelectChanged: !track.isRemote
+        ? (value) => _toggleSelection(
+            queue == null ? MusicLibraryTab.local : MusicLibraryTab.favorites,
+            track.trackKey,
+            value,
+          )
+        : null,
+    onDelete: track.sourceType == MusicSourceType.online
+        ? null
+        : () => unawaited(_confirmDeleteTrack(track)),
+  );
 
   EdgeInsets _musicListPadding(BuildContext context) {
     return EdgeInsets.fromLTRB(
