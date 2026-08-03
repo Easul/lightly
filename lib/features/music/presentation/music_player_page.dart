@@ -36,6 +36,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   int _searchTotal = 0;
   bool _loadingLibrary = true;
   bool _searching = false;
+  String? _searchError;
   bool _scanning = false;
 
   int get _pageCount => (_searchTotal / MusicApiClient.searchLimit).ceil();
@@ -108,7 +109,11 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     final keyword = _searchController.text.trim();
     if (keyword.isEmpty) return;
     FocusScope.of(context).unfocus();
-    setState(() => _searching = true);
+    debugPrint('[MusicSearch] submit hasKeyword=true page=$page');
+    setState(() {
+      _searching = true;
+      _searchError = null;
+    });
     try {
       final result = await _player.search(keyword, page);
       final tracks = await Future.wait(
@@ -123,6 +128,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         _searchPage = page;
       });
     } catch (error) {
+      debugPrint('[MusicSearch] failure type=${error.runtimeType}');
+      if (mounted) setState(() => _searchError = '$error');
       _toast('$error');
     } finally {
       if (mounted) setState(() => _searching = false);
@@ -289,6 +296,14 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           ),
         ),
         const SizedBox(height: 10),
+        if (_searchError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              _searchError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
         if (_searchResults.isEmpty && !_searching)
           const MusicEmptyState(
             icon: Icons.travel_explore_rounded,

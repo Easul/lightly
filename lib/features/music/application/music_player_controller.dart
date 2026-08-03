@@ -305,6 +305,10 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   void _requireApiConfiguration() {
+    debugPrint(
+      '[MusicSearch] config basePresent=${_settings.apiBaseUrl.trim().isNotEmpty} '
+      'keyPresent=${_settings.apiKey.trim().isNotEmpty}',
+    );
     if (_settings.apiBaseUrl.trim().isEmpty) {
       throw StateError('请先在音乐设置中填写 API 地址');
     }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../domain/music_track.dart';
@@ -114,6 +115,7 @@ class MusicApiClient {
     final uri = _parseBaseUri(
       apiBaseUrl,
     ).resolve(endpoint).replace(queryParameters: query);
+    debugPrint('[MusicApi] request endpoint=/$endpoint');
     developer.log('request endpoint=/$endpoint', name: 'LightlyMusicApi');
     final response = await _client
         .get(uri, headers: requestHeaders)
@@ -121,6 +123,9 @@ class MusicApiClient {
     developer.log(
       'response endpoint=/$endpoint status=${response.statusCode}',
       name: 'LightlyMusicApi',
+    );
+    debugPrint(
+      '[MusicApi] response endpoint=/$endpoint status=${response.statusCode}',
     );
     if (response.statusCode != 200) {
       final serverMessage = _responseMessage(response.body);
