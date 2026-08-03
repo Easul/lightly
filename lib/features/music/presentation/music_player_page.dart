@@ -21,6 +21,7 @@ class MusicPlayerPage extends StatefulWidget {
 }
 
 class _MusicPlayerPageState extends State<MusicPlayerPage> {
+  static const double _miniPlayerClearance = 120;
   final MusicPlayerController _player = MusicPlayerController.instance;
   final MusicLibraryStore _library = MusicLibraryStore.instance;
   final MusicPlatformGateway _platform = MusicPlatformGateway.instance;
@@ -220,7 +221,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     return RefreshIndicator(
       onRefresh: _scanLocalMusic,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: _musicListPadding(context),
         children: [
           Row(
             children: [
@@ -274,7 +275,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Widget _buildSearchTab() {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: _musicListPadding(context),
       children: [
         TextField(
           controller: _searchController,
@@ -350,7 +351,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Widget _buildFavoritesTab() {
     final filtered = _filterGroup(_favorites);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: _musicListPadding(context),
       children: [
         _buildGroupFilters(),
         if (_groups.isNotEmpty) const SizedBox(height: 8),
@@ -405,6 +406,15 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         onTap: () => unawaited(_openTrack(track, queue: queue)),
         onFavorite: () => unawaited(_toggleFavorite(track)),
       );
+
+  EdgeInsets _musicListPadding(BuildContext context) {
+    return EdgeInsets.fromLTRB(
+      12,
+      12,
+      12,
+      _miniPlayerClearance + MediaQuery.viewPaddingOf(context).bottom,
+    );
+  }
 }
 
 List<MusicTrack> _replace(List<MusicTrack> source, MusicTrack replacement) {

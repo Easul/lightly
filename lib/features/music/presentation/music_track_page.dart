@@ -247,6 +247,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                   : Icons.favorite_border_rounded,
             ),
           ),
+          AnimatedBuilder(
+            animation: _player,
+            builder: (context, _) => IconButton(
+              tooltip: _player.playbackModeLabel,
+              onPressed: _player.cyclePlaybackMode,
+              icon: Icon(_playbackModeIcon(_player.playbackMode)),
+            ),
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'group') unawaited(_setGroup());
@@ -416,3 +424,9 @@ String _formatDuration(Duration duration) {
   final seconds = totalSeconds % 60;
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
+
+IconData _playbackModeIcon(MusicPlaybackMode mode) => switch (mode) {
+  MusicPlaybackMode.listLoop => Icons.repeat_rounded,
+  MusicPlaybackMode.singleLoop => Icons.repeat_one_rounded,
+  MusicPlaybackMode.shuffle => Icons.shuffle_rounded,
+};

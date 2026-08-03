@@ -47,6 +47,11 @@ class MusicMiniPlayer extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
+                    tooltip: player.playbackModeLabel,
+                    onPressed: player.cyclePlaybackMode,
+                    icon: Icon(_playbackModeIcon(player.playbackMode)),
+                  ),
+                  IconButton(
                     tooltip: player.isPlaying ? '暂停' : '播放',
                     onPressed: () => unawaited(player.togglePlayPause()),
                     icon: Icon(
@@ -69,6 +74,12 @@ class MusicMiniPlayer extends StatelessWidget {
     );
   }
 }
+
+IconData _playbackModeIcon(MusicPlaybackMode mode) => switch (mode) {
+  MusicPlaybackMode.listLoop => Icons.repeat_rounded,
+  MusicPlaybackMode.singleLoop => Icons.repeat_one_rounded,
+  MusicPlaybackMode.shuffle => Icons.shuffle_rounded,
+};
 
 class MusicEmptyState extends StatelessWidget {
   const MusicEmptyState({super.key, required this.icon, required this.label});

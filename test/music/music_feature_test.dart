@@ -1,20 +1,25 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lightly/browser/data/app_database.dart';
 import 'package:lightly/browser/data/app_database_adapter.dart';
 import 'package:lightly/features/music/domain/music_lyric.dart';
 import 'package:lightly/features/music/domain/music_track.dart';
+import 'package:lightly/features/music/application/music_player_controller.dart';
 import 'package:lightly/features/music/infrastructure/music_api_client.dart';
 import 'package:lightly/features/music/infrastructure/music_library_store.dart';
+import 'package:lightly/features/music/infrastructure/music_platform_gateway.dart';
 import 'package:lightly/features/music/infrastructure/music_settings_store.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('LRC parser', () {
     test('parses multiple timestamps and finds active line', () {
       final lines = parseLrc('''
@@ -306,6 +311,64 @@ void main() {
       await store.delete(track.trackKey);
 
       expect(await store.get(track.trackKey), isNull);
+    });
+
+    test('cycles within the current queue for all playback modes', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      const channel = MethodChannel('music_mode_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        library: store,
+      );
+      const first = MusicTrack(
+        trackKey: 'local:file:///first.mp3',
+        title: '第一首',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file:///first.mp3',
+        sourceType: MusicSourceType.local,
+      );
+      const second = MusicTrack(
+        trackKey: 'local:file:///second.mp3',
+        title: '第二首',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file:///second.mp3',
+        sourceType: MusicSourceType.local,
+      );
+
+      await controller.initialize();
+      await controller.playTrack(
+        second,
+        queue: const <MusicTrack>[first, second],
+      );
+      await controller.next();
+      expect(controller.currentTrack?.trackKey, first.trackKey);
+
+      controller.cyclePlaybackMode();
+      expect(controller.playbackMode, MusicPlaybackMode.singleLoop);
+      await controller.next();
+      expect(controller.currentTrack?.trackKey, first.trackKey);
+
+      controller.cyclePlaybackMode();
+      expect(controller.playbackMode, MusicPlaybackMode.shuffle);
+      await controller.next();
+      expect(controller.currentTrack?.trackKey, second.trackKey);
     });
   });
 }

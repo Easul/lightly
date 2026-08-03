@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -9,6 +10,8 @@ import '../infrastructure/music_platform_gateway.dart';
 import '../infrastructure/music_settings_store.dart';
 
 typedef ExternalTrackOpened = Future<void> Function(MusicTrack track);
+
+enum MusicPlaybackMode { listLoop, singleLoop, shuffle }
 
 class MusicPlayerController extends ChangeNotifier {
   MusicPlayerController({
@@ -46,6 +49,8 @@ class MusicPlayerController extends ChangeNotifier {
   bool _initialized = false;
   Future<void>? _initializationFuture;
   ExternalTrackOpened? _onExternalTrackOpened;
+  MusicPlaybackMode _playbackMode = MusicPlaybackMode.listLoop;
+  final Random _random = Random();
 
   MusicSettings get settings => _settings;
   MusicTrack? get currentTrack => _currentTrack;
@@ -54,8 +59,15 @@ class MusicPlayerController extends ChangeNotifier {
   bool get isPlaying => _playing;
   bool get isBuffering => _buffering;
   String? get playbackError => _playbackError;
-  bool get hasPrevious => _queueIndex > 0;
-  bool get hasNext => _queueIndex >= 0 && _queueIndex + 1 < _queue.length;
+  MusicPlaybackMode get playbackMode => _playbackMode;
+  bool get hasPrevious => _queue.length > 1;
+  bool get hasNext => _queue.length > 1;
+
+  String get playbackModeLabel => switch (_playbackMode) {
+    MusicPlaybackMode.listLoop => '列表循环',
+    MusicPlaybackMode.singleLoop => '单曲循环',
+    MusicPlaybackMode.shuffle => '随机播放',
+  };
 
   Future<void> initialize({ExternalTrackOpened? onExternalTrackOpened}) {
     if (onExternalTrackOpened != null) {
@@ -128,6 +140,7 @@ class MusicPlayerController extends ChangeNotifier {
       _queueIndex = _queue.indexWhere(
         (item) => item.trackKey == track.trackKey,
       );
+      if (_queueIndex < 0 && _queue.isNotEmpty) _queueIndex = 0;
     } else if (_queueIndex < 0 ||
         _queueIndex >= _queue.length ||
         _queue[_queueIndex].trackKey != track.trackKey) {
@@ -218,16 +231,45 @@ class MusicPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void cyclePlaybackMode() {
+    _playbackMode = switch (_playbackMode) {
+      MusicPlaybackMode.listLoop => MusicPlaybackMode.singleLoop,
+      MusicPlaybackMode.singleLoop => MusicPlaybackMode.shuffle,
+      MusicPlaybackMode.shuffle => MusicPlaybackMode.listLoop,
+    };
+    notifyListeners();
+  }
+
   Future<void> previous() async {
-    if (!hasPrevious) return;
-    _queueIndex--;
+    if (_queue.isEmpty) return;
+    if (_playbackMode == MusicPlaybackMode.shuffle && _queue.length > 1) {
+      _queueIndex = _randomIndex();
+    } else {
+      _queueIndex = (_queueIndex - 1 + _queue.length) % _queue.length;
+    }
     await playTrack(_queue[_queueIndex]);
   }
 
   Future<void> next() async {
-    if (!hasNext) return;
-    _queueIndex++;
+    if (_queue.isEmpty) return;
+    if (_playbackMode == MusicPlaybackMode.singleLoop) {
+      await playTrack(_queue[_queueIndex]);
+      return;
+    }
+    if (_playbackMode == MusicPlaybackMode.shuffle && _queue.length > 1) {
+      _queueIndex = _randomIndex();
+    } else {
+      _queueIndex = (_queueIndex + 1) % _queue.length;
+    }
     await playTrack(_queue[_queueIndex]);
+  }
+
+  int _randomIndex() {
+    var index = _random.nextInt(_queue.length);
+    while (index == _queueIndex && _queue.length > 1) {
+      index = _random.nextInt(_queue.length);
+    }
+    return index;
   }
 
   Future<MusicTrack> setFavorite(MusicTrack track, bool favorite) async {
@@ -280,7 +322,7 @@ class MusicPlayerController extends ChangeNotifier {
     notifyListeners();
     if (state['completed'] != true) {
       _completionAdvanceInProgress = false;
-    } else if (hasNext && !_completionAdvanceInProgress) {
+    } else if (_queue.isNotEmpty && !_completionAdvanceInProgress) {
       _completionAdvanceInProgress = true;
       unawaited(_advanceAfterCompletion());
     }

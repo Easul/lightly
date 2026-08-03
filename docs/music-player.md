@@ -42,11 +42,17 @@ album metadata.
   and the typed Flutter channel.
 - `MusicPlaybackService` owns `MediaPlayer`, `MediaSession`, audio focus, and the
   optional public lock-screen/notification controls.
+- `MusicPlayerController` owns the in-memory playback queue and mode. The three
+  modes are list loop (default, wraps to the first song), single-song loop, and
+  shuffle. A queue comes from the currently filtered group/search list so
+  automatic advancement must not cross into a different group.
 - Do not query `MediaPlayer` position or duration while it is preparing. Some
   MIUI media stacks report `-38` and enter the error callback when `getDuration()`
   is called in the preparing state.
 - Disabling the system toolbar removes the foreground notification. Playback
   may then be reclaimed by Android after Lightly leaves the foreground.
+- Local, online, and favorite lists reserve bottom scroll padding for the mini
+  player and system safe area so the final row can scroll fully into view.
 - External audio intents enter the same controller and database path as songs
   selected inside the tool.
 

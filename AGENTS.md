@@ -1369,6 +1369,11 @@ The address bar lock icon opens a dialog for clearing current-site data:
   `data.songs` / `result.songs` payloads, including `ar` artist and `al` album fields.
 - Do not call `MediaPlayer.getDuration()` or `getCurrentPosition()` during `prepareAsync()`. On
   affected MIUI builds this emits native `-38` and invokes the playback error callback.
+- Music playback modes are controller-owned in-memory state: list loop (default), single-song
+  loop, and shuffle. The active queue must be the current filtered group/search list; automatic
+  advancement and wrap-around must not cross into a different group.
+- Keep enough bottom padding in local, online, and favorite lists for the mini player plus the
+  system safe area so the final track can scroll fully above the controls.
 - Source of truth: `docs/music-player.md`.
 
 ## Scope discipline
