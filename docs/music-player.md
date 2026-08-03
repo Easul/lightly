@@ -31,6 +31,9 @@ are stored separately in SharedPreferences under
 a source/build-time default, enters the unified backup, or may be logged.
 The base URL may be entered as `https://host/api/` or as a full known endpoint
 URL; the client normalizes the latter before appending request parameters.
+Search parsing accepts both the compact list response and the Netease-style
+nested `data.songs` / `result.songs` response, including `ar` artist and `al`
+album metadata.
 
 ## Android Runtime
 

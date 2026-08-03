@@ -49,19 +49,15 @@ class MusicApiClient {
       'offset': '${(page - 1) * searchLimit}',
       'apikey': apiKey,
     });
-    final data = json['data'];
-    final tracks = data is List
-        ? data
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    MusicTrack.fromSearchJson(item.cast<String, dynamic>()),
-              )
-              .toList(growable: false)
-        : const <MusicTrack>[];
+    final payload = _searchPayload(json);
+    final data = payload.items;
+    final tracks = data
+        .whereType<Map>()
+        .map((item) => MusicTrack.fromSearchJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
     return MusicSearchPage(
       tracks: tracks,
-      total: (json['total'] as num?)?.toInt() ?? tracks.length,
+      total: payload.total ?? tracks.length,
     );
   }
 
@@ -146,6 +142,34 @@ class MusicApiClient {
     return decoded;
   }
 }
+
+class _SearchPayload {
+  const _SearchPayload(this.items, this.total);
+
+  final List<Object?> items;
+  final int? total;
+}
+
+_SearchPayload _searchPayload(Map<String, dynamic> json) {
+  Object? value = json['data'];
+  var total = (json['total'] as num?)?.toInt();
+  if (value is List) return _SearchPayload(value, total);
+  if (value is Map) {
+    total ??= _number(value['total']) ?? _number(value['songCount']);
+    value =
+        value['songs'] ?? value['results'] ?? value['items'] ?? value['data'];
+    if (value is List) return _SearchPayload(value, total);
+  }
+  final result = json['result'];
+  if (result is Map) {
+    total ??= _number(result['songCount']) ?? _number(result['total']);
+    value = result['songs'] ?? result['results'] ?? result['items'];
+    if (value is List) return _SearchPayload(value, total);
+  }
+  return const _SearchPayload(<Object?>[], null);
+}
+
+int? _number(Object? value) => value is num ? value.toInt() : null;
 
 String? _responseMessage(String body) {
   try {

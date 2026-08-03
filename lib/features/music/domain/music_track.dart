@@ -42,13 +42,19 @@ class MusicTrack {
 
   factory MusicTrack.fromSearchJson(Map<String, dynamic> json) {
     final remoteId = '${json['id'] ?? ''}'.trim();
+    final albumValue = json['album'] ?? json['al'];
+    final artwork =
+        json['picUrl'] ?? (albumValue is Map ? albumValue['picUrl'] : null);
     return MusicTrack(
       trackKey: 'online:$remoteId',
       remoteId: remoteId,
       title: '${json['name'] ?? '未知歌曲'}',
-      artist: '${json['artists'] ?? json['artist'] ?? '未知歌手'}',
-      album: '${json['album'] ?? '未知专辑'}',
-      artworkUrl: _nullableString(json['picUrl']),
+      artist: _musicText(
+        json['artists'] ?? json['artist'] ?? json['ar'],
+        fallback: '未知歌手',
+      ),
+      album: _musicText(albumValue, fallback: '未知专辑'),
+      artworkUrl: _nullableString(artwork),
       sourceUri: _nullableString(json['url']) ?? '',
       sourceType: MusicSourceType.online,
     );
@@ -152,6 +158,21 @@ class MusicTrack {
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
     );
   }
+}
+
+String _musicText(Object? value, {required String fallback}) {
+  if (value is List) {
+    final values = value
+        .map((item) => _musicText(item, fallback: ''))
+        .where((item) => item.isNotEmpty);
+    final joined = values.join('、');
+    return joined.isEmpty ? fallback : joined;
+  }
+  if (value is Map) {
+    return _musicText(value['name'] ?? value['title'], fallback: fallback);
+  }
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty || text == 'null' ? fallback : text;
 }
 
 String? _nullableString(Object? value) {

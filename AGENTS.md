@@ -1365,6 +1365,8 @@ The address bar lock icon opens a dialog for clearing current-site data:
   must await the same initialization future before reading persisted API configuration. The API
   client accepts either the `/api/` base or a full known music endpoint URL and must normalize it
   without duplicating the endpoint path.
+- Search adapters must tolerate both the API's compact list payload and Netease-style nested
+  `data.songs` / `result.songs` payloads, including `ar` artist and `al` album fields.
 - Do not call `MediaPlayer.getDuration()` or `getCurrentPosition()` during `prepareAsync()`. On
   affected MIUI builds this emits native `-38` and invokes the playback error callback.
 - Source of truth: `docs/music-player.md`.

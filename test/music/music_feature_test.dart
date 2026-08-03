@@ -118,6 +118,49 @@ void main() {
       expect(requestedUri.path, '/api/163_search');
     });
 
+    test('maps nested Netease-style search payloads', () async {
+      final client = MusicApiClient(
+        client: MockClient(
+          (request) async => http.Response.bytes(
+            utf8.encode(
+              jsonEncode(<String, Object?>{
+                'code': 200,
+                'data': <String, Object?>{
+                  'songCount': 1,
+                  'songs': <Object?>[
+                    <String, Object?>{
+                      'id': 7,
+                      'name': '清明雨上',
+                      'ar': <Object?>[
+                        <String, Object?>{'name': '许嵩'},
+                      ],
+                      'al': <String, Object?>{
+                        'name': '自定义专辑',
+                        'picUrl': 'https://image.test/cover.jpg',
+                      },
+                    },
+                  ],
+                },
+              }),
+            ),
+            200,
+          ),
+        ),
+      );
+
+      final result = await client.search(
+        apiBaseUrl: 'https://music.test/api/',
+        keyword: '清明雨上',
+        page: 1,
+        apiKey: 'key',
+      );
+
+      expect(result.total, 1);
+      expect(result.tracks.single.artist, '许嵩');
+      expect(result.tracks.single.album, '自定义专辑');
+      expect(result.tracks.single.artworkUrl, contains('cover.jpg'));
+    });
+
     test('surfaces a bounded server authentication message', () async {
       final client = MusicApiClient(
         client: MockClient(
