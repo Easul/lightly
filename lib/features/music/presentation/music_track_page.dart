@@ -289,11 +289,19 @@ class _MusicTrackPageState extends State<MusicTrackPage>
           });
         },
       );
-      // ensurePlayable already fetched missing lyrics/artwork for the
-      // remote id and saved them under the same track key, so pull the
-      // freshest copy from the library instead of persisting the bare
-      // download result that still points at null metadata.
-      _track = await _library.get(playable.trackKey) ?? playable;
+      // ensurePlayable already fetched missing lyrics/artwork for the remote
+      // id and saved them under the same track key. Merge that metadata back
+      // onto the download result (which owns the fresh file path and toast
+      // target) so saving it cannot clobber the cached lyric/artwork slots
+      // with nulls and the page always renders the newest values.
+      final cached = await _library.get(playable.trackKey);
+      _track = await _library.save(
+        playable.copyWith(
+          lyric: cached?.lyric ?? playable.lyric,
+          translatedLyric: cached?.translatedLyric ?? playable.translatedLyric,
+          artworkUrl: cached?.artworkUrl ?? playable.artworkUrl,
+        ),
+      );
       await _player.registerDownloadedTrack(_track);
       _lyrics = parseLrc(_track.lyric);
       if (mounted) setState(() {});

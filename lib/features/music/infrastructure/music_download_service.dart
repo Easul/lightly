@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
@@ -43,8 +45,15 @@ class MusicDownloadService {
       throw HttpException('下载失败（HTTP ${response.statusCode}）');
     }
     final extension = _extensionFor(track.sourceUri, response.headers);
+    // Same-titled songs (different ids or sources) must not collapse onto
+    // each other: the local library merges downloaded and scanned rows by
+    // file name, so reuse of plain title.mp3 would cross-link lyrics and
+    // artwork of unrelated tracks. A short md5 discriminator keeps them
+    // distinct while staying stable per song id / stream URL.
     final baseName = _sanitizeFileName(track.title);
-    final output = await _uniqueFile(directory, '$baseName$extension');
+    final output = File(
+      path.join(directory.path, '$baseName-${_contentDiscriminator(track)}$extension'),
+    );
     final file = await output.open(mode: FileMode.write);
     var receivedBytes = 0;
     final totalBytes = response.contentLength;
@@ -78,6 +87,14 @@ class MusicDownloadService {
   }
 }
 
+String _contentDiscriminator(MusicTrack track) {
+  final remoteId = track.remoteId?.trim();
+  final seed = remoteId != null && remoteId.isNotEmpty
+      ? 'id:$remoteId'
+      : track.sourceUri;
+  return md5.convert(utf8.encode(seed)).toString().substring(0, 6);
+}
+
 String _sanitizeFileName(String value) {
   final cleaned = value
       .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
@@ -108,16 +125,4 @@ String _extensionFor(String url, Map<String, String> headers) {
   if (contentType.contains('wav')) return '.wav';
   if (contentType.contains('aac')) return '.aac';
   return '.mp3';
-}
-
-Future<File> _uniqueFile(Directory directory, String name) async {
-  var candidate = File(path.join(directory.path, name));
-  var suffix = 2;
-  final extension = path.extension(name);
-  final stem = path.basenameWithoutExtension(name);
-  while (await candidate.exists()) {
-    candidate = File(path.join(directory.path, '$stem ($suffix)$extension'));
-    suffix++;
-  }
-  return candidate;
 }

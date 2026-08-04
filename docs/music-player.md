@@ -88,8 +88,13 @@ album metadata.
   from the remembered position instead of restarting. The resume behavior has
   no user-facing toggle; the top-right sheet only hosts sorting, the system
   playback toolbar switch, and the music settings entry.
-- Downloaded files are named with the song title only (no artist prefix).
-  Lyrics fetched for a downloaded track are mirrored onto the scanned
+- Downloaded files are named with the song title plus a short md5
+  discriminator of the song id (or stream URL), for example
+  海底-1a2b3c.mp3, so same-titled songs never share one file. The
+  discriminator is stable per song: re-downloading the same id overwrites
+  the same file instead of accumulating copies, and the local library's
+  merge-by-file-name stays one-to-one per song. Lyrics fetched for a
+  downloaded track are mirrored onto the scanned
   MediaStore row for the same file (matched by stored path, then by file
   name), and `ensureLyrics` reuses lyrics already cached on that scanned row,
   so downloaded songs keep their artwork and lyrics when shown inline in the

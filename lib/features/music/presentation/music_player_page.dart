@@ -203,6 +203,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           .map(MusicTrack.fromPlatformMap)
           .toList(growable: false);
       await _library.replaceLocalTracks(tracks);
+      // replaceLocalTracks rebuilt the scanned rows, so rebuild the
+      // downloaded merge queue against the fresh rows before the local list
+      // merge below carries covers/lyrics over.
+      await _player.refreshDownloadedTracks();
       await _reloadLibrary();
       _toast('已找到 ${tracks.length} 首本机歌曲');
     } catch (error) {

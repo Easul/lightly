@@ -328,6 +328,15 @@ class MusicPlayerController extends ChangeNotifier {
     _lastBrowseQueue = List<MusicTrack>.unmodifiable(tracks);
   }
 
+  /// Rebuilds the downloaded-track merge queue from the library (after a
+  /// fresh MediaStore rescan replaced the scanned rows) and notifies pages
+  /// so the inline local list picks up new covers/lyrics immediately.
+  Future<void> refreshDownloadedTracks() async {
+    await initialize();
+    _downloadedQueue = await _buildDownloadedQueue();
+    notifyListeners();
+  }
+
   Future<void> playTrack(
     MusicTrack track, {
     List<MusicTrack>? queue,
