@@ -95,6 +95,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     // 早已缓存好，但下载行的槽位还是空的，本地列表按扫描行渲染时就会
     // 看起来「没有封面没有歌词」。只补缺失槽位，不覆盖已有值。
     await _backfillDownloadedMetadata();
+    // The controller keeps a derived downloaded/scanned merge queue for the
+    // local list. Rebuild it after downloads or metadata recovery so returning
+    // from the detail page cannot render a stale snapshot.
+    await _player.refreshDownloadedTracks();
     final results = await Future.wait<Object>([
       _library.list(sourceType: MusicSourceType.local),
       _library.list(favoritesOnly: true),

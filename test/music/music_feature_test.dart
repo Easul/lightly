@@ -508,6 +508,66 @@ void main() {
       expect(await store.get('online:55'), isNotNull);
     });
 
+    test(
+      'refreshDownloadedTracks picks up rows added after controller init',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        const channel = MethodChannel('music_downloaded_queue_refresh_test');
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'getState') {
+                return <String, Object?>{
+                  'trackKey': '',
+                  'playing': false,
+                  'buffering': false,
+                };
+              }
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        final controller = MusicPlayerController(
+          platform: MusicPlatformGateway(channel: channel),
+          library: store,
+        );
+        await controller.initialize();
+
+        const downloaded = MusicTrack(
+          trackKey: 'online:56',
+          remoteId: '56',
+          title: '刚下载',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'file:///storage/emulated/0/Download/music/刚下载.mp3',
+          localPath: '/storage/emulated/0/Download/music/刚下载.mp3',
+          sourceType: MusicSourceType.downloaded,
+          lyric: '[00:01.00]在线歌词',
+          artworkUrl: 'https://image.test/cover-56.jpg',
+        );
+        const scanned = MusicTrack(
+          trackKey: 'local:/storage/emulated/0/Download/music/刚下载.mp3',
+          title: '刚下载',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://media/external/audio/media/56',
+          localPath: '/storage/emulated/0/Download/music/刚下载.mp3',
+          sourceType: MusicSourceType.local,
+        );
+        await store.save(downloaded);
+        await store.save(scanned);
+
+        await controller.refreshDownloadedTracks();
+
+        expect(controller.downloadedQueue.single.lyric, downloaded.lyric);
+        expect(
+          controller.downloadedQueue.single.artworkUrl,
+          downloaded.artworkUrl,
+        );
+      },
+    );
+
     test('ensureLyrics recovers artwork cached on the library copy and mirrors '
         'metadata onto the scanned row', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{

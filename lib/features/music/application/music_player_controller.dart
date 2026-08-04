@@ -903,16 +903,10 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<void> registerDownloadedTrack(MusicTrack track) async {
     final stored = await _library.get(track.trackKey);
-    if (stored != null &&
-        stored.lyric == null &&
-        track.lyric != null &&
-        stored.sourceUri != track.sourceUri) {
-      final pruned = stored.copyWith(lyric: '', translatedLyric: '');
-      await _library.save(pruned);
-      _replaceDownloadedQueueTrack(pruned);
-    } else {
-      _replaceDownloadedQueueTrack(stored ?? track);
-    }
+    // The freshly downloaded instance carries metadata resolved from the
+    // online result. Keep it when an older row with the same key is still in
+    // the library; never replace it with a metadata-empty stale copy.
+    _replaceDownloadedQueueTrack(_mergeMetadata(track, stored));
     notifyListeners();
   }
 
