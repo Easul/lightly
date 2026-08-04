@@ -12,14 +12,14 @@ class MusicOnlineSearchView extends StatefulWidget {
     super.key,
     required this.player,
     required this.bottomPadding,
-    required this.onOpenTrack,
+    required this.onTapTrack,
     required this.onError,
   });
 
   final MusicPlayerController player;
   final double bottomPadding;
   final Future<void> Function(MusicTrack track, List<MusicTrack> queue)
-  onOpenTrack;
+  onTapTrack;
   final ValueChanged<String> onError;
 
   @override
@@ -184,7 +184,7 @@ class _MusicOnlineSearchViewState extends State<MusicOnlineSearchView> {
                     track: track,
                     isCurrent:
                         widget.player.currentTrack?.trackKey == track.trackKey,
-                    onTap: () => unawaited(widget.onOpenTrack(track, tracks)),
+                    onTap: () => unawaited(widget.onTapTrack(track, tracks)),
                   );
                 },
               );

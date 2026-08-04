@@ -21,11 +21,13 @@ class MusicTrackPage extends StatefulWidget {
     super.key,
     required this.track,
     this.queue,
+    this.resumeFromSaved = false,
     this.leavePlayerQueueOnExit = false,
   });
 
   final MusicTrack track;
   final List<MusicTrack>? queue;
+  final bool resumeFromSaved;
   final bool leavePlayerQueueOnExit;
 
   @override
@@ -48,6 +50,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   );
 
   late MusicTrack _track = widget.track;
+  late List<MusicTrack> _queue = widget.queue ?? const <MusicTrack>[];
   List<MusicLyricLine> _lyrics = const <MusicLyricLine>[];
   bool _loadingLyrics = false;
   bool _downloading = false;
@@ -57,7 +60,14 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   int _trackLoadRequestId = 0;
 
   bool get _isCurrent => _player.currentTrack?.trackKey == _track.trackKey;
-  Duration get _position => _isCurrent ? _player.position : Duration.zero;
+  Duration get _position {
+    if (_isCurrent) return _player.position;
+    if (widget.resumeFromSaved && _track.lastPositionMs > 0) {
+      return Duration(milliseconds: _track.lastPositionMs);
+    }
+    return Duration.zero;
+  }
+
   Duration get _duration =>
       _isCurrent ? _player.duration : Duration(milliseconds: _track.durationMs);
 
@@ -67,6 +77,11 @@ class _MusicTrackPageState extends State<MusicTrackPage>
     _player.addListener(_handlePlayerChanged);
     _syncRotation();
     unawaited(_loadStoredTrackAndLyrics());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.resumeFromSaved || _isCurrent) return;
+      // 用户已确认断点续播：自动从上次位置继续播放。
+      unawaited(_playOrPause());
+    });
   }
 
   @override
@@ -107,13 +122,15 @@ class _MusicTrackPageState extends State<MusicTrackPage>
     if (current?.trackKey == _track.trackKey) {
       _track = current!;
     } else if (current != null &&
-        (widget.queue?.any((track) => track.trackKey == current.trackKey) ??
-            false)) {
+        _queue.any((track) => track.trackKey == current.trackKey)) {
       _track = current;
       _lyrics = parseLrc(current.lyric);
       _activeLyric = -1;
       _seekPreviewMs = null;
       unawaited(_loadStoredTrackAndLyrics());
+    }
+    if (_player.queue.isNotEmpty) {
+      _queue = _player.queue;
     }
     _syncRotation();
     final index = activeLyricIndex(_lyrics, _position);
@@ -153,7 +170,15 @@ class _MusicTrackPageState extends State<MusicTrackPage>
       if (_isCurrent) {
         await _player.togglePlayPause();
       } else {
-        await _player.playTrack(_track, queue: widget.queue ?? _player.queue);
+        final resumeAt = widget.resumeFromSaved && _track.lastPositionMs > 0
+            ? Duration(milliseconds: _track.lastPositionMs)
+            : null;
+        await _player.playTrack(
+          _track,
+          queue: _queue,
+          startAt: resumeAt,
+          savePosition: resumeAt == null,
+        );
       }
     } catch (error) {
       _toast('$error');
@@ -163,7 +188,7 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   Future<void> _seekToLyric(Duration position) async {
     try {
       if (!_isCurrent) {
-        await _player.playTrack(_track, queue: widget.queue);
+        await _player.playTrack(_track, queue: _queue);
       }
       await _player.seek(position);
     } catch (error) {
@@ -281,6 +306,40 @@ class _MusicTrackPageState extends State<MusicTrackPage>
   }
 
   void _toast(String message) => unawaited(AppToast.show(message));
+
+  bool get _canSkip {
+    if (_queue.isNotEmpty) return _queue.length > 1;
+    return _player.queue.length > 1;
+  }
+
+  Future<void> _skip(bool forward) async {
+    if (!_canSkip) return;
+    // Before the queue ever started playing, jump inside this page's own
+    // group instead of relying on controller state.
+    if (!_isCurrent && _queue.length > 1) {
+      final index = _queue.indexWhere(
+        (track) => track.trackKey == _track.trackKey,
+      );
+      if (index < 0) return;
+      final offset = forward ? 1 : -1;
+      final target = _queue[(index + offset + _queue.length) % _queue.length];
+      try {
+        await _player.playTrack(target, queue: _queue);
+      } catch (error) {
+        _toast('$error');
+      }
+      return;
+    }
+    try {
+      if (forward) {
+        await _player.next();
+      } else {
+        await _player.previous();
+      }
+    } catch (error) {
+      _toast('$error');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -432,8 +491,8 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                     children: [
                       IconButton(
                         tooltip: '上一首',
-                        onPressed: _player.hasPrevious && _isCurrent
-                            ? () => unawaited(_player.previous())
+                        onPressed: _canSkip
+                            ? () => unawaited(_skip(false))
                             : null,
                         icon: const Icon(Icons.skip_previous_rounded),
                       ),
@@ -465,8 +524,8 @@ class _MusicTrackPageState extends State<MusicTrackPage>
                       const SizedBox(width: 12),
                       IconButton(
                         tooltip: '下一首',
-                        onPressed: _player.hasNext && _isCurrent
-                            ? () => unawaited(_player.next())
+                        onPressed: _canSkip
+                            ? () => unawaited(_skip(true))
                             : null,
                         icon: const Icon(Icons.skip_next_rounded),
                       ),

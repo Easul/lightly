@@ -1,6 +1,36 @@
 import 'package:flutter/material.dart';
 
+import '../application/music_player_controller.dart';
+import '../domain/music_library_sort.dart';
 import '../infrastructure/music_settings_store.dart';
+
+/// Asks whether playback should resume from the remembered position. Returns
+/// `true` to resume, `false` to start over, and `null` when dismissed.
+Future<bool?> showMusicResumePromptDialog(
+  BuildContext context,
+  MusicResumeRequest request,
+) {
+  final totalSeconds = request.position.inSeconds;
+  final label =
+      '${totalSeconds ~/ 60}:${(totalSeconds % 60).toString().padLeft(2, '0')}';
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('继续上次播放？'),
+      content: Text('“${request.track.title}”上次播放到 $label。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('从头播放'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('继续播放'),
+        ),
+      ],
+    ),
+  );
+}
 
 Future<MusicSettings?> showMusicSettingsDialog(
   BuildContext context,
@@ -10,6 +40,7 @@ Future<MusicSettings?> showMusicSettingsDialog(
   final apiKeyController = TextEditingController(text: initial.apiKey);
   var quality = initial.quality;
   var notificationEnabled = initial.notificationEnabled;
+  var resumePromptEnabled = initial.resumePromptEnabled;
   var obscureApiKey = true;
   return showDialog<MusicSettings>(
     context: context,
@@ -77,6 +108,15 @@ Future<MusicSettings?> showMusicSettingsDialog(
                   setDialogState(() => notificationEnabled = value);
                 },
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('记住播放进度'),
+                subtitle: const Text('再次播放时询问是否从上次位置继续'),
+                value: resumePromptEnabled,
+                onChanged: (value) {
+                  setDialogState(() => resumePromptEnabled = value);
+                },
+              ),
             ],
           ),
         ),
@@ -93,6 +133,8 @@ Future<MusicSettings?> showMusicSettingsDialog(
                 apiKey: apiKeyController.text.trim(),
                 quality: quality,
                 notificationEnabled: notificationEnabled,
+                resumePromptEnabled: resumePromptEnabled,
+                librarySort: initial.librarySort,
               ),
             ),
             child: const Text('保存'),
@@ -161,4 +203,43 @@ Future<String?> showMusicGroupDialog(
       ],
     ),
   ).whenComplete(controller.dispose);
+}
+
+Future<MusicLibrarySort?> showMusicSortDialog(
+  BuildContext context,
+  MusicLibrarySort current,
+) {
+  return showModalBottomSheet<MusicLibrarySort>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              '排序方式',
+              style: Theme.of(sheetContext).textTheme.titleMedium,
+            ),
+          ),
+          ...MusicLibrarySort.options.map(
+            (option) => ListTile(
+              leading: Icon(
+                option == current
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_off_rounded,
+                color: option == current
+                    ? Theme.of(sheetContext).colorScheme.primary
+                    : null,
+              ),
+              title: Text(option.label),
+              onTap: () => Navigator.pop(sheetContext, option),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

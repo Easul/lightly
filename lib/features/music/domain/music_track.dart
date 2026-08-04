@@ -18,6 +18,7 @@ class MusicTrack {
     this.groupName = '',
     this.updatedAt,
     this.lastPlayedAt,
+    this.lastPositionMs = 0,
   });
 
   final String trackKey;
@@ -36,6 +37,7 @@ class MusicTrack {
   final String groupName;
   final DateTime? updatedAt;
   final DateTime? lastPlayedAt;
+  final int lastPositionMs;
 
   bool get isRemote => remoteId != null && remoteId!.isNotEmpty;
   bool get isPlayable => sourceUri.trim().isNotEmpty || isRemote;
@@ -99,6 +101,7 @@ class MusicTrack {
       lastPlayedAt: map['lastPlayedAt'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(map['lastPlayedAt'] as int),
+      lastPositionMs: (map['lastPositionMs'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -120,6 +123,7 @@ class MusicTrack {
       'groupName': groupName,
       'updatedAt': (updatedAt ?? DateTime.now()).millisecondsSinceEpoch,
       'lastPlayedAt': lastPlayedAt?.millisecondsSinceEpoch,
+      'lastPositionMs': lastPositionMs,
     };
   }
 
@@ -138,6 +142,7 @@ class MusicTrack {
     String? groupName,
     DateTime? updatedAt,
     DateTime? lastPlayedAt,
+    int? lastPositionMs,
   }) {
     return MusicTrack(
       trackKey: trackKey,
@@ -156,6 +161,7 @@ class MusicTrack {
       groupName: groupName ?? this.groupName,
       updatedAt: updatedAt ?? this.updatedAt,
       lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      lastPositionMs: lastPositionMs ?? this.lastPositionMs,
     );
   }
 }

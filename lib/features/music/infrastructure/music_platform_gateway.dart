@@ -82,6 +82,7 @@ class MusicPlatformGateway {
     required String artist,
     required String album,
     String? artworkUri,
+    int startPositionMs = 0,
     required bool notificationEnabled,
   }) {
     return _channel.invokeMethod<void>('play', <String, Object?>{
@@ -91,6 +92,7 @@ class MusicPlatformGateway {
       'artist': artist,
       'album': album,
       'artworkUri': artworkUri,
+      'positionMs': startPositionMs,
       'notificationEnabled': notificationEnabled,
     });
   }

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../domain/music_library_sort.dart';
 import '../domain/music_track.dart';
 import '../infrastructure/music_api_client.dart';
 import '../infrastructure/music_library_store.dart';
@@ -12,6 +13,29 @@ import '../infrastructure/music_settings_store.dart';
 typedef ExternalTrackOpened = Future<void> Function(MusicTrack track);
 
 enum MusicPlaybackMode { listLoop, singleLoop, shuffle }
+
+/// A request to resume a track from its remembered playback position. Pages
+/// surface this as a confirmation dialog and answer through
+/// [MusicPlayerController.resolveResumeRequest].
+class MusicResumeRequest {
+  const MusicResumeRequest({
+    required this.track,
+    required this.position,
+    required this.queue,
+  });
+
+  final MusicTrack track;
+  final Duration position;
+  final List<MusicTrack> queue;
+}
+
+class _PendingPlay {
+  const _PendingPlay({required this.track, required this.queue, this.startAt});
+
+  final MusicTrack track;
+  final List<MusicTrack> queue;
+  final Duration? startAt;
+}
 
 class MusicPlayerController extends ChangeNotifier {
   MusicPlayerController({
@@ -40,11 +64,13 @@ class MusicPlayerController extends ChangeNotifier {
   MusicTrack? _currentTrack;
   List<MusicTrack> _queue = const <MusicTrack>[];
   List<MusicTrack> _downloadedQueue = const <MusicTrack>[];
+  List<MusicTrack> _lastBrowseQueue = const <MusicTrack>[];
   int _queueIndex = -1;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _playing = false;
   bool _buffering = false;
+  bool _hasPlaybackSession = false;
   bool _completionAdvanceInProgress = false;
   String? _playbackError;
   bool _initialized = false;
@@ -60,9 +86,13 @@ class MusicPlayerController extends ChangeNotifier {
   String? _searchError;
   int _searchRequestId = 0;
   bool _playbackCommandInProgress = false;
+  bool _positionSaveQueued = false;
+  _PendingPlay? _pendingPlay;
   final Random _random = Random();
   final ValueNotifier<int> _searchRevision = ValueNotifier<int>(0);
   final ValueNotifier<String?> _activeTrackKey = ValueNotifier<String?>(null);
+  final ValueNotifier<MusicResumeRequest?> _resumeRequest =
+      ValueNotifier<MusicResumeRequest?>(null);
 
   MusicSettings get settings => _settings;
   MusicTrack? get currentTrack => _currentTrack;
@@ -74,8 +104,8 @@ class MusicPlayerController extends ChangeNotifier {
   bool get isBuffering => _buffering;
   String? get playbackError => _playbackError;
   MusicPlaybackMode get playbackMode => _playbackMode;
-  bool get hasPrevious => _queue.length > 1;
-  bool get hasNext => _queue.length > 1;
+  bool get hasPrevious => _effectiveQueue.length > 1;
+  bool get hasNext => _effectiveQueue.length > 1;
   String get searchKeyword => _searchKeyword;
   List<MusicTrack> get searchResults => _searchResults;
   int get searchTotal => _searchTotal;
@@ -84,6 +114,26 @@ class MusicPlayerController extends ChangeNotifier {
   String? get searchError => _searchError;
   ValueListenable<int> get searchChanges => _searchRevision;
   ValueListenable<String?> get activeTrackKeyChanges => _activeTrackKey;
+  ValueListenable<MusicResumeRequest?> get resumeRequestChanges =>
+      _resumeRequest;
+
+  List<MusicTrack> get _effectiveQueue =>
+      _queue.isNotEmpty ? _queue : _lastBrowseQueue;
+
+  int get _effectiveIndex {
+    final queue = _effectiveQueue;
+    if (queue.isEmpty) return -1;
+    final currentKey = _currentTrack?.trackKey;
+    if (currentKey != null) {
+      final index = queue.indexWhere((track) => track.trackKey == currentKey);
+      if (index >= 0) return index;
+    }
+    if (currentKey == null) {
+      final queued = _queueIndex;
+      if (queued >= 0 && queued < queue.length) return queued;
+    }
+    return 0;
+  }
 
   String get playbackModeLabel => switch (_playbackMode) {
     MusicPlaybackMode.listLoop => '列表循环',
@@ -139,6 +189,14 @@ class MusicPlayerController extends ChangeNotifier {
     await _settingsStore.save(effective);
     await _platform.setNotificationEnabled(effective.notificationEnabled);
     notifyListeners();
+  }
+
+  Future<void> setLibrarySort(MusicLibrarySort sort) {
+    return updateSettings(_settings.copyWith(librarySort: sort));
+  }
+
+  Future<void> setResumePromptEnabled(bool enabled) {
+    return updateSettings(_settings.copyWith(resumePromptEnabled: enabled));
   }
 
   Future<void> search(String keyword) async {
@@ -247,9 +305,24 @@ class MusicPlayerController extends ChangeNotifier {
     _queueIndex = nextIndex;
   }
 
-  Future<void> playTrack(MusicTrack track, {List<MusicTrack>? queue}) async {
+  /// Remembers the most recently browsed local/favorite list so that
+  /// previous/next still work before any track has started playing.
+  void registerBrowseQueue(List<MusicTrack> tracks) {
+    _lastBrowseQueue = List<MusicTrack>.unmodifiable(tracks);
+  }
+
+  Future<void> playTrack(
+    MusicTrack track, {
+    List<MusicTrack>? queue,
+    Duration? startAt,
+    bool savePosition = true,
+  }) async {
+    if (savePosition) {
+      await _persistCurrentPosition();
+    }
     if (queue != null) {
       _queue = List<MusicTrack>.unmodifiable(queue);
+      _lastBrowseQueue = _queue;
       _queueIndex = _queue.indexWhere(
         (item) => item.trackKey == track.trackKey,
       );
@@ -261,6 +334,9 @@ class MusicPlayerController extends ChangeNotifier {
       _queueIndex = 0;
     }
     _buffering = true;
+    if (startAt != null && startAt > Duration.zero) {
+      _position = startAt;
+    }
     final isLocalDevice =
         track.sourceType == MusicSourceType.local && track.localPath != null;
     if (!isLocalDevice) {
@@ -287,12 +363,64 @@ class MusicPlayerController extends ChangeNotifier {
         artist: playable.artist,
         album: playable.album,
         artworkUri: playable.artworkUrl,
+        startPositionMs: startAt?.inMilliseconds ?? 0,
         notificationEnabled: _settings.notificationEnabled,
       );
     } finally {
       _buffering = false;
       notifyListeners();
     }
+  }
+
+  /// Starts the tapped track immediately unless it already finished once and
+  /// has a remembered position; in that case a resume request is surfaced so
+  /// the page can ask whether to continue from that position.
+  Future<void> playFromLibrary(MusicTrack track, List<MusicTrack> queue) async {
+    final stored = await _library.get(track.trackKey);
+    final candidate = stored ?? track;
+    final positionMs = candidate.lastPositionMs;
+    final durationMs = candidate.durationMs;
+    final nearEnd = durationMs > 0 && positionMs >= durationMs - 5000;
+    if (_settings.resumePromptEnabled &&
+        positionMs >= 10000 &&
+        candidate.lastPlayedAt != null &&
+        !nearEnd) {
+      _pendingPlay = _PendingPlay(
+        track: candidate,
+        queue: List<MusicTrack>.unmodifiable(queue),
+        startAt: Duration(milliseconds: positionMs),
+      );
+      _resumeRequest.value = MusicResumeRequest(
+        track: candidate,
+        position: Duration(milliseconds: positionMs),
+        queue: List<MusicTrack>.unmodifiable(queue),
+      );
+      return;
+    }
+    await playTrack(candidate, queue: queue);
+  }
+
+  Future<void> resolveResumeRequest(bool resumeFromSaved) async {
+    final pending = _pendingPlay;
+    _pendingPlay = null;
+    _resumeRequest.value = null;
+    if (pending == null) return;
+    await playTrack(
+      pending.track,
+      queue: pending.queue,
+      startAt: resumeFromSaved ? pending.startAt : null,
+      // The decision to resume or restart is explicit; do not let the
+      // pre-switch position save wipe the remembered value for this play.
+      savePosition: !resumeFromSaved,
+    );
+  }
+
+  /// Drops a pending resume request without starting playback. The playback
+  /// detail page consumes the remembered position itself when the user chose
+  /// to resume.
+  void discardResumeRequest() {
+    _pendingPlay = null;
+    _resumeRequest.value = null;
   }
 
   Future<MusicTrack> ensurePlayable(MusicTrack track) async {
@@ -369,9 +497,33 @@ class MusicPlayerController extends ChangeNotifier {
     }
   }
 
+  /// Toggles playback, starting the remembered queue when the native player
+  /// was already stopped (e.g. app restart). Returns false when nothing can
+  /// be started so the caller can fall back to opening the detail page.
+  Future<bool> togglePlayPauseOrStart({List<MusicTrack>? queue}) async {
+    final track = _currentTrack;
+    if (track == null) return false;
+    if (_hasPlaybackSession) {
+      await togglePlayPause();
+      return true;
+    }
+    final effectiveQueue = queue != null && queue.isNotEmpty
+        ? queue
+        : _effectiveQueue;
+    final containsTrack = effectiveQueue.any(
+      (item) => item.trackKey == track.trackKey,
+    );
+    await playTrack(
+      track,
+      queue: containsTrack ? effectiveQueue : <MusicTrack>[track],
+    );
+    return true;
+  }
+
   Future<void> seek(Duration position) => _platform.seek(position);
 
   Future<void> stop() async {
+    await _persistCurrentPosition();
     await _platform.stop();
     _playing = false;
     _position = Duration.zero;
@@ -386,6 +538,32 @@ class MusicPlayerController extends ChangeNotifier {
     _queueIndex = -1;
   }
 
+  Future<void> _persistCurrentPosition() async {
+    final track = _currentTrack;
+    if (track == null || !_hasPlaybackSession) return;
+    if (track.sourceType == MusicSourceType.online && !track.isRemote) return;
+    try {
+      final updated = await _library.updatePlaybackPosition(track, _position);
+      _replaceQueuedTrack(updated);
+      _replaceSearchTrack(updated);
+      _replaceDownloadedQueueTrack(updated);
+      if (_currentTrack?.trackKey == updated.trackKey) {
+        _currentTrack = updated;
+      }
+    } on Object catch (error) {
+      debugPrint('[Music] persist position failed: $error');
+    }
+  }
+
+  void _schedulePositionSave() {
+    if (_positionSaveQueued) return;
+    _positionSaveQueued = true;
+    scheduleMicrotask(() async {
+      _positionSaveQueued = false;
+      await _persistCurrentPosition();
+    });
+  }
+
   void cyclePlaybackMode() {
     _playbackMode = switch (_playbackMode) {
       MusicPlaybackMode.listLoop => MusicPlaybackMode.singleLoop,
@@ -396,33 +574,41 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> previous() async {
-    if (_queue.isEmpty) return;
-    if (_playbackMode == MusicPlaybackMode.shuffle && _queue.length > 1) {
-      _queueIndex = _randomIndex();
+    final queue = _effectiveQueue;
+    if (queue.isEmpty) return;
+    var index = _effectiveIndex;
+    if (_playbackMode == MusicPlaybackMode.shuffle && queue.length > 1) {
+      _queueIndex = _randomIndex(queue, index);
     } else {
-      _queueIndex = (_queueIndex - 1 + _queue.length) % _queue.length;
+      _queueIndex = (index - 1 + queue.length) % queue.length;
     }
+    _queue = queue;
     await playTrack(_queue[_queueIndex]);
   }
 
   Future<void> next() async {
-    if (_queue.isEmpty) return;
-    if (_playbackMode == MusicPlaybackMode.singleLoop) {
+    final queue = _effectiveQueue;
+    if (queue.isEmpty) return;
+    final index = _effectiveIndex;
+    if (_playbackMode == MusicPlaybackMode.singleLoop && index >= 0) {
+      _queue = queue;
+      _queueIndex = index;
       await playTrack(_queue[_queueIndex]);
       return;
     }
-    if (_playbackMode == MusicPlaybackMode.shuffle && _queue.length > 1) {
-      _queueIndex = _randomIndex();
+    if (_playbackMode == MusicPlaybackMode.shuffle && queue.length > 1) {
+      _queueIndex = _randomIndex(queue, index);
     } else {
-      _queueIndex = (_queueIndex + 1) % _queue.length;
+      _queueIndex = (index + 1) % queue.length;
     }
+    _queue = queue;
     await playTrack(_queue[_queueIndex]);
   }
 
-  int _randomIndex() {
-    var index = _random.nextInt(_queue.length);
-    while (index == _queueIndex && _queue.length > 1) {
-      index = _random.nextInt(_queue.length);
+  int _randomIndex(List<MusicTrack> queue, int currentIndex) {
+    var index = _random.nextInt(queue.length);
+    while (index == currentIndex && queue.length > 1) {
+      index = _random.nextInt(queue.length);
     }
     return index;
   }
@@ -437,6 +623,28 @@ class MusicPlayerController extends ChangeNotifier {
     final updated = await _library.setGroup(track, groupName);
     _replaceCurrent(updated);
     return updated;
+  }
+
+  /// Saves the current position without touching the queue or native player.
+  Future<void> saveCurrentPosition() => _persistCurrentPosition();
+
+  @visibleForTesting
+  void simulatePlaybackStateForTesting({
+    String trackKey = '',
+    bool playing = false,
+    bool buffering = false,
+    bool completed = false,
+    int positionMs = 0,
+    int durationMs = 0,
+  }) {
+    _handlePlaybackState(<Object?, Object?>{
+      'trackKey': trackKey,
+      'playing': playing,
+      'buffering': buffering,
+      'completed': completed,
+      'positionMs': positionMs,
+      'durationMs': durationMs,
+    });
   }
 
   Future<void> deleteLocalTrack(MusicTrack track) async {
@@ -546,6 +754,10 @@ class MusicPlayerController extends ChangeNotifier {
       _setCurrentTrack(null);
       _queue = const <MusicTrack>[];
       _queueIndex = -1;
+      _hasPlaybackSession = false;
+    }
+    if ((state['trackKey']?.toString() ?? '').isNotEmpty) {
+      _hasPlaybackSession = true;
     }
     _playing = state['playing'] == true;
     _buffering = state['buffering'] == true;
@@ -558,6 +770,7 @@ class MusicPlayerController extends ChangeNotifier {
     _playbackError = state['error']?.toString();
     notifyListeners();
     if (state['completed'] != true) {
+      if (_playing && _position > Duration.zero) _schedulePositionSave();
       _completionAdvanceInProgress = false;
     } else if (_queue.isNotEmpty && !_completionAdvanceInProgress) {
       _completionAdvanceInProgress = true;
@@ -566,7 +779,7 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> _handlePlaybackCommand(String command) async {
-    if (_playbackCommandInProgress || _queue.isEmpty) return;
+    if (_playbackCommandInProgress || _effectiveQueue.isEmpty) return;
     _playbackCommandInProgress = true;
     try {
       if (command == 'previous' && hasPrevious) {
@@ -648,6 +861,7 @@ class MusicPlayerController extends ChangeNotifier {
   void dispose() {
     _searchRevision.dispose();
     _activeTrackKey.dispose();
+    _resumeRequest.dispose();
     super.dispose();
   }
 }

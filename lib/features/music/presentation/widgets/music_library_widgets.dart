@@ -100,7 +100,9 @@ class _MusicMiniPlayerState extends State<MusicMiniPlayer>
                   ),
                   IconButton(
                     tooltip: player.isPlaying ? '暂停' : '播放',
-                    onPressed: () => unawaited(player.togglePlayPause()),
+                    onPressed: () => unawaited(
+                      player.togglePlayPauseOrStart(queue: player.queue),
+                    ),
                     icon: Icon(
                       player.isPlaying
                           ? Icons.pause_rounded

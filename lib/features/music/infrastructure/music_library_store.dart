@@ -105,6 +105,7 @@ class MusicLibraryStore {
           translatedLyric: previous?.translatedLyric,
           updatedAt: previous?.updatedAt ?? DateTime.now(),
           lastPlayedAt: previous?.lastPlayedAt,
+          lastPositionMs: previous?.lastPositionMs ?? 0,
         );
         await transaction.insert(
           table,
@@ -121,6 +122,17 @@ class MusicLibraryStore {
 
   Future<MusicTrack> setGroup(MusicTrack track, String groupName) {
     return save(track.copyWith(groupName: groupName.trim()));
+  }
+
+  Future<MusicTrack> updatePlaybackPosition(
+    MusicTrack track,
+    Duration position,
+  ) {
+    final positionMs = position.inMilliseconds.clamp(0, 1 << 31);
+    if (track.lastPositionMs == positionMs) {
+      return Future<MusicTrack>.value(track);
+    }
+    return save(track.copyWith(lastPositionMs: positionMs));
   }
 
   Future<void> delete(String trackKey) async {

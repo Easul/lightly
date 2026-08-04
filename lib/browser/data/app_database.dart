@@ -16,7 +16,7 @@ class AppDatabase {
   static const String aiChatSessionTable = 'ai_chat_sessions';
   static const String aiChatMessageTable = 'ai_chat_messages';
   static const String musicTrackTable = 'music_tracks';
-  static const int schemaVersion = 5;
+  static const int schemaVersion = 6;
 
   static final AppDatabase instance = AppDatabase._();
 
@@ -134,6 +134,11 @@ class AppDatabase {
     if (oldVersion < 5) {
       await _createMusicTables(db);
     }
+    if (oldVersion < 6 && oldVersion >= 5) {
+      await db.execute(
+        'ALTER TABLE $musicTrackTable ADD COLUMN lastPositionMs INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   static Future<void> _createHistoryVisitsTable(Database db) async {
@@ -202,7 +207,8 @@ class AppDatabase {
         isFavorite INTEGER NOT NULL DEFAULT 0,
         groupName TEXT NOT NULL DEFAULT '',
         updatedAt INTEGER NOT NULL,
-        lastPlayedAt INTEGER
+        lastPlayedAt INTEGER,
+        lastPositionMs INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute(

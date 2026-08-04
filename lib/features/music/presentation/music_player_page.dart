@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../../services/app_toast.dart';
 import '../application/music_player_controller.dart';
+import '../domain/music_library_sort.dart';
 import '../domain/music_track.dart';
 import '../infrastructure/music_library_store.dart';
 import '../infrastructure/music_platform_gateway.dart';
-import 'music_downloads_page.dart';
 import 'music_player_dialogs.dart';
 import 'music_track_page.dart';
 import 'widgets/music_library_widgets.dart';
@@ -21,12 +21,13 @@ class MusicPlayerPage extends StatefulWidget {
   State<MusicPlayerPage> createState() => _MusicPlayerPageState();
 }
 
-enum MusicLibraryTab { local, favorites }
+enum MusicLibraryTab { local, online, favorites }
 
 class _MusicPlayerPageState extends State<MusicPlayerPage> {
   final MusicPlayerController _player = MusicPlayerController.instance;
   final MusicLibraryStore _library = MusicLibraryStore.instance;
   final MusicPlatformGateway _platform = MusicPlatformGateway.instance;
+  bool _resumePromptShowing = false;
 
   List<MusicTrack> _localTracks = const <MusicTrack>[];
   List<MusicTrack> _favorites = const <MusicTrack>[];
@@ -42,8 +43,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(_player.initialize());
-    unawaited(_reloadLibrary());
+    unawaited(_player.initialize().then((_) => _reloadLibrary()));
+    _player.resumeRequestChanges.addListener(_handleResumeRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || ModalRoute.of(context)?.settings.arguments != true) {
         return;
@@ -55,6 +56,37 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _player.resumeRequestChanges.removeListener(_handleResumeRequest);
+    super.dispose();
+  }
+
+  void _handleResumeRequest() {
+    final request = _player.resumeRequestChanges.value;
+    if (request == null || _resumePromptShowing || !mounted) return;
+    _resumePromptShowing = true;
+    unawaited(
+      showMusicResumePromptDialog(context, request)
+          .then((resume) async {
+            if (resume == null) {
+              _player.discardResumeRequest();
+              return;
+            }
+            // 选择后进入播放详情页，由详情页执行从头播放或断点续播。
+            _player.discardResumeRequest();
+            if (mounted) {
+              await _openTrack(
+                request.track,
+                queue: request.queue,
+                resumeFromSaved: resume,
+              );
+            }
+          })
+          .whenComplete(() => _resumePromptShowing = false),
+    );
+  }
+
   Future<void> _reloadLibrary() async {
     final results = await Future.wait<Object>([
       _library.list(sourceType: MusicSourceType.local),
@@ -62,12 +94,20 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       _library.listGroups(),
     ]);
     if (!mounted) return;
-    final localTracks = results[0] as List<MusicTrack>;
+    final sort = _player.settings.librarySort;
+    final localTracks = sortMusicTracks(
+      _mergeDownloadedTracks(results[0] as List<MusicTrack>),
+      sort,
+    );
+    final favorites = sortMusicTracks(
+      (results[1] as List<MusicTrack>)
+          .where((track) => !track.isRemote)
+          .toList(growable: false),
+      sort,
+    );
     setState(() {
       _localTracks = localTracks;
-      _favorites = (results[1] as List<MusicTrack>)
-          .where((track) => !track.isRemote)
-          .toList(growable: false);
+      _favorites = favorites;
       _groups = results[2] as List<String>;
       _loadingLibrary = false;
       final validKeys = <String>{
@@ -76,6 +116,48 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       };
       _selectedTrackKeys.removeWhere((key) => !validKeys.contains(key));
     });
+    _syncBrowseQueue();
+  }
+
+  /// Downloaded songs that are also visible in the MediaStore scan are merged
+  /// into the local list (lyrics/artwork carried over); downloads outside the
+  /// media library are appended so the 本机 tab shows everything on device.
+  List<MusicTrack> _mergeDownloadedTracks(List<MusicTrack> localTracks) {
+    final merged = <String, MusicTrack>{
+      for (final track in localTracks) track.trackKey: track,
+    };
+    final paths = localTracks
+        .map((track) => track.localPath)
+        .whereType<String>()
+        .toSet();
+    var changed = false;
+    for (final downloaded in _player.downloadedQueue) {
+      final existing = merged[downloaded.trackKey];
+      if (existing != null) {
+        merged[downloaded.trackKey] = existing.copyWith(
+          lyric: existing.lyric ?? downloaded.lyric,
+          translatedLyric:
+              existing.translatedLyric ?? downloaded.translatedLyric,
+          artworkUrl: existing.artworkUrl ?? downloaded.artworkUrl,
+        );
+        changed = true;
+      } else if (downloaded.localPath == null ||
+          !paths.contains(downloaded.localPath)) {
+        merged[downloaded.trackKey] = downloaded;
+        changed = true;
+      }
+    }
+    if (!changed) return localTracks;
+    return merged.values.toList(growable: false);
+  }
+
+  void _syncBrowseQueue() {
+    final source = switch (_selectionTab) {
+      MusicLibraryTab.online => _player.searchResults,
+      MusicLibraryTab.favorites => _favorites,
+      MusicLibraryTab.local => _localTracks,
+    };
+    _player.registerBrowseQueue(_filterGroup(source));
   }
 
   Future<void> _scanLocalMusic() async {
@@ -103,15 +185,43 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     }
   }
 
-  Future<void> _openTrack(MusicTrack track, {List<MusicTrack>? queue}) async {
+  Future<void> _openTrack(
+    MusicTrack track, {
+    List<MusicTrack>? queue,
+    bool resumeFromSaved = false,
+  }) async {
     final effectiveQueue =
         queue ?? (track.isRemote ? null : _filterGroup(_localTracks));
+    if (effectiveQueue != null) {
+      _player.registerBrowseQueue(effectiveQueue);
+    }
+    await _player.saveCurrentPosition();
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MusicTrackPage(track: track, queue: effectiveQueue),
+        builder: (_) => MusicTrackPage(
+          track: track,
+          queue: effectiveQueue,
+          resumeFromSaved: resumeFromSaved,
+        ),
       ),
     );
     await _reloadLibrary();
+  }
+
+  Future<void> _playFromList(
+    MusicTrack track, {
+    List<MusicTrack>? queue,
+  }) async {
+    final effectiveQueue =
+        queue ??
+        (track.isRemote ? <MusicTrack>[track] : _filterGroup(_localTracks));
+    _player.registerBrowseQueue(effectiveQueue);
+    try {
+      await _player.playFromLibrary(track, effectiveQueue);
+    } catch (error) {
+      _toast('$error');
+    }
   }
 
   Future<void> _toggleFavorite(MusicTrack track) async {
@@ -133,11 +243,19 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     _toast('音乐设置已保存');
   }
 
-  Future<void> _showDownloads() async {
-    await Navigator.of(
+  Future<void> _showSortPicker() async {
+    final sort = await showMusicSortDialog(
       context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const MusicDownloadsPage()));
+      _player.settings.librarySort,
+    );
+    if (sort == null) return;
+    await _player.setLibrarySort(sort);
     await _reloadLibrary();
+  }
+
+  Future<void> _toggleResumePrompt(bool enabled) async {
+    await _player.setResumePromptEnabled(enabled);
+    _toast(enabled ? '已开启续播询问' : '已关闭续播询问');
   }
 
   void _toggleSelection(MusicLibraryTab tab, String trackKey, bool selected) {
@@ -264,67 +382,97 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('音乐'),
-          actions: [
-            PopupMenuButton<String>(
-              tooltip: '音乐菜单',
-              onSelected: (value) {
-                if (value == 'downloads') unawaited(_showDownloads());
-                if (value == 'settings') unawaited(_showSettings());
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'downloads',
-                  child: ListTile(
-                    leading: Icon(Icons.download_done_rounded),
-                    title: Text('下载记录'),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'settings',
-                  child: ListTile(
-                    leading: Icon(Icons.tune_rounded),
-                    title: Text('音乐设置'),
-                  ),
-                ),
+      child: _MusicLibraryScaffoldHost(
+        onTabChanged: (tab) {
+          if (_selectionMode) return;
+          if (tab == _selectionTab) return;
+          _selectionTab = tab;
+          _syncBrowseQueue();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('音乐'),
+            actions: [
+              AnimatedBuilder(
+                animation: _player,
+                builder: (context, _) {
+                  final resumeEnabled = _player.settings.resumePromptEnabled;
+                  return PopupMenuButton<String>(
+                    tooltip: '音乐菜单',
+                    onSelected: (value) {
+                      if (value == 'sort') unawaited(_showSortPicker());
+                      if (value == 'resume') {
+                        unawaited(_toggleResumePrompt(!resumeEnabled));
+                      }
+                      if (value == 'settings') unawaited(_showSettings());
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'sort',
+                        child: ListTile(
+                          leading: Icon(Icons.sort_rounded),
+                          title: Text('排序方式'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'resume',
+                        child: SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('记住播放进度'),
+                          subtitle: const Text('再次播放时询问续播位置'),
+                          value: resumeEnabled,
+                          onChanged: (value) {
+                            Navigator.pop(context);
+                            unawaited(_toggleResumePrompt(value));
+                          },
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'settings',
+                        child: ListTile(
+                          leading: Icon(Icons.tune_rounded),
+                          title: Text('音乐设置'),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+            bottom: const TabBar(
+              tabs: [
+                Tab(text: '本机'),
+                Tab(text: '在线'),
+                Tab(text: '收藏'),
               ],
             ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '本机'),
-              Tab(text: '在线'),
-              Tab(text: '收藏'),
-            ],
           ),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: AnimatedBuilder(
-                animation: _player.activeTrackKeyChanges,
-                builder: (context, _) => TabBarView(
-                  physics: _selectionMode
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
-                  children: [
-                    _buildLocalTab(),
-                    MusicOnlineSearchView(
-                      player: _player,
-                      bottomPadding: _musicListPadding(context).bottom,
-                      onOpenTrack: (track, queue) =>
-                          _openTrack(track, queue: queue),
-                      onError: _toast,
-                    ),
-                    _buildFavoritesTab(),
-                  ],
+          body: Column(
+            children: [
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: _player.activeTrackKeyChanges,
+                  builder: (context, _) => TabBarView(
+                    physics: _selectionMode
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    children: [
+                      _buildLocalTab(),
+                      MusicOnlineSearchView(
+                        player: _player,
+                        bottomPadding: _musicListPadding(context).bottom,
+                        onTapTrack: (track, queue) =>
+                            _playFromList(track, queue: queue),
+                        onError: _toast,
+                      ),
+                      _buildFavoritesTab(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            MusicMiniPlayer(player: _player, onTap: _openTrack),
-          ],
+              MusicMiniPlayer(player: _player, onTap: _openTrack),
+            ],
+          ),
         ),
       ),
     );
@@ -422,7 +570,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           FilterChip(
             label: const Text('全部'),
             selected: _selectedGroup == null,
-            onSelected: (_) => setState(() => _selectedGroup = null),
+            onSelected: (_) {
+              setState(() => _selectedGroup = null);
+              _syncBrowseQueue();
+            },
           ),
           const SizedBox(width: 8),
           ..._groups.map(
@@ -431,7 +582,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
               child: FilterChip(
                 label: Text(group),
                 selected: _selectedGroup == group,
-                onSelected: (_) => setState(() => _selectedGroup = group),
+                onSelected: (_) {
+                  setState(() => _selectedGroup = group);
+                  _syncBrowseQueue();
+                },
               ),
             ),
           ),
@@ -516,7 +670,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     key: ValueKey(track.trackKey),
     track: track,
     isCurrent: _player.currentTrack?.trackKey == track.trackKey,
-    onTap: () => unawaited(_openTrack(track, queue: queue)),
+    onTap: () => unawaited(_playFromList(track, queue: queue)),
     onFavorite: track.isRemote ? null : () => unawaited(_toggleFavorite(track)),
     onSelectChanged: !track.isRemote
         ? (value) => _toggleSelection(
@@ -538,4 +692,52 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       12 + MediaQuery.viewPaddingOf(context).bottom,
     );
   }
+}
+
+/// Reports top-level tab changes so the controller can remember the visible
+/// list as the pre-playback queue for previous/next.
+class _MusicLibraryScaffoldHost extends StatefulWidget {
+  const _MusicLibraryScaffoldHost({
+    required this.child,
+    required this.onTabChanged,
+  });
+
+  final Widget child;
+  final ValueChanged<MusicLibraryTab> onTabChanged;
+
+  @override
+  State<_MusicLibraryScaffoldHost> createState() =>
+      _MusicLibraryScaffoldHostState();
+}
+
+class _MusicLibraryScaffoldHostState extends State<_MusicLibraryScaffoldHost> {
+  TabController? _tabController;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (controller == _tabController) return;
+    _tabController?.removeListener(_handleTabChanged);
+    _tabController = controller..addListener(_handleTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabController?.removeListener(_handleTabChanged);
+    super.dispose();
+  }
+
+  void _handleTabChanged() {
+    final controller = _tabController;
+    if (controller == null || controller.indexIsChanging) return;
+    widget.onTabChanged(switch (controller.index) {
+      1 => MusicLibraryTab.online,
+      2 => MusicLibraryTab.favorites,
+      _ => MusicLibraryTab.local,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

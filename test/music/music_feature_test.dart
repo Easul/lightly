@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:lightly/browser/data/app_database.dart';
 import 'package:lightly/browser/data/app_database_adapter.dart';
 import 'package:lightly/features/music/domain/music_lyric.dart';
+import 'package:lightly/features/music/domain/music_library_sort.dart';
 import 'package:lightly/features/music/domain/music_track.dart';
 import 'package:lightly/features/music/application/music_player_controller.dart';
 import 'package:lightly/features/music/infrastructure/music_api_client.dart';
@@ -19,6 +20,60 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('Music natural title sorting', () {
+    test('orders embedded numbers by value, not lexicographically', () {
+      expect(compareMusicTitles('1', '10'), lessThan(0));
+      expect(compareMusicTitles('2', '10'), lessThan(0));
+      expect(compareMusicTitles('第 10 首', '第 2 首'), greaterThan(0));
+    });
+
+    test('sorts name ascending and descending around non-numeric titles', () {
+      MusicTrack named(String title) => MusicTrack(
+        trackKey: 'local:$title',
+        title: title,
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://song/$title',
+        sourceType: MusicSourceType.local,
+      );
+      final tracks = <MusicTrack>[
+        named('10'),
+        named('晴天'),
+        named('2'),
+        named('1'),
+      ];
+
+      final ascending = sortMusicTracks(
+        tracks,
+        const MusicLibrarySort(
+          field: MusicSortField.name,
+          order: MusicSortOrder.ascending,
+        ),
+      );
+      expect(ascending.map((track) => track.title), ['1', '2', '10', '晴天']);
+
+      final descending = sortMusicTracks(
+        tracks,
+        const MusicLibrarySort(
+          field: MusicSortField.name,
+          order: MusicSortOrder.descending,
+        ),
+      );
+      expect(descending.map((track) => track.title), ['晴天', '10', '2', '1']);
+    });
+
+    test('parses stored sort values with a safe fallback', () {
+      const sort = MusicLibrarySort(
+        field: MusicSortField.duration,
+        order: MusicSortOrder.ascending,
+      );
+      final parsed = MusicLibrarySort.parse(sort.storageValue);
+      expect(parsed.field, MusicSortField.duration);
+      expect(parsed.order, MusicSortOrder.ascending);
+      expect(MusicLibrarySort.parse('garbage').field, MusicSortField.addedTime);
+    });
+  });
 
   group('LRC parser', () {
     test('parses multiple timestamps and finds active line', () {
@@ -222,6 +277,11 @@ void main() {
           apiKey: 'manual-key',
           quality: 'lossless',
           notificationEnabled: false,
+          resumePromptEnabled: false,
+          librarySort: MusicLibrarySort(
+            field: MusicSortField.name,
+            order: MusicSortOrder.ascending,
+          ),
         ),
       );
 
@@ -230,6 +290,19 @@ void main() {
       expect(settings.apiKey, 'manual-key');
       expect(settings.quality, 'lossless');
       expect(settings.notificationEnabled, isFalse);
+      expect(settings.resumePromptEnabled, isFalse);
+      expect(settings.librarySort.field, MusicSortField.name);
+      expect(settings.librarySort.order, MusicSortOrder.ascending);
+    });
+
+    test('defaults resume prompt on and library sort to added time', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+
+      final settings = await const MusicSettingsStore().load();
+
+      expect(settings.resumePromptEnabled, isTrue);
+      expect(settings.librarySort.field, MusicSortField.addedTime);
+      expect(settings.librarySort.order, MusicSortOrder.descending);
     });
   });
 
@@ -517,5 +590,184 @@ void main() {
       expect(controller.searchKeyword, isEmpty);
       expect(controller.searchResults, isEmpty);
     });
+
+    test('remembers playback position across queue switches', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      const channel = MethodChannel('music_resume_position_test');
+      final playCalls = <Map<Object?, Object?>>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            if (call.method == 'play') {
+              playCalls.add(call.arguments as Map<Object?, Object?>);
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        library: store,
+      );
+      const first = MusicTrack(
+        trackKey: 'local:content://song/one',
+        title: '第一首',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://song/one',
+        sourceType: MusicSourceType.local,
+      );
+      const second = MusicTrack(
+        trackKey: 'local:content://song/two',
+        title: '第二首',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://song/two',
+        sourceType: MusicSourceType.local,
+      );
+      const queue = <MusicTrack>[first, second];
+
+      await controller.initialize();
+      await controller.playTrack(first, queue: queue);
+      controller.simulatePlaybackStateForTesting(
+        trackKey: first.trackKey,
+        playing: true,
+        positionMs: 83000,
+        durationMs: 200000,
+      );
+      await controller.playTrack(second);
+
+      final remembered = await store.get(first.trackKey);
+      expect(remembered?.lastPositionMs, 83000);
+      expect(remembered?.lastPlayedAt, isNotNull);
+
+      await controller.playFromLibrary(first, queue);
+
+      expect(controller.resumeRequestChanges.value, isNotNull);
+      expect(playCalls, hasLength(2));
+
+      await controller.resolveResumeRequest(true);
+
+      expect(playCalls, hasLength(3));
+      expect(playCalls.last['positionMs'], 83000);
+      expect(playCalls.last['trackKey'], first.trackKey);
+      expect(controller.currentTrack?.trackKey, first.trackKey);
+      expect(controller.queue.length, 2);
+    });
+
+    test(
+      'resume toggle off starts from the beginning without prompting',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'music_player_resume_prompt_v1': false,
+        });
+        const channel = MethodChannel('music_resume_disabled_test');
+        final playCalls = <Map<Object?, Object?>>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'getState') {
+                return <String, Object?>{
+                  'trackKey': '',
+                  'playing': false,
+                  'buffering': false,
+                };
+              }
+              if (call.method == 'play') {
+                playCalls.add(call.arguments as Map<Object?, Object?>);
+              }
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        final controller = MusicPlayerController(
+          platform: MusicPlatformGateway(channel: channel),
+          library: store,
+        );
+        const track = MusicTrack(
+          trackKey: 'local:content://song/resume-off',
+          title: '老歌',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://song/resume-off',
+          sourceType: MusicSourceType.local,
+        );
+        await store.save(
+          track.copyWith(lastPlayedAt: DateTime.now(), lastPositionMs: 42000),
+        );
+
+        await controller.initialize();
+        await controller.playFromLibrary(track, const <MusicTrack>[track]);
+
+        expect(controller.resumeRequestChanges.value, isNull);
+        expect(playCalls.single['positionMs'], 0);
+      },
+    );
+
+    test(
+      'previous and next work before playback using the browse queue',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        const channel = MethodChannel('music_browse_queue_test');
+        final playCalls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'getState') {
+                return <String, Object?>{
+                  'trackKey': '',
+                  'playing': false,
+                  'buffering': false,
+                };
+              }
+              if (call.method == 'play') {
+                playCalls.add('${(call.arguments as Map)['trackKey']}');
+              }
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        final controller = MusicPlayerController(
+          platform: MusicPlatformGateway(channel: channel),
+          library: store,
+        );
+        MusicTrack local(String name) => MusicTrack(
+          trackKey: 'local:' + name,
+          title: name,
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://song/' + name,
+          sourceType: MusicSourceType.local,
+        );
+        final tracks = <MusicTrack>[local('1'), local('2'), local('10')];
+
+        await controller.initialize();
+        expect(controller.hasNext, isFalse);
+
+        controller.registerBrowseQueue(tracks);
+
+        expect(controller.hasPrevious, isTrue);
+        expect(controller.hasNext, isTrue);
+
+        await controller.next();
+        expect(playCalls, ['local:2']);
+
+        await controller.next();
+        expect(playCalls, ['local:2', 'local:10']);
+
+        await controller.previous();
+        expect(playCalls, ['local:2', 'local:10', 'local:2']);
+      },
+    );
   });
 }

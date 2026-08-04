@@ -109,7 +109,7 @@ class MusicPlaybackService : Service() {
         buffering = true
         prepared = false
         completed = false
-        pendingSeekMs = null
+        pendingSeekMs = intent.getIntExtra("positionMs", 0).takeIf { it > 0 }
         releasePlayer()
         updateMediaSessionMetadata()
         updateNotification()

@@ -8,12 +8,14 @@ tracks. Pages only submit playback intent and observe the controller state.
 ## Storage
 
 Music metadata lives in the existing `browser_data.db` database. Schema version
-5 adds `music_tracks`; no second database is created.
+5 adds `music_tracks` and version 6 adds its `lastPositionMs` column; no second
+database is created.
 
 - Owner: `MusicLibraryStore`, with the physical schema owned by `AppDatabase`.
 - Key: `trackKey` (`online:<remote-id>` or `local:<content-uri/path>`).
 - Data: display metadata, source URI/path, duration, source type, favorite,
-  custom group, cached original/translated LRC, update time, and last-play time.
+  custom group, cached original/translated LRC, update time, last-play time,
+  and the remembered playback position.
 - Sensitivity: local paths reveal filenames and directories; lyrics and public
   song metadata are not treated as secrets.
 - Backup/export: music rows are currently excluded from Lightly's unified
@@ -71,6 +73,21 @@ album metadata.
   player and system safe area so the final row can scroll fully into view.
 - External audio intents enter the same controller and database path as songs
   selected inside the tool.
+- Tapping a track in the local, online, or favorite list replaces the current
+  playback immediately. There is no separate downloads page: downloaded songs
+  merged with MediaStore rows appear inline in the local list, and downloads
+  outside the media library are appended to it.
+- Library sort order (added time, name, duration; ascending/descending) is a
+  user setting under `music_player_library_sort_v1`. Name sorting compares
+  embedded numbers by value so "1, 2, 10" stays in that order.
+- Previous/next stay enabled before anything has played: the controller keeps
+  the most recently browsed local/favorite/search list as its fallback queue
+  and skips within it.
+- Each played track remembers its playback position. When a track that has
+  finished at least once is tapped again and the resume toggle
+  (`music_player_resume_prompt_v1`, default on, also in the top-right menu)
+  is enabled, the app asks whether to continue from the remembered position
+  instead of restarting.
 
 ## Verification
 

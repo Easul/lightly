@@ -40,6 +40,7 @@ void main() {
       artist: '歌手',
       album: '专辑',
       artworkUri: 'https://music.test/cover.jpg',
+      startPositionMs: 3000,
       notificationEnabled: true,
     );
 
@@ -51,6 +52,7 @@ void main() {
       'artist': '歌手',
       'album': '专辑',
       'artworkUri': 'https://music.test/cover.jpg',
+      'positionMs': 3000,
       'notificationEnabled': true,
     });
   });
