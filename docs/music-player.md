@@ -109,7 +109,10 @@ album metadata.
   still missing is fetched on a best-effort basis without blocking playback
   or the download itself. The library reload path additionally backfills
   empty lyric/artwork slots on downloaded rows from their sibling rows so
-  songs downloaded before this caching existed self-heal on the next open.
+  songs downloaded before this caching existed self-heal on the next open. The
+  same reload rebuilds the controller's derived downloaded/scanned merge queue;
+  rows added after controller initialization must not be rendered from the
+  stale startup snapshot.
 - Tapping the system playback notification sends the typed
   `onNotificationOpen` gateway event; the controller resolves any pending
   resume prompt by continuing from the saved position and the app navigates
