@@ -437,7 +437,25 @@ class MusicPlayerController extends ChangeNotifier {
   /// the page can ask whether to continue from that position.
   Future<void> playFromLibrary(MusicTrack track, List<MusicTrack> queue) async {
     final stored = await _library.get(track.trackKey);
-    final candidate = stored ?? track;
+    // The local-list row may carry downloaded lyrics/artwork merged from a
+    // sibling downloaded row. Do not replace that richer view model with the
+    // stale MediaStore-only database row when playback starts.
+    final candidate = stored == null
+        ? track
+        : stored.copyWith(
+            lyric: _nonEmpty(track.lyric) ?? _nonEmpty(stored.lyric),
+            translatedLyric:
+                _nonEmpty(track.translatedLyric) ??
+                _nonEmpty(stored.translatedLyric),
+            artworkUrl:
+                _nonEmpty(track.artworkUrl) ?? _nonEmpty(stored.artworkUrl),
+          );
+    if (stored != null &&
+        (candidate.lyric != stored.lyric ||
+            candidate.translatedLyric != stored.translatedLyric ||
+            candidate.artworkUrl != stored.artworkUrl)) {
+      await _library.save(candidate);
+    }
     final positionMs = candidate.lastPositionMs;
     final durationMs = candidate.durationMs;
     final nearEnd = durationMs > 0 && positionMs >= durationMs - 5000;

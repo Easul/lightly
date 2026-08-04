@@ -97,7 +97,23 @@ class _MusicTrackPageState extends State<MusicTrackPage>
 
   Future<void> _loadStoredTrackAndLyrics() async {
     final requestId = ++_trackLoadRequestId;
-    var loadedTrack = await _library.get(_track.trackKey) ?? _track;
+    final storedTrack = await _library.get(_track.trackKey);
+    var loadedTrack = storedTrack ?? _track;
+    // The page can be opened from the local list's downloaded/scanned merge,
+    // which has richer metadata than the raw MediaStore row. Keep that
+    // metadata when restoring the persisted track.
+    final preferred = _track;
+    loadedTrack = loadedTrack.copyWith(
+      lyric: preferred.lyric ?? loadedTrack.lyric,
+      translatedLyric: preferred.translatedLyric ?? loadedTrack.translatedLyric,
+      artworkUrl: preferred.artworkUrl ?? loadedTrack.artworkUrl,
+    );
+    if (storedTrack != null &&
+        (loadedTrack.lyric != storedTrack.lyric ||
+            loadedTrack.translatedLyric != storedTrack.translatedLyric ||
+            loadedTrack.artworkUrl != storedTrack.artworkUrl)) {
+      await _library.save(loadedTrack);
+    }
     if (requestId != _trackLoadRequestId) return;
     if (loadedTrack.isRemote && !(loadedTrack.lyric?.isNotEmpty ?? false)) {
       if (mounted) setState(() => _loadingLyrics = true);
@@ -305,7 +321,19 @@ class _MusicTrackPageState extends State<MusicTrackPage>
       await _player.registerDownloadedTrack(_track);
       _lyrics = parseLrc(_track.lyric);
       if (mounted) setState(() {});
-      _toast('歌曲已保存到 ${_track.localPath ?? _track.sourceUri}');
+      final savedPath = _track.localPath?.trim();
+      final fallbackPath = _track.sourceUri.startsWith('file://')
+          ? Uri.tryParse(_track.sourceUri)?.path
+          : _track.sourceUri;
+      final displayedPath = savedPath?.isNotEmpty == true
+          ? savedPath!
+          : (fallbackPath?.isNotEmpty == true ? fallbackPath! : '音乐目录');
+      unawaited(
+        AppToast.show(
+          '歌曲已保存到\n$displayedPath',
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (error) {
       _toast('下载失败：$error');
     } finally {

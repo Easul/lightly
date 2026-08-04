@@ -502,9 +502,11 @@ void main() {
       expect(merged.lyric, downloaded.lyric);
       expect(merged.artworkUrl, downloaded.artworkUrl);
 
-      await controller.playTrack(merged);
+      await controller.playFromLibrary(merged, <MusicTrack>[merged]);
 
       expect(controller.currentTrack?.trackKey, scanned.trackKey);
+      expect(controller.currentTrack?.lyric, downloaded.lyric);
+      expect(controller.currentTrack?.artworkUrl, downloaded.artworkUrl);
       expect(await store.get('online:55'), isNotNull);
     });
 
