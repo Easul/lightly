@@ -45,6 +45,9 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     super.initState();
     unawaited(_player.initialize().then((_) => _reloadLibrary()));
     _player.resumeRequestChanges.addListener(_handleResumeRequest);
+    // A pending resume request may already exist when arriving from the
+    // system notification path before this page was pushed.
+    _handleResumeRequest();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || ModalRoute.of(context)?.settings.arguments != true) {
         return;
@@ -126,26 +129,50 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     final merged = <String, MusicTrack>{
       for (final track in localTracks) track.trackKey: track,
     };
-    final paths = localTracks
-        .map((track) => track.localPath)
-        .whereType<String>()
-        .toSet();
+    bool sameFile(MusicTrack scanned, MusicTrack downloaded) {
+      final scannedPath = scanned.localPath;
+      final downloadedPath = downloaded.localPath;
+      if (scannedPath == null || downloadedPath == null) return false;
+      if (scannedPath == downloadedPath) return true;
+      // MediaStore 扫描的显示路径可能只含相对目录，按文件名兜底匹配一次。
+      return scannedPath.split('/').last == downloadedPath.split('/').last;
+    }
+
+    MusicTrack carryDownloadedMetadata(MusicTrack scanned, MusicTrack d) {
+      return scanned.copyWith(
+        lyric: scanned.lyric ?? d.lyric,
+        translatedLyric: scanned.translatedLyric ?? d.translatedLyric,
+        artworkUrl: scanned.artworkUrl ?? d.artworkUrl,
+      );
+    }
+
     var changed = false;
     for (final downloaded in _player.downloadedQueue) {
       final existing = merged[downloaded.trackKey];
       if (existing != null) {
-        merged[downloaded.trackKey] = existing.copyWith(
-          lyric: existing.lyric ?? downloaded.lyric,
-          translatedLyric:
-              existing.translatedLyric ?? downloaded.translatedLyric,
-          artworkUrl: existing.artworkUrl ?? downloaded.artworkUrl,
+        merged[downloaded.trackKey] = carryDownloadedMetadata(
+          existing,
+          downloaded,
         );
         changed = true;
-      } else if (downloaded.localPath == null ||
-          !paths.contains(downloaded.localPath)) {
-        merged[downloaded.trackKey] = downloaded;
-        changed = true;
+        continue;
       }
+      String? scannedKey;
+      for (final entry in merged.entries) {
+        if (sameFile(entry.value, downloaded)) {
+          scannedKey = entry.key;
+          break;
+        }
+      }
+      if (scannedKey != null) {
+        merged[scannedKey] = carryDownloadedMetadata(
+          merged[scannedKey]!,
+          downloaded,
+        );
+      } else {
+        merged[downloaded.trackKey] = downloaded;
+      }
+      changed = true;
     }
     if (!changed) return localTracks;
     return merged.values.toList(growable: false);
@@ -243,19 +270,21 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     _toast('音乐设置已保存');
   }
 
-  Future<void> _showSortPicker() async {
-    final sort = await showMusicSortDialog(
+  Future<void> _showMenu() async {
+    final sort = await showMusicMenuSheet(
       context,
-      _player.settings.librarySort,
+      currentSort: _player.settings.librarySort,
+      notificationEnabled: _player.settings.notificationEnabled,
+      onNotificationChanged: (enabled) => unawaited(
+        _player.updateSettings(
+          _player.settings.copyWith(notificationEnabled: enabled),
+        ),
+      ),
+      onOpenSettings: () => unawaited(_showSettings()),
     );
     if (sort == null) return;
     await _player.setLibrarySort(sort);
     await _reloadLibrary();
-  }
-
-  Future<void> _toggleResumePrompt(bool enabled) async {
-    await _player.setResumePromptEnabled(enabled);
-    _toast(enabled ? '已开启续播询问' : '已关闭续播询问');
   }
 
   void _toggleSelection(MusicLibraryTab tab, String trackKey, bool selected) {
@@ -393,50 +422,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           appBar: AppBar(
             title: const Text('音乐'),
             actions: [
-              AnimatedBuilder(
-                animation: _player,
-                builder: (context, _) {
-                  final resumeEnabled = _player.settings.resumePromptEnabled;
-                  return PopupMenuButton<String>(
-                    tooltip: '音乐菜单',
-                    onSelected: (value) {
-                      if (value == 'sort') unawaited(_showSortPicker());
-                      if (value == 'resume') {
-                        unawaited(_toggleResumePrompt(!resumeEnabled));
-                      }
-                      if (value == 'settings') unawaited(_showSettings());
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: 'sort',
-                        child: ListTile(
-                          leading: Icon(Icons.sort_rounded),
-                          title: Text('排序方式'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'resume',
-                        child: SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('记住播放进度'),
-                          subtitle: const Text('再次播放时询问续播位置'),
-                          value: resumeEnabled,
-                          onChanged: (value) {
-                            Navigator.pop(context);
-                            unawaited(_toggleResumePrompt(value));
-                          },
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'settings',
-                        child: ListTile(
-                          leading: Icon(Icons.tune_rounded),
-                          title: Text('音乐设置'),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              IconButton(
+                tooltip: '音乐菜单',
+                onPressed: () => unawaited(_showMenu()),
+                icon: const Icon(Icons.more_vert_rounded),
               ),
             ],
             bottom: const TabBar(

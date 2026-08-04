@@ -59,6 +59,11 @@ Future<void> main() async {
                 arguments: true,
               );
             },
+            onNotificationOpened: (_) async {
+              await AppToast.navigatorKey.currentState?.pushNamed(
+                '/music-player',
+              );
+            },
           ),
         );
       });

@@ -43,7 +43,7 @@ class MusicDownloadService {
       throw HttpException('下载失败（HTTP ${response.statusCode}）');
     }
     final extension = _extensionFor(track.sourceUri, response.headers);
-    final baseName = _sanitizeFileName('${track.artist} - ${track.title}');
+    final baseName = _sanitizeFileName(track.title);
     final output = await _uniqueFile(directory, '$baseName$extension');
     final file = await output.open(mode: FileMode.write);
     var receivedBytes = 0;

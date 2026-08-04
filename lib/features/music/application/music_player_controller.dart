@@ -12,6 +12,9 @@ import '../infrastructure/music_settings_store.dart';
 
 typedef ExternalTrackOpened = Future<void> Function(MusicTrack track);
 
+/// Decides how the app reacts when the system playback notification opens it.
+typedef MusicNotificationOpened = Future<void> Function(MusicTrack? track);
+
 enum MusicPlaybackMode { listLoop, singleLoop, shuffle }
 
 /// A request to resume a track from its remembered playback position. Pages
@@ -76,6 +79,7 @@ class MusicPlayerController extends ChangeNotifier {
   bool _initialized = false;
   Future<void>? _initializationFuture;
   ExternalTrackOpened? _onExternalTrackOpened;
+  MusicNotificationOpened? _onNotificationOpened;
   MusicPlaybackMode _playbackMode = MusicPlaybackMode.listLoop;
   String _searchKeyword = '';
   List<MusicTrack> _searchResults = const <MusicTrack>[];
@@ -141,15 +145,31 @@ class MusicPlayerController extends ChangeNotifier {
     MusicPlaybackMode.shuffle => '随机播放',
   };
 
-  Future<void> initialize({ExternalTrackOpened? onExternalTrackOpened}) {
+  Future<void> initialize({
+    ExternalTrackOpened? onExternalTrackOpened,
+    MusicNotificationOpened? onNotificationOpened,
+  }) {
     if (onExternalTrackOpened != null) {
       _onExternalTrackOpened = onExternalTrackOpened;
+    }
+    if (onNotificationOpened != null) {
+      _onNotificationOpened = onNotificationOpened;
     }
     final existing = _initializationFuture;
     if (existing != null) return existing;
     final future = _initializeInternal();
     _initializationFuture = future;
     return future;
+  }
+
+  /// Handles a tap on the system playback notification: resolves any pending
+  /// resume request by continuing from the saved position, then routes the
+  /// app to the music page.
+  Future<void> handleNotificationOpen() async {
+    await initialize();
+    final hadPending = _pendingPlay != null;
+    await resumePendingFromSaved();
+    await _onNotificationOpened?.call(hadPending ? null : _currentTrack);
   }
 
   Future<void> _initializeInternal() async {
@@ -160,6 +180,7 @@ class MusicPlayerController extends ChangeNotifier {
       onPlaybackCommand: (command) =>
           unawaited(_handlePlaybackCommand(command)),
       onExternalAudioIntent: (event) => unawaited(_handleExternalIntent(event)),
+      onNotificationOpen: () => unawaited(handleNotificationOpen()),
     );
     _settings = await _settingsStore.load();
     await _platform.setNotificationEnabled(_settings.notificationEnabled);
@@ -193,10 +214,6 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<void> setLibrarySort(MusicLibrarySort sort) {
     return updateSettings(_settings.copyWith(librarySort: sort));
-  }
-
-  Future<void> setResumePromptEnabled(bool enabled) {
-    return updateSettings(_settings.copyWith(resumePromptEnabled: enabled));
   }
 
   Future<void> search(String keyword) async {
@@ -423,6 +440,20 @@ class MusicPlayerController extends ChangeNotifier {
     _resumeRequest.value = null;
   }
 
+  /// Resolves the current resume request by starting playback from the
+  /// remembered position (used when the system notification opens the player).
+  Future<void> resumePendingFromSaved() async {
+    final pending = _pendingPlay;
+    discardResumeRequest();
+    if (pending == null) return;
+    await playTrack(
+      pending.track,
+      queue: pending.queue,
+      startAt: pending.startAt,
+      savePosition: false,
+    );
+  }
+
   Future<MusicTrack> ensurePlayable(MusicTrack track) async {
     await initialize();
     if (!track.isRemote &&
@@ -463,9 +494,15 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<MusicTrack> ensureLyrics(MusicTrack track) async {
     await initialize();
-    final stored = track.lyric != null
+    var stored = track.lyric != null
         ? track
         : await _library.get(track.trackKey) ?? track;
+    if (stored.lyric == null && stored.isRemote) {
+      final mediaStoreMatch = await _findScannedMatch(stored);
+      if (mediaStoreMatch?.lyric?.isNotEmpty ?? false) {
+        stored = mediaStoreMatch!;
+      }
+    }
     if ((stored.lyric?.isNotEmpty ?? false) || !stored.isRemote) {
       return stored;
     }
@@ -481,11 +518,33 @@ class MusicPlayerController extends ChangeNotifier {
         translatedLyric: lyrics.translated,
       ),
     );
+    if (updated.lyric?.isNotEmpty ?? false) {
+      final localMatch = await _findScannedMatch(updated);
+      if (localMatch != null && localMatch.lyric == null) {
+        final mirrored = await _library.save(
+          localMatch.copyWith(
+            lyric: updated.lyric,
+            translatedLyric: updated.translatedLyric,
+          ),
+        );
+        _replaceQueuedTrack(mirrored);
+        _replaceDownloadedQueueTrack(mirrored);
+      }
+    }
     if (_currentTrack?.trackKey == updated.trackKey) {
       _currentTrack = updated;
       notifyListeners();
     }
     return updated;
+  }
+
+  /// Finds the scanned local row that points at the same file as a downloaded
+  /// (remote-id keyed) track, so lyrics cached during local playback can be
+  /// reused when the downloaded row is opened again.
+  Future<MusicTrack?> _findScannedMatch(MusicTrack track) async {
+    final path = track.localPath;
+    if (path == null || path.isEmpty) return null;
+    return _library.getMatchingLocalTrack(path);
   }
 
   Future<void> togglePlayPause() async {
@@ -647,6 +706,13 @@ class MusicPlayerController extends ChangeNotifier {
     });
   }
 
+  @visibleForTesting
+  void setNotificationOpenedCallbackForTesting(
+    MusicNotificationOpened callback,
+  ) {
+    _onNotificationOpened = callback;
+  }
+
   Future<void> deleteLocalTrack(MusicTrack track) async {
     if (track.sourceType == MusicSourceType.online) {
       throw StateError('在线歌曲没有本地文件');
@@ -751,6 +817,7 @@ class MusicPlayerController extends ChangeNotifier {
   void _handlePlaybackState(Map<Object?, Object?> state) {
     if (state.containsKey('trackKey') &&
         (state['trackKey']?.toString() ?? '').isEmpty) {
+      _persistCurrentPosition();
       _setCurrentTrack(null);
       _queue = const <MusicTrack>[];
       _queueIndex = -1;

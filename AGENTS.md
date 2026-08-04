@@ -1393,9 +1393,13 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Music library sort order is persisted in `music_player_library_sort_v1`; name sorting must
   compare embedded digits by numeric value (1, 2, 10), never lexicographically. Downloaded songs
   are shown inline in the 本机 list; do not reintroduce a separate downloads page or table.
-- Remembered per-track playback positions live in `music_tracks.lastPositionMs`; the resume
-  prompt toggle is `music_player_resume_prompt_v1`. The pre-playback previous/next path uses the
-  controller-owned browse queue fallback and must keep working before any track has started.
+- Remembered per-track playback positions live in `music_tracks.lastPositionMs`. The resume prompt
+  is always-on internal state (`music_player_resume_prompt_v1`); do not re-expose it in music
+  settings or the top-right menu. Downloaded file names contain only the song title (no artist
+  prefix). Tapping the system playback notification must open the in-app music page through the
+  typed `onNotificationOpen` gateway event and resolve any pending resume request from the saved
+  position. The pre-playback previous/next path uses the controller-owned browse queue fallback
+  and must keep working before any track has started.
 - Source of truth: `docs/music-player.md`.
 
 ## Scope discipline

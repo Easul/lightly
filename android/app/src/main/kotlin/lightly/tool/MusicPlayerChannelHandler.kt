@@ -42,6 +42,12 @@ class MusicPlayerChannelHandler(
         }
     }
 
+    fun publishNotificationOpen() {
+        activity.runOnUiThread {
+            channel?.invokeMethod("onNotificationOpen", emptyMap<String, Any?>())
+        }
+    }
+
     fun publishExternalAudioIntent(uri: String, mimeType: String?, intentFlags: Int) {
         persistUriPermissionIfOffered(Uri.parse(uri), intentFlags)
         val metadata = resolveAudioMetadata(Uri.parse(uri)).toMutableMap().apply {

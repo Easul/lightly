@@ -401,6 +401,48 @@ void main() {
       expect(await store.get(track.trackKey), isNull);
     });
 
+    test(
+      'matches a downloaded file to its scanned row by path or file name',
+      () async {
+        const path = '/storage/emulated/0/Download/music/海底.mp3';
+        const scanned = MusicTrack(
+          trackKey: 'local:content://media/external/audio/media/42',
+          title: '海底',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://media/external/audio/media/42',
+          localPath: path,
+          sourceType: MusicSourceType.local,
+          lyric: '[00:01.00]扫描行歌词',
+        );
+        await store.save(scanned);
+
+        final byPath = await store.getMatchingLocalTrack(path);
+        expect(byPath?.trackKey, scanned.trackKey);
+
+        const renamedScanned = MusicTrack(
+          trackKey: 'local:content://media/external/audio/media/43',
+          title: '光年之外',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://media/external/audio/media/43',
+          localPath: '/storage/emulated/0/Music/光年之外.mp3',
+          sourceType: MusicSourceType.local,
+        );
+        await store.save(renamedScanned);
+
+        final byName = await store.getMatchingLocalTrack(
+          '/storage/emulated/0/Download/music/光年之外.mp3',
+        );
+        expect(byName?.trackKey, renamedScanned.trackKey);
+
+        final missing = await store.getMatchingLocalTrack(
+          '/storage/emulated/0/Download/music/不存在.mp3',
+        );
+        expect(missing, isNull);
+      },
+    );
+
     test('merges downloaded tracks with scanned device rows', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       const channel = MethodChannel('music_downloaded_queue_test');
@@ -767,6 +809,64 @@ void main() {
 
         await controller.previous();
         expect(playCalls, ['local:2', 'local:10', 'local:2']);
+      },
+    );
+
+    test(
+      'opening the system notification resumes a pending saved position',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        const channel = MethodChannel('music_notification_open_test');
+        final playCalls = <Map<Object?, Object?>>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'getState') {
+                return <String, Object?>{
+                  'trackKey': '',
+                  'playing': false,
+                  'buffering': false,
+                };
+              }
+              if (call.method == 'play') {
+                playCalls.add(call.arguments as Map<Object?, Object?>);
+              }
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        final controller = MusicPlayerController(
+          platform: MusicPlatformGateway(channel: channel),
+          library: store,
+        );
+        const track = MusicTrack(
+          trackKey: 'local:content://song/notify',
+          title: '通知歌曲',
+          artist: '歌手',
+          album: '专辑',
+          sourceUri: 'content://song/notify',
+          sourceType: MusicSourceType.local,
+        );
+        await store.save(
+          track.copyWith(lastPlayedAt: DateTime.now(), lastPositionMs: 66000),
+        );
+
+        var opened = false;
+        await controller.initialize();
+        controller.setNotificationOpenedCallbackForTesting((_) async {
+          opened = true;
+        });
+        await controller.playFromLibrary(track, const <MusicTrack>[track]);
+
+        // 弹窗尚未处理，通知入口直接按上次位置续播。
+        expect(controller.resumeRequestChanges.value, isNotNull);
+        await controller.handleNotificationOpen();
+
+        expect(playCalls.single['positionMs'], 66000);
+        expect(controller.currentTrack?.trackKey, track.trackKey);
+        expect(controller.resumeRequestChanges.value, isNull);
+        expect(opened, isTrue);
       },
     );
   });

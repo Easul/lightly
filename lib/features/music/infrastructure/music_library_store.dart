@@ -58,6 +58,39 @@ class MusicLibraryStore {
     return rows.isEmpty ? null : MusicTrack.fromDatabaseMap(rows.single);
   }
 
+  /// Finds the scanned local row that represents the same physical file as
+  /// [path]. The scan key may use the MediaStore content URI, the derived
+  /// /storage path, or the basename, so matching falls back in that order.
+  Future<MusicTrack?> getMatchingLocalTrack(String path) async {
+    final direct = await get('local:$path');
+    if (direct != null) return direct;
+    final db = await _db;
+    final rows = await db.query(
+      table,
+      where: 'sourceType = ? AND localPath = ?',
+      whereArgs: <Object?>[MusicSourceType.local.name, path],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) return MusicTrack.fromDatabaseMap(rows.single);
+    final segments = path.split('/');
+    final fileName = segments.isEmpty ? '' : segments.last;
+    if (fileName.isEmpty) return null;
+    final suffixRows = await db.query(
+      table,
+      where: "sourceType = ? AND (localPath LIKE ? OR trackKey LIKE ?)",
+      whereArgs: <Object?>[
+        MusicSourceType.local.name,
+        '%/$fileName',
+        '%/$fileName',
+      ],
+      limit: 2,
+    );
+    if (suffixRows.length == 1) {
+      return MusicTrack.fromDatabaseMap(suffixRows.single);
+    }
+    return null;
+  }
+
   Future<MusicTrack> save(MusicTrack track) async {
     final updated = track.copyWith(updatedAt: DateTime.now());
     final db = await _db;

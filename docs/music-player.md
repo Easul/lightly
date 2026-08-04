@@ -84,10 +84,20 @@ album metadata.
   the most recently browsed local/favorite/search list as its fallback queue
   and skips within it.
 - Each played track remembers its playback position. When a track that has
-  finished at least once is tapped again and the resume toggle
-  (`music_player_resume_prompt_v1`, default on, also in the top-right menu)
-  is enabled, the app asks whether to continue from the remembered position
-  instead of restarting.
+  finished at least once is tapped again, the app asks whether to continue
+  from the remembered position instead of restarting. The resume behavior has
+  no user-facing toggle; the top-right sheet only hosts sorting, the system
+  playback toolbar switch, and the music settings entry.
+- Downloaded files are named with the song title only (no artist prefix).
+  Lyrics fetched for a downloaded track are mirrored onto the scanned
+  MediaStore row for the same file (matched by stored path, then by file
+  name), and `ensureLyrics` reuses lyrics already cached on that scanned row,
+  so downloaded songs keep their artwork and lyrics when shown inline in the
+  local list.
+- Tapping the system playback notification sends the typed
+  `onNotificationOpen` gateway event; the controller resolves any pending
+  resume prompt by continuing from the saved position and the app navigates
+  straight to the music page.
 
 ## Verification
 

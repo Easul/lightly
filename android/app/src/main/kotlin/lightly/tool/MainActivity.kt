@@ -73,6 +73,11 @@ class MainActivity : FlutterActivity() {
     private fun handleIntent(intent: Intent?): String? {
         val action = intent?.action
         val data = intent?.dataString
+        if (ACTION_OPEN_MUSIC_PLAYER == action) {
+            externalIntentChannelHandler.updateInitialIntentUrl(null)
+            mainHandler.post { musicPlayerChannelHandler.publishNotificationOpen() }
+            return null
+        }
         if (Intent.ACTION_VIEW == action && data != null && isAudioIntent(intent)) {
             musicPlayerChannelHandler.publishExternalAudioIntent(data, intent.type, intent.flags)
             externalIntentChannelHandler.updateInitialIntentUrl(null)
@@ -136,6 +141,10 @@ class MainActivity : FlutterActivity() {
 
     private val logTag = "BrowserProxy"
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    companion object {
+        const val ACTION_OPEN_MUSIC_PLAYER = "lightly.tool.action.OPEN_MUSIC_PLAYER"
+    }
 
     private fun shutdownRemoteControlResources() {
         remoteControlChannelHandler?.shutdown()

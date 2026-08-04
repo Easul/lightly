@@ -39,8 +39,6 @@ Future<MusicSettings?> showMusicSettingsDialog(
   final apiBaseUrlController = TextEditingController(text: initial.apiBaseUrl);
   final apiKeyController = TextEditingController(text: initial.apiKey);
   var quality = initial.quality;
-  var notificationEnabled = initial.notificationEnabled;
-  var resumePromptEnabled = initial.resumePromptEnabled;
   var obscureApiKey = true;
   return showDialog<MusicSettings>(
     context: context,
@@ -98,25 +96,6 @@ Future<MusicSettings?> showMusicSettingsDialog(
                   if (value != null) setDialogState(() => quality = value);
                 },
               ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('系统播放工具栏'),
-                subtitle: const Text('锁屏和通知栏'),
-                value: notificationEnabled,
-                onChanged: (value) {
-                  setDialogState(() => notificationEnabled = value);
-                },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('记住播放进度'),
-                subtitle: const Text('再次播放时询问是否从上次位置继续'),
-                value: resumePromptEnabled,
-                onChanged: (value) {
-                  setDialogState(() => resumePromptEnabled = value);
-                },
-              ),
             ],
           ),
         ),
@@ -132,9 +111,7 @@ Future<MusicSettings?> showMusicSettingsDialog(
                 apiBaseUrl: apiBaseUrlController.text.trim(),
                 apiKey: apiKeyController.text.trim(),
                 quality: quality,
-                notificationEnabled: notificationEnabled,
-                resumePromptEnabled: resumePromptEnabled,
-                librarySort: initial.librarySort,
+                notificationEnabled: initial.notificationEnabled,
               ),
             ),
             child: const Text('保存'),
@@ -205,40 +182,72 @@ Future<String?> showMusicGroupDialog(
   ).whenComplete(controller.dispose);
 }
 
-Future<MusicLibrarySort?> showMusicSortDialog(
-  BuildContext context,
-  MusicLibrarySort current,
-) {
+/// Unified music menu hosting sort options and playback switches. Selecting
+/// a sort closes the sheet with it; toggles stay open and update in place.
+Future<MusicLibrarySort?> showMusicMenuSheet(
+  BuildContext context, {
+  required MusicLibrarySort currentSort,
+  required bool notificationEnabled,
+  required ValueChanged<bool> onNotificationChanged,
+  required VoidCallback onOpenSettings,
+}) {
+  var notifications = notificationEnabled;
   return showModalBottomSheet<MusicLibrarySort>(
     context: context,
     showDragHandle: true,
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(
-              '排序方式',
-              style: Theme.of(sheetContext).textTheme.titleMedium,
-            ),
-          ),
-          ...MusicLibrarySort.options.map(
-            (option) => ListTile(
-              leading: Icon(
-                option == current
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_off_rounded,
-                color: option == current
-                    ? Theme.of(sheetContext).colorScheme.primary
-                    : null,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setSheetState) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  '排序方式',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
-              title: Text(option.label),
-              onTap: () => Navigator.pop(sheetContext, option),
-            ),
+              ...MusicLibrarySort.options.map(
+                (option) => ListTile(
+                  dense: true,
+                  leading: Icon(
+                    option == currentSort
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: option == currentSort
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  title: Text(option.label),
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+              ),
+              const Divider(),
+              SwitchListTile(
+                title: const Text('系统播放工具栏'),
+                subtitle: const Text('锁屏和通知栏'),
+                value: notifications,
+                onChanged: (value) {
+                  setSheetState(() => notifications = value);
+                  onNotificationChanged(value);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.tune_rounded),
+                title: const Text('音乐设置'),
+                subtitle: const Text('API 地址、密钥和音质'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onOpenSettings();
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );

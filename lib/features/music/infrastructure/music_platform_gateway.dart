@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 typedef MusicPlaybackEventHandler = void Function(Map<Object?, Object?> event);
 typedef MusicPlaybackCommandHandler = void Function(String command);
 typedef ExternalMusicIntentHandler = void Function(Map<Object?, Object?> event);
+typedef MusicNotificationOpenHandler = void Function();
 
 class MusicPlatformGateway {
   MusicPlatformGateway({MethodChannel? channel})
@@ -17,6 +18,7 @@ class MusicPlatformGateway {
     MusicPlaybackEventHandler? onPlaybackState,
     MusicPlaybackCommandHandler? onPlaybackCommand,
     ExternalMusicIntentHandler? onExternalAudioIntent,
+    MusicNotificationOpenHandler? onNotificationOpen,
   }) {
     _channel.setMethodCallHandler((call) async {
       final arguments = call.arguments;
@@ -28,6 +30,8 @@ class MusicPlatformGateway {
         if (command != null) onPlaybackCommand?.call(command);
       } else if (call.method == 'onExternalAudioIntent') {
         onExternalAudioIntent?.call(arguments);
+      } else if (call.method == 'onNotificationOpen') {
+        onNotificationOpen?.call();
       }
     });
   }
