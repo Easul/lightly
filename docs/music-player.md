@@ -12,7 +12,10 @@ Music metadata lives in the existing `browser_data.db` database. Schema version
 database is created.
 
 - Owner: `MusicLibraryStore`, with the physical schema owned by `AppDatabase`.
-- Key: `trackKey` (`online:<remote-id>` or `local:<content-uri/path>`).
+- Key: `trackKey` (`online:<remote-id>`, `downloaded:<remote-id>`, or
+  `local:<content-uri/path>`). Online and downloaded copies of one song must
+  keep separate keys so saving a download cannot replace the searchable
+  online row; their shared `remoteId` is the metadata backfill link.
 - Data: display metadata, source URI/path, duration, source type, favorite,
   custom group, cached original/translated LRC, update time, last-play time,
   and the remembered playback position.
