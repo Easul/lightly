@@ -115,7 +115,10 @@ album metadata.
   songs downloaded before this caching existed self-heal on the next open. The
   same reload rebuilds the controller's derived downloaded/scanned merge queue;
   rows added after controller initialization must not be rendered from the
-  stale startup snapshot.
+  stale startup snapshot. Playback and detail-page entry must preserve this
+  merged local-list metadata instead of replacing it with the raw scanned
+  database row; the selected track, lyric view, notification, and lock screen
+  must all receive the same resolved artwork and lyrics.
 - Tapping the system playback notification sends the typed
   `onNotificationOpen` gateway event; the controller resolves any pending
   resume prompt by continuing from the saved position and the app navigates
