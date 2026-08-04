@@ -40,21 +40,55 @@ class _PendingPlay {
   final Duration? startAt;
 }
 
+/// Real music metadata fetching used by [MusicPlayerController]. Declared as
+/// a small mixin so widget tests can substitute an in-memory implementation
+/// without touching the network-facing [MusicApiClient] type.
+mixin MusicMetadataResolver {
+  Future<MusicLyrics> lyrics({
+    required String apiBaseUrl,
+    required String remoteId,
+    required String apiKey,
+  });
+
+  Future<String?> artworkUrl({
+    required String apiBaseUrl,
+    required String remoteId,
+    required String apiKey,
+  });
+}
+
 class MusicPlayerController extends ChangeNotifier {
   MusicPlayerController({
     MusicPlatformGateway? platform,
     MusicApiClient? api,
+    MusicMetadataResolver? metadata,
+    MusicLibraryStore? library,
+    MusicSettingsStore? settingsStore,
+  }) : this._(
+         platform: platform,
+         api: api,
+         metadata: metadata,
+         library: library,
+         settingsStore: settingsStore,
+       );
+
+  MusicPlayerController._({
+    MusicPlatformGateway? platform,
+    MusicApiClient? api,
+    MusicMetadataResolver? metadata,
     MusicLibraryStore? library,
     MusicSettingsStore? settingsStore,
   }) : _platform = platform ?? MusicPlatformGateway.instance,
        _api = api ?? MusicApiClient(),
        _library = library ?? MusicLibraryStore.instance,
-       _settingsStore = settingsStore ?? const MusicSettingsStore();
+       _settingsStore = settingsStore ?? const MusicSettingsStore(),
+       _metadata = metadata ?? api ?? MusicApiClient();
 
   static final MusicPlayerController instance = MusicPlayerController();
 
   final MusicPlatformGateway _platform;
   final MusicApiClient _api;
+  final MusicMetadataResolver _metadata;
   final MusicLibraryStore _library;
   final MusicSettingsStore _settingsStore;
 
@@ -477,7 +511,10 @@ class MusicPlayerController extends ChangeNotifier {
     // Remote-id keyed rows (online results and downloads alike) may have
     // saved lyrics/artwork under a different key than the instance passed in,
     // so always merge the library copy before deciding what is still missing.
-    var resolved = _mergeMetadata(track, await _library.get(track.trackKey));
+    // The same remote id can also exist under several keys (online:<id>,
+    // downloaded rows, previously played copies), so probe every library
+    // row carrying this remote id as well.
+    var resolved = await _mergeLibraryMetadata(track);
     if (resolved.sourceType != MusicSourceType.online &&
         resolved.sourceUri.trim().isNotEmpty) {
       if (resolved.lyric == null || resolved.artworkUrl == null) {
@@ -498,8 +535,9 @@ class MusicPlayerController extends ChangeNotifier {
       level: _settings.quality,
     );
     // resolve() rebuilds the row from the server response; keep lyrics and
-    // artwork cached on the library copy instead of dropping them.
-    resolved = _mergeMetadata(resolved, await _library.get(track.trackKey));
+    // artwork cached on any library copy of this remote id instead of
+    // dropping them.
+    resolved = await _mergeLibraryMetadata(resolved);
     if (resolved.lyric == null || resolved.artworkUrl == null) {
       try {
         resolved = await ensureLyrics(resolved);
@@ -525,16 +563,31 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<MusicTrack> ensureLyrics(MusicTrack track) async {
     await initialize();
-    final cachedRow = await _library.get(track.trackKey);
-    var stored = _mergeMetadata(track, cachedRow);
-    if (stored.lyric == null && stored.isRemote) {
+    var stored = await _mergeLibraryMetadata(track);
+    if ((stored.lyric == null || stored.artworkUrl == null) &&
+        stored.isRemote) {
       final mediaStoreMatch = await _findScannedMatch(stored);
-      if (mediaStoreMatch?.lyric?.isNotEmpty ?? false) {
-        stored = _mergeMetadata(stored, mediaStoreMatch);
-      }
+      stored = _mergeMetadata(stored, mediaStoreMatch);
     }
     if (!stored.isRemote ||
         ((stored.lyric?.isNotEmpty ?? false) && stored.artworkUrl != null)) {
+      // Persist the merged metadata onto this row's own key (it may have
+      // only existed under a different key before) so future reads of the
+      // downloaded copy also see it.
+      if (stored.lyric != track.lyric ||
+          stored.artworkUrl != track.artworkUrl) {
+        final saved = await _library.save(stored);
+        final remoteId = saved.remoteId?.trim();
+        if (remoteId != null && remoteId.isNotEmpty) {
+          await _library.backfillRemoteMetadata(
+            remoteId,
+            lyric: saved.lyric,
+            translatedLyric: saved.translatedLyric,
+            artworkUrl: saved.artworkUrl,
+          );
+        }
+        return saved;
+      }
       return stored;
     }
     _requireApiConfiguration();
@@ -542,7 +595,7 @@ class MusicPlayerController extends ChangeNotifier {
     if (stored.lyric?.isNotEmpty ?? false) {
       // Lyrics are already cached; only the artwork still needs resolving.
     } else {
-      final lyrics = await _api.lyrics(
+      final lyrics = await _metadata.lyrics(
         apiBaseUrl: _settings.apiBaseUrl,
         remoteId: stored.remoteId!,
         apiKey: _settings.apiKey,
@@ -553,7 +606,7 @@ class MusicPlayerController extends ChangeNotifier {
       );
     }
     if (updated.artworkUrl == null) {
-      final artworkUrl = await _api.artworkUrl(
+      final artworkUrl = await _metadata.artworkUrl(
         apiBaseUrl: _settings.apiBaseUrl,
         remoteId: stored.remoteId!,
         apiKey: _settings.apiKey,
@@ -563,7 +616,16 @@ class MusicPlayerController extends ChangeNotifier {
       }
     }
     updated = await _library.save(updated);
-    if (updated.lyric?.isNotEmpty ?? false) {
+    // Keep every copy of this remote id (online row, previous downloads)
+    // on the same metadata, otherwise the local list can still render the
+    // stale copy that was never refreshed.
+    await _library.backfillRemoteMetadata(
+      stored.remoteId!,
+      lyric: updated.lyric,
+      translatedLyric: updated.translatedLyric,
+      artworkUrl: updated.artworkUrl,
+    );
+    if ((updated.lyric?.isNotEmpty ?? false) || updated.artworkUrl != null) {
       final localMatch = await _findScannedMatch(updated);
       if (localMatch != null &&
           (localMatch.lyric == null ||
@@ -609,6 +671,20 @@ class MusicPlayerController extends ChangeNotifier {
       artworkUrl:
           _nonEmpty(preferred.artworkUrl) ?? _nonEmpty(stored.artworkUrl),
     );
+  }
+
+  /// Merges the library copy of [track] plus every other stored row that
+  /// shares the same remote id, so lyrics/artwork cached under any of those
+  /// keys (the online row, downloaded row, previously played copy) all count.
+  Future<MusicTrack> _mergeLibraryMetadata(MusicTrack track) async {
+    var merged = _mergeMetadata(track, await _library.get(track.trackKey));
+    final remoteId = merged.remoteId?.trim();
+    if (remoteId == null || remoteId.isEmpty) return merged;
+    final rows = await _library.listByRemoteId(remoteId);
+    for (final row in rows) {
+      merged = _mergeMetadata(merged, row);
+    }
+    return merged;
   }
 
   static String? _nonEmpty(String? value) =>

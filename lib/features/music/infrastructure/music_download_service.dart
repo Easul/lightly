@@ -45,15 +45,28 @@ class MusicDownloadService {
       throw HttpException('下载失败（HTTP ${response.statusCode}）');
     }
     final extension = _extensionFor(track.sourceUri, response.headers);
-    // Same-titled songs (different ids or sources) must not collapse onto
-    // each other: the local library merges downloaded and scanned rows by
-    // file name, so reuse of plain title.mp3 would cross-link lyrics and
-    // artwork of unrelated tracks. A short md5 discriminator keeps them
-    // distinct while staying stable per song id / stream URL.
-    final baseName = _sanitizeFileName(track.title);
-    final output = File(
-      path.join(directory.path, '$baseName-${_contentDiscriminator(track)}$extension'),
-    );
+    // Name files 歌手名-歌曲名 so the MediaStore/display name stays
+    // meaningful. Same artist+title from different remote ids or sources
+    // must not collapse onto each other: the local library merges downloaded
+    // and scanned rows by file name, so a shared file name would cross-link
+    // lyrics and artwork of unrelated tracks. A short md5 discriminator is
+    // only appended when that collision actually happens; it stays stable
+    // per song id / stream URL.
+    final baseName = _sanitizeFileName('${track.artist}-${track.title}');
+    var output = File(path.join(directory.path, '$baseName$extension'));
+    final plainExists = await output.exists();
+    final plainSameSong =
+        plainExists && await _hasSameFingerprint(output, track);
+    if (plainExists && !plainSameSong) {
+      // A different song already owns the plain 歌手-歌名 file; fall back to
+      // the stable per-id md5 suffix (overwritten in place on re-downloads).
+      output = File(
+        path.join(
+          directory.path,
+          '$baseName-${_contentDiscriminator(track)}$extension',
+        ),
+      );
+    }
     final file = await output.open(mode: FileMode.write);
     var receivedBytes = 0;
     final totalBytes = response.contentLength;
@@ -78,6 +91,12 @@ class MusicDownloadService {
       rethrow;
     }
     await file.close();
+    try {
+      await _fingerprintFileFor(output).writeAsString(_fingerprintFor(track));
+    } on Object {
+      // Best-effort marker; a failed write only means a future re-download
+      // of the same id may fall back to the md5-suffixed file name.
+    }
     await MediaScannerService.scanFile(output.path);
     return track.copyWith(
       sourceUri: output.uri.toString(),
@@ -93,6 +112,30 @@ String _contentDiscriminator(MusicTrack track) {
       ? 'id:$remoteId'
       : track.sourceUri;
   return md5.convert(utf8.encode(seed)).toString().substring(0, 6);
+}
+
+/// Fingerprint marker written next to a downloaded file so a re-download of
+/// the same song id/stream can overwrite the plain 歌手-歌名 file instead of
+/// spawning an md5-suffixed copy of itself.
+String _fingerprintFor(MusicTrack track) {
+  final remoteId = track.remoteId?.trim();
+  return remoteId != null && remoteId.isNotEmpty
+      ? 'id:$remoteId'
+      : 'uri:${track.sourceUri}';
+}
+
+File _fingerprintFileFor(File audio) => File(audio.path + _fingerprintSuffix);
+
+const String _fingerprintSuffix = '.lightly.meta';
+
+Future<bool> _hasSameFingerprint(File audio, MusicTrack track) async {
+  final marker = _fingerprintFileFor(audio);
+  if (!await marker.exists()) return false;
+  try {
+    return (await marker.readAsString()).trim() == _fingerprintFor(track);
+  } on Object {
+    return false;
+  }
 }
 
 String _sanitizeFileName(String value) {

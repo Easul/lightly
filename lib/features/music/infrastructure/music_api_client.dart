@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../application/music_player_controller.dart';
 import '../domain/music_track.dart';
 
 class MusicSearchPage {
@@ -25,7 +26,7 @@ class MusicLyrics {
   final String? translated;
 }
 
-class MusicApiClient {
+class MusicApiClient with MusicMetadataResolver {
   MusicApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   static const int searchLimit = 50;
@@ -92,6 +93,7 @@ class MusicApiClient {
     );
   }
 
+  @override
   Future<MusicLyrics> lyrics({
     required String apiBaseUrl,
     required String remoteId,
@@ -113,6 +115,7 @@ class MusicApiClient {
   /// not always carry picUrl, and downloaded rows saved before artwork
   /// caching may have lost it, so this re-uses the resolve endpoint purely
   /// for its picUrl field.
+  @override
   Future<String?> artworkUrl({
     required String apiBaseUrl,
     required String remoteId,

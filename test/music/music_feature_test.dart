@@ -607,6 +607,72 @@ void main() {
       expect(mirrored?.artworkUrl, 'https://image.test/cover-77.jpg');
     });
 
+    test('ensureLyrics reuses lyrics cached under a different key for the same '
+        'remote id and backfills every copy', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'music_player_api_base_url_v1': 'https://music.test/api/',
+        'music_player_api_key_v1': 'key',
+      });
+      const channel = MethodChannel('music_metadata_backfill_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      const onlineRow = MusicTrack(
+        trackKey: 'online:88',
+        remoteId: '88',
+        title: '缓存歌',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'https://cdn.test/88.mp3',
+        sourceType: MusicSourceType.online,
+        lyric: '[00:01.00]在线行歌词',
+        artworkUrl: 'https://image.test/cover-88.jpg',
+      );
+      const bareDownload = MusicTrack(
+        trackKey: 'downloaded:88',
+        remoteId: '88',
+        title: '缓存歌',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file:///storage/emulated/0/Download/歌手-缓存歌.mp3',
+        localPath: '/storage/emulated/0/Download/歌手-缓存歌.mp3',
+        sourceType: MusicSourceType.downloaded,
+      );
+      await store.save(onlineRow);
+      await store.save(bareDownload);
+      final probe = await store.listByRemoteId('88');
+      expect(probe, hasLength(2));
+      var apiCalls = 0;
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        metadata: _CountingMetadataResolver(onCall: () => apiCalls++),
+        library: store,
+      );
+
+      final recovered = await controller.ensureLyrics(bareDownload);
+
+      expect(recovered.lyric, '[00:01.00]在线行歌词');
+      expect(recovered.artworkUrl, 'https://image.test/cover-88.jpg');
+      // Everything came from the other key's cache: no network needed.
+      expect(apiCalls, 0);
+
+      final storedDownload = await store.get(bareDownload.trackKey);
+      expect(storedDownload?.lyric, '[00:01.00]在线行歌词');
+      expect(storedDownload?.artworkUrl, 'https://image.test/cover-88.jpg');
+    });
+
     test('cycles within the current queue for all playback modes', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       const channel = MethodChannel('music_mode_test');
@@ -969,4 +1035,30 @@ void main() {
       },
     );
   });
+}
+
+class _CountingMetadataResolver with MusicMetadataResolver {
+  _CountingMetadataResolver({required this.onCall});
+
+  final void Function() onCall;
+
+  @override
+  Future<MusicLyrics> lyrics({
+    required String apiBaseUrl,
+    required String remoteId,
+    required String apiKey,
+  }) async {
+    onCall();
+    return const MusicLyrics();
+  }
+
+  @override
+  Future<String?> artworkUrl({
+    required String apiBaseUrl,
+    required String remoteId,
+    required String apiKey,
+  }) async {
+    onCall();
+    return null;
+  }
 }

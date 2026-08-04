@@ -91,6 +91,42 @@ class MusicLibraryStore {
     return null;
   }
 
+  /// Every stored row carrying [remoteId], regardless of which track key
+  /// prefix (online:/downplayed) it was saved under. Metadata cached on any
+  /// of them belongs to the same song.
+  Future<List<MusicTrack>> listByRemoteId(String remoteId) async {
+    final db = await _db;
+    final rows = await db.query(
+      table,
+      where: 'remoteId = ?',
+      whereArgs: <Object?>[remoteId],
+    );
+    return rows.map(MusicTrack.fromDatabaseMap).toList(growable: false);
+  }
+
+  /// Patches lyric/artwork slots on every row carrying [remoteId] that is
+  /// still missing them. Downloaded and online copies of one song live under
+  /// different keys; filling them together keeps the local list, search
+  /// results, and queue in sync with whatever was fetched once.
+  Future<void> backfillRemoteMetadata(
+    String remoteId, {
+    String? lyric,
+    String? translatedLyric,
+    String? artworkUrl,
+  }) async {
+    final rows = await listByRemoteId(remoteId);
+    for (final row in rows) {
+      final patched = row.copyWith(
+        lyric: row.lyric ?? lyric,
+        translatedLyric: row.translatedLyric ?? translatedLyric,
+        artworkUrl: row.artworkUrl ?? artworkUrl,
+      );
+      if (!identical(patched, row)) {
+        await save(patched);
+      }
+    }
+  }
+
   Future<MusicTrack> save(MusicTrack track) async {
     final updated = track.copyWith(updatedAt: DateTime.now());
     final db = await _db;

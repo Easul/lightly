@@ -91,6 +91,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   }
 
   Future<void> _reloadLibrary() async {
+    // 已下载的歌曲重新按 remoteId 补齐一次歌词/封面：库里的在线行可能
+    // 早已缓存好，但下载行的槽位还是空的，本地列表按扫描行渲染时就会
+    // 看起来「没有封面没有歌词」。只补缺失槽位，不覆盖已有值。
+    await _backfillDownloadedMetadata();
     final results = await Future.wait<Object>([
       _library.list(sourceType: MusicSourceType.local),
       _library.list(favoritesOnly: true),
@@ -120,6 +124,37 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       _selectedTrackKeys.removeWhere((key) => !validKeys.contains(key));
     });
     _syncBrowseQueue();
+  }
+
+  Future<void> _backfillDownloadedMetadata() async {
+    final downloaded = await _library.list(
+      sourceType: MusicSourceType.downloaded,
+    );
+    for (final track in downloaded) {
+      if (track.lyric != null && track.artworkUrl != null) continue;
+      final remoteId = track.remoteId?.trim();
+      if (remoteId == null || remoteId.isEmpty) continue;
+      final copies = await _library.listByRemoteId(remoteId);
+      String? lyric = track.lyric;
+      String? translatedLyric = track.translatedLyric;
+      String? artworkUrl = track.artworkUrl;
+      for (final copy in copies) {
+        lyric ??= copy.lyric;
+        translatedLyric ??= copy.translatedLyric;
+        artworkUrl ??= copy.artworkUrl;
+      }
+      if (lyric != track.lyric ||
+          translatedLyric != track.translatedLyric ||
+          artworkUrl != track.artworkUrl) {
+        await _library.save(
+          track.copyWith(
+            lyric: lyric,
+            translatedLyric: translatedLyric,
+            artworkUrl: artworkUrl,
+          ),
+        );
+      }
+    }
   }
 
   /// Downloaded songs that are also visible in the MediaStore scan are merged

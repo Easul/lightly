@@ -88,22 +88,28 @@ album metadata.
   from the remembered position instead of restarting. The resume behavior has
   no user-facing toggle; the top-right sheet only hosts sorting, the system
   playback toolbar switch, and the music settings entry.
-- Downloaded files are named with the song title plus a short md5
-  discriminator of the song id (or stream URL), for example
-  海底-1a2b3c.mp3, so same-titled songs never share one file. The
-  discriminator is stable per song: re-downloading the same id overwrites
-  the same file instead of accumulating copies, and the local library's
+- Downloaded files are named 歌手名-歌曲名 (for example 一支榴莲-海底.mp3).
+  A hidden `<file>.lightly.meta` marker next to each download records which
+  song id / stream URL produced it: re-downloading the same id overwrites
+  the plain file in place, while a different song with the same artist+title
+  falls back to a stable short md5 discriminator (歌手-歌名-1a2b3c.mp3) so
+  the two songs never share one file and the local library's
   merge-by-file-name stays one-to-one per song. Lyrics fetched for a
   downloaded track are mirrored onto the scanned
   MediaStore row for the same file (matched by stored path, then by file
   name), and `ensureLyrics` reuses lyrics already cached on that scanned row,
   so downloaded songs keep their artwork and lyrics when shown inline in the
-  local list. ensurePlayable merges the library copy for the same track key
-  before deciding what is missing, so a bare in-memory row (for example right
-  after a download finishes) recovers artwork and lyrics already cached under
-  its key instead of overwriting them with nulls, and fetches whatever is
-  still missing on a best-effort basis without blocking playback or the
-  download itself.
+  local list. ensurePlayable and ensureLyrics merge the library copies of
+  every row sharing the same remote id (the online row, downloaded rows,
+  previously played copies all live under different keys) before deciding
+  what is missing, so a bare in-memory row (for example right after a
+  download finishes) recovers artwork and lyrics already cached under any
+  of those keys instead of overwriting them with nulls; newly fetched
+  metadata is backfilled onto every copy of the remote id, and anything
+  still missing is fetched on a best-effort basis without blocking playback
+  or the download itself. The library reload path additionally backfills
+  empty lyric/artwork slots on downloaded rows from their sibling rows so
+  songs downloaded before this caching existed self-heal on the next open.
 - Tapping the system playback notification sends the typed
   `onNotificationOpen` gateway event; the controller resolves any pending
   resume prompt by continuing from the saved position and the app navigates

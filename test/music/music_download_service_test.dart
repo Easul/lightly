@@ -46,24 +46,49 @@ void main() {
       }
     });
 
+    MusicDownloadService buildService() {
+      return MusicDownloadService(
+        downloadsAccess: _FixedDownloadsAccess(tempDirectory),
+        client: MockClient((request) async {
+          return http.Response.bytes(
+            utf8.encode('audio-bytes'),
+            200,
+            headers: <String, String>{'content-type': 'audio/mpeg'},
+          );
+        }),
+      );
+    }
+
+    test('names files 歌手名-歌曲名', () async {
+      const track = MusicTrack(
+        trackKey: 'online:1',
+        remoteId: '1',
+        title: '歌曲名',
+        artist: '歌手名',
+        album: '专辑',
+        sourceUri: 'https://cdn.test/a/1.mp3',
+        sourceType: MusicSourceType.online,
+      );
+
+      final result = await buildService().download(
+        track,
+        preferSharedDownloads: true,
+        requestSharedAccessIfNeeded: false,
+      );
+
+      expect(p.basename(result.localPath!), '歌手名-歌曲名.mp3');
+      expect(await File(result.localPath!).exists(), isTrue);
+    });
+
     test(
-      'same-titled songs from different remote ids land in distinct files',
+      'same artist+title from different remote ids lands in a distinct file',
       () async {
-        final service = MusicDownloadService(
-          downloadsAccess: _FixedDownloadsAccess(tempDirectory),
-          client: MockClient((request) async {
-            return http.Response.bytes(
-              utf8.encode('audio-bytes'),
-              200,
-              headers: <String, String>{'content-type': 'audio/mpeg'},
-            );
-          }),
-        );
+        final service = buildService();
         const first = MusicTrack(
           trackKey: 'online:1',
           remoteId: '1',
           title: '同名歌曲',
-          artist: '歌手甲',
+          artist: '歌手',
           album: '专辑',
           sourceUri: 'https://cdn.test/a/1.mp3',
           sourceType: MusicSourceType.online,
@@ -72,7 +97,7 @@ void main() {
           trackKey: 'online:2',
           remoteId: '2',
           title: '同名歌曲',
-          artist: '歌手乙',
+          artist: '歌手',
           album: '专辑',
           sourceUri: 'https://cdn.test/a/2.mp3',
           sourceType: MusicSourceType.online,
@@ -89,21 +114,48 @@ void main() {
           requestSharedAccessIfNeeded: false,
         );
 
-        expect(firstResult.localPath, isNot(secondResult.localPath));
-        expect(p.basename(firstResult.localPath!), startsWith('同名歌曲-'));
-        expect(p.basename(firstResult.localPath!), endsWith('.mp3'));
-        expect(await File(firstResult.localPath!).exists(), isTrue);
+        expect(p.basename(firstResult.localPath!), '歌手-同名歌曲.mp3');
+        expect(secondResult.localPath, isNot(firstResult.localPath));
+        expect(p.basename(secondResult.localPath!), startsWith('歌手-同名歌曲-'));
+        expect(p.basename(secondResult.localPath!), endsWith('.mp3'));
         expect(await File(secondResult.localPath!).exists(), isTrue);
 
-        // The discriminator is stable per song: re-downloading the same id
-        // overwrites the same file instead of accumulating copies.
+        // The md5 discriminator is stable per song: re-downloading the same
+        // colliding id overwrites the same file instead of accumulating.
         final redownload = await service.download(
-          first,
+          second,
           preferSharedDownloads: true,
           requestSharedAccessIfNeeded: false,
         );
-        expect(redownload.localPath, firstResult.localPath);
+        expect(redownload.localPath, secondResult.localPath);
       },
     );
+
+    test('re-downloading an existing id overwrites the plain file', () async {
+      final service = buildService();
+      const track = MusicTrack(
+        trackKey: 'online:9',
+        remoteId: '9',
+        title: '归来',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'https://cdn.test/a/9.mp3',
+        sourceType: MusicSourceType.online,
+      );
+
+      final first = await service.download(
+        track,
+        preferSharedDownloads: true,
+        requestSharedAccessIfNeeded: false,
+      );
+      final again = await service.download(
+        track,
+        preferSharedDownloads: true,
+        requestSharedAccessIfNeeded: false,
+      );
+
+      expect(again.localPath, first.localPath);
+      expect(p.basename(again.localPath!), '歌手-归来.mp3');
+    });
   });
 }
