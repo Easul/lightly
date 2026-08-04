@@ -76,6 +76,7 @@ void main() {
         requestSharedAccessIfNeeded: false,
       );
 
+      expect(result.trackKey, 'downloaded:1');
       expect(p.basename(result.localPath!), '歌手名-歌曲名.mp3');
       expect(await File(result.localPath!).exists(), isTrue);
     });

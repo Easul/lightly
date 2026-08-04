@@ -181,7 +181,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
       return scanned.copyWith(
         lyric: scanned.lyric ?? d.lyric,
         translatedLyric: scanned.translatedLyric ?? d.translatedLyric,
-        artworkUrl: scanned.artworkUrl ?? d.artworkUrl,
+        // MediaStore always supplies an album-art URI, but it may be a
+        // generic or stale art row. Prefer the artwork resolved for the
+        // downloaded remote track when one is available.
+        artworkUrl: d.artworkUrl ?? scanned.artworkUrl,
       );
     }
 

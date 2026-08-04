@@ -128,6 +128,7 @@ class MusicTrack {
   }
 
   MusicTrack copyWith({
+    String? trackKey,
     String? title,
     String? artist,
     String? album,
@@ -145,7 +146,7 @@ class MusicTrack {
     int? lastPositionMs,
   }) {
     return MusicTrack(
-      trackKey: trackKey,
+      trackKey: trackKey ?? this.trackKey,
       remoteId: remoteId,
       title: title ?? this.title,
       artist: artist ?? this.artist,

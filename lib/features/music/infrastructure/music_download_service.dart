@@ -99,11 +99,22 @@ class MusicDownloadService {
     }
     await MediaScannerService.scanFile(output.path);
     return track.copyWith(
+      // Keep the online search row intact. A downloaded copy needs its own
+      // row so the scanned MediaStore entry can inherit its cached metadata.
+      trackKey: _downloadedTrackKey(track),
       sourceUri: output.uri.toString(),
       localPath: output.path,
       sourceType: MusicSourceType.downloaded,
     );
   }
+}
+
+String _downloadedTrackKey(MusicTrack track) {
+  final remoteId = track.remoteId?.trim();
+  if (remoteId != null && remoteId.isNotEmpty) {
+    return 'downloaded:$remoteId';
+  }
+  return 'downloaded:${_contentDiscriminator(track)}';
 }
 
 String _contentDiscriminator(MusicTrack track) {
