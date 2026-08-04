@@ -456,27 +456,49 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<MusicTrack> ensurePlayable(MusicTrack track) async {
     await initialize();
-    if (!track.isRemote &&
-        track.localPath != null &&
-        track.sourceUri.startsWith('file://')) {
-      final contentUri = await _resolveMediaStoreUri(track.localPath!);
-      if (contentUri != null && contentUri != track.sourceUri) {
-        return track.copyWith(sourceUri: contentUri);
+    if (!track.isRemote) {
+      if (track.localPath != null && track.sourceUri.startsWith('file://')) {
+        final contentUri = await _resolveMediaStoreUri(track.localPath!);
+        if (contentUri != null && contentUri != track.sourceUri) {
+          return track.copyWith(sourceUri: contentUri);
+        }
       }
       return track;
     }
-    if (!track.isRemote ||
-        (track.sourceType != MusicSourceType.online &&
-            track.sourceUri.trim().isNotEmpty)) {
-      return track;
+    // Remote-id keyed rows (online results and downloads alike) may have
+    // saved lyrics/artwork under a different key than the instance passed in,
+    // so always merge the library copy before deciding what is still missing.
+    var resolved = _mergeMetadata(track, await _library.get(track.trackKey));
+    if (resolved.sourceType != MusicSourceType.online &&
+        resolved.sourceUri.trim().isNotEmpty) {
+      if (resolved.lyric == null || resolved.artworkUrl == null) {
+        try {
+          resolved = await ensureLyrics(resolved);
+        } on Object {
+          // Lyrics/artwork are best-effort; playback and downloads must not
+          // fail just because the metadata endpoint is unavailable.
+        }
+      }
+      return resolved;
     }
     _requireApiConfiguration();
-    return _api.resolve(
+    resolved = await _api.resolve(
       apiBaseUrl: _settings.apiBaseUrl,
-      track: track,
+      track: resolved,
       apiKey: _settings.apiKey,
       level: _settings.quality,
     );
+    // resolve() rebuilds the row from the server response; keep lyrics and
+    // artwork cached on the library copy instead of dropping them.
+    resolved = _mergeMetadata(resolved, await _library.get(track.trackKey));
+    if (resolved.lyric == null || resolved.artworkUrl == null) {
+      try {
+        resolved = await ensureLyrics(resolved);
+      } on Object {
+        // Same best-effort treatment as above.
+      }
+    }
+    return resolved;
   }
 
   Future<String?> _resolveMediaStoreUri(String path) async {
@@ -494,37 +516,55 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<MusicTrack> ensureLyrics(MusicTrack track) async {
     await initialize();
-    var stored = track.lyric != null
-        ? track
-        : await _library.get(track.trackKey) ?? track;
+    final cachedRow = await _library.get(track.trackKey);
+    var stored = _mergeMetadata(track, cachedRow);
     if (stored.lyric == null && stored.isRemote) {
       final mediaStoreMatch = await _findScannedMatch(stored);
       if (mediaStoreMatch?.lyric?.isNotEmpty ?? false) {
-        stored = mediaStoreMatch!;
+        stored = _mergeMetadata(stored, mediaStoreMatch);
       }
     }
-    if ((stored.lyric?.isNotEmpty ?? false) || !stored.isRemote) {
+    if (!stored.isRemote ||
+        ((stored.lyric?.isNotEmpty ?? false) && stored.artworkUrl != null)) {
       return stored;
     }
     _requireApiConfiguration();
-    final lyrics = await _api.lyrics(
-      apiBaseUrl: _settings.apiBaseUrl,
-      remoteId: stored.remoteId!,
-      apiKey: _settings.apiKey,
-    );
-    final updated = await _library.save(
-      stored.copyWith(
+    var updated = stored;
+    if (stored.lyric?.isNotEmpty ?? false) {
+      // Lyrics are already cached; only the artwork still needs resolving.
+    } else {
+      final lyrics = await _api.lyrics(
+        apiBaseUrl: _settings.apiBaseUrl,
+        remoteId: stored.remoteId!,
+        apiKey: _settings.apiKey,
+      );
+      updated = updated.copyWith(
         lyric: lyrics.original ?? '[00:00.00]暂无歌词',
         translatedLyric: lyrics.translated,
-      ),
-    );
+      );
+    }
+    if (updated.artworkUrl == null) {
+      final artworkUrl = await _api.artworkUrl(
+        apiBaseUrl: _settings.apiBaseUrl,
+        remoteId: stored.remoteId!,
+        apiKey: _settings.apiKey,
+      );
+      if (artworkUrl != null) {
+        updated = updated.copyWith(artworkUrl: artworkUrl);
+      }
+    }
+    updated = await _library.save(updated);
     if (updated.lyric?.isNotEmpty ?? false) {
       final localMatch = await _findScannedMatch(updated);
-      if (localMatch != null && localMatch.lyric == null) {
+      if (localMatch != null &&
+          (localMatch.lyric == null ||
+              (localMatch.artworkUrl == null && updated.artworkUrl != null))) {
         final mirrored = await _library.save(
           localMatch.copyWith(
-            lyric: updated.lyric,
-            translatedLyric: updated.translatedLyric,
+            lyric: localMatch.lyric ?? updated.lyric,
+            translatedLyric:
+                localMatch.translatedLyric ?? updated.translatedLyric,
+            artworkUrl: localMatch.artworkUrl ?? updated.artworkUrl,
           ),
         );
         _replaceQueuedTrack(mirrored);
@@ -546,6 +586,24 @@ class MusicPlayerController extends ChangeNotifier {
     if (path == null || path.isEmpty) return null;
     return _library.getMatchingLocalTrack(path);
   }
+
+  /// Merges metadata from [stored] into [preferred] without letting empty
+  /// strings or missing values on one row discard real lyrics/artwork cached
+  /// on the other row for the same track.
+  static MusicTrack _mergeMetadata(MusicTrack preferred, MusicTrack? stored) {
+    if (stored == null) return preferred;
+    return preferred.copyWith(
+      lyric: _nonEmpty(preferred.lyric) ?? _nonEmpty(stored.lyric),
+      translatedLyric:
+          _nonEmpty(preferred.translatedLyric) ??
+          _nonEmpty(stored.translatedLyric),
+      artworkUrl:
+          _nonEmpty(preferred.artworkUrl) ?? _nonEmpty(stored.artworkUrl),
+    );
+  }
+
+  static String? _nonEmpty(String? value) =>
+      value != null && value.isNotEmpty ? value : null;
 
   Future<void> togglePlayPause() async {
     if (_currentTrack == null) return;

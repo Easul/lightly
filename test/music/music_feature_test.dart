@@ -508,6 +508,105 @@ void main() {
       expect(await store.get('online:55'), isNotNull);
     });
 
+    test('ensureLyrics recovers artwork cached on the library copy and mirrors '
+        'metadata onto the scanned row', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'music_player_api_base_url_v1': 'https://music.test/api/',
+        'music_player_api_key_v1': 'key',
+      });
+      const channel = MethodChannel('music_metadata_recover_test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getState') {
+              return <String, Object?>{
+                'trackKey': '',
+                'playing': false,
+                'buffering': false,
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      const path = '/storage/emulated/0/Download/music/无损.mp3';
+      const cached = MusicTrack(
+        trackKey: 'online:77',
+        remoteId: '77',
+        title: '无损',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file://$path',
+        localPath: path,
+        sourceType: MusicSourceType.downloaded,
+        artworkUrl: 'https://image.test/cover-77.jpg',
+      );
+      const scanned = MusicTrack(
+        trackKey: 'local:$path',
+        title: '无损',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'content://media/external/audio/media/77',
+        localPath: path,
+        sourceType: MusicSourceType.local,
+      );
+      await store.save(cached);
+      await store.save(scanned);
+      var lyricRequests = 0;
+      var artworkRequests = 0;
+      final api = MusicApiClient(
+        client: MockClient((request) async {
+          final body = switch (request.url.path) {
+            '/api/163_lyric' => () {
+              lyricRequests++;
+              return jsonEncode(<String, Object?>{
+                'code': 200,
+                'data': <String, Object?>{'lrc': '[00:01.00]恢复歌词'},
+              });
+            }(),
+            '/api/163_music' => () {
+              artworkRequests++;
+              return jsonEncode(<String, Object?>{
+                'code': 200,
+                'data': <String, Object?>{'picUrl': null},
+              });
+            }(),
+            _ => '{}',
+          };
+          return http.Response.bytes(utf8.encode(body), 200);
+        }),
+      );
+      final controller = MusicPlayerController(
+        platform: MusicPlatformGateway(channel: channel),
+        api: api,
+        library: store,
+      );
+
+      // A bare in-memory row, as the download page holds right after the
+      // file finished downloading: no lyric, no artwork.
+      const bare = MusicTrack(
+        trackKey: 'online:77',
+        remoteId: '77',
+        title: '无损',
+        artist: '歌手',
+        album: '专辑',
+        sourceUri: 'file://$path',
+        localPath: path,
+        sourceType: MusicSourceType.downloaded,
+      );
+      final recovered = await controller.ensureLyrics(bare);
+
+      expect(recovered.lyric, '[00:01.00]恢复歌词');
+      expect(recovered.artworkUrl, 'https://image.test/cover-77.jpg');
+      expect(lyricRequests, 1);
+      expect(artworkRequests, 0);
+
+      final mirrored = await store.get(scanned.trackKey);
+      expect(mirrored?.lyric, '[00:01.00]恢复歌词');
+      expect(mirrored?.artworkUrl, 'https://image.test/cover-77.jpg');
+    });
+
     test('cycles within the current queue for all playback modes', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       const channel = MethodChannel('music_mode_test');

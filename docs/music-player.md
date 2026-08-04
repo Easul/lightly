@@ -93,7 +93,12 @@ album metadata.
   MediaStore row for the same file (matched by stored path, then by file
   name), and `ensureLyrics` reuses lyrics already cached on that scanned row,
   so downloaded songs keep their artwork and lyrics when shown inline in the
-  local list.
+  local list. ensurePlayable merges the library copy for the same track key
+  before deciding what is missing, so a bare in-memory row (for example right
+  after a download finishes) recovers artwork and lyrics already cached under
+  its key instead of overwriting them with nulls, and fetches whatever is
+  still missing on a best-effort basis without blocking playback or the
+  download itself.
 - Tapping the system playback notification sends the typed
   `onNotificationOpen` gateway event; the controller resolves any pending
   resume prompt by continuing from the saved position and the app navigates

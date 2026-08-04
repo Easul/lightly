@@ -109,6 +109,25 @@ class MusicApiClient {
     );
   }
 
+  /// Resolves the album cover URL for a remote track. The search payload does
+  /// not always carry picUrl, and downloaded rows saved before artwork
+  /// caching may have lost it, so this re-uses the resolve endpoint purely
+  /// for its picUrl field.
+  Future<String?> artworkUrl({
+    required String apiBaseUrl,
+    required String remoteId,
+    required String apiKey,
+  }) async {
+    final json = await _getJson(apiBaseUrl, '163_music', <String, String>{
+      'id': remoteId,
+      'level': 'standard',
+      'apikey': apiKey,
+    });
+    final data = json['data'];
+    if (data is! Map) return null;
+    return _stringOrNull(data.cast<String, dynamic>()['picUrl']);
+  }
+
   Future<Map<String, dynamic>> _getJson(
     String apiBaseUrl,
     String endpoint,

@@ -289,18 +289,13 @@ class _MusicTrackPageState extends State<MusicTrackPage>
           });
         },
       );
-      _track = await _library.save(playable);
+      // ensurePlayable already fetched missing lyrics/artwork for the
+      // remote id and saved them under the same track key, so pull the
+      // freshest copy from the library instead of persisting the bare
+      // download result that still points at null metadata.
+      _track = await _library.get(playable.trackKey) ?? playable;
       await _player.registerDownloadedTrack(_track);
-      // Re-fetch lyrics for the downloaded copy when its lyric slot is still
-      // empty; ensureLyrics also mirrors lyrics cached on the scanned row.
-      if (_track.lyric == null) {
-        try {
-          _track = await _player.ensureLyrics(_track);
-          _lyrics = parseLrc(_track.lyric);
-        } on Object {
-          // Lyrics are best-effort; download itself already succeeded.
-        }
-      }
+      _lyrics = parseLrc(_track.lyric);
       if (mounted) setState(() {});
       _toast('歌曲已保存到 ${_track.localPath ?? _track.sourceUri}');
     } catch (error) {
