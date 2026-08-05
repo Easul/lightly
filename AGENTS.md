@@ -1284,6 +1284,9 @@ The address bar lock icon opens a dialog for clearing current-site data:
   download facade. Browser URLs, external video intents, and download-record playback converge on
   that path. The retired `NativeVideoPlayerPage` was unreachable and has been removed. Do not
   reintroduce a parallel full-page player owner without an explicit lifecycle and migration plan.
+- Floating-player position and duration labels must include hours when the value is at least one
+  hour (for example `1:32:06`). Do not format total minutes with `remainder(60)` unless an hours
+  component is also displayed; that makes a complete 92-minute stream look like `32:06`.
 - YouTube URLs submitted from the top address bar or favorites page must load in the browser first.
   Resolution starts only from the explicit in-page play control after the watch page is open. Keep
   that control as a compact `52 x 52` rounded square with only the play icon.
