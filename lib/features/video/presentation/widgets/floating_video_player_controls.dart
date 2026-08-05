@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../video_duration_formatter.dart';
 import 'floating_video_player.dart';
 
 class FloatingVideoLoadingControls extends StatelessWidget {
@@ -484,14 +485,14 @@ class _FloatingVideoBottomBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _formatDuration(position),
+                formatVideoDuration(position),
                 style: TextStyle(color: Colors.white, fontSize: timeFontSize),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _formatDuration(duration),
+                    formatVideoDuration(duration),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: timeFontSize,
@@ -516,12 +517,6 @@ class _FloatingVideoBottomBar extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
   }
 }
 
