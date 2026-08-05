@@ -341,37 +341,81 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             dragStartBehavior: DragStartBehavior.down,
-            onPanStart: (_) {
-              if (!_isFullscreen && !_isLocked) {
-                setState(() {
-                  _isDragging = true;
-                });
-              }
-            },
-            onPanUpdate: (details) {
-              if (!_isFullscreen && !_isLocked) {
-                final screenSize = MediaQuery.of(context).size;
-                final maxDragY = screenSize.height - _playerHeight - 80;
-                setState(() {
-                  final nextPosition = _mode == FloatingPlayerMode.defaultMode
-                      ? Offset(0, _position.dy + details.delta.dy)
-                      : _position + details.delta;
-                  _position = _clampedPosition(
-                    nextPosition,
-                    screenSize,
-                    maxDragY,
-                  );
-                });
-              }
-            },
-            onPanEnd: (_) {
-              if (!_isFullscreen && !_isLocked) {
-                setState(() {
-                  _isDragging = false;
-                });
-              }
-            },
-            onDoubleTap: _toggleMiniMode,
+            onPanStart: _mode == FloatingPlayerMode.mini && !_isLocked
+                ? (_) {
+                    setState(() {
+                      _isDragging = true;
+                    });
+                  }
+                : null,
+            onPanUpdate: _mode == FloatingPlayerMode.mini && !_isLocked
+                ? (details) {
+                    final screenSize = MediaQuery.of(context).size;
+                    final maxDragY = screenSize.height - _playerHeight - 80;
+                    setState(() {
+                      _position = _clampedPosition(
+                        _position + details.delta,
+                        screenSize,
+                        maxDragY,
+                      );
+                    });
+                  }
+                : null,
+            onPanEnd: _mode == FloatingPlayerMode.mini && !_isLocked
+                ? (_) {
+                    setState(() {
+                      _isDragging = false;
+                    });
+                  }
+                : null,
+            onPanCancel: _mode == FloatingPlayerMode.mini && !_isLocked
+                ? () {
+                    setState(() {
+                      _isDragging = false;
+                    });
+                  }
+                : null,
+            onVerticalDragStart:
+                _mode == FloatingPlayerMode.defaultMode && !_isLocked
+                ? (_) {
+                    setState(() {
+                      _isDragging = true;
+                    });
+                  }
+                : null,
+            onVerticalDragUpdate:
+                _mode == FloatingPlayerMode.defaultMode && !_isLocked
+                ? (details) {
+                    final screenSize = MediaQuery.of(context).size;
+                    final maxDragY = screenSize.height - _playerHeight - 80;
+                    setState(() {
+                      _position = _clampedPosition(
+                        Offset(0, _position.dy + details.delta.dy),
+                        screenSize,
+                        maxDragY,
+                      );
+                    });
+                  }
+                : null,
+            onVerticalDragEnd:
+                _mode == FloatingPlayerMode.defaultMode && !_isLocked
+                ? (_) {
+                    setState(() {
+                      _isDragging = false;
+                    });
+                  }
+                : null,
+            onVerticalDragCancel:
+                _mode == FloatingPlayerMode.defaultMode && !_isLocked
+                ? () {
+                    setState(() {
+                      _isDragging = false;
+                    });
+                  }
+                : null,
+            onDoubleTap: _mode == FloatingPlayerMode.mini
+                ? _toggleMiniMode
+                : null,
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black,
@@ -394,6 +438,7 @@ class _FloatingVideoPlayerState extends State<FloatingVideoPlayer>
                 onModeToggle: _toggleMode,
                 onLockToggle: _toggleLock,
                 onLoopToggle: _toggleLooping,
+                onCenterDoubleTap: _toggleMiniMode,
                 onDownload: widget.onDownload,
               ),
             ),

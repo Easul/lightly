@@ -324,6 +324,7 @@ class FloatingVideoGestureHint extends StatelessWidget {
                 ),
                 child: Text(
                   gestureHint,
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
