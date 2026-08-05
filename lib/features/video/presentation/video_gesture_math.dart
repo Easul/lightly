@@ -50,7 +50,7 @@ VideoDoubleTapZone classifyVideoDoubleTap({
 }) {
   if (surfaceWidth <= 0) return VideoDoubleTapZone.center;
   final fraction = (localX / surfaceWidth).clamp(0.0, 1.0);
-  if (fraction < 0.4) return VideoDoubleTapZone.rewind;
-  if (fraction > 0.6) return VideoDoubleTapZone.forward;
+  if (fraction <= 1 / 3) return VideoDoubleTapZone.rewind;
+  if (fraction >= 2 / 3) return VideoDoubleTapZone.forward;
   return VideoDoubleTapZone.center;
 }

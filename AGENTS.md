@@ -1292,6 +1292,11 @@ The address bar lock icon opens a dialog for clearing current-site data:
   time hint then performs one seek on release, and long press uses 3x playback only while held and
   restores the prior speed on release/cancel/controller change. Fullscreen vertical brightness and
   volume gestures must continue to coexist with horizontal seeking.
+- The surface is split into three equal double-tap zones: left rewinds, center enters mini mode,
+  and right fast-forwards. A single tap anywhere only shows or hides the control overlay; playback
+  changes belong to the overlay's play/pause button so they do not fight double-tap recognition.
+- Tapping a position on the visible video progress bar must seek directly to that time. Progress-bar
+  gestures must win over the surrounding surface tap recognizer so seeking does not hide controls.
 - Mini-player mode intentionally shows only the close button. Its progress bar and playback,
   download, lock, loop, and mode controls remain hidden to avoid crowding; double tapping anywhere
   in mini mode restores the normal player. Normal/default mode reserves the center double-tap zone

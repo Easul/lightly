@@ -72,9 +72,16 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
+    _syncControllerSnapshot();
     widget.controller?.addListener(_onControllerUpdate);
     _surfaceGestures.previewPosition.addListener(_onGesturePreviewChanged);
     _initializeSystemValues();
+  }
+
+  void _syncControllerSnapshot() {
+    final value = widget.controller?.value;
+    _lastIsPlaying = value?.isPlaying ?? false;
+    _lastHasError = value?.hasError ?? false;
   }
 
   void _onGesturePreviewChanged() {
@@ -139,6 +146,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller?.removeListener(_onControllerUpdate);
+      _syncControllerSnapshot();
       widget.controller?.addListener(_onControllerUpdate);
       _surfaceGestures.restoreLongPressSpeed(oldWidget.controller);
       _surfaceGestures.clearHorizontalSeek();
@@ -313,8 +321,11 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   }
 
   void _cancelHorizontalSeek() {
+    final wasSeeking = _surfaceGestures.previewPosition.value != null;
     _surfaceGestures.clearHorizontalSeek();
-    _showControlsTemporarily();
+    if (wasSeeking) {
+      _showControlsTemporarily();
+    }
   }
 
   void _startLongPressSpeed(LongPressStartDetails details) {
@@ -438,8 +449,9 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
         !widget.isLocked && widget.mode != FloatingPlayerMode.mini;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onTap: _handleSurfaceTap,
+      onTap: widget.mode == FloatingPlayerMode.mini ? null : _handleSurfaceTap,
       onDoubleTapDown: widget.isLocked || widget.mode == FloatingPlayerMode.mini
           ? null
           : _handleDoubleTapDown,

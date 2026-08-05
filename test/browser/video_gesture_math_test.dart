@@ -55,14 +55,22 @@ void main() {
       );
     });
 
-    test('double tap keeps a center zone for the existing mini action', () {
+    test('double tap splits the surface into three equal zones', () {
       expect(
         classifyVideoDoubleTap(localX: 10, surfaceWidth: 100),
         VideoDoubleTapZone.rewind,
       );
       expect(
+        classifyVideoDoubleTap(localX: 30, surfaceWidth: 90),
+        VideoDoubleTapZone.rewind,
+      );
+      expect(
         classifyVideoDoubleTap(localX: 50, surfaceWidth: 100),
         VideoDoubleTapZone.center,
+      );
+      expect(
+        classifyVideoDoubleTap(localX: 60, surfaceWidth: 90),
+        VideoDoubleTapZone.forward,
       );
       expect(
         classifyVideoDoubleTap(localX: 90, surfaceWidth: 100),
