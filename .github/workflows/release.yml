@@ -21,7 +21,7 @@ on:
       version:
         description: 'Version (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.10'
+        default: 'v1.0.11'
       optional_plugins:
         description: 'Optional companion APK handling'
         required: true
@@ -137,6 +137,10 @@ jobs:
         echo "Keystore decoded ($(stat -c%s "android/app/upload-keystore.jks") bytes)"
 
     - name: Fetch verified YouTube resolver AAR
+      # v1.0.11 requires the yt-resolver v0.0.4 release AAR. Point the
+      # YOUTUBE_RESOLVER_AAR_URL / YOUTUBE_RESOLVER_AAR_SHA256 Actions
+      # variables at that release before tagging; do not reuse the
+      # v1.0.10 AAR/hash.
       env:
         YOUTUBE_RESOLVER_AAR_URL: ${{ vars.YOUTUBE_RESOLVER_AAR_URL }}
         YOUTUBE_RESOLVER_AAR_SHA256: ${{ vars.YOUTUBE_RESOLVER_AAR_SHA256 }}
