@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:video_player/video_player.dart';
 import 'package:volume_controller/volume_controller.dart';
 
+import '../floating_video_surface_gesture_controller.dart';
+import '../video_gesture_math.dart';
 import 'floating_video_player.dart';
 import 'floating_video_player_controls.dart';
 
@@ -24,6 +27,7 @@ class FloatingVideoPlayerWidget extends StatefulWidget {
     this.isLooping = false,
     this.onLockToggle,
     this.onLoopToggle,
+    this.onCenterDoubleTap,
     this.isLoading = false,
     this.errorMessage,
   });
@@ -38,6 +42,7 @@ class FloatingVideoPlayerWidget extends StatefulWidget {
   final bool isLooping;
   final VoidCallback? onLockToggle;
   final VoidCallback? onLoopToggle;
+  final VoidCallback? onCenterDoubleTap;
   final bool isLoading;
   final String? errorMessage;
 
@@ -54,7 +59,8 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   double _brightness = 0.5;
   double _volume = 0.5;
   _GestureControlSide? _gestureSide;
-  final ValueNotifier<String?> _gestureHintNotifier = ValueNotifier(null);
+  final FloatingVideoSurfaceGestureController _surfaceGestures =
+      FloatingVideoSurfaceGestureController();
   bool _lockIndicatorVisible = true;
   Timer? _lockIndicatorTimer;
   bool _lastIsPlaying = false;
@@ -67,7 +73,12 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   void initState() {
     super.initState();
     widget.controller?.addListener(_onControllerUpdate);
+    _surfaceGestures.previewPosition.addListener(_onGesturePreviewChanged);
     _initializeSystemValues();
+  }
+
+  void _onGesturePreviewChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _initializeSystemValues() async {
@@ -126,6 +137,18 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   @override
   void didUpdateWidget(covariant FloatingVideoPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerUpdate);
+      widget.controller?.addListener(_onControllerUpdate);
+      _surfaceGestures.restoreLongPressSpeed(oldWidget.controller);
+      _surfaceGestures.clearHorizontalSeek();
+    }
+    if ((oldWidget.mode != widget.mode &&
+            widget.mode == FloatingPlayerMode.mini) ||
+        (!oldWidget.isLocked && widget.isLocked)) {
+      _surfaceGestures.restoreLongPressSpeed(widget.controller);
+      _surfaceGestures.clearHorizontalSeek();
+    }
     if (widget.mode != oldWidget.mode ||
         widget.isLocked != oldWidget.isLocked) {
       if (widget.isLocked) {
@@ -243,20 +266,76 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
 
   void _endGesture() {
     _gestureSide = null;
-    _gestureHintNotifier.value = null;
+    _surfaceGestures.hint.value = null;
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _surfaceGestures.recordDoubleTapDown(details.localPosition.dx);
+  }
+
+  void _handleDoubleTap() {
+    if (widget.isLocked) return;
+    final box = context.findRenderObject() as RenderBox?;
+    final zone = _surfaceGestures.takeDoubleTapZone(box?.size.width ?? 0);
+    if (zone == VideoDoubleTapZone.center) {
+      widget.onCenterDoubleTap?.call();
+      return;
+    }
+    final controller = widget.controller;
+    if (controller == null) return;
+    _surfaceGestures.seekByDoubleTap(
+      controller: controller,
+      forward: zone == VideoDoubleTapZone.forward,
+    );
+    _showControlsTemporarily();
+  }
+
+  void _startHorizontalSeek(DragStartDetails details) {
+    final box = context.findRenderObject() as RenderBox?;
+    final started = _surfaceGestures.startHorizontalSeek(
+      controller: widget.controller,
+      surfaceWidth: box?.size.width ?? 0,
+    );
+    if (!started) return;
+    _controlsTimer?.cancel();
+    setState(() {
+      _controlsVisible = true;
+    });
+  }
+
+  void _updateHorizontalSeek(DragUpdateDetails details) {
+    _surfaceGestures.updateHorizontalSeek(details.primaryDelta ?? 0);
+  }
+
+  void _endHorizontalSeek() {
+    _surfaceGestures.finishHorizontalSeek(widget.controller);
+    _showControlsTemporarily();
+  }
+
+  void _cancelHorizontalSeek() {
+    _surfaceGestures.clearHorizontalSeek();
+    _showControlsTemporarily();
+  }
+
+  void _startLongPressSpeed(LongPressStartDetails details) {
+    _surfaceGestures.startLongPressSpeed(widget.controller);
+  }
+
+  void _endLongPressSpeed() {
+    _surfaceGestures.restoreLongPressSpeed(widget.controller);
   }
 
   void _applyBrightness(double value) {
     if ((_brightness - value).abs() < 0.005) return;
     _brightness = value;
-    _gestureHintNotifier.value = '亮度 ${(value * 100).round()}%';
+    _surfaceGestures.showHint('亮度 ${(value * 100).round()}%', autoHide: false);
     unawaited(ScreenBrightness().setScreenBrightness(value));
   }
 
   void _applyVolume(double value) {
     if ((_volume - value).abs() < 0.005) return;
     _volume = value;
-    _gestureHintNotifier.value = '音量 ${(value * 100).round()}%';
+    _surfaceGestures.showHint('音量 ${(value * 100).round()}%', autoHide: false);
     unawaited(VolumeController.instance.setVolume(value));
   }
 
@@ -274,13 +353,24 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   void dispose() {
     _controlsTimer?.cancel();
     _lockIndicatorTimer?.cancel();
-    _gestureHintNotifier.dispose();
+    _surfaceGestures.previewPosition.removeListener(_onGesturePreviewChanged);
+    _surfaceGestures.dispose(widget.controller);
     widget.controller?.removeListener(_onControllerUpdate);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.mode == FloatingPlayerMode.mini &&
+        (widget.isLoading ||
+            widget.errorMessage != null ||
+            widget.controller == null)) {
+      return ColoredBox(
+        color: Colors.black,
+        child: Stack(fit: StackFit.expand, children: [_buildMiniCloseButton()]),
+      );
+    }
+
     if (widget.isLoading) {
       return ColoredBox(
         color: Colors.black,
@@ -342,9 +432,37 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
     final value = controller.value;
     final hasError = value.hasError;
     final isInitialized = value.isInitialized;
+    final displayPosition =
+        _surfaceGestures.previewPosition.value ?? value.position;
+    final surfaceGesturesEnabled =
+        !widget.isLocked && widget.mode != FloatingPlayerMode.mini;
 
     return GestureDetector(
+      dragStartBehavior: DragStartBehavior.down,
       onTap: _handleSurfaceTap,
+      onDoubleTapDown: widget.isLocked || widget.mode == FloatingPlayerMode.mini
+          ? null
+          : _handleDoubleTapDown,
+      onDoubleTap: widget.isLocked || widget.mode == FloatingPlayerMode.mini
+          ? null
+          : _handleDoubleTap,
+      onHorizontalDragStart: surfaceGesturesEnabled
+          ? _startHorizontalSeek
+          : null,
+      onHorizontalDragUpdate: surfaceGesturesEnabled
+          ? _updateHorizontalSeek
+          : null,
+      onHorizontalDragEnd: surfaceGesturesEnabled
+          ? (_) => _endHorizontalSeek()
+          : null,
+      onHorizontalDragCancel: surfaceGesturesEnabled
+          ? _cancelHorizontalSeek
+          : null,
+      onLongPressStart: surfaceGesturesEnabled ? _startLongPressSpeed : null,
+      onLongPressEnd: surfaceGesturesEnabled
+          ? (_) => _endLongPressSpeed()
+          : null,
+      onLongPressCancel: surfaceGesturesEnabled ? _endLongPressSpeed : null,
       onVerticalDragStart: _isFullscreen && !widget.isLocked
           ? (details) {
               final box = context.findRenderObject() as RenderBox?;
@@ -388,7 +506,14 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
 
             if (hasError && !isInitialized) _buildLoadingControls(context),
 
-            if (isInitialized && !widget.isLocked)
+            if (isInitialized &&
+                !widget.isLocked &&
+                widget.mode == FloatingPlayerMode.mini)
+              _buildMiniCloseButton(),
+
+            if (isInitialized &&
+                !widget.isLocked &&
+                widget.mode != FloatingPlayerMode.mini)
               IgnorePointer(
                 ignoring: !_controlsVisible,
                 child: AnimatedOpacity(
@@ -401,7 +526,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
                     isFullscreen: _isFullscreen,
                     isLooping: widget.isLooping,
                     isPlaying: value.isPlaying,
-                    position: value.position,
+                    position: displayPosition,
                     duration: value.duration,
                     bufferedPosition: _getBufferedPosition(value),
                     modeToggleIcon: _getModeToggleIcon(),
@@ -426,7 +551,7 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
               ),
 
             FloatingVideoGestureHint(
-              gestureHintListenable: _gestureHintNotifier,
+              gestureHintListenable: _surfaceGestures.hint,
             ),
           ],
         ),
@@ -435,6 +560,9 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
   }
 
   Widget _buildLoadingControls(BuildContext context) {
+    if (widget.mode == FloatingPlayerMode.mini) {
+      return _buildMiniCloseButton();
+    }
     return FloatingVideoLoadingControls(
       title: widget.title,
       mode: widget.mode,
@@ -447,6 +575,23 @@ class _FloatingVideoPlayerWidgetState extends State<FloatingVideoPlayerWidget> {
       onModeToggle: widget.onModeToggle,
       onLockToggle: widget.onLockToggle,
       onLoopToggle: widget.onLoopToggle,
+    );
+  }
+
+  Widget _buildMiniCloseButton() {
+    return Positioned(
+      top: 4,
+      right: 4,
+      child: IconButton(
+        tooltip: '关闭',
+        onPressed: widget.onClose,
+        icon: const Icon(Icons.close, color: Colors.white, size: 20),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.black.withValues(alpha: 0.5),
+        ),
+      ),
     );
   }
 }

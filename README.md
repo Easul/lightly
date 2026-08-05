@@ -6,7 +6,7 @@ Lightly 是一款面向 Android 的浏览器与设备工具箱，把网页浏览
 媒体播放和远程控制放在同一套轻量界面中。应用以 Flutter 构建，网络核心和 Android 平台能力由
 Rust/Kotlin 提供；Telegram、WebRTC 语音与 EasyTier 原生运行时按需安装，不重复打包 Flutter。
 
-当前发布重点见 [v1.0.10 完整更新说明](docs/release-summary-v1.0.10.md)。
+当前发布重点见 [v1.0.11 完整更新说明](docs/release-summary-v1.0.11.md)。
 
 ## 功能概览
 
@@ -49,14 +49,14 @@ Rust/Kotlin 提供；Telegram、WebRTC 语音与 EasyTier 原生运行时按需�
 - 插件下载支持 Lightly 代理、GitHub 直连、持续低速/超时后镜像回退，以及用户自定义 HTTPS 镜像前缀
 - GitHub Actions 使用同一 Release keystore 构建 Lightly 与六个 ABI 插件包，并在发布前交叉验证签名
 
-## v1.0.10 重点变化
+## v1.0.11 重点变化
 
-- 完成应用级运行时协调与 feature-first 模块迁移，明确 Browser、Proxy、EasyTier、Remote Control、Video 等资源的唯一 owner。
-- 将 Telegram TDLib、WebRTC 语音和 EasyTier JNI/FFI 抽离为按需安装的纯 Android companion，补齐 MIUI 前台启动、Binder 生命周期和同签名校验。
-- 集成私有 Android YouTube resolver；解析结果携带的 Cookie/请求头只进入受限的本地播放与下载链路。
-- 下载器支持 WebView Cookie/User-Agent/Referer、受控重定向、自动重试、Range 续传、失败记录重试和更可靠的服务端文件名。
-- 修复代理绕过域名的边界匹配，避免 `googlevideo.com` 被错误当作 `google.com` 直连；同时优化浏览器弹层、远控视频、Telegram 与 EasyTier 热路径。
-- 重写 GitHub Release 流程：可复用未变化插件、固定并校验 YouTube AAR、生成 APK SHA-256，并从版本化文档发布详细说明。
+- 新增音乐播放器：手动配置音乐 API、在线搜索与分组播放、通知栏控制、下载到本地库并保留封面/歌词/元数据。
+- 修复 YouTube 长视频解析只得到约半小时内容的问题：分段媒体捕获归一化为完整时长候选，并复用已解析的 watch 页面结果。
+- Google 验证页只在 watch 主导航判定，解析轮询可跨页内导航，减少 20 秒预算超时与重复解析失败。
+- 浮动视频播放器支持左右双击 ±5 秒、横向拖动预览进度、长按 3 倍速，小窗模式只保留关闭按钮。
+- 视频时长超过 1 小时时正确显示小时位。
+- Release 继续固定并校验新版 yt-resolver AAR；未变化的 Telegram/WebRTC/EasyTier companion 复用已发布 manifest。
 
 ## 界面与交互
 
@@ -108,6 +108,7 @@ Rust/Kotlin 提供；Telegram、WebRTC 语音与 EasyTier 原生运行时按需�
 - [v1.0.7 功能更新摘要](docs/release-summary-v1.0.7.md)
 - [v1.0.8 功能更新摘要](docs/release-summary-v1.0.8.md)
 - [v1.0.10 完整更新说明](docs/release-summary-v1.0.10.md)
+- [v1.0.11 完整更新说明](docs/release-summary-v1.0.11.md)
 - [EasyTier 编译记录](docs/easytier-build.md)
 - [EasyTier 状态共享给 Monitor](docs/easytier-state-sharing.md)
 
@@ -122,6 +123,7 @@ Rust/Kotlin 提供；Telegram、WebRTC 语音与 EasyTier 原生运行时按需�
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
 - [v1.0.10 Release Summary](docs/release-summary-v1.0.10.en.md)
+- [v1.0.11 Release Summary](docs/release-summary-v1.0.11.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 

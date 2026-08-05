@@ -192,5 +192,6 @@ docs: update xxx
 - [v1.0.7 功能更新摘要](release-summary-v1.0.7.md)
 - [v1.0.8 功能更新摘要](release-summary-v1.0.8.md)
 - [v1.0.10 完整更新说明](release-summary-v1.0.10.md)
+- [v1.0.11 完整更新说明](release-summary-v1.0.11.md)
 - [EasyTier 编译记录](easytier-build.md)
 - [EasyTier 状态共享给 Monitor](easytier-state-sharing.md)

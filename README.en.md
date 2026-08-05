@@ -8,7 +8,7 @@ product UI, while Rust and Kotlin provide the networking core and Android platfo
 Telegram, WebRTC voice, and EasyTier native runtimes are installed only when needed and do not ship a
 second Flutter runtime.
 
-See the [complete v1.0.10 release summary](docs/release-summary-v1.0.10.en.md) for the current release.
+See the [complete v1.0.11 release summary](docs/release-summary-v1.0.11.en.md) for the current release.
 
 ## Features
 
@@ -51,14 +51,14 @@ See the [complete v1.0.10 release summary](docs/release-summary-v1.0.10.en.md) f
 - Downloads support the configured Lightly proxy, direct GitHub access, timeout/sustained-slow mirror fallback, and a user-defined HTTPS mirror prefix
 - GitHub Actions build Lightly and all six ABI-specific plugin APKs with one release key and cross-check certificates before publishing
 
-## v1.0.10 Highlights
+## v1.0.11 Highlights
 
-- Completed application runtime coordination and the feature-first migration, with one explicit owner for Browser, Proxy, EasyTier, Remote Control, and Video resources.
-- Extracted Telegram TDLib, WebRTC voice, and EasyTier JNI/FFI into on-demand pure-Android companions with MIUI foreground bootstrap, Binder lifecycle cleanup, and same-signature verification.
-- Integrated the private Android YouTube resolver while confining returned cookies and request headers to the restricted local playback/download path.
-- Added authenticated download context, controlled redirects, automatic retries, range resume, failed-download retry, and stronger server filename handling.
-- Fixed proxy bypass host-boundary matching so `googlevideo.com` is not incorrectly treated as a `google.com` direct route, and reduced Browser, remote-video, Telegram, and EasyTier hot-path work.
-- Reworked GitHub Releases to reuse unchanged companions, pin and verify the YouTube AAR, publish APK SHA-256 checksums, and source detailed notes from versioned documentation.
+- Added a music player with manual API configuration, online search and grouped playback, notification controls, and metadata-preserving downloads into the local library.
+- Fixed long YouTube videos resolving to roughly half their length: ranged media captures are normalized into full-duration candidates and visited watch pages reuse cached results.
+- Scoped Google Sorry detection to watch navigation and kept resolver polling across in-page navigation, reducing 20-second budget timeouts and repeat-resolution failures.
+- Floating video playback supports left/right double-tap ±5 seconds, horizontal drag with target-time preview, long-press 3x speed, and a mini mode with only a close button.
+- Durations over one hour now display the hour component correctly.
+- Releases keep pinning and verifying the new yt-resolver AAR; unchanged Telegram/WebRTC/EasyTier companions reuse the published manifest.
 
 ## Interface and Interaction
 
@@ -110,6 +110,7 @@ Requirements:
 - [v1.0.7 Release Summary (CN)](docs/release-summary-v1.0.7.md)
 - [v1.0.8 Release Summary (CN)](docs/release-summary-v1.0.8.md)
 - [v1.0.10 Release Summary (CN)](docs/release-summary-v1.0.10.md)
+- [v1.0.11 Release Summary (CN)](docs/release-summary-v1.0.11.md)
 - [EasyTier Build Notes (CN)](docs/easytier-build.md)
 - [Sharing EasyTier State with Monitor (CN)](docs/easytier-state-sharing.md)
 
@@ -124,6 +125,7 @@ Requirements:
 - [v1.0.7 Release Summary](docs/release-summary-v1.0.7.en.md)
 - [v1.0.8 Release Summary](docs/release-summary-v1.0.8.en.md)
 - [v1.0.10 Release Summary](docs/release-summary-v1.0.10.en.md)
+- [v1.0.11 Release Summary](docs/release-summary-v1.0.11.en.md)
 - [EasyTier Build Notes](docs/easytier-build.en.md)
 - [Sharing EasyTier State with Monitor](docs/easytier-state-sharing.en.md)
 
