@@ -15,7 +15,8 @@ class AppDatabase {
   static const String favoriteTable = 'browser_favorites';
   static const String aiChatSessionTable = 'ai_chat_sessions';
   static const String aiChatMessageTable = 'ai_chat_messages';
-  static const int schemaVersion = 4;
+  static const String musicTrackTable = 'music_tracks';
+  static const int schemaVersion = 6;
 
   static final AppDatabase instance = AppDatabase._();
 
@@ -96,6 +97,7 @@ class AppDatabase {
       'CREATE INDEX idx_browser_favorites_sort ON $favoriteTable(sortOrder ASC)',
     );
     await _createAiChatTables(db);
+    await _createMusicTables(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -128,6 +130,14 @@ class AppDatabase {
     }
     if (oldVersion < 4) {
       await _createAiChatTables(db);
+    }
+    if (oldVersion < 5) {
+      await _createMusicTables(db);
+    }
+    if (oldVersion < 6 && oldVersion >= 5) {
+      await db.execute(
+        'ALTER TABLE $musicTrackTable ADD COLUMN lastPositionMs INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -176,6 +186,42 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_session '
       'ON $aiChatMessageTable(sessionId, id)',
+    );
+  }
+
+  static Future<void> _createMusicTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $musicTrackTable (
+        trackKey TEXT PRIMARY KEY,
+        remoteId TEXT,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL DEFAULT '',
+        album TEXT NOT NULL DEFAULT '',
+        artworkUrl TEXT,
+        sourceUri TEXT NOT NULL,
+        localPath TEXT,
+        sourceType TEXT NOT NULL,
+        durationMs INTEGER NOT NULL DEFAULT 0,
+        lyric TEXT,
+        translatedLyric TEXT,
+        isFavorite INTEGER NOT NULL DEFAULT 0,
+        groupName TEXT NOT NULL DEFAULT '',
+        updatedAt INTEGER NOT NULL,
+        lastPlayedAt INTEGER,
+        lastPositionMs INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_music_tracks_source '
+      'ON $musicTrackTable(sourceType, updatedAt DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_music_tracks_favorite '
+      'ON $musicTrackTable(isFavorite, updatedAt DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_music_tracks_group '
+      'ON $musicTrackTable(groupName, updatedAt DESC)',
     );
   }
 

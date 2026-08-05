@@ -8,6 +8,11 @@ OUTPUT_AAR="${YOUTUBE_RESOLVER_OUTPUT_AAR:-$PROJECT_ROOT/android/app/libs/lightl
 PREBUILT_AAR="${YOUTUBE_RESOLVER_AAR:-}"
 GRADLEW="${YOUTUBE_RESOLVER_GRADLEW:-$PROJECT_ROOT/extensions/telegram/android/gradlew}"
 REQUIRE_OBFUSCATED_YOUTUBE="${REQUIRE_OBFUSCATED_YOUTUBE:-1}"
+GRADLE_NETWORK_ARGS=()
+
+if [[ "${YOUTUBE_RESOLVER_OFFLINE:-0}" == "1" ]]; then
+  GRADLE_NETWORK_ARGS+=(--offline)
+fi
 
 mkdir -p "$(dirname "$OUTPUT_AAR")"
 
@@ -19,7 +24,7 @@ if [[ -n "$PREBUILT_AAR" ]]; then
   cp "$PREBUILT_AAR" "$OUTPUT_AAR"
 elif [[ -f "$PRIVATE_ANDROID_DIR/settings.gradle.kts" ]]; then
   TARGET_ABI="${TARGET_ABI:-arm64-v8a}" \
-    "$GRADLEW" -p "$PRIVATE_ANDROID_DIR" --offline \
+    "$GRADLEW" -p "$PRIVATE_ANDROID_DIR" "${GRADLE_NETWORK_ARGS[@]}" \
       :resolver:testDebugUnitTest :resolver:assembleRelease
   cp "$PRIVATE_ANDROID_DIR/resolver/build/outputs/aar/resolver-release.aar" "$OUTPUT_AAR"
 elif [[ -f "$OUTPUT_AAR" ]]; then

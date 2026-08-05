@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private var browserProxyChannel: MethodChannel? = null
     private val storageAccessChannelHandler by lazy { StorageAccessChannelHandler(this) }
     private val externalIntentChannelHandler by lazy { ExternalIntentChannelHandler(this) }
+    private val musicPlayerChannelHandler by lazy { MusicPlayerChannelHandler(this) }
     private val proxyFloatingModeChannelHandler by lazy {
         ProxyFloatingModeChannelHandler(this)
     }
@@ -72,6 +73,16 @@ class MainActivity : FlutterActivity() {
     private fun handleIntent(intent: Intent?): String? {
         val action = intent?.action
         val data = intent?.dataString
+        if (ACTION_OPEN_MUSIC_PLAYER == action) {
+            externalIntentChannelHandler.updateInitialIntentUrl(null)
+            mainHandler.post { musicPlayerChannelHandler.publishNotificationOpen() }
+            return null
+        }
+        if (Intent.ACTION_VIEW == action && data != null && isAudioIntent(intent)) {
+            musicPlayerChannelHandler.publishExternalAudioIntent(data, intent.type, intent.flags)
+            externalIntentChannelHandler.updateInitialIntentUrl(null)
+            return null
+        }
         val resolvedUrl = when {
             Intent.ACTION_VIEW == action && data != null -> data
             Intent.ACTION_SEND == action && "text/plain" == intent.type ->
@@ -88,6 +99,15 @@ class MainActivity : FlutterActivity() {
             Log.d(logTag, "Resolved external browser input: $resolvedUrl")
         }
         return resolvedUrl
+    }
+
+    private fun isAudioIntent(intent: Intent): Boolean {
+        if (intent.type?.startsWith("audio/", ignoreCase = true) == true) {
+            return true
+        }
+        val path = intent.data?.lastPathSegment?.lowercase() ?: return false
+        return listOf(".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus")
+            .any(path::endsWith)
     }
 
     private fun resolveSharedTextTargetUrl(rawText: String?): String? {
@@ -121,6 +141,10 @@ class MainActivity : FlutterActivity() {
 
     private val logTag = "BrowserProxy"
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    companion object {
+        const val ACTION_OPEN_MUSIC_PLAYER = "lightly.tool.action.OPEN_MUSIC_PLAYER"
+    }
 
     private fun shutdownRemoteControlResources() {
         remoteControlChannelHandler?.shutdown()
@@ -161,6 +185,7 @@ class MainActivity : FlutterActivity() {
         ).register(flutterEngine.dartExecutor.binaryMessenger)
 
         MediaScannerChannelHandler(this).register(flutterEngine.dartExecutor.binaryMessenger)
+        musicPlayerChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
         easyTierChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
@@ -176,7 +201,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
+        if (musicPlayerChannelHandler.handleActivityResult(requestCode, resultCode)) {
+            return
+        } else if (storageAccessChannelHandler.handlePermissionResult(requestCode)) {
             return
         } else if (optionalPluginActivationCoordinator.handleActivityResult(requestCode, resultCode)) {
             return
@@ -202,6 +229,7 @@ class MainActivity : FlutterActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         storageAccessChannelHandler.handlePermissionResult(requestCode)
+        musicPlayerChannelHandler.handleRequestPermissionsResult(requestCode)
     }
 
     override fun onDestroy() {
@@ -211,6 +239,7 @@ class MainActivity : FlutterActivity() {
         youTubeResolverChannelHandler.shutdown()
         shutdownRemoteControlResources()
         shutdownEasyTierVpnResources()
+        musicPlayerChannelHandler.shutdown()
         super.onDestroy()
     }
 }

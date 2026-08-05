@@ -169,6 +169,11 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 onTap: () => Navigator.pushNamed(context, '/translation-tool'),
               ),
               _ToolTile(
+                icon: Icons.library_music_rounded,
+                label: '音乐',
+                onTap: () => Navigator.pushNamed(context, '/music-player'),
+              ),
+              _ToolTile(
                 icon: Icons.grid_view_rounded,
                 label: '2048',
                 onTap: () => Navigator.pushNamed(context, '/game-2048'),

@@ -17,6 +17,7 @@ import '../pages/telegram_checkin_page.dart';
 import '../pages/tools_page.dart';
 import '../pages/translation_tool_page.dart';
 import '../pages/ai_chat_page.dart';
+import '../features/music/presentation/music_player_page.dart';
 import '../features/remote_control/infrastructure/remote_control_platform_gateway.dart';
 import '../features/remote_control/infrastructure/remote_control_service.dart';
 import '../features/optional_plugins/domain/optional_feature.dart';
@@ -65,6 +66,7 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
     '/telegram-checkin': (context) => const TelegramCheckinPage(),
     '/translation-tool': (context) => const TranslationToolPage(),
     '/ai-chat': (context) => const AiChatPage(),
+    '/music-player': (context) => const MusicPlayerPage(),
     '/tools': (context) => const ToolsPage(),
   };
 }

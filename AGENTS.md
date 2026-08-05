@@ -1258,6 +1258,14 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - `scripts/build_youtube_aar.sh` is the local AAR build/injection path. Full Lightly release builds
   must require or generate the AAR and verify that `YouTubeResolverBridge` is present in the APK.
   Public/OSS builds must continue to compile without the AAR and return a clear unavailable error.
+- Local private-resolver source builds must allow Gradle to resolve missing dependencies by default;
+  a fresh dependency may not exist in the developer cache. `YOUTUBE_RESOLVER_OFFLINE=1` is the
+  explicit opt-in for a fully cached offline build. Gradle automatically loads user-level init
+  scripts, so repository build scripts must not hardcode, delete, or bypass `~/.gradle/init.d`.
+- The private resolver keeps `RepositoriesMode.FAIL_ON_PROJECT_REPOS`. User-level Gradle mirrors
+  must therefore be injected through settings-level `pluginManagement.repositories` and
+  `dependencyResolutionManagement.repositories`, not `allprojects { project.repositories }`.
+  Do not weaken the resolver repository policy or clear caches to work around an init-script error.
 - Release AARs must enable library-level R8. Preserve only the reflected API 1 bridge methods and
   verify their exact public signatures with `javap`; no implementation class may remain under the
   original `lightly.youtube.resolver` package. Publish AARs as GitHub Release assets rather than Git
@@ -1330,6 +1338,69 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Backspace must delete the selected range, or the character immediately before the caret when nothing is selected.
 - Full-width Chinese parentheses `（ ）` must be normalized to ASCII `()` before evaluation.
 - On short screens/small windows, the calculator body must remain scrollable/adaptive so the bottom keypad row is never pushed off-screen after showing results.
+
+## Music Player Storage / Runtime Boundaries
+
+- Music metadata, local-scan results, downloaded/online state, favorites, groups, and cached lyrics
+  live in the existing `browser_data.db` `music_tracks` table. Do not introduce a second music
+  database; `AppDatabase` owns the schema and `MusicLibraryStore` accesses it through
+  `AppDatabaseProvider`.
+- `MusicPlaybackService` is the single Android playback owner. Flutter pages submit intent through
+  `MusicPlayerController` / `MusicPlatformGateway`; do not add page-owned `MediaPlayer` or raw music
+  MethodChannels.
+- A local rescan replaces only local-source index rows and must retain favorite/group/lyrics for a
+  stable track key. It must not delete downloaded files or online/downloaded rows.
+- The music API base URL and key belong to `music_player_api_base_url_v1` and
+  `music_player_api_key_v1`. Both are sensitive, excluded from unified backup, and must be entered
+  manually in Music Settings. Do not hardcode, log, back up, or seed either value at build time.
+- Android external `audio/*` intents, MediaStore results, and downloaded files must converge on the
+  same music controller and playback detail page. System notification controls remain user-toggleable.
+- Explicit local-song deletion must remove the physical MediaStore/file item before deleting its
+  `music_tracks` row. On scoped-storage Android versions, use the system delete confirmation and
+  keep the database row when the user cancels or physical deletion fails.
+- Open local `content://` audio through `ContentResolver` and a readable file descriptor before
+  preparing `MediaPlayer`. Online API, playback, and download requests use a stable browser-style
+  User-Agent; advertise only response compression codecs the active Dart client can decode.
+- The music controller's initialization is asynchronous; search, settings, and remote playback
+  must await the same initialization future before reading persisted API configuration. The API
+  client accepts either the `/api/` base or a full known music endpoint URL and must normalize it
+  without duplicating the endpoint path.
+- Search adapters must tolerate both the API's compact list payload and Netease-style nested
+  `data.songs` / `result.songs` payloads, including `ar` artist and `al` album fields.
+- Do not call `MediaPlayer.getDuration()` or `getCurrentPosition()` during `prepareAsync()`. On
+  affected MIUI builds this emits native `-38` and invokes the playback error callback.
+- Music playback modes are controller-owned in-memory state: list loop (default), single-song
+  loop, and shuffle. The active queue must be the current filtered group/search list; automatic
+  advancement and wrap-around must not cross into a different group.
+- Online search state is also controller-owned in memory so leaving and reopening the page does not
+  detach the visible results from the active playback queue. Search loads 50 tracks at a time and
+  appends near the list end; update the active queue only when its current track belongs to that
+  search session. Clearing search content must not stop current playback.
+- Keep the online search field outside its scrollable results. Seek sliders should preview locally
+  while dragging and issue one native seek when released; do not send a MethodChannel seek for
+  every pointer update.
+- Music downloads must consume the HTTP response stream incrementally, write chunks to disk, and
+  throttle UI progress updates. Downloaded `music_tracks` rows are the music download-history
+  source of truth; do not create a second download table for music.
+- MediaStore `content://` remains the stable playback/deletion URI on scoped-storage Android. A
+  derived `/storage/...` value may be stored in `localPath` for display when MediaStore exposes
+  enough volume/relative-path metadata, but it must not replace the content URI runtime contract.
+- Notification and lock-screen previous/next commands return to the controller-owned queue through
+  the typed music gateway. Android may cache remote artwork in app cache and publish local/remote
+  artwork through `MediaSession`; unavailable artwork keeps the existing default icon.
+- Keep enough bottom padding in local, online, and favorite lists for the mini player plus the
+  system safe area so the final track can scroll fully above the controls.
+- Music library sort order is persisted in `music_player_library_sort_v1`; name sorting must
+  compare embedded digits by numeric value (1, 2, 10), never lexicographically. Downloaded songs
+  are shown inline in the 本机 list; do not reintroduce a separate downloads page or table.
+- Remembered per-track playback positions live in `music_tracks.lastPositionMs`. The resume prompt
+  is always-on internal state (`music_player_resume_prompt_v1`); do not re-expose it in music
+  settings or the top-right menu. Downloaded file names contain only the song title (no artist
+  prefix). Tapping the system playback notification must open the in-app music page through the
+  typed `onNotificationOpen` gateway event and resolve any pending resume request from the saved
+  position. The pre-playback previous/next path uses the controller-owned browse queue fallback
+  and must keep working before any track has started.
+- Source of truth: `docs/music-player.md`.
 
 ## Scope discipline
 
