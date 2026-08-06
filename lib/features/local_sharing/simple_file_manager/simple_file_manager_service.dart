@@ -10,10 +10,12 @@ import '../../../core/network/local_network_address_resolver.dart';
 import 'simple_file_manager_request_handler.dart';
 import 'simple_file_manager_runtime.dart';
 import 'simple_file_manager_settings.dart';
+import 'simple_file_manager_settings_store.dart';
 
 export 'simple_file_manager_settings.dart';
 
-class SimpleFileManagerService implements SimpleFileManagerRuntime {
+class SimpleFileManagerService
+    implements SimpleFileManagerRuntime, SimpleFileManagerSettingsStore {
   SimpleFileManagerService._();
 
   static final SimpleFileManagerService _instance =
@@ -74,6 +76,7 @@ class SimpleFileManagerService implements SimpleFileManagerRuntime {
     return _settings;
   }
 
+  @override
   Future<void> saveSettings(SimpleFileManagerSettings settings) async {
     final validationError = settings.validationError;
     if (validationError != null) {

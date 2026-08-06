@@ -9,6 +9,8 @@ import '../../core/logging/runtime_logger.dart';
 import '../../core/storage/shared_downloads_access.dart';
 import '../../services/app_log_service.dart';
 import '../../features/easytier/infrastructure/easytier_profile_service.dart';
+import '../../features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
+import '../../features/local_sharing/simple_file_manager/simple_file_manager_settings_store.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../../features/telegram/telegram_checkin_store.dart';
 import '../browser_settings_service.dart';
@@ -37,6 +39,7 @@ class BrowserBackupService {
     ClipboardStorageService? clipboardStorageService,
     EasyTierProfileService? easyTierProfileService,
     TelegramCheckinStore? telegramCheckinStore,
+    SimpleFileManagerSettingsStore? simpleFileManagerSettingsStore,
     SharedDownloadsAccess? sharedDownloadsAccess,
     RuntimeLogger? runtimeLogger,
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
@@ -51,6 +54,8 @@ class BrowserBackupService {
        _easyTierProfileService =
            easyTierProfileService ?? EasyTierProfileService(),
        _telegramCheckinStore = telegramCheckinStore ?? TelegramCheckinStore(),
+       _simpleFileManagerSettingsStore =
+           simpleFileManagerSettingsStore ?? SimpleFileManagerService(),
        _sharedDownloadsAccess =
            sharedDownloadsAccess ?? SharedDownloadsDirectoryService(),
        _runtimeLogger = runtimeLogger ?? AppLogService.instance;
@@ -64,6 +69,7 @@ class BrowserBackupService {
   final ClipboardStorageService _clipboardStorageService;
   final EasyTierProfileService _easyTierProfileService;
   final TelegramCheckinStore _telegramCheckinStore;
+  final SimpleFileManagerSettingsStore _simpleFileManagerSettingsStore;
   final SharedDownloadsAccess _sharedDownloadsAccess;
   final RuntimeLogger _runtimeLogger;
   late final BrowserBackupWebDataService _webDataService =
@@ -102,6 +108,8 @@ class BrowserBackupService {
     final selectedEasyTierProfileId = await _easyTierProfileService
         .getSelectedProfileId();
     final telegramCheckinConfig = await _telegramCheckinStore.load();
+    final simpleFileManagerSettings = await _simpleFileManagerSettingsStore
+        .loadSettings();
     final cookieUrls = await _webDataService.collectCookieUrls();
     final cookies = await _webDataService.exportCookies(urls: cookieUrls);
     final webStorageOrigins = _webDataService.collectWebStorageOrigins(
@@ -128,6 +136,7 @@ class BrowserBackupService {
       selectedEasyTierProfileId: selectedEasyTierProfileId,
       telegramCheckinConfig: telegramCheckinConfig,
       exportedAt: DateTime.now(),
+      simpleFileManagerFavoritePaths: simpleFileManagerSettings.favoritePaths,
     );
   }
 
@@ -193,6 +202,14 @@ class BrowserBackupService {
     if (importSettings) {
       await _settingsService.saveSettings(data.settings);
       await _telegramCheckinStore.save(data.telegramCheckinConfig);
+      final favoritePaths = data.simpleFileManagerFavoritePaths;
+      if (favoritePaths != null) {
+        final currentSettings = await _simpleFileManagerSettingsStore
+            .loadSettings();
+        await _simpleFileManagerSettingsStore.saveSettings(
+          currentSettings.copyWith(favoritePaths: favoritePaths),
+        );
+      }
     }
 
     if (importHistory && data.history.isNotEmpty) {
