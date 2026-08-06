@@ -9,6 +9,8 @@ import '../models/browser_download_record.dart';
 import '../models/browser_history_entry.dart';
 
 class BrowserBackupData {
+  static const int schemaVersion = 10;
+
   const BrowserBackupData({
     required this.favorites,
     required this.settings,
@@ -23,6 +25,7 @@ class BrowserBackupData {
     required this.selectedEasyTierProfileId,
     required this.telegramCheckinConfig,
     required this.exportedAt,
+    this.simpleFileManagerFavoritePaths,
   });
 
   final List<BrowserFavorite> favorites;
@@ -38,10 +41,11 @@ class BrowserBackupData {
   final String? selectedEasyTierProfileId;
   final TelegramCheckinConfig telegramCheckinConfig;
   final DateTime exportedAt;
+  final List<String>? simpleFileManagerFavoritePaths;
 
   Map<String, dynamic> toJson() {
     return {
-      'version': 9,
+      'version': schemaVersion,
       'exportedAt': exportedAt.toIso8601String(),
       'favorites': favorites.map((f) => f.toMap()).toList(),
       'settings': settings.toJson(),
@@ -57,6 +61,8 @@ class BrowserBackupData {
           .toList(),
       'selectedEasyTierProfileId': selectedEasyTierProfileId,
       'telegramCheckinConfig': telegramCheckinConfig.toJson(),
+      if (simpleFileManagerFavoritePaths != null)
+        'simpleFileManagerFavoritePaths': simpleFileManagerFavoritePaths,
     };
   }
 
@@ -109,6 +115,15 @@ class BrowserBackupData {
               ),
             )
             .toList();
+    final simpleFileManagerFavoritePaths =
+        decoded.containsKey('simpleFileManagerFavoritePaths')
+        ? (decoded['simpleFileManagerFavoritePaths'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .whereType<String>()
+              .map((path) => path.trim())
+              .where((path) => path.isNotEmpty)
+              .toList(growable: false)
+        : null;
     return BrowserBackupData(
       favorites: favorites,
       settings: settings,
@@ -130,6 +145,7 @@ class BrowserBackupData {
       exportedAt:
           DateTime.tryParse(decoded['exportedAt'] as String? ?? '') ??
           DateTime.now(),
+      simpleFileManagerFavoritePaths: simpleFileManagerFavoritePaths,
     );
   }
 }

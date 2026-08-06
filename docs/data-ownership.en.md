@@ -48,7 +48,7 @@ through their owner's parser.
 | `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`; historical scalar keys v0 | high for content, low for settings | Content and enabled port are backed up | Clipboard clear removes app content only and never changes the Android system clipboard |
 | `calculation_history` | `HistoryService`; historical key v0 with tolerant JSON-list parsing | medium | Yes | Cleared by Calculator History |
 | `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`; historical key v0, profile model owns JSON compatibility | high | Yes | P2P settings remove/replace profiles and repair the selected id |
-| `simple_file_manager_settings` | `SimpleFileManagerService`; historical key v0 with JSON field defaults | medium | No | File-manager settings own reset; browser-data clearing preserves it |
+| `simple_file_manager_settings` | `SimpleFileManagerService`; historical key v0 with JSON field defaults | medium | `favoritePaths` only since schema `10` | Settings import replaces favorite paths only and preserves the current root, port, binding, and enabled state; browser-data clearing preserves it |
 | `app_log_enabled` | `AppLogService`; boolean | low | No | Disabling writes `false`, drains queued writes, and deletes `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`; epoch ms | low | No | Scheduling hint updated after successful cleanup |
 | `ai_tools_config` | `AiConfigStore`; historical key v0 with JSON field defaults | high (API key) | No | AI settings replace it; it must not enter logs or ordinary backups |
@@ -89,17 +89,18 @@ backup preserves every third-party login session.
 
 ## Unified Backup Boundary
 
-The current unified JSON schema version is `9`. It includes favorites, browser settings, up to
+The current unified JSON schema version is `10`. It includes favorites, browser settings, up to
 1,000 history summaries, all download records, calculator history, app clipboard content/enabled
 port, cookies, exportable WebStorage, EasyTier profiles/selected id, and Telegram check-in
-configuration. Downloaded files are not embedded. Import deduplicates records by URL, saved path,
-and creation time, and restores `pending`/`downloading` records as `paused` so no inactive transfer
-appears to be running.
+configuration, plus simple-file-manager favorite paths. Downloaded files are not embedded. Import
+deduplicates records by URL, saved path, and creation time, and restores `pending`/`downloading`
+records as `paused` so no inactive transfer appears to be running.
 
 It explicitly excludes downloaded files, tab sessions, subscription nodes, AI configuration,
-AI chat, translation history, file-manager settings, runtime-log state/files, cache timestamps, and
-the TDLib database. Adding a category requires a backup schema change, import choice, sensitivity
-copy, tests, and an update to this document.
+AI chat, translation history, file-manager runtime settings (root, port, binding, and enabled
+state), runtime-log state/files, cache timestamps, and the TDLib database. Adding a category
+requires a backup schema change, import choice, sensitivity copy, tests, and an update to this
+document.
 
 ## Change Rules
 

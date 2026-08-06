@@ -44,7 +44,7 @@ Flutter `shared_preferences` 在 Android 上落到应用私有 preferences。下
 | `clipboard_content`, `clipboard_server_enabled`, `clipboard_server_port` | `ClipboardStorageService`；历史标量 key v0 | 高（内容）、低（开关/端口） | 内容与启用时端口会备份；enabled 不独立导出 | “剪贴板”清除只清 app 保存内容；不得清 Android 系统剪贴板；服务设置由 owner 更新 |
 | `calculation_history` | `HistoryService`；历史 key v0，JSON list 容错读取 | 中 | 是 | “计算器历史”全量清除 |
 | `easytier_profiles`, `easytier_selected_profile_id` | `EasyTierProfileService`；历史 key v0，profile model 负责 JSON 兼容 | 高（网络 secret/peer） | 是 | P2P 设置中删除/覆盖；删除选中 profile 时 owner 修正 selected id |
-| `simple_file_manager_settings` | `SimpleFileManagerService`；历史 key v0，JSON 字段默认值兼容 | 中（根路径、服务设置） | 否 | 文件管理设置保存/重置；清浏览数据不得影响运行配置 |
+| `simple_file_manager_settings` | `SimpleFileManagerService`；历史 key v0，JSON 字段默认值兼容 | 中（根路径、服务设置） | 仅 `favoritePaths`；schema `10` 起 | 导入设置只覆盖收藏路径，保留当前根目录、端口、绑定和启用状态；清浏览数据不得影响运行配置 |
 | `app_log_enabled` | `AppLogService`；布尔值 | 低 | 否 | 关闭记录时写 `false`、等待队列并删除 `runtime.log` |
 | `app_cache_last_cleanup_at_ms` | `AppCacheMaintenanceService`；epoch ms | 低 | 否 | 仅调度提示；缓存清理成功后更新，设置导入不覆盖 |
 | `ai_tools_config` | `AiConfigStore`；历史 key v0，JSON 字段默认值兼容 | 高（API key） | 否 | AI 设置保存/覆盖；不得写入日志或普通备份 |
@@ -83,14 +83,15 @@ WebView Cookie 备份只能往返 Android `CookieManager` 针对已索引 origin
 
 ## 统一备份边界
 
-当前统一备份 JSON schema version 为 `9`，包括：收藏、浏览设置、最多 1000 条历史聚合、全部下载
+当前统一备份 JSON schema version 为 `10`，包括：收藏、浏览设置、最多 1000 条历史聚合、全部下载
 记录、计算器历史、app 剪贴板内容/启用时端口、Cookie、可导出的 WebStorage、EasyTier
-profiles/selected id、Telegram 签到配置。下载文件本身不进入 JSON；导入下载记录按 URL、保存路径和
-创建时间去重，`pending`/`downloading` 状态恢复为 `paused`，避免产生没有实际任务的活动记录。
+profiles/selected id、Telegram 签到配置和文件管理收藏路径。下载文件本身不进入 JSON；导入下载
+记录按 URL、保存路径和创建时间去重，`pending`/`downloading` 状态恢复为 `paused`，避免产生没有
+实际任务的活动记录。
 
-明确不包括：下载文件、tab session、订阅节点、AI 配置、AI 聊天、翻译历史、文件管理设置、
-日志开关/文件、缓存调度时间、TDLib 数据库。增加任一数据类别前必须同时更新 backup schema、导入
-选择、敏感提示、测试和本文。
+明确不包括：下载文件、tab session、订阅节点、AI 配置、AI 聊天、翻译历史、文件管理运行设置
+（根目录、端口、绑定和启用状态）、日志开关/文件、缓存调度时间、TDLib 数据库。增加任一数据类别
+前必须同时更新 backup schema、导入选择、敏感提示、测试和本文。
 
 ## 变更规则
 

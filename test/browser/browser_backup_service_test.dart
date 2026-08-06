@@ -5,8 +5,11 @@ import 'package:lightly/browser/models/browser_download_record.dart';
 import 'package:lightly/browser/models/browser_history_entry.dart';
 import 'package:lightly/browser/services/browser_backup_service.dart';
 import 'package:lightly/browser/services/browser_cookie_origin_service.dart';
+import 'package:lightly/browser/services/browser_favorite_service.dart';
 import 'package:lightly/features/easytier/domain/easytier_config.dart';
 import 'package:lightly/features/easytier/domain/easytier_network_profile.dart';
+import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
+import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_settings_store.dart';
 import 'package:lightly/features/telegram/telegram_checkin_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -77,6 +80,10 @@ void main() {
         ],
       ),
       exportedAt: DateTime.parse('2026-05-25T00:00:00.000Z'),
+      simpleFileManagerFavoritePaths: const <String>[
+        '/storage/emulated/0/Download',
+        '/storage/emulated/0/Documents/notes.md',
+      ],
     );
 
     final restored = BrowserBackupData.fromJsonString(backup.toJsonString());
@@ -84,7 +91,7 @@ void main() {
     expect(restored.cookies, backup.cookies);
     expect(restored.downloads.single.id, isNull);
     expect(restored.downloads.single.fileName, 'file.zip');
-    expect(restored.toJson()['version'], 9);
+    expect(restored.toJson()['version'], BrowserBackupData.schemaVersion);
     expect(restored.webStorage, backup.webStorage);
     expect(restored.clipboardPort, 12345);
     expect(restored.selectedEasyTierProfileId, 'vpn-1');
@@ -97,6 +104,10 @@ void main() {
     expect(restored.telegramCheckinConfig.apiId, 12345);
     expect(restored.telegramCheckinConfig.apiHash, 'test_hash');
     expect(restored.telegramCheckinConfig.phoneNumber, '+8613800000000');
+    expect(restored.simpleFileManagerFavoritePaths, <String>[
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Documents/notes.md',
+    ]);
     expect(
       restored.telegramCheckinConfig.targets.single.username,
       '@checkin_bot',
@@ -110,7 +121,142 @@ void main() {
     );
 
     expect(restored.downloads, isEmpty);
+    expect(restored.simpleFileManagerFavoritePaths, isNull);
   });
+
+  test('settings import restores file manager favorites only', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final fileManagerStore = _FakeSimpleFileManagerSettingsStore(
+      const SimpleFileManagerSettings(
+        enabled: true,
+        rootPath: '/storage/emulated/0',
+        port: 15000,
+        bindAllInterfaces: false,
+        favoritePaths: <String>['/storage/emulated/0/old.txt'],
+      ),
+    );
+    final service = BrowserBackupService(
+      favoriteService: _FakeBrowserFavoriteService(),
+      simpleFileManagerSettingsStore: fileManagerStore,
+    );
+    final backup = BrowserBackupData(
+      favorites: const <BrowserFavorite>[],
+      settings: BrowserSettings.defaults(),
+      history: const <BrowserHistoryEntry>[],
+      downloads: const <BrowserDownloadRecord>[],
+      calculatorHistory: const [],
+      clipboardContent: '',
+      clipboardPort: null,
+      cookies: const <Map<String, dynamic>>[],
+      webStorage: const <Map<String, dynamic>>[],
+      easyTierProfiles: const <EasyTierNetworkProfile>[],
+      selectedEasyTierProfileId: null,
+      telegramCheckinConfig: const TelegramCheckinConfig(),
+      exportedAt: DateTime.fromMillisecondsSinceEpoch(1000),
+      simpleFileManagerFavoritePaths: const <String>[
+        '/storage/emulated/0/Download',
+      ],
+    );
+
+    await service.importData(
+      backup,
+      importHistory: false,
+      importDownloads: false,
+      importClipboard: false,
+      importCalculatorHistory: false,
+      importWebData: false,
+      importEasyTierProfiles: false,
+    );
+
+    expect(fileManagerStore.settings.enabled, isTrue);
+    expect(fileManagerStore.settings.rootPath, '/storage/emulated/0');
+    expect(fileManagerStore.settings.port, 15000);
+    expect(fileManagerStore.settings.bindAllInterfaces, isFalse);
+    expect(fileManagerStore.settings.favoritePaths, <String>[
+      '/storage/emulated/0/Download',
+    ]);
+  });
+
+  test('legacy settings import preserves file manager favorites', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final fileManagerStore = _FakeSimpleFileManagerSettingsStore(
+      const SimpleFileManagerSettings(
+        enabled: false,
+        rootPath: '/storage/emulated/0',
+        port: SimpleFileManagerSettings.defaultPort,
+        bindAllInterfaces: true,
+        favoritePaths: <String>['/storage/emulated/0/keep.txt'],
+      ),
+    );
+    final service = BrowserBackupService(
+      favoriteService: _FakeBrowserFavoriteService(),
+      simpleFileManagerSettingsStore: fileManagerStore,
+    );
+    final backup = BrowserBackupData.fromJsonString(
+      '{"version":9,"settings":{},"favorites":[]}',
+    );
+
+    await service.importData(
+      backup,
+      importHistory: false,
+      importDownloads: false,
+      importClipboard: false,
+      importCalculatorHistory: false,
+      importWebData: false,
+      importEasyTierProfiles: false,
+    );
+
+    expect(fileManagerStore.saveCount, 0);
+    expect(fileManagerStore.settings.favoritePaths, <String>[
+      '/storage/emulated/0/keep.txt',
+    ]);
+  });
+
+  test(
+    'settings import persists favorites through file manager owner',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final fileManagerService = SimpleFileManagerService();
+      await fileManagerService.saveSettings(
+        const SimpleFileManagerSettings(
+          enabled: false,
+          rootPath: '/storage/emulated/0',
+          port: 12580,
+          bindAllInterfaces: true,
+          favoritePaths: <String>['/storage/emulated/0/old.txt'],
+        ),
+      );
+      final service = BrowserBackupService(
+        favoriteService: _FakeBrowserFavoriteService(),
+        simpleFileManagerSettingsStore: fileManagerService,
+      );
+      final backup = BrowserBackupData.fromJsonString('''
+      {
+        "version": 10,
+        "settings": {},
+        "favorites": [],
+        "simpleFileManagerFavoritePaths": [
+          "/storage/emulated/0/Download",
+          "/outside-root",
+          "/storage/emulated/0/Download"
+        ]
+      }
+      ''');
+
+      await service.importData(
+        backup,
+        importHistory: false,
+        importDownloads: false,
+        importClipboard: false,
+        importCalculatorHistory: false,
+        importWebData: false,
+        importEasyTierProfiles: false,
+      );
+
+      final restored = await fileManagerService.loadSettings();
+      expect(restored.favoritePaths, <String>['/storage/emulated/0/Download']);
+    },
+  );
 
   test('ImportResult reports restored site storage', () {
     const result = ImportResult(
@@ -197,4 +343,27 @@ void main() {
       expect(urls, isNot(contains('https://start.example.com/')));
     },
   );
+}
+
+class _FakeSimpleFileManagerSettingsStore
+    implements SimpleFileManagerSettingsStore {
+  _FakeSimpleFileManagerSettingsStore(this.settings);
+
+  SimpleFileManagerSettings settings;
+  int saveCount = 0;
+
+  @override
+  Future<SimpleFileManagerSettings> loadSettings() async => settings;
+
+  @override
+  Future<void> saveSettings(SimpleFileManagerSettings settings) async {
+    this.settings = settings;
+    saveCount++;
+  }
+}
+
+class _FakeBrowserFavoriteService extends BrowserFavoriteService {
+  @override
+  Future<List<BrowserFavorite>> query({String? searchTerm}) async =>
+      const <BrowserFavorite>[];
 }
