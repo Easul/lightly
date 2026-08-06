@@ -79,6 +79,7 @@ key.properties
 
 # Local agent / workspace metadata
 /.omo/
+/.opencode
 
 # Common generated diagnostics
 *.hprof
