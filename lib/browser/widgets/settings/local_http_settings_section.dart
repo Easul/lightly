@@ -149,9 +149,16 @@ class _LocalHttpServerForm extends StatelessWidget {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
+              visualDensity: const VisualDensity(vertical: -3),
+              minVerticalPadding: 0,
               enabled: enabled,
               leading: const Icon(Icons.folder_outlined),
-              title: Text(path, maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                path,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               onTap: enabled ? () => onSelectFavoriteRootPath(path) : null,
               trailing: IconButton(
                 tooltip: '移除常用目录',
