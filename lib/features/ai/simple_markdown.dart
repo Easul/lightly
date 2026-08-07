@@ -4,10 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class SimpleMarkdown extends StatelessWidget {
-  const SimpleMarkdown(this.data, {super.key, this.onLinkTap});
+  const SimpleMarkdown(
+    this.data, {
+    super.key,
+    this.onLinkTap,
+    this.onCodeCopied,
+  });
 
   final String data;
   final ValueChanged<String>? onLinkTap;
+  final VoidCallback? onCodeCopied;
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +22,11 @@ class SimpleMarkdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: blocks
           .map(
-            (block) => _MarkdownBlockView(block: block, onLinkTap: onLinkTap),
+            (block) => _MarkdownBlockView(
+              block: block,
+              onLinkTap: onLinkTap,
+              onCodeCopied: onCodeCopied,
+            ),
           )
           .toList(growable: false),
     );
@@ -174,10 +184,15 @@ class _MarkdownBlock {
 }
 
 class _MarkdownBlockView extends StatelessWidget {
-  const _MarkdownBlockView({required this.block, required this.onLinkTap});
+  const _MarkdownBlockView({
+    required this.block,
+    required this.onLinkTap,
+    required this.onCodeCopied,
+  });
 
   final _MarkdownBlock block;
   final ValueChanged<String>? onLinkTap;
+  final VoidCallback? onCodeCopied;
 
   @override
   Widget build(BuildContext context) {
@@ -256,9 +271,7 @@ class _MarkdownBlockView extends StatelessWidget {
                     unawaited(
                       Clipboard.setData(ClipboardData(text: block.text)),
                     );
-                    ScaffoldMessenger.maybeOf(
-                      context,
-                    )?.showSnackBar(const SnackBar(content: Text('代码已复制')));
+                    onCodeCopied?.call();
                   },
                   icon: const Icon(Icons.copy_rounded, size: 17),
                 ),

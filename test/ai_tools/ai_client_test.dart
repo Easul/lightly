@@ -107,5 +107,35 @@ void main() {
       expect(chunks.join(), '你好');
       expect(chunks.length, 2);
     });
+
+    test('normalizes compatible reasoning deltas into think blocks', () async {
+      final client = AiClient(
+        client: MockClient.streaming((request, bodyStream) async {
+          return http.StreamedResponse(
+            Stream<List<int>>.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"reasoning_content":"分析"}}]}\n\n'
+                'data: {"choices":[{"delta":{"content":"回答"}}]}\n\n'
+                'data: [DONE]\n\n',
+              ),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamChat(
+            config: const AiConfig(
+              baseUrl: 'https://example.com',
+              model: 'reasoning-model',
+              endpoint: AiEndpointType.openAiCompletions,
+            ),
+            messages: const [AiMessage(role: 'user', content: 'hello')],
+          )
+          .toList();
+
+      expect(chunks.join(), '<think>分析</think>回答');
+    });
   });
 }

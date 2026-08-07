@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../services/app_toast.dart';
 import 'ai_client.dart';
 import 'ai_config.dart';
 
@@ -103,9 +104,7 @@ class _AiSettingsDialogState extends State<_AiSettingsDialog> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   void _save() {

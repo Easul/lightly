@@ -9,8 +9,10 @@ import '../features/ai/ai_client.dart';
 import '../features/ai/ai_config.dart';
 import '../features/ai/ai_conversation_context.dart';
 import '../features/ai/ai_history_database.dart';
+import '../features/ai/ai_response_sections.dart';
 import '../features/ai/ai_settings_dialog.dart';
 import '../features/ai/simple_markdown.dart';
+import '../services/app_toast.dart';
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});
@@ -337,7 +339,7 @@ class _AiChatPageState extends State<AiChatPage> {
     final content = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('编辑消息'),
+        title: Text(resend ? '编辑并重发' : '编辑消息'),
         content: TextField(controller: controller, minLines: 3, maxLines: 10),
         actions: [
           TextButton(
@@ -346,7 +348,7 @@ class _AiChatPageState extends State<AiChatPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('保存'),
+            child: Text(resend ? '发送' : '保存'),
           ),
         ],
       ),
@@ -557,6 +559,8 @@ class _AiChatPageState extends State<AiChatPage> {
   void _showMessageActions(AiChatMessageRecord message) {
     final isLastMessage =
         _messages.isNotEmpty && _messages.last.id == message.id;
+    final isLatestUserMessage =
+        message.role == 'user' && message.id == _latestMessageIdForRole('user');
     showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
@@ -567,24 +571,15 @@ class _AiChatPageState extends State<AiChatPage> {
               title: const Text('复制'),
               onTap: () {
                 Navigator.pop(context);
-                unawaited(
-                  Clipboard.setData(ClipboardData(text: message.content)),
-                );
+                _copyText(message.content);
               },
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: Text(
-                isLastMessage && message.role == 'user' ? '编辑并重发' : '编辑',
-              ),
+              title: Text(isLatestUserMessage ? '编辑并重发' : '编辑'),
               onTap: () {
                 Navigator.pop(context);
-                unawaited(
-                  _editMessage(
-                    message,
-                    resend: isLastMessage && message.role == 'user',
-                  ),
-                );
+                unawaited(_editMessage(message, resend: isLatestUserMessage));
               },
             ),
             if (isLastMessage && message.role == 'assistant')
@@ -610,6 +605,18 @@ class _AiChatPageState extends State<AiChatPage> {
     );
   }
 
+  int? _latestMessageIdForRole(String role) {
+    for (final message in _messages.reversed) {
+      if (message.role == role) return message.id;
+    }
+    return null;
+  }
+
+  void _copyText(String text, {String confirmation = '已复制'}) {
+    unawaited(Clipboard.setData(ClipboardData(text: text)));
+    _showMessage(confirmation);
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
@@ -633,9 +640,7 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   Future<void> _openMarkdownLink(String rawUrl) async {
@@ -723,6 +728,10 @@ class _AiChatPageState extends State<AiChatPage> {
                                         content: content,
                                         streaming: true,
                                         onLinkTap: _openMarkdownLink,
+                                        onCodeCopied: () =>
+                                            _showMessage('代码已复制'),
+                                        onStop: _stopping ? null : _stop,
+                                        stopping: _stopping,
                                       ),
                                 );
                               }
@@ -734,6 +743,7 @@ class _AiChatPageState extends State<AiChatPage> {
                                       role: 'assistant',
                                       content: _streamingContent,
                                       onLinkTap: _openMarkdownLink,
+                                      onCodeCopied: () => _showMessage('代码已复制'),
                                     ),
                                   if (_generationError != null ||
                                       _generationStopped)
@@ -745,16 +755,27 @@ class _AiChatPageState extends State<AiChatPage> {
                               );
                             }
                             final message = _messages[index];
+                            final isLatestUserMessage =
+                                message.role == 'user' &&
+                                message.id == _latestMessageIdForRole('user');
+                            final canRegenerate =
+                                message.role == 'assistant' &&
+                                index == _messages.length - 1;
                             return _ChatBubble(
                               role: message.role,
                               content: message.content,
                               onLongPress: () => _showMessageActions(message),
                               onLinkTap: _openMarkdownLink,
-                              onCopy: () => unawaited(
-                                Clipboard.setData(
-                                  ClipboardData(text: message.content),
-                                ),
-                              ),
+                              onCodeCopied: () => _showMessage('代码已复制'),
+                              onCopy: () => _copyText(message.content),
+                              onEditAndResend: isLatestUserMessage
+                                  ? () => unawaited(
+                                      _editMessage(message, resend: true),
+                                    )
+                                  : null,
+                              onRegenerate: canRegenerate
+                                  ? () => unawaited(_regenerateLastResponse())
+                                  : null,
                             );
                           },
                         ),
@@ -824,57 +845,261 @@ class _ChatBubble extends StatelessWidget {
     required this.role,
     required this.content,
     this.streaming = false,
+    this.stopping = false,
     this.onLongPress,
     this.onCopy,
     this.onLinkTap,
+    this.onCodeCopied,
+    this.onStop,
+    this.onEditAndResend,
+    this.onRegenerate,
   });
 
   final String role;
   final String content;
   final bool streaming;
+  final bool stopping;
   final VoidCallback? onLongPress;
   final VoidCallback? onCopy;
   final ValueChanged<String>? onLinkTap;
+  final VoidCallback? onCodeCopied;
+  final VoidCallback? onStop;
+  final VoidCallback? onEditAndResend;
+  final VoidCallback? onRegenerate;
 
   @override
   Widget build(BuildContext context) {
     final isUser = role == 'user';
     final colorScheme = Theme.of(context).colorScheme;
+    final hasActions =
+        onCopy != null ||
+        streaming ||
+        onEditAndResend != null ||
+        onRegenerate != null;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 560),
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(12, 10, 8, 9),
-          decoration: BoxDecoration(
-            color: isUser
-                ? colorScheme.primaryContainer
-                : colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onLongPress: onLongPress,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? colorScheme.primaryContainer
+                      : colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: isUser
                     ? SelectableText(content)
-                    : SimpleMarkdown(
-                        streaming ? '$content▍' : content,
+                    : _AssistantMessageContent(
+                        content: content,
+                        streaming: streaming,
                         onLinkTap: onLinkTap,
+                        onCodeCopied: onCodeCopied,
                       ),
               ),
-              if (onCopy != null)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '复制',
-                  onPressed: onCopy,
-                  icon: const Icon(Icons.copy_rounded, size: 17),
+            ),
+            if (hasActions)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 7),
+                child: Wrap(
+                  spacing: 2,
+                  runSpacing: 2,
+                  alignment: isUser ? WrapAlignment.end : WrapAlignment.start,
+                  children: [
+                    if (onCopy != null)
+                      _BubbleActionButton(
+                        icon: Icons.copy_rounded,
+                        label: '复制',
+                        onPressed: onCopy,
+                      ),
+                    if (onEditAndResend != null)
+                      _BubbleActionButton(
+                        icon: Icons.edit_outlined,
+                        label: '编辑并重发',
+                        onPressed: onEditAndResend,
+                      ),
+                    if (onRegenerate != null)
+                      _BubbleActionButton(
+                        icon: Icons.refresh_rounded,
+                        label: '重新生成',
+                        onPressed: onRegenerate,
+                      ),
+                    if (streaming)
+                      _BubbleActionButton(
+                        icon: Icons.stop_circle_outlined,
+                        label: stopping ? '正在停止…' : '停止生成',
+                        onPressed: onStop,
+                        danger: true,
+                      ),
+                  ],
                 ),
-            ],
-          ),
+              )
+            else
+              const SizedBox(height: 10),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _AssistantMessageContent extends StatelessWidget {
+  const _AssistantMessageContent({
+    required this.content,
+    required this.streaming,
+    required this.onLinkTap,
+    required this.onCodeCopied,
+  });
+
+  final String content;
+  final bool streaming;
+  final ValueChanged<String>? onLinkTap;
+  final VoidCallback? onCodeCopied;
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = AiResponseSections.parse(content);
+    final reasoningInProgress = streaming && !sections.reasoningComplete;
+    final showReasoning = sections.hasReasoning || reasoningInProgress;
+    final answerHasCursor = streaming && !reasoningInProgress;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showReasoning)
+          _ReasoningDisclosure(
+            reasoning: reasoningInProgress
+                ? '${sections.reasoning}▍'
+                : sections.reasoning,
+            inProgress: reasoningInProgress,
+            onLinkTap: onLinkTap,
+            onCodeCopied: onCodeCopied,
+          ),
+        if (showReasoning && (sections.answer.isNotEmpty || answerHasCursor))
+          const SizedBox(height: 8),
+        if (sections.answer.isNotEmpty || answerHasCursor)
+          SimpleMarkdown(
+            answerHasCursor ? '${sections.answer}▍' : sections.answer,
+            onLinkTap: onLinkTap,
+            onCodeCopied: onCodeCopied,
+          ),
+      ],
+    );
+  }
+}
+
+class _ReasoningDisclosure extends StatefulWidget {
+  const _ReasoningDisclosure({
+    required this.reasoning,
+    required this.inProgress,
+    required this.onLinkTap,
+    required this.onCodeCopied,
+  });
+
+  final String reasoning;
+  final bool inProgress;
+  final ValueChanged<String>? onLinkTap;
+  final VoidCallback? onCodeCopied;
+
+  @override
+  State<_ReasoningDisclosure> createState() => _ReasoningDisclosureState();
+}
+
+class _ReasoningDisclosureState extends State<_ReasoningDisclosure> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.inProgress
+                        ? Icons.psychology_outlined
+                        : Icons.lightbulb_outline_rounded,
+                    size: 17,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.inProgress ? '思考中…' : '思考过程',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 19,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 2, 10, 9),
+              child: SimpleMarkdown(
+                widget.reasoning,
+                onLinkTap: widget.onLinkTap,
+                onCodeCopied: widget.onCodeCopied,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BubbleActionButton extends StatelessWidget {
+  const _BubbleActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? Theme.of(context).colorScheme.error : null;
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       ),
     );
   }

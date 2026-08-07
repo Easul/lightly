@@ -7,11 +7,13 @@ void main() {
     tester,
   ) async {
     String? openedUrl;
+    var copiedCode = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: SimpleMarkdown('''
+            child: SimpleMarkdown(
+              '''
 1. first
 
 | Name | Value |
@@ -23,7 +25,10 @@ void main() {}
 ```
 
 [OpenAI](https://openai.com)
-''', onLinkTap: (url) => openedUrl = url),
+''',
+              onLinkTap: (url) => openedUrl = url,
+              onCodeCopied: () => copiedCode = true,
+            ),
           ),
         ),
       ),
@@ -37,5 +42,8 @@ void main() {}
 
     await tester.tap(find.text('OpenAI'));
     expect(openedUrl, 'https://openai.com');
+
+    await tester.tap(find.byTooltip('复制代码'));
+    expect(copiedCode, isTrue);
   });
 }

@@ -276,19 +276,41 @@ class AiClient {
         if (choices is List && choices.isNotEmpty && choices.first is Map) {
           final choice = Map<String, dynamic>.from(choices.first as Map);
           final delta = choice['delta'];
-          if (delta is Map) return delta['content']?.toString() ?? '';
+          if (delta is Map) {
+            return _withReasoning(
+              reasoning:
+                  delta['reasoning_content']?.toString() ??
+                  delta['reasoning']?.toString() ??
+                  '',
+              text: delta['content']?.toString() ?? '',
+            );
+          }
           return choice['text']?.toString() ?? '';
         }
       case AiEndpointType.openAiResponses:
         if (root['type'] == 'response.output_text.delta') {
           return root['delta']?.toString() ?? '';
         }
+        if (root['type'] == 'response.reasoning_text.delta' ||
+            root['type'] == 'response.reasoning_summary_text.delta') {
+          return _withReasoning(reasoning: root['delta']?.toString() ?? '');
+        }
         return root['delta'] is String ? root['delta'] as String : '';
       case AiEndpointType.anthropicMessages:
         final delta = root['delta'];
-        if (delta is Map) return delta['text']?.toString() ?? '';
+        if (delta is Map) {
+          return _withReasoning(
+            reasoning: delta['thinking']?.toString() ?? '',
+            text: delta['text']?.toString() ?? '',
+          );
+        }
     }
     return '';
+  }
+
+  String _withReasoning({String reasoning = '', String text = ''}) {
+    if (reasoning.isEmpty) return text;
+    return '<think>$reasoning</think>$text';
   }
 
   void _ensureSuccess(int statusCode, String body) {

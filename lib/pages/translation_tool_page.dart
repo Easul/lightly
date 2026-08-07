@@ -7,6 +7,7 @@ import '../features/ai/ai_client.dart';
 import '../features/ai/ai_config.dart';
 import '../features/ai/ai_settings_dialog.dart';
 import '../features/ai/translation_history.dart';
+import '../services/app_toast.dart';
 import '../services/translation_overlay_service.dart';
 
 class TranslationToolPage extends StatefulWidget {
@@ -221,9 +222,7 @@ class _TranslationToolPageState extends State<TranslationToolPage>
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    unawaited(AppToast.show(message));
   }
 
   @override
