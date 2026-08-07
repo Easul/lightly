@@ -31,6 +31,7 @@ void main() {
         proxyTlsEnabled: true,
         proxyTlsInsecure: true,
         localHttpServerEnabled: true,
+        localHttpFavoriteRootPaths: const <String>['/tmp/files', '/tmp/site'],
         localHttpBindAllInterfaces: true,
         nativeVideoPlayerEnabled: true,
         nativeVideoParserApiBaseUrl: 'https://parser.example.com',
@@ -55,6 +56,10 @@ void main() {
       expect(rebuilt.proxyTlsEnabled, isTrue);
       expect(rebuilt.proxyTlsInsecure, isTrue);
       expect(rebuilt.localHttpBindAllInterfaces, isTrue);
+      expect(rebuilt.localHttpFavoriteRootPaths, <String>[
+        '/tmp/files',
+        '/tmp/site',
+      ]);
       expect(rebuilt.nativeVideoPlayerEnabled, isTrue);
       expect(rebuilt.webDebugConsoleEnabled, isTrue);
       expect(rebuilt.desktopUserAgentOverride, 'Desktop UA');
@@ -81,6 +86,14 @@ void main() {
       expect(controller.showsHysteria2ObfsFields, isTrue);
       expect(controller.showsPacketEncodingField, isFalse);
       expect(controller.showsTlsFields, isTrue);
+    });
+
+    test('adds and removes normalized local HTTP favorite paths', () {
+      expect(controller.addLocalHttpFavoriteRootPath(' /tmp/site/ '), isTrue);
+      expect(controller.addLocalHttpFavoriteRootPath('/tmp/site'), isFalse);
+      expect(controller.localHttpFavoriteRootPaths, <String>['/tmp/site']);
+      expect(controller.removeLocalHttpFavoriteRootPath('/tmp/site'), isTrue);
+      expect(controller.localHttpFavoriteRootPaths, isEmpty);
     });
   });
 }

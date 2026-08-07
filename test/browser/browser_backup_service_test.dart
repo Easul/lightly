@@ -17,7 +17,12 @@ void main() {
   test('BrowserBackupData round-trips webStorage entries', () {
     final backup = BrowserBackupData(
       favorites: const [],
-      settings: BrowserSettings.defaults(),
+      settings: BrowserSettings.defaults().copyWith(
+        localHttpFavoriteRootPaths: const <String>[
+          '/storage/emulated/0/Download/site',
+          '/storage/emulated/0/Documents',
+        ],
+      ),
       history: const [],
       downloads: <BrowserDownloadRecord>[
         BrowserDownloadRecord(
@@ -89,6 +94,10 @@ void main() {
     final restored = BrowserBackupData.fromJsonString(backup.toJsonString());
 
     expect(restored.cookies, backup.cookies);
+    expect(
+      restored.settings.localHttpFavoriteRootPaths,
+      backup.settings.localHttpFavoriteRootPaths,
+    );
     expect(restored.downloads.single.id, isNull);
     expect(restored.downloads.single.fileName, 'file.zip');
     expect(restored.toJson()['version'], BrowserBackupData.schemaVersion);

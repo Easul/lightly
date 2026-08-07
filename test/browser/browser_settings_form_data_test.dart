@@ -23,6 +23,7 @@ void main() {
         localProxyPort: 23333,
         localHttpServerEnabled: true,
         localHttpRootPath: '/tmp/files',
+        localHttpFavoriteRootPaths: const <String>['/tmp/files', '/tmp/site'],
         localHttpServerPort: 3001,
         localHttpBindAllInterfaces: true,
         localHttpUploadKey: 'upload-key',
@@ -47,6 +48,10 @@ void main() {
       expect(formData.proxyNodes, isEmpty);
       expect(formData.selectedProxyNodeId, isNull);
       expect(formData.localHttpPortText, '3001');
+      expect(formData.localHttpFavoriteRootPaths, <String>[
+        '/tmp/files',
+        '/tmp/site',
+      ]);
       expect(
         formData.nativeVideoParserApiBaseUrl,
         'https://parser.example.com',
@@ -74,6 +79,7 @@ void main() {
         proxyNodes: <BrowserProxyNode>[],
         selectedProxyNodeId: null,
         localHttpRootPath: '/tmp/files',
+        localHttpFavoriteRootPaths: const <String>['/tmp/files', '/tmp/site'],
         localHttpPortText: '3001',
         localHttpUploadKey: 'upload-key',
         selectedProtocol: BrowserProxyProtocol.vless,
@@ -102,6 +108,10 @@ void main() {
       expect(settings.proxyProtocol, BrowserProxyProtocol.vless);
       expect(settings.proxyTlsEnabled, isTrue);
       expect(settings.localHttpServerPort, 3001);
+      expect(settings.localHttpFavoriteRootPaths, <String>[
+        '/tmp/files',
+        '/tmp/site',
+      ]);
       expect(
         settings.nativeVideoParserApiBaseUrl,
         'https://parser.example.com',

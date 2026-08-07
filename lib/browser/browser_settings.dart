@@ -1,5 +1,6 @@
 import '../features/proxy/domain/proxy_configuration.dart';
 import '../features/proxy/domain/proxy_protocol.dart';
+import '../features/local_sharing/local_http/local_http_favorite_paths.dart';
 
 export '../features/proxy/domain/proxy_protocol.dart' show BrowserProxyProtocol;
 
@@ -136,6 +137,7 @@ class BrowserSettings {
     required this.localProxyPort,
     required this.localHttpServerEnabled,
     required this.localHttpRootPath,
+    this.localHttpFavoriteRootPaths = const <String>[],
     required this.localHttpServerPort,
     required this.localHttpBindAllInterfaces,
     required this.localHttpUploadKey,
@@ -168,6 +170,7 @@ class BrowserSettings {
   final int? localProxyPort;
   final bool localHttpServerEnabled;
   final String localHttpRootPath;
+  final List<String> localHttpFavoriteRootPaths;
   final int? localHttpServerPort;
   final bool localHttpBindAllInterfaces;
   final String localHttpUploadKey;
@@ -236,6 +239,7 @@ class BrowserSettings {
       localProxyPort: 23333,
       localHttpServerEnabled: false,
       localHttpRootPath: '/storage/emulated/0/Download',
+      localHttpFavoriteRootPaths: <String>[],
       localHttpServerPort: 3001,
       localHttpBindAllInterfaces: false,
       localHttpUploadKey: '',
@@ -273,6 +277,7 @@ class BrowserSettings {
     bool clearLocalProxyPort = false,
     bool? localHttpServerEnabled,
     String? localHttpRootPath,
+    List<String>? localHttpFavoriteRootPaths,
     int? localHttpServerPort,
     bool clearLocalHttpServerPort = false,
     bool? localHttpBindAllInterfaces,
@@ -311,6 +316,9 @@ class BrowserSettings {
       localHttpServerEnabled:
           localHttpServerEnabled ?? this.localHttpServerEnabled,
       localHttpRootPath: localHttpRootPath ?? this.localHttpRootPath,
+      localHttpFavoriteRootPaths: normalizeLocalHttpFavoritePaths(
+        localHttpFavoriteRootPaths ?? this.localHttpFavoriteRootPaths,
+      ),
       localHttpServerPort: clearLocalHttpServerPort
           ? null
           : localHttpServerPort ?? this.localHttpServerPort,
@@ -356,6 +364,7 @@ class BrowserSettings {
       'localProxyPort': localProxyPort,
       'localHttpServerEnabled': localHttpServerEnabled,
       'localHttpRootPath': localHttpRootPath,
+      'localHttpFavoriteRootPaths': localHttpFavoriteRootPaths,
       'localHttpServerPort': localHttpServerPort,
       'localHttpBindAllInterfaces': localHttpBindAllInterfaces,
       'localHttpUploadKey': localHttpUploadKey,
@@ -404,6 +413,11 @@ class BrowserSettings {
       localHttpRootPath:
           json['localHttpRootPath'] as String? ??
           '/storage/emulated/0/Download',
+      localHttpFavoriteRootPaths: normalizeLocalHttpFavoritePaths(
+        (json['localHttpFavoriteRootPaths'] as List<dynamic>? ??
+                const <dynamic>[])
+            .whereType<String>(),
+      ),
       localHttpServerPort:
           (json['localHttpServerPort'] as num?)?.toInt() ?? 3001,
       localHttpBindAllInterfaces:

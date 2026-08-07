@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../browser_settings.dart';
 import '../models/browser_settings_form_data.dart';
+import '../../features/local_sharing/local_http/local_http_favorite_paths.dart';
 
 class BrowserSettingsFormController {
   final homepageController = TextEditingController();
@@ -32,6 +33,7 @@ class BrowserSettingsFormController {
   bool desktopModeEnabled = false;
   bool appCacheAutoClearEnabled = false;
   int appCacheAutoClearIntervalHours = 24;
+  List<String> localHttpFavoriteRootPaths = const <String>[];
 
   String selectedProtocol = BrowserProxyProtocol.http;
   List<BrowserProxyNode> proxyNodes = const <BrowserProxyNode>[];
@@ -92,6 +94,9 @@ class BrowserSettingsFormController {
     proxyTransportHostController.text = formData.proxyTransportHost;
     proxyBypassDomainsController.text = formData.proxyBypassDomains;
     localHttpRootPathController.text = formData.localHttpRootPath;
+    localHttpFavoriteRootPaths = List<String>.from(
+      formData.localHttpFavoriteRootPaths,
+    );
     localHttpPortController.text = formData.localHttpPortText;
     localHttpUploadKeyController.text = formData.localHttpUploadKey;
     nativeVideoParserApiController.text = formData.nativeVideoParserApiBaseUrl;
@@ -130,6 +135,7 @@ class BrowserSettingsFormController {
       proxyNodes: proxyNodes,
       selectedProxyNodeId: selectedProxyNodeId,
       localHttpRootPath: localHttpRootPathController.text.trim(),
+      localHttpFavoriteRootPaths: localHttpFavoriteRootPaths,
       localHttpPortText: localHttpPortController.text.trim(),
       localHttpUploadKey: localHttpUploadKeyController.text.trim(),
       selectedProtocol: selectedProtocol,
@@ -152,6 +158,30 @@ class BrowserSettingsFormController {
 
   BrowserSettings buildSettings() {
     return readFormData().toBrowserSettings();
+  }
+
+  bool addLocalHttpFavoriteRootPath(String path) {
+    final normalized = normalizeLocalHttpFavoritePaths(<String>[path]);
+    if (normalized.isEmpty ||
+        localHttpFavoriteRootPaths.contains(normalized.first)) {
+      return false;
+    }
+    localHttpFavoriteRootPaths = <String>[
+      ...localHttpFavoriteRootPaths,
+      normalized.first,
+    ];
+    return true;
+  }
+
+  bool removeLocalHttpFavoriteRootPath(String path) {
+    final nextPaths = localHttpFavoriteRootPaths
+        .where((favoritePath) => favoritePath != path)
+        .toList(growable: false);
+    if (nextPaths.length == localHttpFavoriteRootPaths.length) {
+      return false;
+    }
+    localHttpFavoriteRootPaths = nextPaths;
+    return true;
   }
 
   bool get showsUuidField =>

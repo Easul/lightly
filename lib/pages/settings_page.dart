@@ -673,10 +673,14 @@ class _SettingsPageState extends State<SettingsPage> {
       lanUrls: _localHttpFileServerService.lanUrls,
       bindAllInterfaces: _formController.localHttpBindAllInterfaces,
       rootPathController: _formController.localHttpRootPathController,
+      favoriteRootPaths: _formController.localHttpFavoriteRootPaths,
       portController: _formController.localHttpPortController,
       uploadKeyController: _formController.localHttpUploadKeyController,
       onToggle: _handleLocalHttpToggle,
       onUseSharedDownloadsDirectory: _useSharedDownloadsDirectory,
+      onAddFavoriteRootPath: _addLocalHttpFavoriteRootPath,
+      onSelectFavoriteRootPath: _selectLocalHttpFavoriteRootPath,
+      onRemoveFavoriteRootPath: _removeLocalHttpFavoriteRootPath,
       onBindAllInterfacesChanged: _handleLocalHttpBindAllInterfacesChanged,
     );
   }
@@ -722,6 +726,30 @@ class _SettingsPageState extends State<SettingsPage> {
       _formController.localHttpServerEnabled = value;
     });
     _markSectionDirty();
+  }
+
+  void _addLocalHttpFavoriteRootPath() {
+    final path = _formController.localHttpRootPathController.text;
+    if (!_formController.addLocalHttpFavoriteRootPath(path)) {
+      _showSnackBar(path.trim().isEmpty ? '请先填写托管目录路径' : '该目录已在常用列表中');
+      return;
+    }
+    _updateState(() {});
+    _showSnackBar('已添加到常用托管目录');
+  }
+
+  void _selectLocalHttpFavoriteRootPath(String path) {
+    _formController.localHttpRootPathController.text = path;
+    _markSectionDirty();
+    _showSnackBar('已切换托管目录，点击“保存”后生效');
+  }
+
+  void _removeLocalHttpFavoriteRootPath(String path) {
+    if (!_formController.removeLocalHttpFavoriteRootPath(path)) {
+      return;
+    }
+    _updateState(() {});
+    _showSnackBar('已移除常用托管目录');
   }
 
   void _handleLocalHttpBindAllInterfacesChanged(bool value) {

@@ -16,6 +16,7 @@ void main() {
       expect(settings.homepageUrl, 'https://www.google.com');
       expect(settings.localProxyPort, 23333);
       expect(settings.localHttpRootPath, '/storage/emulated/0/Download');
+      expect(settings.localHttpFavoriteRootPaths, isEmpty);
       expect(
         settings.nativeVideoParserApiBaseUrl,
         'https://parser.example.com',
@@ -214,6 +215,25 @@ void main() {
 
       expect(settings.appCacheAutoClearEnabled, isTrue);
       expect(settings.appCacheAutoClearIntervalHours, 72);
+    });
+
+    test('normalizes and persists local HTTP favorite root paths', () {
+      final settings = BrowserSettings.fromJson({
+        'localHttpFavoriteRootPaths': <String>[
+          ' /storage/emulated/0/Download/site/ ',
+          '/storage/emulated/0/Download/site',
+          '',
+        ],
+      });
+
+      expect(settings.localHttpFavoriteRootPaths, <String>[
+        '/storage/emulated/0/Download/site',
+      ]);
+      final restored = BrowserSettings.fromJson(settings.toJson());
+      expect(
+        restored.localHttpFavoriteRootPaths,
+        settings.localHttpFavoriteRootPaths,
+      );
     });
 
     test('proxy nodes persist through json', () {

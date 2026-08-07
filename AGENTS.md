@@ -1318,6 +1318,13 @@ The address bar lock icon opens a dialog for clearing current-site data:
 ## Local HTTP / Clipboard LAN Address Display
 
 - The local HTTP file service default root path is the shared Download directory: `/storage/emulated/0/Download`.
+- Common hosted directories are persisted as `localHttpFavoriteRootPaths` inside the existing
+  `browser_settings` JSON blob. This is a compatible v1 field: missing values default to an empty
+  list, paths are trimmed/normalized, and the list is included in the existing settings backup.
+  The browser settings form owns add/select/remove actions; selecting a path changes the pending
+  root and takes effect when the user saves. Directory paths can reveal local storage structure,
+  so they must not be written to runtime logs. Removing an item is the explicit clear/delete path;
+  do not silently delete the directories themselves.
 - When services are reachable over private IPv4 addresses, display concrete LAN URLs (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`) instead of only `0.0.0.0`.
 - Files:
   - `lib/features/local_sharing/local_http/local_http_file_server_service.dart`

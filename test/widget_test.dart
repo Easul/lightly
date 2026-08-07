@@ -161,6 +161,37 @@ void main() {
     expect(find.text('启用本地 HTTP 文件服务'), findsOneWidget);
   });
 
+  testWidgets('local HTTP settings can add and select a favorite root path', (
+    WidgetTester tester,
+  ) async {
+    useTallTestView(tester);
+    await tester.pumpWidget(const MyApp(browserWebViewEnabled: false));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    unawaited(
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .pushNamed('/local-http-settings'),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+
+    await tester.tap(find.text('启用本地 HTTP 文件服务'));
+    await tester.pump();
+    final rootPathField = find.byType(TextField).first;
+    await tester.enterText(rootPathField, '/tmp/site/');
+    await tester.tap(find.text('收藏当前路径'));
+    await tester.pump();
+
+    expect(find.text('/tmp/site'), findsOneWidget);
+    await tester.tap(find.text('/tmp/site'));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(rootPathField).controller!.text,
+      '/tmp/site',
+    );
+  });
+
   testWidgets('calculator keypad inserts at the current cursor position', (
     WidgetTester tester,
   ) async {

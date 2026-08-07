@@ -13,10 +13,14 @@ class LocalHttpSettingsSection extends StatelessWidget {
     required this.lanUrls,
     required this.bindAllInterfaces,
     required this.rootPathController,
+    required this.favoriteRootPaths,
     required this.portController,
     required this.uploadKeyController,
     required this.onToggle,
     required this.onUseSharedDownloadsDirectory,
+    required this.onAddFavoriteRootPath,
+    required this.onSelectFavoriteRootPath,
+    required this.onRemoveFavoriteRootPath,
     required this.onBindAllInterfacesChanged,
   });
 
@@ -28,10 +32,14 @@ class LocalHttpSettingsSection extends StatelessWidget {
   final List<String> lanUrls;
   final bool bindAllInterfaces;
   final TextEditingController rootPathController;
+  final List<String> favoriteRootPaths;
   final TextEditingController portController;
   final TextEditingController uploadKeyController;
   final ValueChanged<bool> onToggle;
   final VoidCallback onUseSharedDownloadsDirectory;
+  final VoidCallback onAddFavoriteRootPath;
+  final ValueChanged<String> onSelectFavoriteRootPath;
+  final ValueChanged<String> onRemoveFavoriteRootPath;
   final ValueChanged<bool> onBindAllInterfacesChanged;
 
   @override
@@ -54,9 +62,13 @@ class LocalHttpSettingsSection extends StatelessWidget {
               enabled: enabled,
               bindAllInterfaces: bindAllInterfaces,
               rootPathController: rootPathController,
+              favoriteRootPaths: favoriteRootPaths,
               portController: portController,
               uploadKeyController: uploadKeyController,
               onUseSharedDownloadsDirectory: onUseSharedDownloadsDirectory,
+              onAddFavoriteRootPath: onAddFavoriteRootPath,
+              onSelectFavoriteRootPath: onSelectFavoriteRootPath,
+              onRemoveFavoriteRootPath: onRemoveFavoriteRootPath,
               onBindAllInterfacesChanged: onBindAllInterfacesChanged,
             ),
           ],
@@ -71,18 +83,26 @@ class _LocalHttpServerForm extends StatelessWidget {
     required this.enabled,
     required this.bindAllInterfaces,
     required this.rootPathController,
+    required this.favoriteRootPaths,
     required this.portController,
     required this.uploadKeyController,
     required this.onUseSharedDownloadsDirectory,
+    required this.onAddFavoriteRootPath,
+    required this.onSelectFavoriteRootPath,
+    required this.onRemoveFavoriteRootPath,
     required this.onBindAllInterfacesChanged,
   });
 
   final bool enabled;
   final bool bindAllInterfaces;
   final TextEditingController rootPathController;
+  final List<String> favoriteRootPaths;
   final TextEditingController portController;
   final TextEditingController uploadKeyController;
   final VoidCallback onUseSharedDownloadsDirectory;
+  final VoidCallback onAddFavoriteRootPath;
+  final ValueChanged<String> onSelectFavoriteRootPath;
+  final ValueChanged<String> onRemoveFavoriteRootPath;
   final ValueChanged<bool> onBindAllInterfacesChanged;
 
   @override
@@ -99,6 +119,48 @@ class _LocalHttpServerForm extends StatelessWidget {
             prefixIcon: Icon(Icons.folder_outlined),
           ),
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '常用托管目录',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: enabled ? onAddFavoriteRootPath : null,
+              icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+              label: const Text('收藏当前路径'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+        if (favoriteRootPaths.isEmpty)
+          Text(
+            '还没有收藏目录。填写路径后点“收藏当前路径”，下次可直接切换。',
+            style: Theme.of(context).textTheme.bodySmall,
+          )
+        else
+          for (final path in favoriteRootPaths)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              enabled: enabled,
+              leading: const Icon(Icons.folder_outlined),
+              title: Text(path, maxLines: 1, overflow: TextOverflow.ellipsis),
+              onTap: enabled ? () => onSelectFavoriteRootPath(path) : null,
+              trailing: IconButton(
+                tooltip: '移除常用目录',
+                icon: const Icon(Icons.close_rounded, size: 19),
+                onPressed: enabled
+                    ? () => onRemoveFavoriteRootPath(path)
+                    : null,
+              ),
+            ),
         const SizedBox(height: 12),
         Row(
           children: [

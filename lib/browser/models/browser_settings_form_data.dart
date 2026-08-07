@@ -15,6 +15,7 @@ class BrowserSettingsFormData {
     required this.proxyNodes,
     required this.selectedProxyNodeId,
     required this.localHttpRootPath,
+    this.localHttpFavoriteRootPaths = const <String>[],
     required this.localHttpPortText,
     required this.localHttpUploadKey,
     required this.selectedProtocol,
@@ -49,6 +50,7 @@ class BrowserSettingsFormData {
       proxyNodes: settings.proxyNodes,
       selectedProxyNodeId: settings.selectedProxyNodeId,
       localHttpRootPath: settings.localHttpRootPath,
+      localHttpFavoriteRootPaths: settings.localHttpFavoriteRootPaths,
       localHttpPortText: settings.localHttpServerPort?.toString() ?? '',
       localHttpUploadKey: settings.localHttpUploadKey,
       selectedProtocol: settings.proxyProtocol,
@@ -82,6 +84,7 @@ class BrowserSettingsFormData {
   final List<BrowserProxyNode> proxyNodes;
   final String? selectedProxyNodeId;
   final String localHttpRootPath;
+  final List<String> localHttpFavoriteRootPaths;
   final String localHttpPortText;
   final String localHttpUploadKey;
   final String selectedProtocol;
@@ -121,6 +124,7 @@ class BrowserSettingsFormData {
       localProxyPort: int.tryParse(localProxyPortText),
       localHttpServerEnabled: localHttpServerEnabled,
       localHttpRootPath: localHttpRootPath,
+      localHttpFavoriteRootPaths: localHttpFavoriteRootPaths,
       localHttpServerPort: int.tryParse(localHttpPortText),
       localHttpBindAllInterfaces: localHttpBindAllInterfaces,
       localHttpUploadKey: localHttpUploadKey,
