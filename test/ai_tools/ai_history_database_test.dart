@@ -60,4 +60,27 @@ void main() {
     final unwired = AiHistoryDatabase();
     await expectLater(unwired.listSessions(), throwsStateError);
   });
+
+  test('deletes messages after an edited prompt', () async {
+    final session = await database.createSession('Edit prompt');
+    final prompt = await database.addMessage(
+      sessionId: session.id,
+      role: 'user',
+      content: 'original',
+    );
+    await database.addMessage(
+      sessionId: session.id,
+      role: 'assistant',
+      content: 'old response',
+    );
+    await database.deleteMessagesAfter(
+      sessionId: session.id,
+      messageId: prompt.id,
+    );
+
+    final messages = await database.listMessages(session.id);
+    expect(messages, hasLength(1));
+    expect(messages.single.content, 'original');
+    await database.deleteSession(session.id);
+  });
 }

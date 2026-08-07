@@ -1558,6 +1558,12 @@ void dispose() {
 - Translation and chat share `AiConfigStore`; keep Base URL, API key, endpoint type, and model selection aligned across both tools.
 - Supported request paths are OpenAI-compatible `/v1/completions`, OpenAI `/v1/responses`, and Anthropic `/v1/messages`; model discovery remains `/v1/models` and custom model text must remain available.
 - Chat streaming must parse SSE incrementally and must not wait for the entire response before updating the message bubble.
+- Future app-tool calls from chat must go through an explicit typed `AiToolRegistry` allowlist. Do not
+  let model output invoke raw MethodChannels, arbitrary routes, filesystem paths, service lifecycle
+  methods, or network clients. Read-only tools may run automatically with bounded timeouts and
+  sanitized results; writes, deletes, sends, launches, and runtime start/stop actions require an
+  explicit user confirmation. Tool schemas and results must never include API keys, proxy secrets,
+  cookies, clipboard contents, file contents, or unredacted URLs.
 - Keep the floating translation toolbar compact by default; its header must retain size cycling plus collapse-to-draggable-icon behavior.
 - Keep the overlay window non-focusable until its input is tapped, restore non-focusable state on outside taps/collapse/translate, and never use match-parent overlay content that can become a full-screen transparent touch layer on some ROMs.
 - Chat history tables live in the existing `browser_data.db`; AI obtains the shared handle through

@@ -31,9 +31,12 @@ class _AiChatPageState extends State<AiChatPage> {
   http.Client? _requestClient;
   Timer? _streamScrollTimer;
   String _streamingContent = '';
+  String? _generationError;
+  bool _generationStopped = false;
   bool _loading = true;
   bool _sending = false;
   bool _stopping = false;
+  _AiRetryRequest? _lastRetryRequest;
 
   @override
   void initState() {
@@ -104,15 +107,29 @@ class _AiChatPageState extends State<AiChatPage> {
       AiMessage(role: 'user', content: text),
     ];
 
+    final request = _AiRetryRequest(
+      sessionId: session.id,
+      messages: List<AiMessage>.unmodifiable(requestMessages),
+    );
     setState(() {
       _session = session;
       _messages = [..._messages, userMessage];
       _sending = true;
       _stopping = false;
+      _generationError = null;
+      _generationStopped = false;
+      _lastRetryRequest = request;
     });
     _streamingContent = '';
     _streamingText.value = '';
     _scrollToBottom();
+
+    await _runGeneration(request);
+  }
+
+  Future<void> _runGeneration(_AiRetryRequest request) async {
+    final session = _session;
+    if (session == null || session.id != request.sessionId) return;
 
     final requestClient = http.Client();
     _requestClient = requestClient;
@@ -120,7 +137,7 @@ class _AiChatPageState extends State<AiChatPage> {
     try {
       await for (final delta in client.streamChat(
         config: _config,
-        messages: requestMessages,
+        messages: request.messages,
       )) {
         if (!mounted) return;
         _streamingContent += delta;
@@ -128,10 +145,15 @@ class _AiChatPageState extends State<AiChatPage> {
         _scheduleStreamScroll();
       }
     } catch (error) {
-      if (!_stopping && mounted) _showMessage(error.toString());
+      if (mounted && !_stopping) {
+        setState(() => _generationError = _describeGenerationError(error));
+      }
     } finally {
       final completedText = _streamingContent.trim();
-      if (completedText.isNotEmpty) {
+      final stopped = _stopping;
+      final completed =
+          completedText.isNotEmpty && !stopped && _generationError == null;
+      if (completed) {
         await _database.addMessage(
           sessionId: session.id,
           role: 'assistant',
@@ -150,12 +172,69 @@ class _AiChatPageState extends State<AiChatPage> {
           _sessions = sessions;
           _sending = false;
           _stopping = false;
+          _generationStopped = stopped && !completed;
         });
-        _streamingContent = '';
+        if (completed) {
+          _streamingContent = '';
+        }
         _streamingText.value = '';
         _scrollToBottom();
       }
     }
+  }
+
+  Future<void> _retryLastResponse() async {
+    final request = _lastRetryRequest;
+    if (_sending || request == null) return;
+    if (_session?.id != request.sessionId) {
+      final sessions = await _database.listSessions();
+      final session = sessions.where((item) => item.id == request.sessionId);
+      if (session.isEmpty || !mounted) return;
+      final messages = await _database.listMessages(request.sessionId);
+      if (!mounted) return;
+      setState(() {
+        _session = session.first;
+        _messages = messages;
+      });
+    }
+    setState(() {
+      _sending = true;
+      _stopping = false;
+      _generationError = null;
+      _generationStopped = false;
+    });
+    _streamingContent = '';
+    _streamingText.value = '';
+    await _runGeneration(request);
+  }
+
+  Future<void> _regenerateLastResponse() async {
+    if (_sending || _messages.isEmpty) return;
+    final last = _messages.last;
+    if (last.role != 'assistant' || _session == null) return;
+    await _database.deleteMessage(last.id);
+    final messages = await _database.listMessages(_session!.id);
+    final requestMessages = <AiMessage>[
+      const AiMessage(role: 'system', content: 'You are a helpful assistant.'),
+      ...messages.map(
+        (message) => AiMessage(role: message.role, content: message.content),
+      ),
+    ];
+    final request = _AiRetryRequest(
+      sessionId: _session!.id,
+      messages: List<AiMessage>.unmodifiable(requestMessages),
+    );
+    setState(() {
+      _messages = messages;
+      _lastRetryRequest = request;
+      _generationError = null;
+      _generationStopped = false;
+      _stopping = false;
+      _sending = true;
+    });
+    _streamingContent = '';
+    _streamingText.value = '';
+    await _runGeneration(request);
   }
 
   void _stop() {
@@ -164,10 +243,18 @@ class _AiChatPageState extends State<AiChatPage> {
     _requestClient?.close();
   }
 
+  String _describeGenerationError(Object error) {
+    final message = error.toString();
+    return message.startsWith('Bad state: ')
+        ? message.substring('Bad state: '.length)
+        : message;
+  }
+
   Future<void> _selectSession(AiChatSession session) async {
     if (_sending) return;
     final messages = await _database.listMessages(session.id);
     if (!mounted) return;
+    _resetGenerationPreview();
     setState(() {
       _session = session;
       _messages = messages;
@@ -177,6 +264,7 @@ class _AiChatPageState extends State<AiChatPage> {
 
   void _newSession() {
     if (_sending) return;
+    _resetGenerationPreview();
     setState(() {
       _session = null;
       _messages = const [];
@@ -232,6 +320,7 @@ class _AiChatPageState extends State<AiChatPage> {
       messages = const [];
     }
     if (!mounted) return;
+    if (selected?.id != _session?.id) _resetGenerationPreview();
     setState(() {
       _sessions = sessions;
       _session = selected;
@@ -239,7 +328,10 @@ class _AiChatPageState extends State<AiChatPage> {
     });
   }
 
-  Future<void> _editMessage(AiChatMessageRecord message) async {
+  Future<void> _editMessage(
+    AiChatMessageRecord message, {
+    bool resend = false,
+  }) async {
     if (_sending) return;
     final controller = TextEditingController(text: message.content);
     final content = await showDialog<String>(
@@ -262,6 +354,38 @@ class _AiChatPageState extends State<AiChatPage> {
     controller.dispose();
     if (content == null || content.isEmpty) return;
     await _database.updateMessage(message.id, content);
+    if (resend) {
+      await _database.deleteMessagesAfter(
+        sessionId: message.sessionId,
+        messageId: message.id,
+      );
+      final messages = await _database.listMessages(message.sessionId);
+      final requestMessages = <AiMessage>[
+        const AiMessage(
+          role: 'system',
+          content: 'You are a helpful assistant.',
+        ),
+        ...messages.map(
+          (item) => AiMessage(role: item.role, content: item.content),
+        ),
+      ];
+      final request = _AiRetryRequest(
+        sessionId: message.sessionId,
+        messages: List<AiMessage>.unmodifiable(requestMessages),
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages = messages;
+        _lastRetryRequest = request;
+        _generationError = null;
+        _generationStopped = false;
+        _sending = true;
+      });
+      _streamingContent = '';
+      _streamingText.value = '';
+      await _runGeneration(request);
+      return;
+    }
     await _reloadMessages();
   }
 
@@ -276,6 +400,14 @@ class _AiChatPageState extends State<AiChatPage> {
     if (session == null) return;
     final messages = await _database.listMessages(session.id);
     if (mounted) setState(() => _messages = messages);
+  }
+
+  void _resetGenerationPreview() {
+    _streamingContent = '';
+    _streamingText.value = '';
+    _generationError = null;
+    _generationStopped = false;
+    _lastRetryRequest = null;
   }
 
   Future<void> _showSessions() async {
@@ -349,6 +481,8 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   void _showMessageActions(AiChatMessageRecord message) {
+    final isLastMessage =
+        _messages.isNotEmpty && _messages.last.id == message.id;
     showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
@@ -366,12 +500,28 @@ class _AiChatPageState extends State<AiChatPage> {
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('编辑'),
+              title: Text(
+                isLastMessage && message.role == 'user' ? '编辑并重发' : '编辑',
+              ),
               onTap: () {
                 Navigator.pop(context);
-                unawaited(_editMessage(message));
+                unawaited(
+                  _editMessage(
+                    message,
+                    resend: isLastMessage && message.role == 'user',
+                  ),
+                );
               },
             ),
+            if (isLastMessage && message.role == 'assistant')
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('重新生成'),
+                onTap: () {
+                  Navigator.pop(context);
+                  unawaited(_regenerateLastResponse());
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded),
               title: const Text('删除'),
@@ -451,17 +601,42 @@ class _AiChatPageState extends State<AiChatPage> {
                       : ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(12),
-                          itemCount: _messages.length + (_sending ? 1 : 0),
+                          itemCount:
+                              _messages.length +
+                              ((_sending ||
+                                      _streamingContent.isNotEmpty ||
+                                      _generationError != null ||
+                                      _generationStopped)
+                                  ? 1
+                                  : 0),
                           itemBuilder: (context, index) {
                             if (index == _messages.length) {
-                              return ValueListenableBuilder<String>(
-                                valueListenable: _streamingText,
-                                builder: (context, content, child) =>
+                              if (_sending) {
+                                return ValueListenableBuilder<String>(
+                                  valueListenable: _streamingText,
+                                  builder: (context, content, child) =>
+                                      _ChatBubble(
+                                        role: 'assistant',
+                                        content: content,
+                                        streaming: true,
+                                      ),
+                                );
+                              }
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_streamingContent.trim().isNotEmpty)
                                     _ChatBubble(
                                       role: 'assistant',
-                                      content: content,
-                                      streaming: true,
+                                      content: _streamingContent,
                                     ),
+                                  if (_generationError != null ||
+                                      _generationStopped)
+                                    _GenerationStatus(
+                                      error: _generationError,
+                                      onRetry: _retryLastResponse,
+                                    ),
+                                ],
                               );
                             }
                             final message = _messages[index];
@@ -491,7 +666,10 @@ class _AiChatPageState extends State<AiChatPage> {
                             minLines: 1,
                             maxLines: 6,
                             enabled: !_sending,
-                            textInputAction: TextInputAction.newline,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: _sending
+                                ? null
+                                : (_) => unawaited(_send()),
                             decoration: const InputDecoration(
                               hintText: '输入消息…',
                             ),
@@ -569,4 +747,58 @@ class _ChatBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GenerationStatus extends StatelessWidget {
+  const _GenerationStatus({required this.error, required this.onRetry});
+
+  final String? error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final stopped = error == null;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 2, bottom: 8),
+      child: Row(
+        children: [
+          Icon(
+            stopped ? Icons.pause_circle_outline : Icons.error_outline,
+            size: 18,
+            color: stopped ? colorScheme.onSurfaceVariant : colorScheme.error,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              stopped ? '已停止生成' : '生成失败：$error',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: stopped
+                    ? colorScheme.onSurfaceVariant
+                    : colorScheme.error,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 17),
+            label: const Text('重试'),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiRetryRequest {
+  const _AiRetryRequest({required this.sessionId, required this.messages});
+
+  final int sessionId;
+  final List<AiMessage> messages;
 }

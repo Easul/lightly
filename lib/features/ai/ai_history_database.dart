@@ -183,4 +183,24 @@ class AiHistoryDatabase {
     final db = await _db;
     await db.delete(messageTable, where: 'id = ?', whereArgs: <Object?>[id]);
   }
+
+  Future<void> deleteMessagesAfter({
+    required int sessionId,
+    required int messageId,
+  }) async {
+    final db = await _db;
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        messageTable,
+        where: 'sessionId = ? AND id > ?',
+        whereArgs: <Object?>[sessionId, messageId],
+      );
+      await transaction.update(
+        sessionTable,
+        <String, Object?>{'updatedAt': DateTime.now().millisecondsSinceEpoch},
+        where: 'id = ?',
+        whereArgs: <Object?>[sessionId],
+      );
+    });
+  }
 }
