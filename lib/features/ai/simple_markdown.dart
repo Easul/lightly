@@ -329,7 +329,7 @@ class _MarkdownBlockView extends StatelessWidget {
   List<InlineSpan> _inlineSpans(BuildContext context, String text) {
     final spans = <InlineSpan>[];
     final pattern = RegExp(
-      r'(\[[^\]]+\]\(https?://[^\s)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)',
+      r'(\[[^\]]+\]\(https?://[^\s)]+\)|``[^`]+``|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)',
     );
     var offset = 0;
     for (final match in pattern.allMatches(text)) {
@@ -360,14 +360,41 @@ class _MarkdownBlockView extends StatelessWidget {
           ),
         );
       } else if (token.startsWith('`')) {
+        final delimiterLength = token.startsWith('``') ? 2 : 1;
+        final code = token.substring(
+          delimiterLength,
+          token.length - delimiterLength,
+        );
         spans.add(
-          TextSpan(
-            text: token.substring(1, token.length - 1),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest,
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Tooltip(
+              message: '点击复制',
+              child: GestureDetector(
+                onTap: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: code)));
+                  onCodeCopied?.call();
+                },
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Text(
+                      code,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFamily: 'monospace',
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );

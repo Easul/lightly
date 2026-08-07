@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 
 import '../features/ai/ai_client.dart';
+import '../features/ai/ai_chat_link_launcher.dart';
 import '../features/ai/ai_config.dart';
 import '../features/ai/ai_conversation_context.dart';
 import '../features/ai/ai_history_database.dart';
@@ -15,7 +15,9 @@ import '../features/ai/simple_markdown.dart';
 import '../services/app_toast.dart';
 
 class AiChatPage extends StatefulWidget {
-  const AiChatPage({super.key});
+  const AiChatPage({super.key, this.linkLauncher = const AiChatLinkLauncher()});
+
+  final AiChatLinkLauncher linkLauncher;
 
   @override
   State<AiChatPage> createState() => _AiChatPageState();
@@ -511,11 +513,16 @@ class _AiChatPageState extends State<AiChatPage> {
                                 },
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (action) {
-                                    if (action == 'rename') {
-                                      unawaited(_renameSession(session));
-                                    } else {
-                                      unawaited(_deleteSession(session));
-                                    }
+                                    unawaited(() async {
+                                      if (action == 'rename') {
+                                        await _renameSession(session);
+                                      } else {
+                                        await _deleteSession(session);
+                                      }
+                                      if (sheetContext.mounted) {
+                                        setSheetState(() {});
+                                      }
+                                    }());
                                   },
                                   itemBuilder: (context) => const [
                                     PopupMenuItem(
@@ -669,7 +676,7 @@ class _AiChatPageState extends State<AiChatPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    if (!await launchUrl(uri)) _showMessage('无法打开该链接');
+    if (!await widget.linkLauncher.open(uri)) _showMessage('无法打开该链接');
   }
 
   @override
@@ -823,9 +830,22 @@ class _AiChatPageState extends State<AiChatPage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        IconButton.filled(
+                        IconButton.filledTonal(
+                          key: const Key('ai-chat-send-button'),
                           tooltip: _sending ? '停止' : '发送',
                           onPressed: _sending ? _stop : _send,
+                          style: IconButton.styleFrom(
+                            backgroundColor: _sending
+                                ? Theme.of(context).colorScheme.errorContainer
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
+                            foregroundColor: _sending
+                                ? Theme.of(context).colorScheme.onErrorContainer
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                          ),
                           icon: Icon(
                             _sending ? Icons.stop_rounded : Icons.send_rounded,
                           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lightly/features/ai/simple_markdown.dart';
 
@@ -45,5 +46,46 @@ void main() {}
 
     await tester.tap(find.byTooltip('复制代码'));
     expect(copiedCode, isTrue);
+  });
+
+  testWidgets('copies inline code when tapped', (tester) async {
+    var copiedCode = false;
+    final clipboardCalls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        clipboardCalls.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SimpleMarkdown(
+            '运行 ``flutter test`` 验证',
+            onCodeCopied: () => copiedCode = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('flutter test'));
+    await tester.pump();
+
+    expect(copiedCode, isTrue);
+    final clipboardSetCalls = clipboardCalls
+        .where((call) => call.method == 'Clipboard.setData')
+        .toList(growable: false);
+    expect(clipboardSetCalls, hasLength(1));
+    expect(clipboardSetCalls.single.arguments, <String, Object?>{
+      'text': 'flutter test',
+    });
   });
 }
