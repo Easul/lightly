@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../features/ai/ai_client.dart';
 import '../features/ai/ai_config.dart';
+import '../features/ai/ai_conversation_context.dart';
 import '../features/ai/ai_history_database.dart';
 import '../features/ai/ai_settings_dialog.dart';
 import '../features/ai/simple_markdown.dart';
@@ -37,6 +39,7 @@ class _AiChatPageState extends State<AiChatPage> {
   bool _sending = false;
   bool _stopping = false;
   _AiRetryRequest? _lastRetryRequest;
+  int _contextOmittedCount = 0;
 
   @override
   void initState() {
@@ -107,10 +110,7 @@ class _AiChatPageState extends State<AiChatPage> {
       AiMessage(role: 'user', content: text),
     ];
 
-    final request = _AiRetryRequest(
-      sessionId: session.id,
-      messages: List<AiMessage>.unmodifiable(requestMessages),
-    );
+    final request = _buildRetryRequest(session.id, requestMessages);
     setState(() {
       _session = session;
       _messages = [..._messages, userMessage];
@@ -119,6 +119,7 @@ class _AiChatPageState extends State<AiChatPage> {
       _generationError = null;
       _generationStopped = false;
       _lastRetryRequest = request;
+      _contextOmittedCount = request.omittedMessageCount;
     });
     _streamingContent = '';
     _streamingText.value = '';
@@ -202,6 +203,7 @@ class _AiChatPageState extends State<AiChatPage> {
       _stopping = false;
       _generationError = null;
       _generationStopped = false;
+      _contextOmittedCount = request.omittedMessageCount;
     });
     _streamingContent = '';
     _streamingText.value = '';
@@ -220,15 +222,13 @@ class _AiChatPageState extends State<AiChatPage> {
         (message) => AiMessage(role: message.role, content: message.content),
       ),
     ];
-    final request = _AiRetryRequest(
-      sessionId: _session!.id,
-      messages: List<AiMessage>.unmodifiable(requestMessages),
-    );
+    final request = _buildRetryRequest(_session!.id, requestMessages);
     setState(() {
       _messages = messages;
       _lastRetryRequest = request;
       _generationError = null;
       _generationStopped = false;
+      _contextOmittedCount = request.omittedMessageCount;
       _stopping = false;
       _sending = true;
     });
@@ -369,16 +369,14 @@ class _AiChatPageState extends State<AiChatPage> {
           (item) => AiMessage(role: item.role, content: item.content),
         ),
       ];
-      final request = _AiRetryRequest(
-        sessionId: message.sessionId,
-        messages: List<AiMessage>.unmodifiable(requestMessages),
-      );
+      final request = _buildRetryRequest(message.sessionId, requestMessages);
       if (!mounted) return;
       setState(() {
         _messages = messages;
         _lastRetryRequest = request;
         _generationError = null;
         _generationStopped = false;
+        _contextOmittedCount = request.omittedMessageCount;
         _sending = true;
       });
       _streamingContent = '';
@@ -408,76 +406,152 @@ class _AiChatPageState extends State<AiChatPage> {
     _generationError = null;
     _generationStopped = false;
     _lastRetryRequest = null;
+    _contextOmittedCount = 0;
+  }
+
+  _AiRetryRequest _buildRetryRequest(
+    int sessionId,
+    Iterable<AiMessage> messages,
+  ) {
+    final context = AiConversationContext.build(messages);
+    return _AiRetryRequest(
+      sessionId: sessionId,
+      messages: List<AiMessage>.unmodifiable(context.messages),
+      omittedMessageCount: context.omittedMessageCount,
+    );
   }
 
   Future<void> _showSessions() async {
+    final searchController = TextEditingController();
+    var query = '';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.7,
-          child: Column(
-            children: [
-              ListTile(
-                title: const Text('历史对话'),
-                trailing: IconButton(
-                  tooltip: '新对话',
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    _newSession();
-                  },
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: _sessions.isEmpty
-                    ? const Center(child: Text('暂无历史对话'))
-                    : ListView.builder(
-                        itemCount: _sessions.length,
-                        itemBuilder: (context, index) {
-                          final session = _sessions[index];
-                          return ListTile(
-                            selected: session.id == _session?.id,
-                            title: Text(
-                              session.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onTap: () {
-                              Navigator.pop(sheetContext);
-                              unawaited(_selectSession(session));
-                            },
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (action) {
-                                if (action == 'rename') {
-                                  unawaited(_renameSession(session));
-                                } else {
-                                  unawaited(_deleteSession(session));
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'rename',
-                                  child: Text('重命名'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('删除'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final normalizedQuery = query.trim().toLowerCase();
+          final sessions = normalizedQuery.isEmpty
+              ? _sessions
+              : _sessions
+                    .where(
+                      (session) =>
+                          session.title.toLowerCase().contains(normalizedQuery),
+                    )
+                    .toList(growable: false);
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.76,
+              child: Column(
+                children: [
+                  ListTile(
+                    title: const Text('历史对话'),
+                    trailing: IconButton(
+                      tooltip: '新对话',
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _newSession();
+                      },
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: TextField(
+                      controller: searchController,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: '搜索对话标题',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: '清除搜索',
+                                onPressed: () {
+                                  searchController.clear();
+                                  setSheetState(() => query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
                       ),
+                      onChanged: (value) => setSheetState(() => query = value),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: sessions.isEmpty
+                        ? Center(
+                            child: Text(
+                              normalizedQuery.isEmpty ? '暂无历史对话' : '没有匹配的对话',
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: sessions.length,
+                            itemBuilder: (context, index) {
+                              final session = sessions[index];
+                              return ListTile(
+                                dense: true,
+                                visualDensity: const VisualDensity(
+                                  vertical: -2,
+                                ),
+                                selected: session.id == _session?.id,
+                                title: Text(
+                                  session.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  _formatSessionTime(session.updatedAt),
+                                  maxLines: 1,
+                                ),
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  unawaited(_selectSession(session));
+                                },
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (action) {
+                                    if (action == 'rename') {
+                                      unawaited(_renameSession(session));
+                                    } else {
+                                      unawaited(_deleteSession(session));
+                                    }
+                                  },
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem(
+                                      value: 'rename',
+                                      child: Text('重命名'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('删除'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
+    searchController.dispose();
     if (mounted) setState(() {});
+  }
+
+  String _formatSessionTime(DateTime time) {
+    final local = time.toLocal();
+    final now = DateTime.now();
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
+      return '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+    }
+    return '${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')}';
   }
 
   void _showMessageActions(AiChatMessageRecord message) {
@@ -564,6 +638,35 @@ class _AiChatPageState extends State<AiChatPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openMarkdownLink(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      _showMessage('链接格式无效');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('打开链接'),
+        content: Text(
+          '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('打开'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (!await launchUrl(uri)) _showMessage('无法打开该链接');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -619,6 +722,7 @@ class _AiChatPageState extends State<AiChatPage> {
                                         role: 'assistant',
                                         content: content,
                                         streaming: true,
+                                        onLinkTap: _openMarkdownLink,
                                       ),
                                 );
                               }
@@ -629,6 +733,7 @@ class _AiChatPageState extends State<AiChatPage> {
                                     _ChatBubble(
                                       role: 'assistant',
                                       content: _streamingContent,
+                                      onLinkTap: _openMarkdownLink,
                                     ),
                                   if (_generationError != null ||
                                       _generationStopped)
@@ -644,6 +749,7 @@ class _AiChatPageState extends State<AiChatPage> {
                               role: message.role,
                               content: message.content,
                               onLongPress: () => _showMessageActions(message),
+                              onLinkTap: _openMarkdownLink,
                               onCopy: () => unawaited(
                                 Clipboard.setData(
                                   ClipboardData(text: message.content),
@@ -653,6 +759,26 @@ class _AiChatPageState extends State<AiChatPage> {
                           },
                         ),
                 ),
+                if (_contextOmittedCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '本次请求已省略较早的 $_contextOmittedCount 条消息，以控制上下文长度',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 SafeArea(
                   top: false,
                   child: Padding(
@@ -700,6 +826,7 @@ class _ChatBubble extends StatelessWidget {
     this.streaming = false,
     this.onLongPress,
     this.onCopy,
+    this.onLinkTap,
   });
 
   final String role;
@@ -707,6 +834,7 @@ class _ChatBubble extends StatelessWidget {
   final bool streaming;
   final VoidCallback? onLongPress;
   final VoidCallback? onCopy;
+  final ValueChanged<String>? onLinkTap;
 
   @override
   Widget build(BuildContext context) {
@@ -732,7 +860,10 @@ class _ChatBubble extends StatelessWidget {
               Expanded(
                 child: isUser
                     ? SelectableText(content)
-                    : SimpleMarkdown(streaming ? '$content▍' : content),
+                    : SimpleMarkdown(
+                        streaming ? '$content▍' : content,
+                        onLinkTap: onLinkTap,
+                      ),
               ),
               if (onCopy != null)
                 IconButton(
@@ -797,8 +928,13 @@ class _GenerationStatus extends StatelessWidget {
 }
 
 class _AiRetryRequest {
-  const _AiRetryRequest({required this.sessionId, required this.messages});
+  const _AiRetryRequest({
+    required this.sessionId,
+    required this.messages,
+    required this.omittedMessageCount,
+  });
 
   final int sessionId;
   final List<AiMessage> messages;
+  final int omittedMessageCount;
 }

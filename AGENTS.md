@@ -1558,6 +1558,12 @@ void dispose() {
 - Translation and chat share `AiConfigStore`; keep Base URL, API key, endpoint type, and model selection aligned across both tools.
 - Supported request paths are OpenAI-compatible `/v1/completions`, OpenAI `/v1/responses`, and Anthropic `/v1/messages`; model discovery remains `/v1/models` and custom model text must remain available.
 - Chat streaming must parse SSE incrementally and must not wait for the entire response before updating the message bubble.
+- Long AI conversations must keep the system prompt and newest messages within a bounded context
+  budget, and the UI must disclose how many older messages were omitted. Retrying or regenerating
+  must reuse the same bounded request context rather than silently restoring the full history.
+- AI Markdown links are untrusted model output. Accept only HTTP(S), show a confirmation containing
+  the scheme/host/port without query or fragment, and never write the full link to runtime logs.
+  Code blocks should expose their language label and an explicit copy action.
 - Future app-tool calls from chat must go through an explicit typed `AiToolRegistry` allowlist. Do not
   let model output invoke raw MethodChannels, arbitrary routes, filesystem paths, service lifecycle
   methods, or network clients. Read-only tools may run automatically with bounded timeouts and
