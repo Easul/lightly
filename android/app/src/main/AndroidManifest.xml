@@ -249,7 +249,12 @@
             android:name=".ProxyFloatingButtonService"
             android:enabled="true"
             android:exported="false"
-            android:stopWithTask="false" />
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-requested proxy floating button" />
+        </service>
         <service
             android:name=".RemoteControlAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"

@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -46,7 +47,22 @@ class ProxyFloatingButtonService : Service() {
         }
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
+        } catch (_: RuntimeException) {
+            // A device policy can reject the foreground-service promotion. Do not
+            // let that exception terminate the host Flutter process.
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         if (floatingView == null) {
             showFloatingButton()
