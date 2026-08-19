@@ -71,7 +71,7 @@ done
 
 mkdir -p "$OUTPUT_DIR/assets/git/share/git-core" "$OUTPUT_DIR/assets/git/lib"
 cp -R "$PREFIX/share/git-core/templates" "$OUTPUT_DIR/assets/git/share/git-core/"
-cp "$OUTPUT_DIR/native/arm64-v8a"/lib*.so* "$OUTPUT_DIR/assets/git/lib/"
+cp "$PREFIX/lib"/lib*.so* "$OUTPUT_DIR/assets/git/lib/"
 if [[ -f "$PREFIX/etc/tls/cert.pem" ]]; then
   mkdir -p "$OUTPUT_DIR/assets/git/etc/tls"
   cp "$PREFIX/etc/tls/cert.pem" "$OUTPUT_DIR/assets/git/etc/tls/cert.pem"
