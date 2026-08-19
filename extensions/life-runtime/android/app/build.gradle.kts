@@ -16,12 +16,22 @@ val supportedAbis = when (targetAbi) {
 val runtimeBinDir = providers.environmentVariable("LIFE_RUNTIME_BIN_DIR").orNull
     ?.takeIf { it.isNotBlank() }
     ?.let(::file)
+val runtimeGitDir = providers.environmentVariable("LIFE_RUNTIME_GIT_DIR").orNull
+    ?.takeIf { it.isNotBlank() }
+    ?.let(::file)
 val runtimeNativeLibDir = layout.buildDirectory.dir("generated/life-runtime-native-libs")
 val prepareRuntimeNativeLibs = tasks.register<Sync>("prepareLifeRuntimeNativeLibs") {
     runtimeBinDir?.let { source ->
         from(source) {
             include("mindgit", "liferecord")
             eachFile { path = "arm64-v8a/lib${name}.so" }
+            includeEmptyDirs = false
+        }
+    }
+    runtimeGitDir?.let { source ->
+        from(File(source, "native/arm64-v8a")) {
+            include("libgit.so", "libgit_remote_http.so")
+            eachFile { path = "arm64-v8a/$name" }
             includeEmptyDirs = false
         }
     }
@@ -48,6 +58,7 @@ android {
     }
 
     sourceSets.getByName("main").jniLibs.srcDir(runtimeNativeLibDir)
+    runtimeGitDir?.let { sourceSets.getByName("main").assets.srcDir(File(it, "assets")) }
     tasks.matching {
         it.name != "prepareLifeRuntimeNativeLibs" &&
             (it.name.contains("JniLib", ignoreCase = true) ||

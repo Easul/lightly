@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -123,11 +124,49 @@ class LifeRuntimePluginChannelHandler(
                     connected.stopAll()
                     result.success(null)
                 }
+                METHOD_EXPORT -> {
+                    val path = call.argument<String>(ARG_PATH)
+                    val configJson = call.argument<String>(ARG_CONFIG_JSON) ?: "{}"
+                    if (path.isNullOrBlank() || configJson.length > MAX_OPTIONS_LENGTH) {
+                        result.error(ERROR_INVALID_ARGUMENTS, "Export path and config are required", null)
+                    } else {
+                        result.success(
+                            withFileDescriptor(
+                                path,
+                                ParcelFileDescriptor.MODE_CREATE or
+                                    ParcelFileDescriptor.MODE_TRUNCATE or
+                                    ParcelFileDescriptor.MODE_WRITE_ONLY,
+                            ) { connected.exportData(it, configJson) },
+                        )
+                    }
+                }
+                METHOD_IMPORT -> {
+                    val path = call.argument<String>(ARG_PATH)
+                    if (path.isNullOrBlank()) {
+                        result.error(ERROR_INVALID_ARGUMENTS, "Import path is required", null)
+                    } else {
+                        result.success(
+                            withFileDescriptor(path, ParcelFileDescriptor.MODE_READ_ONLY) {
+                                connected.importData(it)
+                            },
+                        )
+                    }
+                }
                 else -> result.notImplemented()
             }
         } catch (error: Exception) {
             result.error(ERROR_RUNTIME, error.message, null)
         }
+    }
+
+    private fun <T> withFileDescriptor(
+        path: String,
+        mode: Int,
+        block: (ParcelFileDescriptor) -> T,
+    ): T {
+        val file = java.io.File(path).canonicalFile
+        file.parentFile?.mkdirs()
+        return ParcelFileDescriptor.open(file, mode).use(block)
     }
 
     private fun bindPluginService() {
@@ -181,7 +220,7 @@ class LifeRuntimePluginChannelHandler(
         private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
             "lightly.tool.plugin.liferuntime.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.liferuntime.BIND"
-        private const val MINIMUM_API_VERSION = 1
+        private const val MINIMUM_API_VERSION = 2
         private const val MAX_OPTIONS_LENGTH = 16 * 1024
         private const val ERROR_INCOMPATIBLE = "INCOMPATIBLE"
         private const val ERROR_UNAVAILABLE = "UNAVAILABLE"
@@ -192,8 +231,19 @@ class LifeRuntimePluginChannelHandler(
         private const val METHOD_STOP = "stop"
         private const val METHOD_STATUS = "status"
         private const val METHOD_STOP_ALL = "stopAll"
+        private const val METHOD_EXPORT = "export"
+        private const val METHOD_IMPORT = "import"
         private const val ARG_SERVICE_ID = "serviceId"
         private const val ARG_OPTIONS_JSON = "optionsJson"
-        private val CONNECTED_METHODS = setOf(METHOD_START, METHOD_STOP, METHOD_STATUS, METHOD_STOP_ALL)
+        private const val ARG_PATH = "path"
+        private const val ARG_CONFIG_JSON = "configJson"
+        private val CONNECTED_METHODS = setOf(
+            METHOD_START,
+            METHOD_STOP,
+            METHOD_STATUS,
+            METHOD_STOP_ALL,
+            METHOD_EXPORT,
+            METHOD_IMPORT,
+        )
     }
 }

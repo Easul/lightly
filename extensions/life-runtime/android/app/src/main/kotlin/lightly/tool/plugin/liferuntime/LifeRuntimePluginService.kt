@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import lightly.tool.plugin.liferuntime.ipc.ILifeRuntimePluginService
 
 class LifeRuntimePluginService : Service() {
@@ -34,6 +35,13 @@ class LifeRuntimePluginService : Service() {
             controller.stopAll()
             stopRuntimeForeground()
         }
+
+        override fun exportData(
+            destination: ParcelFileDescriptor,
+            hostConfigJson: String,
+        ): String = controller.exportData(destination, hostConfigJson)
+
+        override fun importData(source: ParcelFileDescriptor): String = controller.importData(source)
     }
 
     override fun onCreate() {
@@ -104,7 +112,7 @@ class LifeRuntimePluginService : Service() {
     }
 
     companion object {
-        private const val API_VERSION = 1
+        private const val API_VERSION = 2
         private const val NOTIFICATION_ID = 14611
         private const val NOTIFICATION_CHANNEL = "lightly_life_runtime"
     }
