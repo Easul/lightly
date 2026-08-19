@@ -11,6 +11,7 @@
     <uses-permission android:name="lightly.tool.plugin.telegram.permission.BIND_SERVICE" />
     <uses-permission android:name="lightly.tool.plugin.webrtc.permission.BIND_SERVICE" />
     <uses-permission android:name="lightly.tool.plugin.easytier.permission.BIND_SERVICE" />
+    <uses-permission android:name="lightly.tool.plugin.liferuntime.permission.BIND_SERVICE" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -280,6 +281,7 @@
         <package android:name="lightly.tool.plugin.telegram" />
         <package android:name="lightly.tool.plugin.webrtc" />
         <package android:name="lightly.tool.plugin.easytier" />
+        <package android:name="lightly.tool.plugin.liferuntime" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
