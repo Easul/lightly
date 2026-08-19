@@ -8,21 +8,44 @@ OUTPUT_DIR="${LIFE_RUNTIME_BIN_DIR:-$ROOT/extensions/life-runtime/runtime/bin}"
 
 mkdir -p "$OUTPUT_DIR"
 
+android_compiler() {
+  if [[ -n "${CC_ANDROID_ARM64:-}" ]]; then
+    printf '%s\n' "$CC_ANDROID_ARM64"
+    return
+  fi
+
+  local ndk compiler
+  for ndk in \
+    "${ANDROID_NDK_HOME:-}" \
+    "${ANDROID_NDK_ROOT:-}" \
+    "$HOME/software/android/sdk/ndk/28.2.13676358" \
+    "$HOME/Android/Sdk/ndk/28.2.13676358"; do
+    [[ -n "$ndk" ]] || continue
+    compiler="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+    if [[ -x "$compiler" ]]; then
+      printf '%s\n' "$compiler"
+      return
+    fi
+  done
+  return 1
+}
+
 if [[ "${SKIP_MINDGIT:-0}" != "1" ]]; then
   [[ -f "$MINDGIT_ROOT/go.mod" ]] || { echo "MindGit repository not found: $MINDGIT_ROOT" >&2; exit 1; }
   CGO_ENABLED=0 GOOS=android GOARCH=arm64 \
-    go build -trimpath -ldflags="-s -w" -o "$OUTPUT_DIR/mindgit" "$MINDGIT_ROOT"
+    go -C "$MINDGIT_ROOT" build -trimpath -ldflags="-s -w" \
+      -o "$OUTPUT_DIR/mindgit" .
 fi
 
 if [[ "${SKIP_LIFE_RECORD:-0}" != "1" ]]; then
   [[ -f "$LIFE_RECORD_ROOT/go.mod" ]] || { echo "Life Record repository not found: $LIFE_RECORD_ROOT" >&2; exit 1; }
-  [[ -n "${CC_ANDROID_ARM64:-}" ]] || {
-    echo "CC_ANDROID_ARM64 is required for life-record's CGO SQLite build" >&2
+  CC_ANDROID_ARM64="$(android_compiler)" || {
+    echo "Android NDK arm64 compiler not found; set CC_ANDROID_ARM64 or ANDROID_NDK_HOME" >&2
     exit 1
   }
   CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC="$CC_ANDROID_ARM64" \
-    go build -trimpath -ldflags="-s -w" \
-    -o "$OUTPUT_DIR/liferecord" "$LIFE_RECORD_ROOT/cmd/liferecord"
+    go -C "$LIFE_RECORD_ROOT" build -trimpath -ldflags="-s -w" \
+      -o "$OUTPUT_DIR/liferecord" ./cmd/liferecord
 fi
 
 chmod 0755 "$OUTPUT_DIR"/*
