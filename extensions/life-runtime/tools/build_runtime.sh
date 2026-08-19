@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 MINDGIT_ROOT="${MINDGIT_ROOT:-$ROOT/../mindgit}"
 LIFE_RECORD_ROOT="${LIFE_RECORD_ROOT:-$ROOT/../life-record}"
-OUTPUT_DIR="${LIFE_RUNTIME_BIN_DIR:-$ROOT/runtime/bin}"
+OUTPUT_DIR="${LIFE_RUNTIME_BIN_DIR:-$ROOT/extensions/life-runtime/runtime/bin}"
 
 mkdir -p "$OUTPUT_DIR"
 
