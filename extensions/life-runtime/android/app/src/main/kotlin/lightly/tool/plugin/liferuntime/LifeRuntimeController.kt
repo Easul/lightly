@@ -189,7 +189,16 @@ internal class LifeRuntimeController(private val context: Context) {
                             JSONObject(hostConfig)
                         } else if (!entry.isDirectory && (relative.startsWith("workspaces/") || relative.startsWith("data/"))) {
                             val target = File(runtimeRoot, relative)
-                            val body = zip.readLimited(MAX_FILE_BYTES) { bytes += it }
+                            val body = zip.readLimited(MAX_FILE_BYTES) {
+                                bytes += it
+                                if (bytes > MAX_ARCHIVE_BYTES) {
+                                    throw IllegalArgumentException("archive is too large")
+                                }
+                            }
+                            val base = runtimeRoot.canonicalFile.toPath()
+                            if (!target.canonicalFile.toPath().startsWith(base)) {
+                                throw IllegalArgumentException("archive path escapes runtime root")
+                            }
                             target.parentFile?.mkdirs()
                             FileOutputStream(target).use { it.write(body) }
                         }
@@ -398,8 +407,10 @@ internal class LifeRuntimeController(private val context: Context) {
 
     private fun safeArchivePath(value: String): String? {
         val normalized = value.replace('\\', '/')
-        if (normalized.startsWith('/') || normalized.contains("../") || normalized == ".." || normalized.contains('\u0000')) return null
-        return normalized.removePrefix("./")
+        if (normalized.startsWith('/') || normalized.contains('\u0000')) return null
+        val parts = normalized.split('/')
+        if (parts.any { it == ".." }) return null
+        return parts.filter { it.isNotEmpty() && it != "." }.joinToString("/").takeIf { it.isNotEmpty() }
     }
 
     private fun java.io.InputStream.readLimited(limit: Long, onBytes: (Long) -> Unit = {}): ByteArray {
@@ -471,6 +482,7 @@ internal class LifeRuntimeController(private val context: Context) {
     companion object {
         private const val TAG = "LifeRuntimeController"
         private const val MAX_ARCHIVE_ENTRIES = 10000
+        private const val MAX_ARCHIVE_BYTES = 512L * 1024L * 1024L
         private const val MAX_CONFIG_BYTES = 256 * 1024L
         private const val MAX_FILE_BYTES = 128L * 1024L * 1024L
         const val SERVICE_MINDGIT = "mindgit"

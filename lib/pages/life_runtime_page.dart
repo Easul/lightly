@@ -134,9 +134,9 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     final lifeAi = old.lifeRecord.ai.copyWith(
       enabled: _aiEnabled,
       apiKey: _aiKeyController.text.trim(),
-      baseUrl: _aiBaseUrlController.text.trim(),
-      apiType: _aiTypeController.text.trim(),
-      model: _aiModelController.text.trim(),
+      baseUrl: _textOr(_aiBaseUrlController.text, old.lifeRecord.ai.baseUrl),
+      apiType: _textOr(_aiTypeController.text, old.lifeRecord.ai.apiType),
+      model: _textOr(_aiModelController.text, old.lifeRecord.ai.model),
       thinking: _aiThinking,
       tools: _aiTools,
       systemPrompt: _aiPromptController.text,
