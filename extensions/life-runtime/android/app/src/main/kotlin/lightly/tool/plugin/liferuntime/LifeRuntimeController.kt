@@ -184,13 +184,13 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     private fun copyBundledTools() {
-        val names = runCatching { context.assets.list("runtime/bin")?.toList().orEmpty() }
+        val names = runCatching { context.assets.list("bin")?.toList().orEmpty() }
             .getOrDefault(emptyList())
         names.forEach { name ->
             val target = File(binRoot, name)
             if (target.isFile && target.canExecute()) return@forEach
             runCatching {
-                context.assets.open("runtime/bin/$name").use { input ->
+                context.assets.open("bin/$name").use { input ->
                     target.outputStream().use { output -> input.copyTo(output) }
                 }
                 target.setReadable(true, false)

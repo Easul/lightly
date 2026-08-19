@@ -35,7 +35,7 @@ android {
     }
 
     if (runtimeBinDir?.isDirectory == true) {
-        sourceSets.getByName("main").assets.srcDir(runtimeBinDir.parentFile.parentFile)
+        sourceSets.getByName("main").assets.srcDir(runtimeBinDir.parentFile)
     }
 
     signingConfigs {
