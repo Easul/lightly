@@ -47,7 +47,7 @@ internal class LifeRuntimeController(private val context: Context) {
 
         val options = runCatching { JSONObject(optionsJson.ifBlank { "{}" }) }
             .getOrElse { return error("invalid options: ${it.message}") }
-        val executable = File(binRoot, serviceId)
+        val executable = executableFor(serviceId)
         if (!executable.isFile || !executable.canExecute()) {
             return error("$serviceId is not installed in ${executable.parent}")
         }
@@ -129,8 +129,8 @@ internal class LifeRuntimeController(private val context: Context) {
         val result = JSONObject()
             .put("runtimeRoot", runtimeRoot.absolutePath)
             .put("installed", JSONObject()
-                .put(SERVICE_MINDGIT, File(binRoot, SERVICE_MINDGIT).canExecute())
-                .put(SERVICE_LIFE_RECORD, File(binRoot, SERVICE_LIFE_RECORD).canExecute()))
+                .put(SERVICE_MINDGIT, executableFor(SERVICE_MINDGIT).canExecute())
+                .put(SERVICE_LIFE_RECORD, executableFor(SERVICE_LIFE_RECORD).canExecute()))
         val running = JSONObject()
         processes.values.forEach { running.put(it.id, statusFor(it, null)) }
         result.put("running", running).toString()
@@ -196,6 +196,15 @@ internal class LifeRuntimeController(private val context: Context) {
                 target.setReadable(true, false)
                 target.setExecutable(true, false)
             }
+        }
+    }
+
+    private fun executableFor(serviceId: String): File {
+        val nativeExecutable = File(context.applicationInfo.nativeLibraryDir, "lib$serviceId.so")
+        return if (nativeExecutable.isFile && nativeExecutable.canExecute()) {
+            nativeExecutable
+        } else {
+            File(binRoot, serviceId)
         }
     }
 

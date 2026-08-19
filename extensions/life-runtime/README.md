@@ -3,12 +3,12 @@
 This is a pure Android companion APK for running the Android builds of
 MindGit and Life Record. It has no Flutter engine and no business UI.
 
-The service loads executables from its private runtime directory:
+The service runs the bundled Android ELF files from the APK's extracted native
+library directory. Its private runtime directory is used for workspaces, data,
+and logs:
 
 ```text
 /data/user/0/lightly.tool.plugin.liferuntime/files/runtime/
-  bin/mindgit
-  bin/liferecord
   workspaces/
   data/
   logs/
@@ -42,6 +42,7 @@ scripts/build_multi_abi.sh
 
 PLUGIN_VERSION_CODE="$((5000 + $(git rev-list --count main)))" \
 PLUGIN_VERSION_NAME="local+$(git rev-parse --short HEAD)" \
+TARGET_ABI="arm64-v8a" \
 LIFE_RUNTIME_BIN_DIR="$PWD/extensions/life-runtime/runtime/bin" \
 extensions/telegram/android/gradlew \
   -p extensions/life-runtime/android --offline \
@@ -54,4 +55,6 @@ adb install -r extensions/life-runtime/android/app/build/outputs/apk/release/app
 Open Lightly -> 小工具 -> 人生运行时. The APK can also be installed directly
 with `adb`; a release `plugins.json` is only needed for Lightly's downloader.
 The smoke-test bundle does not yet include `git`, `ssh`, or `rg`, so MindGit's
-Git operations remain unavailable until those Android tools are added.
+Git operations remain unavailable until those Android tools are added. The
+current runtime binaries are arm64; build and install the matching arm64
+companion on a 64-bit Android device.

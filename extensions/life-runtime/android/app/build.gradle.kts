@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.Sync
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,6 +16,17 @@ val supportedAbis = when (targetAbi) {
 val runtimeBinDir = providers.environmentVariable("LIFE_RUNTIME_BIN_DIR").orNull
     ?.takeIf { it.isNotBlank() }
     ?.let(::file)
+val runtimeNativeLibDir = layout.buildDirectory.dir("generated/life-runtime-native-libs")
+val prepareRuntimeNativeLibs = tasks.register<Sync>("prepareLifeRuntimeNativeLibs") {
+    runtimeBinDir?.let { source ->
+        from(source) {
+            include("mindgit", "liferecord")
+            eachFile { path = "arm64-v8a/lib${name}.so" }
+            includeEmptyDirs = false
+        }
+    }
+    into(runtimeNativeLibDir)
+}
 
 android {
     namespace = "lightly.tool.plugin.liferuntime"
@@ -34,9 +47,13 @@ android {
         ndk { abiFilters += supportedAbis }
     }
 
-    if (runtimeBinDir?.isDirectory == true) {
-        sourceSets.getByName("main").assets.srcDir(runtimeBinDir.parentFile)
+    sourceSets.getByName("main").jniLibs.srcDir(runtimeNativeLibDir)
+    tasks.matching {
+        it.name != "prepareLifeRuntimeNativeLibs" &&
+            (it.name.contains("JniLib", ignoreCase = true) ||
+                it.name.contains("NativeLib", ignoreCase = true))
     }
+        .configureEach { dependsOn(prepareRuntimeNativeLibs) }
 
     signingConfigs {
         create("release") {
