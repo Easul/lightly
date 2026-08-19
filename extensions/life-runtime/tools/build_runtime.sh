@@ -49,4 +49,7 @@ if [[ "${SKIP_LIFE_RECORD:-0}" != "1" ]]; then
 fi
 
 chmod 0755 "$OUTPUT_DIR"/*
+if [[ "${SKIP_GIT_RUNTIME:-0}" != "1" ]]; then
+  "$(dirname "${BASH_SOURCE[0]}")/prepare_git_runtime.sh"
+fi
 echo "Prepared Android runtime binaries in $OUTPUT_DIR"
