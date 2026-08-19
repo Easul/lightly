@@ -83,7 +83,10 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = false
+            // The bundled ELF files are launched with execve, so they must be
+            // extracted to nativeLibraryDir instead of remaining mmap-only in
+            // the APK.
+            useLegacyPackaging = true
             setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
                 .minus(supportedAbis)
                 .forEach { abi -> excludes += "**/$abi/*.so" }

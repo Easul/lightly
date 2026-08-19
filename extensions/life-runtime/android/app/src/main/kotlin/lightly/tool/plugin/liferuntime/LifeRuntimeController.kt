@@ -49,7 +49,11 @@ internal class LifeRuntimeController(private val context: Context) {
             .getOrElse { return error("invalid options: ${it.message}") }
         val executable = executableFor(serviceId)
         if (!executable.isFile || !executable.canExecute()) {
-            return error("$serviceId is not installed in ${executable.parent}")
+            return error(
+                "$serviceId is not executable: path=${executable.absolutePath}, " +
+                    "exists=${executable.isFile}, canExecute=${executable.canExecute()}, " +
+                    "nativeLibraryDir=${context.applicationInfo.nativeLibraryDir}",
+            )
         }
 
         val root = resolveWorkspace(options.optString("root", "default"))
@@ -98,7 +102,10 @@ internal class LifeRuntimeController(private val context: Context) {
                 }
                 .start()
         } catch (error: Exception) {
-            return error("failed to start $serviceId: ${error.message}")
+            return error(
+                "failed to start $serviceId: ${error.message}; " +
+                    "executable=${executable.absolutePath}",
+            )
         }
         val running = RunningProcess(
             serviceId,
