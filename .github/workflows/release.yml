@@ -171,10 +171,12 @@ jobs:
               extensions/telegram \
               extensions/webrtc \
               extensions/easytier \
+              extensions/life-runtime \
               scripts/build_optional_plugins.sh \
               scripts/embed_optional_plugin_manifest.sh \
               scripts/verify_optional_plugin_bundle.sh \
               lib/features/optional_plugins \
+              lib/features/life_runtime \
               lib/app/optional_feature_coordinator.dart \
               android/app/src/main/aidl \
               android/app/src/main/kotlin/lightly/tool/OptionalPluginActivationCoordinator.kt \

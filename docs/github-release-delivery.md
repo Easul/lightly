@@ -18,7 +18,7 @@
 | 仓库 | 内容 | 是否包含源码 |
 |---|---|---|
 | `Easul/lightly` | Lightly、三个 companion 源码、Actions 和构建脚本 | 是 |
-| `Easul/lightly-plugins` | 六个 companion APK 与 `plugins.json` Release assets | 否，仅发布产物 |
+| `Easul/lightly-plugins` | optional companion APK 与 `plugins.json` Release assets | 否，仅发布产物 |
 | YouTube resolver 二进制仓库 | R8 后的 AAR 与 `SHA256SUMS` Release assets | 可以只发布二进制 |
 
 YouTube 二进制仓库公开时，任何人仍能从 AAR 或最终 Lightly APK 中提取并反编译代码。R8 只能降低

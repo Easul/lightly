@@ -34,6 +34,9 @@ class MainActivity : FlutterActivity() {
     private val webRtcVoicePluginChannelHandler by lazy {
         WebRtcVoicePluginChannelHandler(this, optionalPluginActivationCoordinator)
     }
+    private val lifeRuntimePluginChannelHandler by lazy {
+        LifeRuntimePluginChannelHandler(this, optionalPluginActivationCoordinator)
+    }
     private val youTubeResolverChannelHandler by lazy {
         YouTubeResolverChannelHandler(ReflectionYouTubeResolverRuntime(this))
     }
@@ -168,6 +171,7 @@ class MainActivity : FlutterActivity() {
             .register(flutterEngine.dartExecutor.binaryMessenger)
         telegramPluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
         webRtcVoicePluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
+        lifeRuntimePluginChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
         youTubeResolverChannelHandler.register(flutterEngine.dartExecutor.binaryMessenger)
 
         browserProxyChannel = BrowserPlatformChannelHandler(
@@ -236,6 +240,7 @@ class MainActivity : FlutterActivity() {
         optionalPluginActivationCoordinator.clear()
         telegramPluginChannelHandler.shutdown()
         webRtcVoicePluginChannelHandler.shutdown()
+        lifeRuntimePluginChannelHandler.shutdown()
         youTubeResolverChannelHandler.shutdown()
         shutdownRemoteControlResources()
         shutdownEasyTierVpnResources()

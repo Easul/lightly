@@ -99,6 +99,16 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _openLifeRuntime() async {
+    if (!await _optionalFeatureGate.ensureAvailable(
+      context,
+      OptionalFeatureId.lifeRuntime,
+    )) {
+      return;
+    }
+    if (mounted) await Navigator.pushNamed(context, '/life-runtime');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,6 +161,11 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 icon: Icons.vpn_lock_rounded,
                 label: 'P2P VPN',
                 onTap: () => unawaited(_openEasyTierPlugin()),
+              ),
+              _ToolTile(
+                icon: Icons.auto_stories_rounded,
+                label: '人生运行时',
+                onTap: () => unawaited(_openLifeRuntime()),
               ),
             ],
           ),

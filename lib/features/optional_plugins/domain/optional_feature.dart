@@ -1,7 +1,8 @@
 enum OptionalFeatureId {
   telegram('telegram'),
   webRtcVoice('webrtc_voice'),
-  easyTier('easytier');
+  easyTier('easytier'),
+  lifeRuntime('life_runtime');
 
   const OptionalFeatureId(this.wireName);
 
@@ -46,6 +47,12 @@ class OptionalFeatureCatalog {
           displayName: 'EasyTier 插件',
           packageName: 'lightly.tool.plugin.easytier',
           minimumApiVersion: 2,
+        ),
+        OptionalFeatureId.lifeRuntime: OptionalFeatureDescriptor(
+          id: OptionalFeatureId.lifeRuntime,
+          displayName: '人生知识库运行时',
+          packageName: 'lightly.tool.plugin.liferuntime',
+          minimumApiVersion: 1,
         ),
       };
 

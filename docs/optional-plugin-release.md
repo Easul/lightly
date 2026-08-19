@@ -1,10 +1,10 @@
 # Optional companion release
 
-Use `scripts/build_optional_plugins.sh` to build Telegram, WebRTC voice, and EasyTier as signed,
-single-ABI native companion APKs. The script injects one version label/code into all plugins,
-rejects Flutter/Dart runtime artifacts, checks each APK for the selected ABI, verifies that all six
-APKs share one signing certificate, and writes an ABI-aware `plugins.json` compatible with Lightly's
-installer.
+Use `scripts/build_optional_plugins.sh` to build Telegram, WebRTC voice, EasyTier, and the Life
+Runtime as signed native companion APKs. The script injects one version label/code into all
+plugins, rejects Flutter/Dart runtime artifacts, checks native ABI contents where applicable,
+verifies that all companion APKs share one signing certificate, and writes an ABI-aware
+`plugins.json` compatible with Lightly's installer.
 
 ```bash
 scripts/build_optional_plugins.sh
@@ -39,6 +39,19 @@ it returns immediately to the foreground Lightly Activity. Keep `android:icon` a
 
 Do not publish the manifest until the corresponding APKs are signed with the same certificate as
 the Lightly build that declares the minimum version code.
+
+## Life Runtime
+
+`extensions/life-runtime` is a pure Android companion. It owns the private runtime directory,
+starts the Android builds of `mindgit` and `liferecord`, and exposes only fixed start/stop/status
+operations over a signature-protected AIDL service. It does not provide a shell or arbitrary
+command execution. Runtime executables are copied from the APK's `runtime/bin` assets on first
+use; ordinary glibc Linux binaries are not compatible with Android's bionic linker.
+
+Use `LIFE_RUNTIME_BIN_DIR` to point the companion build at a directory containing Android
+executables. The expected names are `mindgit` and `liferecord`; future tool assets such as `git`,
+`ssh`, and `rg` use the same directory. The first runtime version binds to `127.0.0.1`; a LAN
+bind requires an explicit option and generated application credentials.
 
 ## Pinned delivery and GitHub Actions
 

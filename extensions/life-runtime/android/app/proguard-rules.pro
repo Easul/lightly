@@ -1,0 +1,1 @@
+-keep class lightly.tool.plugin.liferuntime.** { *; }

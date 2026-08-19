@@ -15,6 +15,7 @@ PLUGIN_VERSION_NAME="${PLUGIN_VERSION_NAME:-$(git -C "$PROJECT_ROOT" describe --
 TELEGRAM_PLUGIN_API_VERSION="${TELEGRAM_PLUGIN_API_VERSION:-3}"
 WEBRTC_PLUGIN_API_VERSION="${WEBRTC_PLUGIN_API_VERSION:-3}"
 EASYTIER_PLUGIN_API_VERSION="${EASYTIER_PLUGIN_API_VERSION:-${PLUGIN_API_VERSION:-2}}"
+LIFE_RUNTIME_PLUGIN_API_VERSION="${LIFE_RUNTIME_PLUGIN_API_VERSION:-1}"
 MINIMUM_LIGHTLY_VERSION_CODE="${MINIMUM_LIGHTLY_VERSION_CODE:-$PLUGIN_VERSION_CODE}"
 RELEASE_TAG="${PLUGIN_RELEASE_TAG:-plugins-${PLUGIN_VERSION_NAME//[^[:alnum:].+-]/-}}"
 PLUGIN_RELEASE_REPOSITORY="${PLUGIN_RELEASE_REPOSITORY:-Easul/lightly-plugins}"
@@ -33,11 +34,13 @@ declare -A PLUGIN_DIRS=(
   [telegram]="$PROJECT_ROOT/extensions/telegram/android"
   [webrtc]="$PROJECT_ROOT/extensions/webrtc/android"
   [easytier]="$PROJECT_ROOT/extensions/easytier/android"
+  [life_runtime]="$PROJECT_ROOT/extensions/life-runtime/android"
 )
 declare -A PLUGIN_PACKAGES=(
   [telegram]=lightly.tool.plugin.telegram
   [webrtc]=lightly.tool.plugin.webrtc
   [easytier]=lightly.tool.plugin.easytier
+  [life_runtime]=lightly.tool.plugin.liferuntime
 )
 
 require_command() {
@@ -106,9 +109,22 @@ build_plugin() {
   local apk_source="$gradle_dir/../build/app/outputs/apk/release/app-release.apk"
   local apk="$PLUGIN_OUTPUT_DIR/${feature}-${abi}-release.apk"
 
+  if [[ "$feature" == "life_runtime" && -z "${LIFE_RUNTIME_BIN_DIR:-}" ]]; then
+    echo "LIFE_RUNTIME_BIN_DIR is required when building the Life Runtime plugin" >&2
+    echo "Prepare Android binaries with extensions/life-runtime/tools/build_runtime.sh first" >&2
+    exit 1
+  fi
+  if [[ "$feature" == "life_runtime" ]]; then
+    [[ -x "$LIFE_RUNTIME_BIN_DIR/mindgit" && -x "$LIFE_RUNTIME_BIN_DIR/liferecord" ]] || {
+      echo "Life Runtime binaries mindgit and liferecord are required in $LIFE_RUNTIME_BIN_DIR" >&2
+      exit 1
+    }
+  fi
+
   TARGET_ABI="$abi" \
     PLUGIN_VERSION_CODE="$PLUGIN_VERSION_CODE" \
     PLUGIN_VERSION_NAME="$PLUGIN_VERSION_NAME" \
+    LIFE_RUNTIME_BIN_DIR="${LIFE_RUNTIME_BIN_DIR:-}" \
     "$GRADLEW" -p "$gradle_dir" "${GRADLE_NETWORK_ARGS[@]}" :app:assembleRelease >/dev/null
   cp "$apk_source" "$apk"
 
@@ -118,16 +134,18 @@ build_plugin() {
     echo "Flutter/Dart runtime artifact found in $apk" >&2
     exit 1
   fi
-  grep -q "^lib/$abi/" <<<"$entries" || {
-    echo "Expected ABI $abi missing from $apk" >&2
-    exit 1
-  }
-  while read -r path; do
-    [[ -z "$path" || "$path" == "lib/$abi/"* ]] || {
-      echo "Unexpected ABI slice $path in $apk" >&2
+  if [[ "$feature" != "life_runtime" ]]; then
+    grep -q "^lib/$abi/" <<<"$entries" || {
+      echo "Expected ABI $abi missing from $apk" >&2
       exit 1
     }
-  done < <(grep '^lib/[^/]\+/' <<<"$entries" || true)
+    while read -r path; do
+      [[ -z "$path" || "$path" == "lib/$abi/"* ]] || {
+        echo "Unexpected ABI slice $path in $apk" >&2
+        exit 1
+      }
+    done < <(grep '^lib/[^/]\+/' <<<"$entries" || true)
+  fi
 
   local cert size digest
   cert="$(read_certificate_digest "$apk")"
@@ -137,15 +155,19 @@ build_plugin() {
   echo "Built $feature $abi: $size bytes sha256=$digest cert=$cert"
 }
 
-for feature in telegram webrtc easytier; do
-  for abi in arm64-v8a armeabi-v7a; do
+for feature in telegram webrtc easytier life_runtime; do
+  abis=(arm64-v8a armeabi-v7a)
+  [[ "$feature" == "life_runtime" ]] && abis=(arm64-v8a)
+  for abi in "${abis[@]}"; do
     build_plugin "$feature" "$abi"
   done
 done
 
 EXPECTED_CERT=""
-for feature in telegram webrtc easytier; do
-  for abi in arm64-v8a armeabi-v7a; do
+for feature in telegram webrtc easytier life_runtime; do
+  abis=(arm64-v8a armeabi-v7a)
+  [[ "$feature" == "life_runtime" ]] && abis=(arm64-v8a)
+  for abi in "${abis[@]}"; do
     cert="$(awk '{print $3}' "$PLUGIN_OUTPUT_DIR/.work/${feature}-${abi}.metadata")"
     if [[ -z "$EXPECTED_CERT" ]]; then EXPECTED_CERT="$cert"; fi
     [[ "$cert" == "$EXPECTED_CERT" ]] || {
@@ -197,6 +219,14 @@ cat > "$PLUGIN_OUTPUT_DIR/plugins.json" <<EOF
       "versionName": "${PLUGIN_VERSION_NAME}",
       "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
       "artifacts": {$(artifact_json easytier arm64-v8a), $(artifact_json easytier armeabi-v7a)}
+    },
+    "life_runtime": {
+      "packageName": "${PLUGIN_PACKAGES[life_runtime]}",
+      "apiVersion": ${LIFE_RUNTIME_PLUGIN_API_VERSION},
+      "versionCode": ${PLUGIN_VERSION_CODE},
+      "versionName": "${PLUGIN_VERSION_NAME}",
+      "minimumLightlyVersionCode": ${MINIMUM_LIGHTLY_VERSION_CODE},
+      "artifacts": {$(artifact_json life_runtime arm64-v8a)}
     }
   }
 }

@@ -43,8 +43,10 @@ read_certificate_digest() {
 
 LIGHTLY_CERT="$(read_certificate_digest "$LIGHTLY_APK")"
 
-for feature in telegram webrtc easytier; do
-  for abi in arm64-v8a armeabi-v7a; do
+for feature in telegram webrtc easytier life_runtime; do
+  abis=(arm64-v8a armeabi-v7a)
+  [[ "$feature" == "life_runtime" ]] && abis=(arm64-v8a)
+  for abi in "${abis[@]}"; do
     apk="$PLUGIN_OUTPUT_DIR/${feature}-${abi}-release.apk"
     [[ -f "$apk" ]] || { echo "Missing plugin APK: $apk" >&2; exit 1; }
     cert="$(read_certificate_digest "$apk")"

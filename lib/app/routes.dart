@@ -15,6 +15,7 @@ import '../features/remote_control/presentation/pages/remote_control_page.dart';
 import '../pages/simple_file_manager_settings_page.dart';
 import '../pages/telegram_checkin_page.dart';
 import '../pages/tools_page.dart';
+import '../pages/life_runtime_page.dart';
 import '../pages/translation_tool_page.dart';
 import '../pages/ai_chat_page.dart';
 import '../features/music/presentation/music_player_page.dart';
@@ -68,5 +69,6 @@ Map<String, WidgetBuilder> buildAppRoutes({bool browserWebViewEnabled = true}) {
     '/ai-chat': (context) => const AiChatPage(),
     '/music-player': (context) => const MusicPlayerPage(),
     '/tools': (context) => const ToolsPage(),
+    '/life-runtime': (context) => const LifeRuntimePage(),
   };
 }

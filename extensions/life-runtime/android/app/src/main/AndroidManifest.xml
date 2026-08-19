@@ -1,0 +1,42 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <permission
+        android:name="lightly.tool.plugin.liferuntime.permission.BIND_SERVICE"
+        android:protectionLevel="signature" />
+
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Lightly 人生运行时"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.LightlyLifeRuntimePlugin">
+        <meta-data android:name="lightly.plugin.API_VERSION" android:value="1" />
+        <meta-data android:name="lightly.plugin.FEATURE_ID" android:value="life_runtime" />
+
+        <service
+            android:name=".LifeRuntimePluginService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="lightly.tool.plugin.liferuntime.permission.BIND_SERVICE">
+            <intent-filter>
+                <action android:name="lightly.tool.plugin.liferuntime.BIND" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-requested personal knowledge base runtime" />
+        </service>
+
+        <activity
+            android:name=".PluginBootstrapActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="lightly.tool.plugin.liferuntime.permission.BIND_SERVICE"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>
