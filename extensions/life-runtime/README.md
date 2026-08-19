@@ -22,3 +22,36 @@ binaries are not compatible with Android's bionic runtime.
 
 The default bind address is `127.0.0.1`. LAN binding is an explicit caller
 option and must be paired with application authentication before release.
+
+## Local smoke test
+
+Build the Android arm64 Go binaries first. Life Record uses CGO/SQLite, so an
+Android NDK compiler is required:
+
+```bash
+export ANDROID_NDK_HOME="$HOME/software/android/sdk/ndk/28.2.13676358"
+export CC_ANDROID_ARM64="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+extensions/life-runtime/tools/build_runtime.sh
+```
+
+Build the host and install the current Lightly APK before installing this
+companion. The host and companion must use the same signing certificate:
+
+```bash
+scripts/build_multi_abi.sh
+
+PLUGIN_VERSION_CODE="$((5000 + $(git rev-list --count main)))" \
+PLUGIN_VERSION_NAME="local+$(git rev-parse --short HEAD)" \
+LIFE_RUNTIME_BIN_DIR="$PWD/extensions/life-runtime/runtime/bin" \
+extensions/telegram/android/gradlew \
+  -p extensions/life-runtime/android --offline \
+  :app:assembleRelease
+
+adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+adb install -r extensions/life-runtime/android/app/build/outputs/apk/release/app-release.apk
+```
+
+Open Lightly -> 小工具 -> 人生运行时. The APK can also be installed directly
+with `adb`; a release `plugins.json` is only needed for Lightly's downloader.
+The smoke-test bundle does not yet include `git`, `ssh`, or `rg`, so MindGit's
+Git operations remain unavailable until those Android tools are added.
