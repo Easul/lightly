@@ -122,10 +122,10 @@ class LifeRecordRuntimeConfig {
     this.port = 8080,
     this.dataDir = 'data',
     this.mode = 'preview',
-    this.baseUrl = 'http://127.0.0.1:8080',
+    this.baseUrl = '',
     this.comments = true,
     this.refresh = '2s',
-    this.passwordEnv = 'LIFERECORD_PASSWORD',
+    this.passwordEnv = '',
     this.password = '',
     this.excludeDirs = const <String>[],
     this.ai = const LifeRecordAiConfig(),
@@ -203,10 +203,10 @@ class LifeRecordRuntimeConfig {
       port: _int(json['port'], 8080),
       dataDir: _string(json['dataDir'], 'data'),
       mode: _string(json['mode'], 'preview'),
-      baseUrl: _string(json['baseUrl'], 'http://127.0.0.1:8080'),
+      baseUrl: _optionalString(json['baseUrl']),
       comments: _bool(json['comments'], true),
       refresh: _string(json['refresh'], '2s'),
-      passwordEnv: _string(json['passwordEnv'], 'LIFERECORD_PASSWORD'),
+      passwordEnv: _optionalString(json['passwordEnv']),
       password: _string(json['password'], ''),
       excludeDirs: excludes is List
           ? excludes
@@ -260,3 +260,5 @@ int _int(Object? value, int fallback) {
 bool _bool(Object? value, bool fallback) {
   return value is bool ? value : fallback;
 }
+
+String _optionalString(Object? value) => value is String ? value.trim() : '';

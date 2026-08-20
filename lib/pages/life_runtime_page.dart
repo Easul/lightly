@@ -43,6 +43,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   bool _aiTools = true;
   bool _busy = false;
   bool _allowLan = false;
+  Timer? _statusTimer;
 
   @override
   void initState() {
@@ -66,10 +67,15 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     _aiPromptController = TextEditingController();
     unawaited(_loadConfig());
     unawaited(_refresh());
+    _statusTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_refresh()),
+    );
   }
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     for (final controller in <TextEditingController>[
       _mindGitPortController,
       _mindGitPasswordController,
@@ -160,19 +166,13 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
           defaults.lifeRecord.dataDir,
         ),
         mode: _textOr(_lifeModeController.text, defaults.lifeRecord.mode),
-        baseUrl: _textOr(
-          _lifeBaseUrlController.text,
-          defaults.lifeRecord.baseUrl,
-        ),
+        baseUrl: _lifeBaseUrlController.text.trim(),
         comments: _lifeComments,
         refresh: _textOr(
           _lifeRefreshController.text,
           defaults.lifeRecord.refresh,
         ),
-        passwordEnv: _textOr(
-          _lifePasswordEnvController.text,
-          defaults.lifeRecord.passwordEnv,
-        ),
+        passwordEnv: _lifePasswordEnvController.text.trim(),
         password: _lifePasswordController.text,
         excludeDirs: _lifeExcludeDirsController.text
             .split(',')
@@ -207,6 +207,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
       if (result is Map && result['error'] != null) {
         throw StateError(result['error'].toString());
       }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
       await _refresh();
     } catch (error) {
       unawaited(AppToast.show('运行时操作失败：$error'));
@@ -283,7 +284,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                       ? null
                       : (value) => setState(() => _allowLan = value),
                   title: const Text('允许局域网访问'),
-                  subtitle: const Text('启动时使用 0.0.0.0，并生成一次性访问密码'),
+                  subtitle: const Text('启动时监听 0.0.0.0；如有需要请设置访问密码'),
                 ),
               ],
             ),
@@ -458,16 +459,10 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                   'title': _textOr(_lifeTitleController.text, '人生记录'),
                   'dataDir': _textOr(_lifeDataDirController.text, 'data'),
                   'mode': _textOr(_lifeModeController.text, 'preview'),
-                  'baseUrl': _textOr(
-                    _lifeBaseUrlController.text,
-                    'http://${_config.lifeRecord.host}:${_config.lifeRecord.port}',
-                  ),
+                  'baseUrl': _lifeBaseUrlController.text.trim(),
                   'comments': _lifeComments,
                   'refresh': _textOr(_lifeRefreshController.text, '2s'),
-                  'passwordEnv': _textOr(
-                    _lifePasswordEnvController.text,
-                    'LIFERECORD_PASSWORD',
-                  ),
+                  'passwordEnv': _lifePasswordEnvController.text.trim(),
                   'password': _lifePasswordController.text,
                   'excludeDirs': _config.lifeRecord.excludeDirs,
                   'ai': _config.lifeRecord.ai.toJson(),
@@ -571,11 +566,17 @@ class _ServiceCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(isRunning ? '运行中' : '未启动'),
-          if (url != null) ...[
+          if (isRunning && url != null) ...[
             const SizedBox(height: 6),
             SelectableText(url),
             if (data['password'] case final String password)
               SelectableText('局域网密码：$password'),
+          ],
+          if (!isRunning && data['exitCode'] != null) ...[
+            const SizedBox(height: 6),
+            Text('上次启动失败（退出码 ${data['exitCode']}）'),
+            if (data['lastLog'] case final String log when log.isNotEmpty)
+              SelectableText(log, style: Theme.of(context).textTheme.bodySmall),
           ],
           const SizedBox(height: 12),
           Row(

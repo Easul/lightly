@@ -47,16 +47,17 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     fun hasRunningProcess(): Boolean = synchronized(lock) {
-        reapExitedLocked()
-        processes.isNotEmpty()
+        processes.values.any { it.process.isAlive }
     }
 
     fun start(serviceId: String, optionsJson: String): String = synchronized(lock) {
-        reapExitedLocked()
         if (serviceId != SERVICE_MINDGIT && serviceId != SERVICE_LIFE_RECORD) {
             return error("unknown service: $serviceId")
         }
-        processes[serviceId]?.let { return statusFor(it, null) }
+        processes[serviceId]?.let {
+            if (it.process.isAlive) return statusFor(it, null)
+            processes.remove(serviceId)
+        }
 
         val options = runCatching { JSONObject(optionsJson.ifBlank { "{}" }) }
             .getOrElse { return error("invalid options: ${it.message}") }
@@ -82,8 +83,13 @@ internal class LifeRuntimeController(private val context: Context) {
         val port = options.optInt("port", if (serviceId == SERVICE_MINDGIT) 8787 else 8080)
         if (port !in 1024..65535) return error("port must be between 1024 and 65535")
 
-        val password = if (host == "0.0.0.0") generatePassword() else null
-        val configuredPassword = options.optString("password", "").takeIf { it.isNotEmpty() } ?: password
+        val configuredPassword = options.optString("password", "").trim().takeIf { it.isNotEmpty() }
+        val passwordEnv = options.optString("passwordEnv", "").trim()
+        val runtimePasswordEnv = if (configuredPassword == null) {
+            ""
+        } else {
+            passwordEnv.ifEmpty { PRIVATE_PASSWORD_ENV }
+        }
         val command = if (serviceId == SERVICE_MINDGIT) {
             val config = writeMindGitConfig(host, port, root, configuredPassword)
             listOf(executable.absolutePath, "--config", config.absolutePath)
@@ -91,8 +97,9 @@ internal class LifeRuntimeController(private val context: Context) {
             val data = resolveDataDirectory(optionText(options, "dataDir", serviceId), serviceId)
                 ?: return error("dataDir must be a child of ${dataRoot.path}")
             data.mkdirs()
-            val config = writeLifeRecordConfig(options, root, data, host, port)
-            listOf(
+            val config = writeLifeRecordConfig(options, root, data, host, port, runtimePasswordEnv)
+            buildList {
+                addAll(listOf(
                 executable.absolutePath,
                 "serve",
                 "--config", config.absolutePath,
@@ -100,7 +107,10 @@ internal class LifeRuntimeController(private val context: Context) {
                 "--port", port.toString(),
                 "--root", root.absolutePath,
                 "--data-dir", data.absolutePath,
-            )
+                "--base-url", options.optString("baseUrl", "").trim(),
+                ))
+                if (runtimePasswordEnv.isNotEmpty()) addAll(listOf("--password-env", runtimePasswordEnv))
+            }
         }
         val logFile = File(logRoot, "$serviceId.log")
         val process = try {
@@ -108,7 +118,6 @@ internal class LifeRuntimeController(private val context: Context) {
             ProcessBuilder(command)
                 .directory(root)
                 .redirectErrorStream(true)
-                .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
                 .apply {
                     environment()["HOME"] = runtimeRoot.absolutePath
                     environment()["TMPDIR"] = File(runtimeRoot, "tmp").apply { mkdirs() }.absolutePath
@@ -118,7 +127,7 @@ internal class LifeRuntimeController(private val context: Context) {
                     environment()["GIT_TEMPLATE_DIR"] = File(gitRoot, "share/git-core/templates").absolutePath
                     environment()["GIT_OPTIONAL_LOCKS"] = "0"
                     if (serviceId == SERVICE_LIFE_RECORD) {
-                        if (configuredPassword != null) environment()["LIFERECORD_PASSWORD"] = configuredPassword
+                        if (configuredPassword != null) environment()[runtimePasswordEnv] = configuredPassword
                     }
                 }
                 .start()
@@ -140,8 +149,25 @@ internal class LifeRuntimeController(private val context: Context) {
         )
         processes[serviceId] = running
         Thread {
+            runCatching {
+                logFile.parentFile?.mkdirs()
+                logFile.bufferedWriter(Charsets.UTF_8, 8192).use { writer ->
+                    process.inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { line ->
+                            writer.appendLine(line)
+                            writer.flush()
+                            Log.i("$TAG/$serviceId", line)
+                        }
+                    }
+                }
+            }
+        }.apply { name = "life-runtime-log-$serviceId" }.start()
+        Thread {
             val exitCode = runCatching { process.waitFor() }.getOrElse { return@Thread }
             Log.e(TAG, "$serviceId exited with code $exitCode")
+            runCatching {
+                logFile.appendText("process exited with code $exitCode\n")
+            }
         }.apply { name = "life-runtime-$serviceId" }.start()
         statusFor(running, null)
     }
@@ -216,7 +242,6 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     fun status(): String = synchronized(lock) {
-        reapExitedLocked()
         val result = JSONObject()
             .put("runtimeRoot", runtimeRoot.absolutePath)
             .put("installed", JSONObject()
@@ -238,6 +263,13 @@ internal class LifeRuntimeController(private val context: Context) {
             .put("root", process.root.absolutePath)
             .put("startedAt", process.startedAt)
             .apply { if (process.password != null) put("password", process.password) }
+            .apply {
+                if (!process.process.isAlive) {
+                    put("exitCode", runCatching { process.process.exitValue() }.getOrDefault(-1))
+                    val log = File(logRoot, "${process.id}.log")
+                    if (log.isFile) put("lastLog", log.readLines().takeLast(8).joinToString("\n"))
+                }
+            }
             .apply { if (message != null) put("error", message) }
             .toString()
     }
@@ -301,6 +333,7 @@ internal class LifeRuntimeController(private val context: Context) {
         data: File,
         host: String,
         port: Int,
+        passwordEnv: String,
     ): File {
         val config = File(dataRoot, SERVICE_LIFE_RECORD).apply { mkdirs() }.resolve("config.yaml")
         val ai = options.optJSONObject("ai") ?: JSONObject()
@@ -312,10 +345,10 @@ internal class LifeRuntimeController(private val context: Context) {
             "port: $port",
             "data_dir: ${yaml(data.absolutePath)}",
             "mode: ${yaml(optionText(options, "mode", "preview"))}",
-            "base_url: ${yaml(optionText(options, "baseUrl", "http://$host:$port"))}",
+            "base_url: ${yaml(options.optString("baseUrl", "").trim())}",
             "comments: ${options.optBoolean("comments", true)}",
             "refresh: ${yaml(optionText(options, "refresh", "2s"))}",
-            "password_env: ${yaml(optionText(options, "passwordEnv", "LIFERECORD_PASSWORD"))}",
+            "password_env: ${yaml(passwordEnv)}",
             "exclude_dirs:",
         )
         for (index in 0 until excludes.length()) lines += "  - ${yaml(excludes.optString(index))}"
@@ -363,7 +396,8 @@ internal class LifeRuntimeController(private val context: Context) {
         if (!git.isFile) return
         gitRoot.mkdirs()
         val gitLibDir = gitRoot.resolve("lib")
-        if (!gitLibDir.isDirectory) copyAssetTree("git/lib", gitLibDir)
+        gitLibDir.deleteRecursively()
+        copyAssetTree("git/lib", gitLibDir)
         val links = mapOf(
             "git" to git,
             "git-receive-pack" to git,
@@ -381,14 +415,14 @@ internal class LifeRuntimeController(private val context: Context) {
         links.forEach { (name, target) ->
             if (!target.isFile) return@forEach
             val link = File(binRoot, name)
+            if (java.nio.file.Files.isSymbolicLink(link.toPath())) link.delete()
             if (link.exists() || link.isFile) return@forEach
             runCatching { java.nio.file.Files.createSymbolicLink(link.toPath(), target.toPath()) }
         }
         val assetTemplates = File(gitRoot, "share/git-core/templates")
-        if (!assetTemplates.isDirectory) {
-            assetTemplates.parentFile?.mkdirs()
-            copyAssetTree("git/share/git-core/templates", assetTemplates)
-        }
+        assetTemplates.deleteRecursively()
+        assetTemplates.parentFile?.mkdirs()
+        copyAssetTree("git/share/git-core/templates", assetTemplates)
     }
 
     private fun copyAssetTree(assetPath: String, destination: File) {
@@ -454,12 +488,6 @@ internal class LifeRuntimeController(private val context: Context) {
         file.writeText(toString(2))
     }
 
-    private fun generatePassword(): String {
-        val bytes = ByteArray(24)
-        SecureRandom().nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.NO_PADDING)
-    }
-
     private fun hashPassword(password: String): String {
         val salt = ByteArray(16)
         SecureRandom().nextBytes(salt)
@@ -497,16 +525,13 @@ internal class LifeRuntimeController(private val context: Context) {
         if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
     }
 
-    private fun reapExitedLocked() {
-        processes.entries.removeIf { !it.value.process.isAlive }
-    }
-
     companion object {
         private const val TAG = "LifeRuntimeController"
         private const val MAX_ARCHIVE_ENTRIES = 10000
         private const val MAX_ARCHIVE_BYTES = 512L * 1024L * 1024L
         private const val MAX_CONFIG_BYTES = 256 * 1024L
         private const val MAX_FILE_BYTES = 128L * 1024L * 1024L
+        private const val PRIVATE_PASSWORD_ENV = "LIGHTLY_LIFERECORD_PASSWORD"
         const val SERVICE_MINDGIT = "mindgit"
         const val SERVICE_LIFE_RECORD = "liferecord"
     }
