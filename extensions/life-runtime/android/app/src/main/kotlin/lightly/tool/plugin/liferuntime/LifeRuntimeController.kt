@@ -37,7 +37,7 @@ internal class LifeRuntimeController(private val context: Context) {
     private val binRoot = File(runtimeRoot, "bin")
     private val workspaceRoot = File(runtimeRoot, "workspaces")
     private val dataRoot = File(runtimeRoot, "data")
-    private val logRoot = File(runtimeRoot, "logs")
+    private val logRoot = File(workspaceRoot, "life-runtime/logs")
     private val gitRoot = File(runtimeRoot, "git")
 
     init {
@@ -80,13 +80,16 @@ internal class LifeRuntimeController(private val context: Context) {
         if (host == "0.0.0.0" && !options.optBoolean("allowLan", false)) {
             return error("LAN binding requires explicit allowLan=true")
         }
-        val port = options.optInt("port", if (serviceId == SERVICE_MINDGIT) 8787 else 8080)
+        val port = options.optInt("port", if (serviceId == SERVICE_MINDGIT) 8787 else 8347)
         if (port !in 1024..65535) return error("port must be between 1024 and 65535")
 
         val configuredPassword = options.optString("password", "").trim().takeIf { it.isNotEmpty() }
+        if (serviceId == SERVICE_MINDGIT && (configuredPassword?.length ?: 0) < 8) {
+            return error("MindGit password must contain at least 8 characters")
+        }
         val passwordEnv = options.optString("passwordEnv", "").trim()
         val runtimePasswordEnv = if (configuredPassword == null) {
-            ""
+            DISABLED_PASSWORD_ENV
         } else {
             passwordEnv.ifEmpty { PRIVATE_PASSWORD_ENV }
         }
@@ -97,7 +100,8 @@ internal class LifeRuntimeController(private val context: Context) {
             buildList {
                 addAll(listOf(executable.absolutePath, "--config", config.absolutePath))
                 directories.forEach { directory ->
-                    addAll(listOf("-d", directory.relativeTo(config.parentFile ?: workspaceRoot).path))
+                    val relative = directory.relativeTo(config.parentFile ?: workspaceRoot).path
+                    addAll(listOf("-d", if (relative.isEmpty() || relative == ".") "./" else relative))
                 }
             }
         } else {
@@ -114,9 +118,10 @@ internal class LifeRuntimeController(private val context: Context) {
                 "--port", port.toString(),
                 "--root", root.absolutePath,
                 "--data-dir", data.absolutePath,
-                "--base-url", options.optString("baseUrl", "").trim(),
                 ))
-                if (runtimePasswordEnv.isNotEmpty()) addAll(listOf("--password-env", runtimePasswordEnv))
+                val baseUrl = options.optString("baseUrl", "").trim()
+                if (baseUrl.isNotEmpty()) addAll(listOf("--base-url", baseUrl))
+                addAll(listOf("--password-env", runtimePasswordEnv))
             }
         }
         val logFile = File(logRoot, "$serviceId.log")
@@ -181,8 +186,13 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     fun stop(serviceId: String): Boolean = synchronized(lock) {
-        val running = processes.remove(serviceId) ?: return false
+        val running = processes.remove(serviceId) ?: run {
+            Log.i(TAG, "stop ignored for $serviceId: process is not tracked")
+            return false
+        }
+        Log.i(TAG, "stopping $serviceId")
         terminate(running.process)
+        Log.i(TAG, "stopped $serviceId")
         true
     }
 
@@ -256,7 +266,7 @@ internal class LifeRuntimeController(private val context: Context) {
                 .put(SERVICE_MINDGIT, executableFor(SERVICE_MINDGIT).canExecute())
                 .put(SERVICE_LIFE_RECORD, executableFor(SERVICE_LIFE_RECORD).canExecute()))
         val running = JSONObject()
-        processes.values.forEach { running.put(it.id, statusFor(it, null)) }
+        processes.values.forEach { running.put(it.id, JSONObject(statusFor(it, null))) }
         result.put("running", running).toString()
     }
 
@@ -318,7 +328,7 @@ internal class LifeRuntimeController(private val context: Context) {
     private fun resolveMindGitDirectories(options: JSONObject, fallback: File): List<File>? {
         val values = options.optJSONArray("directories")
         val requested = if (values == null || values.length() == 0) {
-            listOf(fallback.relativeTo(workspaceRoot).path)
+            listOf(".")
         } else {
             (0 until values.length()).map { values.optString(it).trim() }.filter { it.isNotEmpty() }
         }
@@ -334,8 +344,7 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     private fun writeMindGitConfig(host: String, port: Int, root: File, password: String?): File {
-        val directory = File(dataRoot, SERVICE_MINDGIT).apply { mkdirs() }
-        val config = File(directory, "config.json")
+        val config = File(workspaceRoot, ".mindgit.json")
         JSONObject()
             .put("version", 1)
             .put("server", JSONObject().put("bind", host).put("port", port))
@@ -361,7 +370,7 @@ internal class LifeRuntimeController(private val context: Context) {
         port: Int,
         passwordEnv: String,
     ): File {
-        val config = File(dataRoot, SERVICE_LIFE_RECORD).apply { mkdirs() }.resolve("config.yaml")
+        val config = File(workspaceRoot, "life-record").apply { mkdirs() }.resolve("config.yaml")
         val ai = options.optJSONObject("ai") ?: JSONObject()
         val excludes = options.optJSONArray("excludeDirs") ?: org.json.JSONArray()
         val lines = mutableListOf(
@@ -439,6 +448,9 @@ internal class LifeRuntimeController(private val context: Context) {
             "zip" to File(native, "libzip.so"),
             "ls" to File("/system/bin/toybox"),
             "clear" to File("/system/bin/toybox"),
+            "mv" to File("/system/bin/toybox"),
+            "cat" to File("/system/bin/toybox"),
+            "rm" to File("/system/bin/toybox"),
         )
         links.forEach { (name, target) ->
             if (!target.isFile) return@forEach
@@ -560,6 +572,7 @@ internal class LifeRuntimeController(private val context: Context) {
         private const val MAX_CONFIG_BYTES = 256 * 1024L
         private const val MAX_FILE_BYTES = 128L * 1024L * 1024L
         private const val PRIVATE_PASSWORD_ENV = "LIGHTLY_LIFERECORD_PASSWORD"
+        private const val DISABLED_PASSWORD_ENV = "LIGHTLY_LIFERECORD_PASSWORD_DISABLED"
         const val SERVICE_MINDGIT = "mindgit"
         const val SERVICE_LIFE_RECORD = "liferecord"
     }

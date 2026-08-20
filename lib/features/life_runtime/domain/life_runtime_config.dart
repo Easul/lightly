@@ -6,7 +6,7 @@ class MindGitRuntimeConfig {
     this.port = 8787,
     this.password = '',
     this.workspace = 'default',
-    this.directories = const <String>['default'],
+    this.directories = const <String>['./'],
   });
 
   final String host;
@@ -54,7 +54,50 @@ class MindGitRuntimeConfig {
       port: _int(json['port'], 8787),
       password: _string(json['password'], ''),
       workspace: workspace,
-      directories: directories.isEmpty ? <String>[workspace] : directories,
+      directories:
+          directories.isEmpty ||
+              (directories.length == 1 && directories.single == workspace)
+          ? const <String>['./']
+          : directories,
+    );
+  }
+}
+
+class LifeRecordAiProfile {
+  const LifeRecordAiProfile({
+    required this.id,
+    required this.name,
+    this.apiKey = '',
+    this.baseUrl = 'https://api.openai.com',
+    this.apiType = 'chat_completions',
+    this.model = 'gpt-4o-mini',
+  });
+
+  final String id;
+  final String name;
+  final String apiKey;
+  final String baseUrl;
+  final String apiType;
+  final String model;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'name': name,
+    'apiKey': apiKey,
+    'baseUrl': baseUrl,
+    'apiType': apiType,
+    'model': model,
+  };
+
+  factory LifeRecordAiProfile.fromJson(Object? value) {
+    final json = value is Map ? value : const <String, Object?>{};
+    return LifeRecordAiProfile(
+      id: _string(json['id'], 'default'),
+      name: _string(json['name'], '默认'),
+      apiKey: _optionalString(json['apiKey']),
+      baseUrl: _string(json['baseUrl'], 'https://api.openai.com'),
+      apiType: _string(json['apiType'], 'chat_completions'),
+      model: _string(json['model'], 'gpt-4o-mini'),
     );
   }
 }
@@ -69,6 +112,8 @@ class LifeRecordAiConfig {
     this.thinking = true,
     this.tools = true,
     this.systemPrompt = '',
+    this.activeProfileId = '',
+    this.profiles = const <LifeRecordAiProfile>[],
   });
 
   final bool enabled;
@@ -79,6 +124,8 @@ class LifeRecordAiConfig {
   final bool thinking;
   final bool tools;
   final String systemPrompt;
+  final String activeProfileId;
+  final List<LifeRecordAiProfile> profiles;
 
   LifeRecordAiConfig copyWith({
     bool? enabled,
@@ -89,6 +136,8 @@ class LifeRecordAiConfig {
     bool? thinking,
     bool? tools,
     String? systemPrompt,
+    String? activeProfileId,
+    List<LifeRecordAiProfile>? profiles,
   }) {
     return LifeRecordAiConfig(
       enabled: enabled ?? this.enabled,
@@ -99,6 +148,8 @@ class LifeRecordAiConfig {
       thinking: thinking ?? this.thinking,
       tools: tools ?? this.tools,
       systemPrompt: systemPrompt ?? this.systemPrompt,
+      activeProfileId: activeProfileId ?? this.activeProfileId,
+      profiles: profiles ?? this.profiles,
     );
   }
 
@@ -111,19 +162,42 @@ class LifeRecordAiConfig {
     'thinking': thinking,
     'tools': tools,
     'systemPrompt': systemPrompt,
+    'activeProfileId': activeProfileId,
+    'profiles': profiles.map((profile) => profile.toJson()).toList(),
   };
 
   factory LifeRecordAiConfig.fromJson(Object? value) {
     final json = value is Map ? value : const <String, Object?>{};
-    return LifeRecordAiConfig(
-      enabled: _bool(json['enabled'], false),
-      apiKey: _string(json['apiKey'], ''),
+    final parsedProfiles = (json['profiles'] as List? ?? const <Object?>[])
+        .map(LifeRecordAiProfile.fromJson)
+        .toList();
+    final legacyProfile = LifeRecordAiProfile(
+      id: 'default',
+      name: '默认',
+      apiKey: _optionalString(json['apiKey']),
       baseUrl: _string(json['baseUrl'], 'https://api.openai.com'),
       apiType: _string(json['apiType'], 'chat_completions'),
       model: _string(json['model'], 'gpt-4o-mini'),
+    );
+    final profiles = parsedProfiles.isEmpty
+        ? <LifeRecordAiProfile>[legacyProfile]
+        : parsedProfiles;
+    final requestedActive = _optionalString(json['activeProfileId']);
+    final active = profiles.any((profile) => profile.id == requestedActive)
+        ? requestedActive
+        : profiles.first.id;
+    final selected = profiles.firstWhere((profile) => profile.id == active);
+    return LifeRecordAiConfig(
+      enabled: _bool(json['enabled'], false),
+      apiKey: selected.apiKey,
+      baseUrl: selected.baseUrl,
+      apiType: selected.apiType,
+      model: selected.model,
       thinking: _bool(json['thinking'], true),
       tools: _bool(json['tools'], true),
       systemPrompt: _string(json['systemPrompt'], ''),
+      activeProfileId: active,
+      profiles: profiles,
     );
   }
 }
@@ -131,9 +205,9 @@ class LifeRecordAiConfig {
 class LifeRecordRuntimeConfig {
   const LifeRecordRuntimeConfig({
     this.title = '人生记录',
-    this.root = 'temp/summary',
+    this.root = 'summary',
     this.host = '127.0.0.1',
-    this.port = 8080,
+    this.port = 8347,
     this.dataDir = 'life-record/data',
     this.mode = 'preview',
     this.baseUrl = '',
@@ -207,20 +281,34 @@ class LifeRecordRuntimeConfig {
     'ai': ai.toJson(),
   };
 
-  factory LifeRecordRuntimeConfig.fromJson(Object? value) {
+  factory LifeRecordRuntimeConfig.fromJson(
+    Object? value, {
+    bool migrateLegacyDefaults = false,
+  }) {
     final json = value is Map ? value : const <String, Object?>{};
     final excludes = json['excludeDirs'];
+    final storedRoot = _string(json['root'], 'summary');
+    final storedPort = _int(json['port'], 8347);
+    final storedBaseUrl = _optionalString(json['baseUrl']);
+    final storedPasswordEnv = _optionalString(json['passwordEnv']);
     return LifeRecordRuntimeConfig(
       title: _string(json['title'], '人生记录'),
-      root: _string(json['root'], 'temp/summary'),
+      root: migrateLegacyDefaults && storedRoot == 'temp/summary'
+          ? 'summary'
+          : storedRoot,
       host: _string(json['host'], '127.0.0.1'),
-      port: _int(json['port'], 8080),
+      port: migrateLegacyDefaults && storedPort == 8080 ? 8347 : storedPort,
       dataDir: _string(json['dataDir'], 'life-record/data'),
       mode: _string(json['mode'], 'preview'),
-      baseUrl: _optionalString(json['baseUrl']),
+      baseUrl: migrateLegacyDefaults && storedBaseUrl == 'http://127.0.0.1:8080'
+          ? ''
+          : storedBaseUrl,
       comments: _bool(json['comments'], true),
       refresh: _string(json['refresh'], '2s'),
-      passwordEnv: _optionalString(json['passwordEnv']),
+      passwordEnv:
+          migrateLegacyDefaults && storedPasswordEnv == 'LIFERECORD_PASSWORD'
+          ? ''
+          : storedPasswordEnv,
       password: _string(json['password'], ''),
       excludeDirs: excludes is List
           ? excludes
@@ -243,7 +331,7 @@ class LifeRuntimeConfig {
   final LifeRecordRuntimeConfig lifeRecord;
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'version': 1,
+    'version': 2,
     'mindgit': mindGit.toJson(),
     'liferecord': lifeRecord.toJson(),
   };
@@ -254,7 +342,10 @@ class LifeRuntimeConfig {
     final json = value is Map ? value : const <String, Object?>{};
     return LifeRuntimeConfig(
       mindGit: MindGitRuntimeConfig.fromJson(json['mindgit']),
-      lifeRecord: LifeRecordRuntimeConfig.fromJson(json['liferecord']),
+      lifeRecord: LifeRecordRuntimeConfig.fromJson(
+        json['liferecord'],
+        migrateLegacyDefaults: _int(json['version'], 1) < 2,
+      ),
     );
   }
 

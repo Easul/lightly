@@ -45,13 +45,20 @@ the Lightly build that declares the minimum version code.
 `extensions/life-runtime` is a pure Android companion. It owns the private runtime directory,
 starts the Android builds of `mindgit` and `liferecord`, and exposes only fixed start/stop/status
 operations over a signature-protected AIDL service. It does not provide a shell or arbitrary
-command execution. Runtime executables are copied from the APK's `runtime/bin` assets on first
-use; ordinary glibc Linux binaries are not compatible with Android's bionic linker.
+host-side command API. Android-native executables are packaged as extracted native libraries;
+ordinary glibc Linux binaries are not compatible with Android's bionic linker.
 
 Use `LIFE_RUNTIME_BIN_DIR` to point the companion build at a directory containing Android
-executables. The expected names are `mindgit` and `liferecord`; future tool assets such as `git`,
-`ssh`, and `rg` use the same directory. The first runtime version binds to `127.0.0.1`; a LAN
-bind requires an explicit option and generated application credentials.
+executables. The expected names are `mindgit` and `liferecord`. Set `LIFE_RUNTIME_GIT_DIR` to the
+pinned Termux Android runtime prepared by `extensions/life-runtime/tools/prepare_git_runtime.sh`;
+it supplies Git, SSH, ripgrep, zip, and unzip. Basic file commands use Android toybox and still run
+under the companion UID. A LAN bind requires an explicit option; MindGit always requires an access
+password of at least eight characters.
+
+User content, service configuration, data, and logs live below
+`files/runtime/workspaces`. MindGit `-d` paths, Life Record content paths, and Life Record data paths
+are relative to that workspace root and must not escape it. Life Record's default paths are
+`summary`, `life-record/config.yaml`, `life-record/data`, and `life-runtime/logs`.
 
 ## Pinned delivery and GitHub Actions
 

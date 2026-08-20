@@ -34,6 +34,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   late final TextEditingController _lifePasswordEnvController;
   late final TextEditingController _lifeExcludeDirsController;
   late final TextEditingController _aiKeyController;
+  late final TextEditingController _aiProfileNameController;
   late final TextEditingController _aiBaseUrlController;
   late final TextEditingController _aiTypeController;
   late final TextEditingController _aiModelController;
@@ -42,6 +43,8 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   bool _aiEnabled = false;
   bool _aiThinking = true;
   bool _aiTools = true;
+  List<LifeRecordAiProfile> _aiProfiles = const <LifeRecordAiProfile>[];
+  String _activeAiProfileId = '';
   bool _busy = false;
   bool _allowLan = false;
   Timer? _statusTimer;
@@ -63,6 +66,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     _lifePasswordEnvController = TextEditingController();
     _lifeExcludeDirsController = TextEditingController();
     _aiKeyController = TextEditingController();
+    _aiProfileNameController = TextEditingController();
     _aiBaseUrlController = TextEditingController();
     _aiTypeController = TextEditingController();
     _aiModelController = TextEditingController();
@@ -93,6 +97,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
       _lifePasswordEnvController,
       _lifeExcludeDirsController,
       _aiKeyController,
+      _aiProfileNameController,
       _aiBaseUrlController,
       _aiTypeController,
       _aiModelController,
@@ -123,10 +128,23 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     _lifePasswordController.text = life.password;
     _lifePasswordEnvController.text = life.passwordEnv;
     _lifeExcludeDirsController.text = life.excludeDirs.join(', ');
-    _aiKeyController.text = life.ai.apiKey;
-    _aiBaseUrlController.text = life.ai.baseUrl;
-    _aiTypeController.text = life.ai.apiType;
-    _aiModelController.text = life.ai.model;
+    _aiProfiles = life.ai.profiles.isEmpty
+        ? <LifeRecordAiProfile>[
+            LifeRecordAiProfile(
+              id: 'default',
+              name: '默认',
+              apiKey: life.ai.apiKey,
+              baseUrl: life.ai.baseUrl,
+              apiType: life.ai.apiType,
+              model: life.ai.model,
+            ),
+          ]
+        : List<LifeRecordAiProfile>.from(life.ai.profiles);
+    _activeAiProfileId =
+        _aiProfiles.any((profile) => profile.id == life.ai.activeProfileId)
+        ? life.ai.activeProfileId
+        : _aiProfiles.first.id;
+    _loadAiProfile(_activeAiProfileId);
     _aiPromptController.text = life.ai.systemPrompt;
     setState(() {
       _lifeComments = life.comments;
@@ -136,21 +154,94 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     });
   }
 
-  Future<void> _saveConfig() async {
+  void _loadAiProfile(String id) {
+    final profile = _aiProfiles.firstWhere((item) => item.id == id);
+    _aiProfileNameController.text = profile.name;
+    _aiKeyController.text = profile.apiKey;
+    _aiBaseUrlController.text = profile.baseUrl;
+    _aiTypeController.text = profile.apiType;
+    _aiModelController.text = profile.model;
+  }
+
+  void _storeCurrentAiProfile() {
+    final index = _aiProfiles.indexWhere(
+      (profile) => profile.id == _activeAiProfileId,
+    );
+    if (index < 0) return;
+    final updated = LifeRecordAiProfile(
+      id: _activeAiProfileId,
+      name: _textOr(_aiProfileNameController.text, '未命名方案'),
+      apiKey: _aiKeyController.text.trim(),
+      baseUrl: _textOr(_aiBaseUrlController.text, 'https://api.openai.com'),
+      apiType: _textOr(_aiTypeController.text, 'chat_completions'),
+      model: _textOr(_aiModelController.text, 'gpt-4o-mini'),
+    );
+    _aiProfiles = List<LifeRecordAiProfile>.from(_aiProfiles)
+      ..[index] = updated;
+  }
+
+  void _selectAiProfile(String id) {
+    if (id == _activeAiProfileId) return;
+    _storeCurrentAiProfile();
+    setState(() {
+      _activeAiProfileId = id;
+      _loadAiProfile(id);
+    });
+    unawaited(_saveConfig(notify: false));
+  }
+
+  void _addAiProfile() {
+    _storeCurrentAiProfile();
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final profile = LifeRecordAiProfile(
+      id: id,
+      name: '新方案 ${_aiProfiles.length + 1}',
+    );
+    setState(() {
+      _aiProfiles = <LifeRecordAiProfile>[..._aiProfiles, profile];
+      _activeAiProfileId = id;
+      _loadAiProfile(id);
+    });
+    unawaited(_saveConfig(notify: false));
+  }
+
+  void _deleteAiProfile() {
+    if (_aiProfiles.length <= 1) return;
+    final remaining = _aiProfiles
+        .where((profile) => profile.id != _activeAiProfileId)
+        .toList();
+    setState(() {
+      _aiProfiles = remaining;
+      _activeAiProfileId = remaining.first.id;
+      _loadAiProfile(_activeAiProfileId);
+    });
+    unawaited(_saveConfig(notify: false));
+  }
+
+  bool _validateMindGitPassword() {
+    if (_mindGitPasswordController.text.trim().length >= 8) return true;
+    unawaited(AppToast.show('MindGit 访问密码至少需要 8 个字符'));
+    return false;
+  }
+
+  Future<bool> _saveConfig({bool notify = true}) async {
     final old = _config;
     const defaults = LifeRuntimeConfig();
+    _storeCurrentAiProfile();
+    final selectedAi = _aiProfiles.firstWhere(
+      (profile) => profile.id == _activeAiProfileId,
+    );
     final lifeAi = old.lifeRecord.ai.copyWith(
       enabled: _aiEnabled,
-      apiKey: _aiKeyController.text.trim(),
-      baseUrl: _textOr(
-        _aiBaseUrlController.text,
-        defaults.lifeRecord.ai.baseUrl,
-      ),
-      apiType: _textOr(_aiTypeController.text, defaults.lifeRecord.ai.apiType),
-      model: _textOr(_aiModelController.text, defaults.lifeRecord.ai.model),
+      apiKey: selectedAi.apiKey,
+      baseUrl: selectedAi.baseUrl,
+      apiType: selectedAi.apiType,
+      model: selectedAi.model,
       thinking: _aiThinking,
       tools: _aiTools,
       systemPrompt: _aiPromptController.text,
+      activeProfileId: _activeAiProfileId,
+      profiles: _aiProfiles,
     );
     final config = LifeRuntimeConfig(
       mindGit: old.mindGit.copyWith(
@@ -158,11 +249,14 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
         port:
             int.tryParse(_mindGitPortController.text) ?? defaults.mindGit.port,
         password: _mindGitPasswordController.text,
-        directories: _mindGitDirectoriesController.text
-            .split(',')
-            .map((item) => item.trim())
-            .where((item) => item.isNotEmpty)
-            .toList(),
+        directories: () {
+          final values = _mindGitDirectoriesController.text
+              .split(',')
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toList();
+          return values.isEmpty ? const <String>['./'] : values;
+        }(),
       ),
       lifeRecord: old.lifeRecord.copyWith(
         host: _allowLan ? '0.0.0.0' : '127.0.0.1',
@@ -194,8 +288,9 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     await _configStore.save(config);
     if (mounted) {
       setState(() => _config = config);
-      unawaited(AppToast.show('运行时配置已保存；重启服务后生效'));
+      if (notify) unawaited(AppToast.show('运行时配置已保存；重启服务后生效'));
     }
+    return true;
   }
 
   Future<void> _refresh() async {
@@ -319,7 +414,9 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 ),
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('密码为空时关闭 MindGit 登录保护；修改后需重启服务。'),
+                  child: Text(
+                    '项目目录相对于运行目录的 workspaces 子目录；./ 表示整个 workspace。访问密码必填且至少 8 个字符。',
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -339,12 +436,26 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
               children: [
                 _configField(_lifeTitleController, '标题'),
                 _configField(_lifeRootController, '内容目录'),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('内容目录相对于运行目录的 workspaces 子目录。'),
+                  ),
+                ),
                 _configField(
                   _lifePortController,
                   '端口',
                   keyboardType: TextInputType.number,
                 ),
                 _configField(_lifeDataDirController, '数据目录'),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('数据目录相对于运行目录的 workspaces 子目录。'),
+                  ),
+                ),
                 _configField(_lifeModeController, '模式（preview / public）'),
                 _configField(_lifeBaseUrlController, 'Base URL'),
                 _configField(_lifeRefreshController, '刷新间隔'),
@@ -377,6 +488,50 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                           ? null
                           : (value) => setState(() => _aiEnabled = value),
                     ),
+                    if (_aiProfiles.isNotEmpty)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              key: ValueKey<String>(_activeAiProfileId),
+                              initialValue: _activeAiProfileId,
+                              decoration: const InputDecoration(
+                                labelText: '上游方案',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: _aiProfiles
+                                  .map(
+                                    (profile) => DropdownMenuItem<String>(
+                                      value: profile.id,
+                                      child: Text(profile.name),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: _busy
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        _selectAiProfile(value);
+                                      }
+                                    },
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '新增上游方案',
+                            onPressed: _busy ? null : _addAiProfile,
+                            icon: const Icon(Icons.add_rounded),
+                          ),
+                          IconButton(
+                            tooltip: '删除当前方案',
+                            onPressed: _busy || _aiProfiles.length <= 1
+                                ? null
+                                : _deleteAiProfile,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 8),
+                    _configField(_aiProfileNameController, '方案名称'),
                     _configField(
                       _aiKeyController,
                       'API Key',
@@ -421,7 +576,8 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
             running: running['mindgit'],
             busy: _busy,
             onStart: () => _run(() async {
-              await _saveConfig();
+              if (!_validateMindGitPassword()) return '{}';
+              if (!await _saveConfig(notify: false)) return '{}';
               return _gateway.start(
                 'mindgit',
                 host: _config.mindGit.host,
@@ -436,8 +592,9 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
               );
             }),
             onRestart: () => _run(() async {
+              if (!_validateMindGitPassword()) return '{}';
               await _gateway.stop('mindgit');
-              await _saveConfig();
+              if (!await _saveConfig(notify: false)) return '{}';
               return _gateway.start(
                 'mindgit',
                 host: _config.mindGit.host,
@@ -462,7 +619,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
             running: running['liferecord'],
             busy: _busy,
             onStart: () => _run(() async {
-              await _saveConfig();
+              if (!await _saveConfig(notify: false)) return '{}';
               return _gateway.start(
                 'liferecord',
                 host: _config.lifeRecord.host,
@@ -470,7 +627,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 port: int.tryParse(_lifePortController.text),
                 workspace: _config.lifeRecord.root,
                 settings: <String, Object?>{
-                  'root': _textOr(_lifeRootController.text, 'temp/summary'),
+                  'root': _textOr(_lifeRootController.text, 'summary'),
                   'title': _textOr(_lifeTitleController.text, '人生记录'),
                   'dataDir': _textOr(
                     _lifeDataDirController.text,
@@ -489,7 +646,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
             }),
             onRestart: () => _run(() async {
               await _gateway.stop('liferecord');
-              await _saveConfig();
+              if (!await _saveConfig(notify: false)) return '{}';
               final life = _config.lifeRecord;
               return _gateway.start(
                 'liferecord',
