@@ -101,8 +101,8 @@ internal class LifeRuntimeController(private val context: Context) {
                 }
             }
         } else {
-            val data = resolveDataDirectory(optionText(options, "dataDir", serviceId), serviceId)
-                ?: return error("dataDir must be a child of ${dataRoot.path}")
+            val data = resolveDataDirectory(optionText(options, "dataDir", "life-record/data"))
+                ?: return error("dataDir must be a relative child of ${workspaceRoot.path}")
             data.mkdirs()
             val config = writeLifeRecordConfig(options, root, data, host, port, runtimePasswordEnv)
             buildList {
@@ -307,10 +307,10 @@ internal class LifeRuntimeController(private val context: Context) {
         return if (candidatePath.startsWith(rootPath)) candidate else null
     }
 
-    private fun resolveDataDirectory(value: String, fallback: String): File? {
-        val requested = if (value.isBlank()) fallback else value
-        val candidate = File(dataRoot, requested)
-        val base = dataRoot.canonicalFile.toPath()
+    private fun resolveDataDirectory(value: String): File? {
+        if (File(value).isAbsolute) return null
+        val candidate = File(workspaceRoot, value)
+        val base = workspaceRoot.canonicalFile.toPath()
         val path = runCatching { candidate.canonicalFile.toPath() }.getOrNull() ?: return null
         return if (path.startsWith(base)) candidate else null
     }

@@ -472,7 +472,10 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 settings: <String, Object?>{
                   'root': _textOr(_lifeRootController.text, 'temp/summary'),
                   'title': _textOr(_lifeTitleController.text, '人生记录'),
-                  'dataDir': _textOr(_lifeDataDirController.text, 'data'),
+                  'dataDir': _textOr(
+                    _lifeDataDirController.text,
+                    'life-record/data',
+                  ),
                   'mode': _textOr(_lifeModeController.text, 'preview'),
                   'baseUrl': _lifeBaseUrlController.text.trim(),
                   'comments': _lifeComments,
