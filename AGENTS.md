@@ -31,6 +31,7 @@
   - `## Local HTTP / Clipboard LAN Address Display`
   - `## Calculator Input / Compact Layout Rules`
   - `## Common Production Fixes (v1.0.1+2)`
+  - `## Life Runtime Workspace and Configuration`
 
 ## Repository Workflow
 
@@ -1425,6 +1426,25 @@ The address bar lock icon opens a dialog for clearing current-site data:
   position. The pre-playback previous/next path uses the controller-owned browse queue fallback
   and must keep working before any track has started.
 - Source of truth: `docs/music-player.md`.
+
+## Life Runtime Workspace and Configuration
+
+- The Life Runtime companion owns `files/runtime/workspaces`. MindGit uses that directory directly
+  through `-d ./`; do not recreate `workspaces/default` or add its absolute path to MindGit's
+  projects.
+- Runtime-owned files live at `workspaces/mindgit/.mindgit.json`,
+  `workspaces/mindgit/mindgit.log`, `workspaces/life-record/life-record.yaml`, and
+  `workspaces/life-record/life-record.log`. Life Record data defaults to
+  `workspaces/life-record/data`. Do not recreate `workspaces/life-runtime`.
+- Life Runtime API 3 owns bidirectional synchronization between Lightly's page state and the two
+  runtime configuration files. Preserve MindGit fields outside the page's ownership. For Life
+  Record AI, synchronize only the currently selected profile's API key, Base URL, API type, and
+  model; other profiles stay in Lightly's persisted configuration.
+- Populate the private runtime `bin` from the device's actual `toybox --long` applet list while
+  preserving dedicated Git, SSH, ripgrep, zip, and unzip executables. Toybox commands remain
+  restricted by the companion UID and are not a host-side arbitrary command API.
+- Related files: `extensions/life-runtime/android/app/src/main/kotlin/lightly/tool/plugin/liferuntime/LifeRuntimeController.kt`,
+  `lib/pages/life_runtime_page.dart`, and `docs/optional-plugin-release.md`.
 
 ## Scope discipline
 

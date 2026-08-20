@@ -17,13 +17,16 @@ void main() {
       3,
     );
     expect(
-      OptionalFeatureCatalog.descriptor(OptionalFeatureId.lifeRuntime).packageName,
+      OptionalFeatureCatalog.descriptor(
+        OptionalFeatureId.lifeRuntime,
+      ).packageName,
       'lightly.tool.plugin.liferuntime',
     );
     expect(
-      OptionalFeatureCatalog.descriptor(OptionalFeatureId.lifeRuntime)
-          .minimumApiVersion,
-      1,
+      OptionalFeatureCatalog.descriptor(
+        OptionalFeatureId.lifeRuntime,
+      ).minimumApiVersion,
+      3,
     );
     expect(OptionalFeatureCatalog.manifestAsset, endsWith('plugins.json'));
   });

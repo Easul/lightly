@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../features/life_runtime/infrastructure/life_runtime_plugin_gateway.dart';
 import '../features/life_runtime/domain/life_runtime_config.dart';
 import '../features/life_runtime/infrastructure/life_runtime_config_store.dart';
+import '../features/life_runtime/infrastructure/life_runtime_file_config_codec.dart';
 import '../services/app_toast.dart';
 
 class LifeRuntimePage extends StatefulWidget {
@@ -18,6 +19,8 @@ class LifeRuntimePage extends StatefulWidget {
 class _LifeRuntimePageState extends State<LifeRuntimePage> {
   final LifeRuntimePluginGateway _gateway = LifeRuntimePluginGateway();
   final LifeRuntimeConfigStore _configStore = LifeRuntimeConfigStore();
+  static const LifeRuntimeFileConfigCodec _fileConfigCodec =
+      LifeRuntimeFileConfigCodec();
   Map<String, Object?> _status = const <String, Object?>{};
   LifeRuntimeConfig _config = const LifeRuntimeConfig();
   late final TextEditingController _mindGitPortController;
@@ -108,9 +111,27 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     super.dispose();
   }
 
-  Future<void> _loadConfig() async {
-    final config = await _configStore.load();
+  Future<void> _loadConfig({bool notify = false}) async {
+    var config = await _configStore.load();
+    try {
+      final fileConfig = await _gateway.readConfigFiles();
+      config = _fileConfigCodec.merge(config, fileConfig);
+      await _configStore.save(config);
+      final hasMindGitConfig = fileConfig['mindgit'] is Map;
+      final hasLifeRecordConfig =
+          fileConfig['liferecordYaml']?.toString().trim().isNotEmpty == true;
+      if (!hasMindGitConfig || !hasLifeRecordConfig) {
+        await _gateway.writeConfigFiles(config);
+      }
+      if (notify) unawaited(AppToast.show('已从运行时配置文件刷新'));
+    } catch (error) {
+      if (notify) unawaited(AppToast.show('读取运行时配置失败：$error'));
+    }
     if (!mounted) return;
+    _applyConfig(config);
+  }
+
+  void _applyConfig(LifeRuntimeConfig config) {
     _config = config;
     _allowLan =
         config.mindGit.host == '0.0.0.0' || config.lifeRecord.host == '0.0.0.0';
@@ -286,6 +307,15 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
       ),
     );
     await _configStore.save(config);
+    try {
+      await _gateway.writeConfigFiles(config);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _config = config);
+        if (notify) unawaited(AppToast.show('页面配置已保存，但写入运行时文件失败：$error'));
+      }
+      return false;
+    }
     if (mounted) {
       setState(() => _config = config);
       if (notify) unawaited(AppToast.show('运行时配置已保存；重启服务后生效'));
@@ -359,7 +389,16 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   Widget build(BuildContext context) {
     final running = _running();
     return Scaffold(
-      appBar: AppBar(title: const Text('人生知识库运行时')),
+      appBar: AppBar(
+        title: const Text('人生知识库运行时'),
+        actions: [
+          IconButton(
+            tooltip: '从配置文件刷新',
+            onPressed: _busy ? null : () => _loadConfig(notify: true),
+            icon: const Icon(Icons.sync_rounded),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -585,7 +624,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 port: int.tryParse(_mindGitPortController.text),
                 workspace: _config.mindGit.workspace,
                 settings: <String, Object?>{
-                  'root': _textOr(_config.mindGit.workspace, 'default'),
+                  'root': _textOr(_config.mindGit.workspace, './'),
                   'password': _mindGitPasswordController.text,
                   'directories': _config.mindGit.directories,
                 },

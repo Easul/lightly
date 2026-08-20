@@ -31,6 +31,11 @@ class LifeRuntimePluginService : Service() {
 
         override fun getStatus(): String = controller.status()
 
+        override fun readConfigFiles(): String = controller.readConfigFiles()
+
+        override fun writeConfigFiles(hostConfigJson: String): String =
+            controller.writeConfigFiles(hostConfigJson)
+
         override fun stopAll() {
             controller.stopAll()
             stopRuntimeForeground()
@@ -111,7 +116,7 @@ class LifeRuntimePluginService : Service() {
     }
 
     companion object {
-        private const val API_VERSION = 2
+        private const val API_VERSION = 3
         private const val NOTIFICATION_ID = 14611
         private const val NOTIFICATION_CHANNEL = "lightly_life_runtime"
     }

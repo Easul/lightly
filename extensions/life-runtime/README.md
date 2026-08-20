@@ -10,15 +10,22 @@ and logs:
 ```text
 /data/user/0/lightly.tool.plugin.liferuntime/files/runtime/
   workspaces/
+    mindgit/
+      .mindgit.json
+      mindgit.log
+    life-record/
+      life-record.yaml
+      life-record.log
+      data/
   data/
-  logs/
+  bin/
 ```
 
-The first release intentionally exposes only fixed start/stop operations over
-the signature-protected AIDL service. It does not expose arbitrary command
-execution or a terminal. Android builds of `git`, `ssh`, and optional `rg`
-will be added to `runtime/bin` as versioned tool assets; ordinary glibc Linux
-binaries are not compatible with Android's bionic runtime.
+The signature-protected API exposes fixed service, configuration-sync, and
+backup operations. It does not expose arbitrary host-side command execution.
+Android builds of `git`, `ssh`, `rg`, `zip`, and `unzip` are added to
+`runtime/bin`; supported system toybox applets are linked there at startup.
+Ordinary glibc Linux binaries are not compatible with Android's bionic runtime.
 
 The default bind address is `127.0.0.1`. LAN binding is an explicit caller
 option and must be paired with application authentication before release.
@@ -54,7 +61,5 @@ adb install -r extensions/life-runtime/android/app/build/outputs/apk/release/app
 
 Open Lightly -> 小工具 -> 人生运行时. The APK can also be installed directly
 with `adb`; a release `plugins.json` is only needed for Lightly's downloader.
-The smoke-test bundle does not yet include `git`, `ssh`, or `rg`, so MindGit's
-Git operations remain unavailable until those Android tools are added. The
-current runtime binaries are arm64; build and install the matching arm64
+The current runtime binaries are arm64; build and install the matching arm64
 companion on a 64-bit Android device.

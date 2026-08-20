@@ -120,6 +120,15 @@ class LifeRuntimePluginChannelHandler(
                     }
                 }
                 METHOD_STATUS -> result.success(connected.getStatus())
+                METHOD_READ_CONFIG_FILES -> result.success(connected.readConfigFiles())
+                METHOD_WRITE_CONFIG_FILES -> {
+                    val configJson = call.argument<String>(ARG_CONFIG_JSON) ?: "{}"
+                    if (configJson.length > MAX_OPTIONS_LENGTH) {
+                        result.error(ERROR_INVALID_ARGUMENTS, "Runtime config is too large", null)
+                    } else {
+                        result.success(connected.writeConfigFiles(configJson))
+                    }
+                }
                 METHOD_STOP_ALL -> {
                     connected.stopAll()
                     result.success(null)
@@ -220,7 +229,7 @@ class LifeRuntimePluginChannelHandler(
         private const val PLUGIN_BOOTSTRAP_ACTIVITY_CLASS =
             "lightly.tool.plugin.liferuntime.PluginBootstrapActivity"
         private const val ACTION_BIND = "lightly.tool.plugin.liferuntime.BIND"
-        private const val MINIMUM_API_VERSION = 2
+        private const val MINIMUM_API_VERSION = 3
         private const val MAX_OPTIONS_LENGTH = 16 * 1024
         private const val ERROR_INCOMPATIBLE = "INCOMPATIBLE"
         private const val ERROR_UNAVAILABLE = "UNAVAILABLE"
@@ -230,6 +239,8 @@ class LifeRuntimePluginChannelHandler(
         private const val METHOD_START = "start"
         private const val METHOD_STOP = "stop"
         private const val METHOD_STATUS = "status"
+        private const val METHOD_READ_CONFIG_FILES = "readConfigFiles"
+        private const val METHOD_WRITE_CONFIG_FILES = "writeConfigFiles"
         private const val METHOD_STOP_ALL = "stopAll"
         private const val METHOD_EXPORT = "export"
         private const val METHOD_IMPORT = "import"
@@ -241,6 +252,8 @@ class LifeRuntimePluginChannelHandler(
             METHOD_START,
             METHOD_STOP,
             METHOD_STATUS,
+            METHOD_READ_CONFIG_FILES,
+            METHOD_WRITE_CONFIG_FILES,
             METHOD_STOP_ALL,
             METHOD_EXPORT,
             METHOD_IMPORT,

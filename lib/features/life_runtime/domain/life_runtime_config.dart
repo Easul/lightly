@@ -5,7 +5,7 @@ class MindGitRuntimeConfig {
     this.host = '127.0.0.1',
     this.port = 8787,
     this.password = '',
-    this.workspace = 'default',
+    this.workspace = './',
     this.directories = const <String>['./'],
   });
 
@@ -48,17 +48,22 @@ class MindGitRuntimeConfig {
               .where((item) => item.isNotEmpty)
               .toList()
         : <String>[];
-    final workspace = _string(json['workspace'], 'default');
+    final storedWorkspace = _string(json['workspace'], './');
+    final workspace = storedWorkspace == 'default' ? './' : storedWorkspace;
+    final normalizedDirectories = directories
+        .map((directory) => directory == 'default' ? './' : directory)
+        .toList();
     return MindGitRuntimeConfig(
       host: _string(json['host'], '127.0.0.1'),
       port: _int(json['port'], 8787),
       password: _string(json['password'], ''),
       workspace: workspace,
       directories:
-          directories.isEmpty ||
-              (directories.length == 1 && directories.single == workspace)
+          normalizedDirectories.isEmpty ||
+              (normalizedDirectories.length == 1 &&
+                  normalizedDirectories.single == workspace)
           ? const <String>['./']
-          : directories,
+          : normalizedDirectories,
     );
   }
 }
@@ -164,6 +169,17 @@ class LifeRecordAiConfig {
     'systemPrompt': systemPrompt,
     'activeProfileId': activeProfileId,
     'profiles': profiles.map((profile) => profile.toJson()).toList(),
+  };
+
+  Map<String, Object?> toRuntimeJson() => <String, Object?>{
+    'enabled': enabled,
+    'apiKey': apiKey,
+    'baseUrl': baseUrl,
+    'apiType': apiType,
+    'model': model,
+    'thinking': thinking,
+    'tools': tools,
+    'systemPrompt': systemPrompt,
   };
 
   factory LifeRecordAiConfig.fromJson(Object? value) {
@@ -281,6 +297,22 @@ class LifeRecordRuntimeConfig {
     'ai': ai.toJson(),
   };
 
+  Map<String, Object?> toRuntimeJson() => <String, Object?>{
+    'title': title,
+    'root': root,
+    'host': host,
+    'port': port,
+    'dataDir': dataDir,
+    'mode': mode,
+    'baseUrl': baseUrl,
+    'comments': comments,
+    'refresh': refresh,
+    'passwordEnv': passwordEnv,
+    'password': password,
+    'excludeDirs': excludeDirs,
+    'ai': ai.toRuntimeJson(),
+  };
+
   factory LifeRecordRuntimeConfig.fromJson(
     Object? value, {
     bool migrateLegacyDefaults = false,
@@ -334,6 +366,11 @@ class LifeRuntimeConfig {
     'version': 2,
     'mindgit': mindGit.toJson(),
     'liferecord': lifeRecord.toJson(),
+  };
+
+  Map<String, Object?> toRuntimeJson() => <String, Object?>{
+    'mindgit': mindGit.toJson(),
+    'liferecord': lifeRecord.toRuntimeJson(),
   };
 
   String encode() => jsonEncode(toJson());

@@ -16,7 +16,7 @@
         android:label="Lightly 人生运行时"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.LightlyLifeRuntimePlugin">
-        <meta-data android:name="lightly.plugin.API_VERSION" android:value="2" />
+        <meta-data android:name="lightly.plugin.API_VERSION" android:value="3" />
         <meta-data android:name="lightly.plugin.FEATURE_ID" android:value="life_runtime" />
 
         <service

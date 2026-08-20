@@ -12,7 +12,8 @@ scripts/build_optional_plugins.sh
 
 The default output directory is `build/optional-plugins/`. Override `PLUGIN_VERSION_CODE`,
 `PLUGIN_VERSION_NAME`, `TELEGRAM_PLUGIN_API_VERSION`, `WEBRTC_PLUGIN_API_VERSION`,
-`EASYTIER_PLUGIN_API_VERSION`, `MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
+`EASYTIER_PLUGIN_API_VERSION`, `LIFE_RUNTIME_PLUGIN_API_VERSION`,
+`MINIMUM_LIGHTLY_VERSION_CODE`, `PLUGIN_RELEASE_TAG`, or
 `PLUGIN_OUTPUT_DIR` when preparing a release. `PLUGIN_API_VERSION` remains a compatibility fallback
 for Telegram and EasyTier only; WebRTC defaults independently to API 3. The script compares every plugin signing certificate
 with `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`; set `LIGHTLY_APK` explicitly when
@@ -51,14 +52,19 @@ ordinary glibc Linux binaries are not compatible with Android's bionic linker.
 Use `LIFE_RUNTIME_BIN_DIR` to point the companion build at a directory containing Android
 executables. The expected names are `mindgit` and `liferecord`. Set `LIFE_RUNTIME_GIT_DIR` to the
 pinned Termux Android runtime prepared by `extensions/life-runtime/tools/prepare_git_runtime.sh`;
-it supplies Git, SSH, ripgrep, zip, and unzip. Basic file commands use Android toybox and still run
-under the companion UID. A LAN bind requires an explicit option; MindGit always requires an access
-password of at least eight characters.
+it supplies Git, SSH, ripgrep, zip, and unzip. The companion discovers the installed Android
+toybox applets and maps them into its private `bin`; every command still runs under the restricted
+companion UID. A LAN bind requires an explicit option; MindGit always requires an access password
+of at least eight characters.
 
 User content, service configuration, data, and logs live below
 `files/runtime/workspaces`. MindGit `-d` paths, Life Record content paths, and Life Record data paths
-are relative to that workspace root and must not escape it. Life Record's default paths are
-`summary`, `life-record/config.yaml`, `life-record/data`, and `life-runtime/logs`.
+are relative to that workspace root and must not escape it. MindGit uses `./` directly and does not
+create a `default` directory. Runtime-owned files are
+`mindgit/.mindgit.json`, `mindgit/mindgit.log`, `life-record/life-record.yaml`,
+`life-record/life-record.log`, and `life-record/data`; no `life-runtime` workspace directory is
+created. Life Runtime API 3 synchronizes page-owned fields in both directions. Only the selected
+Life Record AI profile's key, Base URL, API type, and model cross into the YAML file.
 
 ## Pinned delivery and GitHub Actions
 

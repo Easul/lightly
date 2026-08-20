@@ -17,7 +17,7 @@ class LifeRuntimePluginGateway {
 
   Future<String> start(
     String serviceId, {
-    String workspace = 'default',
+    String workspace = './',
     String host = '127.0.0.1',
     bool allowLan = false,
     int? port,
@@ -50,6 +50,31 @@ class LifeRuntimePluginGateway {
     final result = decoded is Map
         ? decoded.map((key, value) => MapEntry(key.toString(), value))
         : <String, Object?>{};
+    return result;
+  }
+
+  Future<Map<String, Object?>> readConfigFiles() async {
+    final raw = await _channel.invokeMethod<String>('readConfigFiles') ?? '{}';
+    final decoded = jsonDecode(raw);
+    return decoded is Map
+        ? decoded.map((key, value) => MapEntry(key.toString(), value))
+        : <String, Object?>{};
+  }
+
+  Future<Map<String, Object?>> writeConfigFiles(
+    LifeRuntimeConfig config,
+  ) async {
+    final raw =
+        await _channel.invokeMethod<String>(
+          'writeConfigFiles',
+          <String, Object?>{'configJson': jsonEncode(config.toRuntimeJson())},
+        ) ??
+        '{}';
+    final decoded = jsonDecode(raw);
+    final result = decoded is Map
+        ? decoded.map((key, value) => MapEntry(key.toString(), value))
+        : <String, Object?>{};
+    if (result['error'] != null) throw StateError(result['error'].toString());
     return result;
   }
 

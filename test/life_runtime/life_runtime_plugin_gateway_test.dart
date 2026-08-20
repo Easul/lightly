@@ -40,7 +40,7 @@ void main() {
     final arguments = (calls.single.arguments as Map).cast<String, Object?>();
     expect(arguments['serviceId'], 'mindgit');
     expect(jsonDecode(arguments['optionsJson']! as String), <String, Object?>{
-      'root': 'default',
+      'root': './',
       'host': '0.0.0.0',
       'allowLan': true,
       'port': 8787,

@@ -52,7 +52,7 @@ class OptionalFeatureCatalog {
           id: OptionalFeatureId.lifeRuntime,
           displayName: '人生知识库运行时',
           packageName: 'lightly.tool.plugin.liferuntime',
-          minimumApiVersion: 2,
+          minimumApiVersion: 3,
         ),
       };
 

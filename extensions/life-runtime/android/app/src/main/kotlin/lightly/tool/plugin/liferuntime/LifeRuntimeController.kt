@@ -37,11 +37,19 @@ internal class LifeRuntimeController(private val context: Context) {
     private val binRoot = File(runtimeRoot, "bin")
     private val workspaceRoot = File(runtimeRoot, "workspaces")
     private val dataRoot = File(runtimeRoot, "data")
-    private val logRoot = File(workspaceRoot, "life-runtime/logs")
+    private val mindGitRoot = File(workspaceRoot, "mindgit")
+    private val lifeRecordRoot = File(workspaceRoot, "life-record")
+    private val mindGitConfigFile = File(mindGitRoot, ".mindgit.json")
+    private val lifeRecordConfigFile = File(lifeRecordRoot, "life-record.yaml")
+    private val mindGitLogFile = File(mindGitRoot, "mindgit.log")
+    private val lifeRecordLogFile = File(lifeRecordRoot, "life-record.log")
     private val gitRoot = File(runtimeRoot, "git")
 
     init {
-        listOf(binRoot, workspaceRoot, dataRoot, logRoot).forEach(File::mkdirs)
+        listOf(binRoot, workspaceRoot, dataRoot).forEach(File::mkdirs)
+        migrateLegacyLayout()
+        listOf(mindGitRoot, lifeRecordRoot).forEach(File::mkdirs)
+        normalizeLegacyMindGitProjects()
         copyBundledTools()
         prepareGitLinks()
     }
@@ -70,7 +78,7 @@ internal class LifeRuntimeController(private val context: Context) {
             )
         }
 
-        val root = resolveWorkspace(options.optString("root", "default"))
+        val root = resolveWorkspace(options.optString("root", "./"))
             ?: return error("workspace must be a child of ${workspaceRoot.path}")
         root.mkdirs()
         val host = options.optString("host", "127.0.0.1")
@@ -94,12 +102,13 @@ internal class LifeRuntimeController(private val context: Context) {
             passwordEnv.ifEmpty { PRIVATE_PASSWORD_ENV }
         }
         val command = if (serviceId == SERVICE_MINDGIT) {
-            val config = writeMindGitConfig(host, port, root, configuredPassword)
             val directories = resolveMindGitDirectories(options, root)
                 ?: return error("MindGit directories must be relative children of ${workspaceRoot.path}")
+            val config = writeMindGitConfig(host, port, configuredPassword, directories)
             buildList {
                 addAll(listOf(executable.absolutePath, "--config", config.absolutePath))
                 directories.forEach { directory ->
+                    // MindGit resolves command-line project paths relative to its config file.
                     val relative = directory.relativeTo(config.parentFile ?: workspaceRoot).path
                     addAll(listOf("-d", if (relative.isEmpty() || relative == ".") "./" else relative))
                 }
@@ -124,7 +133,7 @@ internal class LifeRuntimeController(private val context: Context) {
                 addAll(listOf("--password-env", runtimePasswordEnv))
             }
         }
-        val logFile = File(logRoot, "$serviceId.log")
+        val logFile = logFileFor(serviceId)
         val processDirectory = if (serviceId == SERVICE_MINDGIT) workspaceRoot else root
         val process = try {
             Log.i(TAG, "starting $serviceId: ${command.first()} host=$host port=$port")
@@ -270,6 +279,57 @@ internal class LifeRuntimeController(private val context: Context) {
         result.put("running", running).toString()
     }
 
+    fun readConfigFiles(): String = synchronized(lock) {
+        JSONObject()
+            .put("workspaceRoot", workspaceRoot.absolutePath)
+            .put("mindgit", readJsonObject(mindGitConfigFile) ?: JSONObject.NULL)
+            .put(
+                "liferecordYaml",
+                lifeRecordConfigFile.takeIf(File::isFile)?.readText().orEmpty(),
+            )
+            .toString()
+    }
+
+    fun writeConfigFiles(hostConfigJson: String): String = synchronized(lock) {
+        return runCatching {
+            val hostConfig = JSONObject(hostConfigJson)
+            val mindGit = hostConfig.optJSONObject("mindgit") ?: JSONObject()
+            val mindGitRoot = resolveWorkspace(mindGit.optString("workspace", "./"))
+                ?: throw IllegalArgumentException("MindGit workspace escapes runtime root")
+            val mindGitDirectories = resolveMindGitDirectories(mindGit, mindGitRoot)
+                ?: throw IllegalArgumentException("MindGit directories escape runtime root")
+            writeMindGitConfig(
+                mindGit.optString("host", "127.0.0.1"),
+                mindGit.optInt("port", 8787),
+                mindGit.optString("password", "").trim().takeIf(String::isNotEmpty),
+                mindGitDirectories,
+            )
+
+            val lifeRecord = hostConfig.optJSONObject("liferecord") ?: JSONObject()
+            val root = resolveWorkspace(optionText(lifeRecord, "root", "summary"))
+                ?: throw IllegalArgumentException("Life Record root escapes runtime root")
+            val data = resolveDataDirectory(optionText(lifeRecord, "dataDir", "life-record/data"))
+                ?: throw IllegalArgumentException("Life Record data directory escapes runtime root")
+            root.mkdirs()
+            data.mkdirs()
+            val password = lifeRecord.optString("password", "").trim()
+            val passwordEnv = if (password.isEmpty()) {
+                DISABLED_PASSWORD_ENV
+            } else {
+                lifeRecord.optString("passwordEnv", "").trim().ifEmpty { PRIVATE_PASSWORD_ENV }
+            }
+            writeLifeRecordConfig(
+                lifeRecord,
+                root,
+                data,
+                lifeRecord.optString("host", "127.0.0.1"),
+                lifeRecord.optInt("port", 8347),
+                passwordEnv,
+            )
+            readConfigFiles()
+        }.getOrElse { error("config sync failed: ${it.message}") }
+    }
+
     private fun statusFor(process: RunningProcess, message: String?): String {
         val displayHost = if (process.host == "0.0.0.0") lanAddress() else process.host
         return JSONObject()
@@ -284,7 +344,7 @@ internal class LifeRuntimeController(private val context: Context) {
             .apply {
                 if (!process.process.isAlive) {
                     put("exitCode", runCatching { process.process.exitValue() }.getOrDefault(-1))
-                    val log = File(logRoot, "${process.id}.log")
+                    val log = logFileFor(process.id)
                     if (log.isFile) put("lastLog", log.readLines().takeLast(8).joinToString("\n"))
                 }
             }
@@ -307,8 +367,8 @@ internal class LifeRuntimeController(private val context: Context) {
     private fun error(message: String): String = JSONObject().put("error", message).toString()
 
     private fun resolveWorkspace(value: String): File? {
-        val candidate = if (value.isBlank() || value == "default") {
-            File(workspaceRoot, "default")
+        val candidate = if (value.isBlank() || value == "default" || value == "." || value == "./") {
+            workspaceRoot
         } else {
             File(workspaceRoot, value)
         }
@@ -343,23 +403,42 @@ internal class LifeRuntimeController(private val context: Context) {
         }
     }
 
-    private fun writeMindGitConfig(host: String, port: Int, root: File, password: String?): File {
-        val config = File(workspaceRoot, ".mindgit.json")
-        JSONObject()
-            .put("version", 1)
-            .put("server", JSONObject().put("bind", host).put("port", port))
-            .put(
-                "auth",
+    private fun writeMindGitConfig(
+        host: String,
+        port: Int,
+        password: String?,
+        directories: List<File>,
+    ): File {
+        mindGitRoot.mkdirs()
+        val config = readJsonObject(mindGitConfigFile) ?: JSONObject()
+        val server = config.optJSONObject("server") ?: JSONObject()
+        server.put("bind", host)
+            .put("port", port)
+            .put("commandTimeoutSeconds", server.optInt("commandTimeoutSeconds", 120).coerceAtLeast(1))
+            .put("maxUploadMB", server.optLong("maxUploadMB", 64L).coerceAtLeast(1L))
+        val auth = config.optJSONObject("auth") ?: JSONObject()
+        auth.put("enabled", !password.isNullOrEmpty())
+            .put("sessionHours", auth.optInt("sessionHours", 12).coerceAtLeast(1))
+        if (!password.isNullOrEmpty()) auth.put("passwordHash", hashPassword(password))
+        else auth.remove("passwordHash")
+        val projects = org.json.JSONArray()
+        directories.forEach { directory ->
+            val relative = directory.relativeTo(workspaceRoot).path
+            projects.put(
                 JSONObject()
-                    .put("enabled", !password.isNullOrEmpty())
-                    .put("sessionHours", 12)
-                    .apply { if (!password.isNullOrEmpty()) put("passwordHash", hashPassword(password)) },
+                    .put("name", if (relative.isEmpty() || relative == ".") "workspace" else directory.name)
+                    .put("path", if (relative.isEmpty() || relative == ".") "./" else relative),
             )
-            .put("monitoring", JSONObject().put("enabled", true))
-            .put("projects", org.json.JSONArray().put(JSONObject().put("name", "workspace").put("path", root.absolutePath)))
-            .put("ssh", JSONObject().put("connections", org.json.JSONArray()))
-            .writeTo(config)
-        return config
+        }
+        config
+            .put("version", 1)
+            .put("server", server)
+            .put("auth", auth)
+            .put("monitoring", config.optJSONObject("monitoring") ?: JSONObject().put("enabled", true))
+            .put("projects", projects)
+            .put("ssh", config.optJSONObject("ssh") ?: JSONObject().put("connections", org.json.JSONArray()))
+            .writeTo(mindGitConfigFile)
+        return mindGitConfigFile
     }
 
     private fun writeLifeRecordConfig(
@@ -370,7 +449,7 @@ internal class LifeRuntimeController(private val context: Context) {
         port: Int,
         passwordEnv: String,
     ): File {
-        val config = File(workspaceRoot, "life-record").apply { mkdirs() }.resolve("config.yaml")
+        lifeRecordRoot.mkdirs()
         val ai = options.optJSONObject("ai") ?: JSONObject()
         val excludes = options.optJSONArray("excludeDirs") ?: org.json.JSONArray()
         val lines = mutableListOf(
@@ -398,8 +477,8 @@ internal class LifeRuntimeController(private val context: Context) {
             "  tools: ${ai.optBoolean("tools", true)}",
             "  system_prompt: ${yaml(ai.optString("systemPrompt", ""))}",
         )
-        config.writeText(lines.joinToString("\n") + "\n")
-        return config
+        lifeRecordConfigFile.writeText(lines.joinToString("\n") + "\n")
+        return lifeRecordConfigFile
     }
 
     private fun yaml(value: String): String = "'" + value.replace("'", "''") + "'"
@@ -407,6 +486,81 @@ internal class LifeRuntimeController(private val context: Context) {
     private fun optionText(options: JSONObject, key: String, fallback: String): String {
         val value = options.optString(key, "").trim()
         return if (value.isEmpty()) fallback else value
+    }
+
+    private fun migrateLegacyLayout() {
+        migrateMindGitConfig()
+        migrateFile(File(workspaceRoot, "life-record/config.yaml"), lifeRecordConfigFile)
+        val legacyLogRoot = File(workspaceRoot, "life-runtime/logs")
+        migrateFile(File(legacyLogRoot, "mindgit.log"), mindGitLogFile)
+        migrateFile(File(legacyLogRoot, "liferecord.log"), lifeRecordLogFile)
+        legacyLogRoot.delete()
+        legacyLogRoot.parentFile?.delete()
+    }
+
+    private fun migrateMindGitConfig() {
+        val source = File(workspaceRoot, ".mindgit.json")
+        if (!source.isFile || mindGitConfigFile.exists()) return
+        val config = readJsonObject(source)
+        if (config == null) {
+            migrateFile(source, mindGitConfigFile)
+            return
+        }
+        val ssh = config.optJSONObject("ssh")
+        if (ssh != null) {
+            val oldDataDir = ssh.optString("dataDir", "").trim().ifEmpty { "data" }
+            if (!File(oldDataDir).isAbsolute) {
+                ssh.put("dataDir", relativePath(mindGitRoot, File(workspaceRoot, oldDataDir)))
+            }
+            val oldKnownHosts = ssh.optString("knownHosts", "").trim()
+            if (oldKnownHosts.isNotEmpty() && !File(oldKnownHosts).isAbsolute) {
+                ssh.put("knownHosts", relativePath(mindGitRoot, File(workspaceRoot, oldKnownHosts)))
+            }
+        }
+        mindGitRoot.mkdirs()
+        config.writeTo(mindGitConfigFile)
+        source.delete()
+    }
+
+    private fun relativePath(base: File, target: File): String =
+        base.canonicalFile.toPath().relativize(target.canonicalFile.toPath()).toString()
+
+    private fun migrateFile(source: File, destination: File) {
+        if (!source.isFile || destination.exists()) return
+        destination.parentFile?.mkdirs()
+        if (!source.renameTo(destination)) {
+            source.copyTo(destination, overwrite = false)
+            source.delete()
+        }
+    }
+
+    private fun normalizeLegacyMindGitProjects() {
+        val config = readJsonObject(mindGitConfigFile) ?: return
+        val projects = config.optJSONArray("projects") ?: return
+        val legacyDefault = File(workspaceRoot, "default").absolutePath
+        val normalized = org.json.JSONArray()
+        val seen = mutableSetOf<String>()
+        for (index in 0 until projects.length()) {
+            val project = projects.optJSONObject(index) ?: continue
+            val projectPath = project.optString("path", "").trim()
+            if (projectPath == legacyDefault || projectPath == "default") continue
+            if (projectPath.isNotEmpty() && seen.add(projectPath)) normalized.put(project)
+        }
+        if (normalized.length() == 0) {
+            normalized.put(JSONObject().put("name", "workspace").put("path", "./"))
+        }
+        config.put("projects", normalized).writeTo(mindGitConfigFile)
+    }
+
+    private fun logFileFor(serviceId: String): File = when (serviceId) {
+        SERVICE_MINDGIT -> mindGitLogFile
+        SERVICE_LIFE_RECORD -> lifeRecordLogFile
+        else -> File(workspaceRoot, "$serviceId.log")
+    }
+
+    private fun readJsonObject(file: File): JSONObject? {
+        if (!file.isFile) return null
+        return runCatching { JSONObject(file.readText()) }.getOrNull()
     }
 
     private fun copyBundledTools() {
@@ -428,12 +582,7 @@ internal class LifeRuntimeController(private val context: Context) {
     private fun prepareGitLinks() {
         val native = File(context.applicationInfo.nativeLibraryDir)
         val git = File(native, "libgit.so")
-        if (!git.isFile) return
-        gitRoot.mkdirs()
-        val gitLibDir = gitRoot.resolve("lib")
-        gitLibDir.deleteRecursively()
-        copyAssetTree("git/lib", gitLibDir)
-        val links = mapOf(
+        val links = mutableMapOf(
             "git" to git,
             "git-receive-pack" to git,
             "git-upload-pack" to git,
@@ -446,12 +595,11 @@ internal class LifeRuntimeController(private val context: Context) {
             "rg" to File(native, "librg.so"),
             "unzip" to File(native, "libunzip.so"),
             "zip" to File(native, "libzip.so"),
-            "ls" to File("/system/bin/toybox"),
-            "clear" to File("/system/bin/toybox"),
-            "mv" to File("/system/bin/toybox"),
-            "cat" to File("/system/bin/toybox"),
-            "rm" to File("/system/bin/toybox"),
         )
+        val toybox = File("/system/bin/toybox")
+        if (toybox.isFile) {
+            toyboxApplets(toybox).forEach { name -> links.putIfAbsent(name, toybox) }
+        }
         links.forEach { (name, target) ->
             if (!target.isFile) return@forEach
             val link = File(binRoot, name)
@@ -459,10 +607,40 @@ internal class LifeRuntimeController(private val context: Context) {
             if (link.exists() || link.isFile) return@forEach
             runCatching { java.nio.file.Files.createSymbolicLink(link.toPath(), target.toPath()) }
         }
-        val assetTemplates = File(gitRoot, "share/git-core/templates")
-        assetTemplates.deleteRecursively()
-        assetTemplates.parentFile?.mkdirs()
-        copyAssetTree("git/share/git-core/templates", assetTemplates)
+        if (git.isFile) {
+            gitRoot.mkdirs()
+            val gitLibDir = gitRoot.resolve("lib")
+            gitLibDir.deleteRecursively()
+            copyAssetTree("git/lib", gitLibDir)
+            val assetTemplates = File(gitRoot, "share/git-core/templates")
+            assetTemplates.deleteRecursively()
+            assetTemplates.parentFile?.mkdirs()
+            copyAssetTree("git/share/git-core/templates", assetTemplates)
+        }
+    }
+
+    private fun toyboxApplets(toybox: File): Set<String> {
+        val discovered = runCatching {
+            val process = ProcessBuilder(toybox.absolutePath, "--long")
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+            output.split(Regex("\\s+"))
+                .map { it.substringAfterLast('/') }
+                .filter { it == "[" || it.matches(Regex("[A-Za-z0-9_.+-]+")) }
+                .toSet()
+        }.getOrDefault(emptySet())
+        if (discovered.isNotEmpty()) return discovered
+        return setOf(
+            "cat", "chmod", "clear", "cmp", "comm", "cp", "cut", "date", "df", "diff",
+            "dirname", "du", "echo", "env", "expr", "false", "find", "grep", "gzip", "head",
+            "id", "kill", "ln", "ls", "mkdir", "mktemp", "mv", "netstat", "nohup", "od",
+            "pgrep", "pkill", "printenv", "printf", "ps", "pwd", "readlink", "realpath", "rm",
+            "rmdir", "sed", "seq", "sha256sum", "sleep", "sort", "split", "stat", "tail", "tar",
+            "tee", "test", "time", "timeout", "touch", "tr", "true", "uname", "uniq", "uptime",
+            "wc", "which", "whoami", "xargs", "xxd", "yes", "zcat",
+        )
     }
 
     private fun copyAssetTree(assetPath: String, destination: File) {

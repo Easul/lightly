@@ -6,6 +6,7 @@ void main() {
     const config = LifeRuntimeConfig();
 
     expect(config.mindGit.directories, const <String>['./']);
+    expect(config.mindGit.workspace, './');
     expect(config.lifeRecord.root, 'summary');
     expect(config.lifeRecord.port, 8347);
     expect(config.lifeRecord.dataDir, 'life-record/data');
@@ -33,6 +34,7 @@ void main() {
     });
 
     expect(config.mindGit.directories, const <String>['./']);
+    expect(config.mindGit.workspace, './');
     expect(config.lifeRecord.ai.activeProfileId, 'default');
     expect(config.lifeRecord.root, 'summary');
     expect(config.lifeRecord.port, 8347);
@@ -40,6 +42,27 @@ void main() {
     expect(config.lifeRecord.passwordEnv, isEmpty);
     expect(config.lifeRecord.ai.profiles.single.apiKey, 'legacy-key');
     expect(config.lifeRecord.ai.baseUrl, 'https://legacy.example');
+  });
+
+  test('runtime file payload contains only the active AI values', () {
+    const config = LifeRuntimeConfig(
+      lifeRecord: LifeRecordRuntimeConfig(
+        ai: LifeRecordAiConfig(
+          apiKey: 'active-key',
+          activeProfileId: 'active',
+          profiles: <LifeRecordAiProfile>[
+            LifeRecordAiProfile(id: 'active', name: '当前'),
+            LifeRecordAiProfile(id: 'other', name: '其他', apiKey: 'other-key'),
+          ],
+        ),
+      ),
+    );
+
+    final ai = ((config.toRuntimeJson()['liferecord']! as Map)['ai']! as Map);
+
+    expect(ai['apiKey'], 'active-key');
+    expect(ai, isNot(contains('profiles')));
+    expect(ai, isNot(contains('activeProfileId')));
   });
 
   test('round-trips the selected AI upstream profile', () {
