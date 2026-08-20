@@ -6,24 +6,28 @@ class MindGitRuntimeConfig {
     this.port = 8787,
     this.password = '',
     this.workspace = 'default',
+    this.directories = const <String>['default'],
   });
 
   final String host;
   final int port;
   final String password;
   final String workspace;
+  final List<String> directories;
 
   MindGitRuntimeConfig copyWith({
     String? host,
     int? port,
     String? password,
     String? workspace,
+    List<String>? directories,
   }) {
     return MindGitRuntimeConfig(
       host: host ?? this.host,
       port: port ?? this.port,
       password: password ?? this.password,
       workspace: workspace ?? this.workspace,
+      directories: directories ?? this.directories,
     );
   }
 
@@ -32,15 +36,25 @@ class MindGitRuntimeConfig {
     'port': port,
     'password': password,
     'workspace': workspace,
+    'directories': directories,
   };
 
   factory MindGitRuntimeConfig.fromJson(Object? value) {
     final json = value is Map ? value : const <String, Object?>{};
+    final dirs = json['directories'];
+    final directories = dirs is List
+        ? dirs
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList()
+        : <String>[];
+    final workspace = _string(json['workspace'], 'default');
     return MindGitRuntimeConfig(
       host: _string(json['host'], '127.0.0.1'),
       port: _int(json['port'], 8787),
       password: _string(json['password'], ''),
-      workspace: _string(json['workspace'], 'default'),
+      workspace: workspace,
+      directories: directories.isEmpty ? <String>[workspace] : directories,
     );
   }
 }

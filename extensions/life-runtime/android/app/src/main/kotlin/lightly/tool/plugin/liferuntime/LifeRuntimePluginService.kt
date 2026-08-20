@@ -52,12 +52,11 @@ class LifeRuntimePluginService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onUnbind(intent: Intent?): Boolean {
-        // The runtime is subordinate to Lightly's binding. A future explicit background
-        // ownership feature must introduce a separate user-visible lifecycle contract.
-        controller.stopAll()
-        stopRuntimeForeground()
-        return false
+        // Keep user-started services alive while Lightly reconnects its Binder.
+        return true
     }
+
+    override fun onRebind(intent: Intent?) = Unit
 
     override fun onDestroy() {
         controller.stopAll()

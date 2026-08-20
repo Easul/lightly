@@ -92,7 +92,14 @@ internal class LifeRuntimeController(private val context: Context) {
         }
         val command = if (serviceId == SERVICE_MINDGIT) {
             val config = writeMindGitConfig(host, port, root, configuredPassword)
-            listOf(executable.absolutePath, "--config", config.absolutePath)
+            val directories = resolveMindGitDirectories(options, root)
+                ?: return error("MindGit directories must be relative children of ${workspaceRoot.path}")
+            buildList {
+                addAll(listOf(executable.absolutePath, "--config", config.absolutePath))
+                directories.forEach { directory ->
+                    addAll(listOf("-d", directory.relativeTo(config.parentFile ?: workspaceRoot).path))
+                }
+            }
         } else {
             val data = resolveDataDirectory(optionText(options, "dataDir", serviceId), serviceId)
                 ?: return error("dataDir must be a child of ${dataRoot.path}")
@@ -113,10 +120,11 @@ internal class LifeRuntimeController(private val context: Context) {
             }
         }
         val logFile = File(logRoot, "$serviceId.log")
+        val processDirectory = if (serviceId == SERVICE_MINDGIT) workspaceRoot else root
         val process = try {
             Log.i(TAG, "starting $serviceId: ${command.first()} host=$host port=$port")
             ProcessBuilder(command)
-                .directory(root)
+                .directory(processDirectory)
                 .redirectErrorStream(true)
                 .apply {
                     environment()["HOME"] = runtimeRoot.absolutePath
@@ -307,6 +315,24 @@ internal class LifeRuntimeController(private val context: Context) {
         return if (path.startsWith(base)) candidate else null
     }
 
+    private fun resolveMindGitDirectories(options: JSONObject, fallback: File): List<File>? {
+        val values = options.optJSONArray("directories")
+        val requested = if (values == null || values.length() == 0) {
+            listOf(fallback.relativeTo(workspaceRoot).path)
+        } else {
+            (0 until values.length()).map { values.optString(it).trim() }.filter { it.isNotEmpty() }
+        }
+        if (requested.isEmpty()) return listOf(fallback)
+        val base = workspaceRoot.canonicalFile.toPath()
+        return requested.map { relative ->
+            if (File(relative).isAbsolute) return null
+            val candidate = File(workspaceRoot, relative)
+            val path = runCatching { candidate.canonicalFile.toPath() }.getOrNull() ?: return null
+            if (!path.startsWith(base)) return null
+            candidate.apply { mkdirs() }
+        }
+    }
+
     private fun writeMindGitConfig(host: String, port: Int, root: File, password: String?): File {
         val directory = File(dataRoot, SERVICE_MINDGIT).apply { mkdirs() }
         val config = File(directory, "config.json")
@@ -411,6 +437,8 @@ internal class LifeRuntimeController(private val context: Context) {
             "rg" to File(native, "librg.so"),
             "unzip" to File(native, "libunzip.so"),
             "zip" to File(native, "libzip.so"),
+            "ls" to File("/system/bin/toybox"),
+            "clear" to File("/system/bin/toybox"),
         )
         links.forEach { (name, target) ->
             if (!target.isFile) return@forEach

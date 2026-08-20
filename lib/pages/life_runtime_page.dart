@@ -22,6 +22,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   LifeRuntimeConfig _config = const LifeRuntimeConfig();
   late final TextEditingController _mindGitPortController;
   late final TextEditingController _mindGitPasswordController;
+  late final TextEditingController _mindGitDirectoriesController;
   late final TextEditingController _lifeTitleController;
   late final TextEditingController _lifeRootController;
   late final TextEditingController _lifePortController;
@@ -50,6 +51,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     super.initState();
     _mindGitPortController = TextEditingController();
     _mindGitPasswordController = TextEditingController();
+    _mindGitDirectoriesController = TextEditingController();
     _lifeTitleController = TextEditingController();
     _lifeRootController = TextEditingController();
     _lifePortController = TextEditingController();
@@ -79,6 +81,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     for (final controller in <TextEditingController>[
       _mindGitPortController,
       _mindGitPasswordController,
+      _mindGitDirectoriesController,
       _lifeTitleController,
       _lifeRootController,
       _lifePortController,
@@ -108,6 +111,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
         config.mindGit.host == '0.0.0.0' || config.lifeRecord.host == '0.0.0.0';
     _mindGitPortController.text = config.mindGit.port.toString();
     _mindGitPasswordController.text = config.mindGit.password;
+    _mindGitDirectoriesController.text = config.mindGit.directories.join(', ');
     final life = config.lifeRecord;
     _lifeTitleController.text = life.title;
     _lifeRootController.text = life.root;
@@ -154,6 +158,11 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
         port:
             int.tryParse(_mindGitPortController.text) ?? defaults.mindGit.port,
         password: _mindGitPasswordController.text,
+        directories: _mindGitDirectoriesController.text
+            .split(',')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList(),
       ),
       lifeRecord: old.lifeRecord.copyWith(
         host: _allowLan ? '0.0.0.0' : '127.0.0.1',
@@ -304,6 +313,10 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                   '访问密码',
                   obscureText: true,
                 ),
+                _configField(
+                  _mindGitDirectoriesController,
+                  '项目目录（相对运行时根目录，逗号分隔）',
+                ),
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text('密码为空时关闭 MindGit 登录保护；修改后需重启服务。'),
@@ -418,6 +431,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 settings: <String, Object?>{
                   'root': _textOr(_config.mindGit.workspace, 'default'),
                   'password': _mindGitPasswordController.text,
+                  'directories': _config.mindGit.directories,
                 },
               );
             }),
@@ -432,6 +446,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 workspace: _config.mindGit.workspace,
                 settings: <String, Object?>{
                   'password': _config.mindGit.password,
+                  'directories': _config.mindGit.directories,
                 },
               );
             }),
