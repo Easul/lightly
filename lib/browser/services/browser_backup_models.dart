@@ -3,13 +3,14 @@ import 'dart:convert';
 import '../../features/calculator/calculation_history.dart';
 import '../../features/easytier/domain/easytier_network_profile.dart';
 import '../../features/telegram/telegram_checkin_models.dart';
+import '../../features/life_runtime/domain/life_runtime_config.dart';
 import '../browser_settings.dart';
 import '../models/browser_favorite.dart';
 import '../models/browser_download_record.dart';
 import '../models/browser_history_entry.dart';
 
 class BrowserBackupData {
-  static const int schemaVersion = 10;
+  static const int schemaVersion = 11;
 
   const BrowserBackupData({
     required this.favorites,
@@ -26,6 +27,7 @@ class BrowserBackupData {
     required this.telegramCheckinConfig,
     required this.exportedAt,
     this.simpleFileManagerFavoritePaths,
+    this.lifeRuntimeConfig,
   });
 
   final List<BrowserFavorite> favorites;
@@ -42,6 +44,7 @@ class BrowserBackupData {
   final TelegramCheckinConfig telegramCheckinConfig;
   final DateTime exportedAt;
   final List<String>? simpleFileManagerFavoritePaths;
+  final LifeRuntimeConfig? lifeRuntimeConfig;
 
   Map<String, dynamic> toJson() {
     return {
@@ -63,6 +66,8 @@ class BrowserBackupData {
       'telegramCheckinConfig': telegramCheckinConfig.toJson(),
       if (simpleFileManagerFavoritePaths != null)
         'simpleFileManagerFavoritePaths': simpleFileManagerFavoritePaths,
+      if (lifeRuntimeConfig != null)
+        'lifeRuntimeConfig': lifeRuntimeConfig!.toJson(),
     };
   }
 
@@ -146,6 +151,9 @@ class BrowserBackupData {
           DateTime.tryParse(decoded['exportedAt'] as String? ?? '') ??
           DateTime.now(),
       simpleFileManagerFavoritePaths: simpleFileManagerFavoritePaths,
+      lifeRuntimeConfig: decoded.containsKey('lifeRuntimeConfig')
+          ? LifeRuntimeConfig.fromJson(decoded['lifeRuntimeConfig'])
+          : null,
     );
   }
 }

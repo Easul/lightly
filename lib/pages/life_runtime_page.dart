@@ -1,15 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 
 import '../features/life_runtime/infrastructure/life_runtime_plugin_gateway.dart';
 import '../features/life_runtime/domain/life_runtime_config.dart';
 import '../features/life_runtime/infrastructure/life_runtime_config_store.dart';
-import '../features/optional_plugins/domain/optional_feature.dart';
-import '../features/optional_plugins/presentation/optional_feature_gate.dart';
 import '../services/app_toast.dart';
 
 class LifeRuntimePage extends StatefulWidget {
@@ -21,7 +17,6 @@ class LifeRuntimePage extends StatefulWidget {
 
 class _LifeRuntimePageState extends State<LifeRuntimePage> {
   final LifeRuntimePluginGateway _gateway = LifeRuntimePluginGateway();
-  final OptionalFeatureGate _featureGate = OptionalFeatureGate();
   final LifeRuntimeConfigStore _configStore = LifeRuntimeConfigStore();
   Map<String, Object?> _status = const <String, Object?>{};
   LifeRuntimeConfig _config = const LifeRuntimeConfig();
@@ -103,6 +98,8 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
     final config = await _configStore.load();
     if (!mounted) return;
     _config = config;
+    _allowLan =
+        config.mindGit.host == '0.0.0.0' || config.lifeRecord.host == '0.0.0.0';
     _mindGitPortController.text = config.mindGit.port.toString();
     _mindGitPasswordController.text = config.mindGit.password;
     final life = config.lifeRecord;
@@ -131,34 +128,50 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
 
   Future<void> _saveConfig() async {
     final old = _config;
+    const defaults = LifeRuntimeConfig();
     final lifeAi = old.lifeRecord.ai.copyWith(
       enabled: _aiEnabled,
       apiKey: _aiKeyController.text.trim(),
-      baseUrl: _textOr(_aiBaseUrlController.text, old.lifeRecord.ai.baseUrl),
-      apiType: _textOr(_aiTypeController.text, old.lifeRecord.ai.apiType),
-      model: _textOr(_aiModelController.text, old.lifeRecord.ai.model),
+      baseUrl: _textOr(
+        _aiBaseUrlController.text,
+        defaults.lifeRecord.ai.baseUrl,
+      ),
+      apiType: _textOr(_aiTypeController.text, defaults.lifeRecord.ai.apiType),
+      model: _textOr(_aiModelController.text, defaults.lifeRecord.ai.model),
       thinking: _aiThinking,
       tools: _aiTools,
       systemPrompt: _aiPromptController.text,
     );
     final config = LifeRuntimeConfig(
       mindGit: old.mindGit.copyWith(
-        host: old.mindGit.host,
-        port: int.tryParse(_mindGitPortController.text) ?? old.mindGit.port,
+        host: _allowLan ? '0.0.0.0' : '127.0.0.1',
+        port:
+            int.tryParse(_mindGitPortController.text) ?? defaults.mindGit.port,
         password: _mindGitPasswordController.text,
       ),
       lifeRecord: old.lifeRecord.copyWith(
-        title: _textOr(_lifeTitleController.text, old.lifeRecord.title),
-        root: _textOr(_lifeRootController.text, old.lifeRecord.root),
-        port: int.tryParse(_lifePortController.text) ?? old.lifeRecord.port,
-        dataDir: _textOr(_lifeDataDirController.text, old.lifeRecord.dataDir),
-        mode: _textOr(_lifeModeController.text, old.lifeRecord.mode),
-        baseUrl: _textOr(_lifeBaseUrlController.text, old.lifeRecord.baseUrl),
+        host: _allowLan ? '0.0.0.0' : '127.0.0.1',
+        title: _textOr(_lifeTitleController.text, defaults.lifeRecord.title),
+        root: _textOr(_lifeRootController.text, defaults.lifeRecord.root),
+        port:
+            int.tryParse(_lifePortController.text) ?? defaults.lifeRecord.port,
+        dataDir: _textOr(
+          _lifeDataDirController.text,
+          defaults.lifeRecord.dataDir,
+        ),
+        mode: _textOr(_lifeModeController.text, defaults.lifeRecord.mode),
+        baseUrl: _textOr(
+          _lifeBaseUrlController.text,
+          defaults.lifeRecord.baseUrl,
+        ),
         comments: _lifeComments,
-        refresh: _textOr(_lifeRefreshController.text, old.lifeRecord.refresh),
+        refresh: _textOr(
+          _lifeRefreshController.text,
+          defaults.lifeRecord.refresh,
+        ),
         passwordEnv: _textOr(
           _lifePasswordEnvController.text,
-          old.lifeRecord.passwordEnv,
+          defaults.lifeRecord.passwordEnv,
         ),
         password: _lifePasswordController.text,
         excludeDirs: _lifeExcludeDirsController.text
@@ -197,67 +210,6 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
       await _refresh();
     } catch (error) {
       unawaited(AppToast.show('运行时操作失败：$error'));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _ensurePlugin() async {
-    if (!await _featureGate.ensureAvailable(
-      context,
-      OptionalFeatureId.lifeRuntime,
-    )) {
-      return;
-    }
-    await _refresh();
-  }
-
-  Future<void> _exportData() async {
-    setState(() => _busy = true);
-    try {
-      await _saveConfig();
-      final result = await _gateway.exportData(_config);
-      if (result['error'] != null) throw StateError(result['error'].toString());
-      final source = result['path']?.toString();
-      if (source == null) throw StateError('导出文件未生成');
-      final target = await FilePicker.platform.saveFile(
-        dialogTitle: '导出人生运行时数据',
-        fileName: 'life-runtime-backup.zip',
-        type: FileType.any,
-      );
-      if (target == null || target.isEmpty) return;
-      await File(source).copy(target);
-      if (mounted) unawaited(AppToast.show('运行时数据已导出'));
-    } catch (error) {
-      if (mounted) unawaited(AppToast.show('导出失败：$error'));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _importData() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-      withData: false,
-    );
-    final path = picked != null && picked.files.isNotEmpty
-        ? picked.files.first.path
-        : null;
-    if (path == null || path.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      final result = await _gateway.importData(path);
-      if (result['error'] != null) throw StateError(result['error'].toString());
-      final configJson = result['configJson']?.toString();
-      if (configJson != null) {
-        final config = LifeRuntimeConfig.decode(configJson);
-        await _configStore.save(config);
-        if (mounted) setState(() => _config = config);
-        await _loadConfig();
-      }
-      if (mounted) unawaited(AppToast.show('运行时数据已导入，请重新启动服务'));
-    } catch (error) {
-      if (mounted) unawaited(AppToast.show('导入失败：$error'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -302,16 +254,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
   Widget build(BuildContext context) {
     final running = _running();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('人生知识库运行时'),
-        actions: [
-          IconButton(
-            tooltip: '刷新状态',
-            onPressed: _busy ? null : _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('人生知识库运行时')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -330,10 +273,6 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(_status.isEmpty ? '未连接运行时插件' : '运行时插件已连接'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _ensurePlugin,
-                      child: const Text('检查'),
                     ),
                   ],
                 ),
@@ -412,6 +351,8 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                 ),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
+                  shape: const Border(),
+                  collapsedShape: const Border(),
                   title: const Text('AI 配置'),
                   children: [
                     SwitchListTile(
@@ -460,38 +401,16 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
             ),
           ),
           const SizedBox(height: 12),
-          _RuntimeCard(
-            title: '数据导入导出',
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _exportData,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('导出运行时数据'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _importData,
-                    icon: const Icon(Icons.download),
-                    label: const Text('导入运行时数据'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           _ServiceCard(
             title: 'MindGit',
             serviceId: 'mindgit',
             running: running['mindgit'],
             busy: _busy,
-            onStart: () => _run(
-              () => _gateway.start(
+            onStart: () => _run(() async {
+              await _saveConfig();
+              return _gateway.start(
                 'mindgit',
-                host: _allowLan ? '0.0.0.0' : '127.0.0.1',
+                host: _config.mindGit.host,
                 allowLan: _allowLan,
                 port: int.tryParse(_mindGitPortController.text),
                 workspace: _config.mindGit.workspace,
@@ -499,8 +418,22 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                   'root': _textOr(_config.mindGit.workspace, 'default'),
                   'password': _mindGitPasswordController.text,
                 },
-              ),
-            ),
+              );
+            }),
+            onRestart: () => _run(() async {
+              await _gateway.stop('mindgit');
+              await _saveConfig();
+              return _gateway.start(
+                'mindgit',
+                host: _config.mindGit.host,
+                allowLan: _allowLan,
+                port: _config.mindGit.port,
+                workspace: _config.mindGit.workspace,
+                settings: <String, Object?>{
+                  'password': _config.mindGit.password,
+                },
+              );
+            }),
             onStop: () => _run(() async {
               await _gateway.stop('mindgit');
               return '{}';
@@ -512,10 +445,11 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
             serviceId: 'liferecord',
             running: running['liferecord'],
             busy: _busy,
-            onStart: () => _run(
-              () => _gateway.start(
+            onStart: () => _run(() async {
+              await _saveConfig();
+              return _gateway.start(
                 'liferecord',
-                host: _allowLan ? '0.0.0.0' : '127.0.0.1',
+                host: _config.lifeRecord.host,
                 allowLan: _allowLan,
                 port: int.tryParse(_lifePortController.text),
                 workspace: _config.lifeRecord.root,
@@ -526,7 +460,7 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                   'mode': _textOr(_lifeModeController.text, 'preview'),
                   'baseUrl': _textOr(
                     _lifeBaseUrlController.text,
-                    'http://127.0.0.1:8080',
+                    'http://${_config.lifeRecord.host}:${_config.lifeRecord.port}',
                   ),
                   'comments': _lifeComments,
                   'refresh': _textOr(_lifeRefreshController.text, '2s'),
@@ -538,8 +472,33 @@ class _LifeRuntimePageState extends State<LifeRuntimePage> {
                   'excludeDirs': _config.lifeRecord.excludeDirs,
                   'ai': _config.lifeRecord.ai.toJson(),
                 },
-              ),
-            ),
+              );
+            }),
+            onRestart: () => _run(() async {
+              await _gateway.stop('liferecord');
+              await _saveConfig();
+              final life = _config.lifeRecord;
+              return _gateway.start(
+                'liferecord',
+                host: life.host,
+                allowLan: _allowLan,
+                port: life.port,
+                workspace: life.root,
+                settings: <String, Object?>{
+                  'root': life.root,
+                  'title': life.title,
+                  'dataDir': life.dataDir,
+                  'mode': life.mode,
+                  'baseUrl': life.baseUrl,
+                  'comments': life.comments,
+                  'refresh': life.refresh,
+                  'passwordEnv': life.passwordEnv,
+                  'password': life.password,
+                  'excludeDirs': life.excludeDirs,
+                  'ai': life.ai.toJson(),
+                },
+              );
+            }),
             onStop: () => _run(() async {
               await _gateway.stop('liferecord');
               return '{}';
@@ -587,6 +546,7 @@ class _ServiceCard extends StatelessWidget {
     required this.running,
     required this.busy,
     required this.onStart,
+    required this.onRestart,
     required this.onStop,
   });
 
@@ -595,6 +555,7 @@ class _ServiceCard extends StatelessWidget {
   final dynamic running;
   final bool busy;
   final VoidCallback onStart;
+  final VoidCallback onRestart;
   final VoidCallback onStop;
 
   @override
@@ -620,9 +581,9 @@ class _ServiceCard extends StatelessWidget {
           Row(
             children: [
               FilledButton.icon(
-                onPressed: busy || isRunning ? null : onStart,
+                onPressed: busy ? null : (isRunning ? onRestart : onStart),
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('启动'),
+                label: Text(isRunning ? '重启' : '启动'),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(

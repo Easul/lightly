@@ -30,7 +30,7 @@ val prepareRuntimeNativeLibs = tasks.register<Sync>("prepareLifeRuntimeNativeLib
     }
     runtimeGitDir?.let { source ->
         from(File(source, "native/arm64-v8a")) {
-            include("libgit.so", "libgit_remote_http.so")
+            include("*.so")
             eachFile { path = "arm64-v8a/$name" }
             includeEmptyDirs = false
         }

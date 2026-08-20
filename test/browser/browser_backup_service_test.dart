@@ -11,6 +11,7 @@ import 'package:lightly/features/easytier/domain/easytier_network_profile.dart';
 import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_service.dart';
 import 'package:lightly/features/local_sharing/simple_file_manager/simple_file_manager_settings_store.dart';
 import 'package:lightly/features/telegram/telegram_checkin_models.dart';
+import 'package:lightly/features/life_runtime/domain/life_runtime_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -89,6 +90,10 @@ void main() {
         '/storage/emulated/0/Download',
         '/storage/emulated/0/Documents/notes.md',
       ],
+      lifeRuntimeConfig: const LifeRuntimeConfig(
+        mindGit: MindGitRuntimeConfig(port: 9988, password: 'mind-secret'),
+        lifeRecord: LifeRecordRuntimeConfig(title: '我的人生记录'),
+      ),
     );
 
     final restored = BrowserBackupData.fromJsonString(backup.toJsonString());
@@ -117,6 +122,9 @@ void main() {
       '/storage/emulated/0/Download',
       '/storage/emulated/0/Documents/notes.md',
     ]);
+    expect(restored.lifeRuntimeConfig?.mindGit.port, 9988);
+    expect(restored.lifeRuntimeConfig?.mindGit.password, 'mind-secret');
+    expect(restored.lifeRuntimeConfig?.lifeRecord.title, '我的人生记录');
     expect(
       restored.telegramCheckinConfig.targets.single.username,
       '@checkin_bot',

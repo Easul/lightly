@@ -13,6 +13,7 @@ import '../../features/local_sharing/simple_file_manager/simple_file_manager_ser
 import '../../features/local_sharing/simple_file_manager/simple_file_manager_settings_store.dart';
 import '../../services/shared_downloads_directory_service.dart';
 import '../../features/telegram/telegram_checkin_store.dart';
+import '../../features/life_runtime/infrastructure/life_runtime_config_store.dart';
 import '../browser_settings_service.dart';
 import '../../features/local_sharing/clipboard/clipboard_storage_service.dart';
 import '../models/browser_favorite.dart';
@@ -42,6 +43,7 @@ class BrowserBackupService {
     SimpleFileManagerSettingsStore? simpleFileManagerSettingsStore,
     SharedDownloadsAccess? sharedDownloadsAccess,
     RuntimeLogger? runtimeLogger,
+    LifeRuntimeConfigStore? lifeRuntimeConfigStore,
   }) : _favoriteService = favoriteService ?? BrowserFavoriteService(),
        _settingsService = settingsService ?? BrowserSettingsService(),
        _historyService = historyService ?? BrowserHistoryService(),
@@ -58,7 +60,9 @@ class BrowserBackupService {
            simpleFileManagerSettingsStore ?? SimpleFileManagerService(),
        _sharedDownloadsAccess =
            sharedDownloadsAccess ?? SharedDownloadsDirectoryService(),
-       _runtimeLogger = runtimeLogger ?? AppLogService.instance;
+       _runtimeLogger = runtimeLogger ?? AppLogService.instance,
+       _lifeRuntimeConfigStore =
+           lifeRuntimeConfigStore ?? LifeRuntimeConfigStore();
 
   final BrowserFavoriteService _favoriteService;
   final BrowserSettingsService _settingsService;
@@ -72,6 +76,7 @@ class BrowserBackupService {
   final SimpleFileManagerSettingsStore _simpleFileManagerSettingsStore;
   final SharedDownloadsAccess _sharedDownloadsAccess;
   final RuntimeLogger _runtimeLogger;
+  final LifeRuntimeConfigStore _lifeRuntimeConfigStore;
   late final BrowserBackupWebDataService _webDataService =
       BrowserBackupWebDataService(
         cookieOriginService: _cookieOriginService,
@@ -110,6 +115,7 @@ class BrowserBackupService {
     final telegramCheckinConfig = await _telegramCheckinStore.load();
     final simpleFileManagerSettings = await _simpleFileManagerSettingsStore
         .loadSettings();
+    final lifeRuntimeConfig = await _lifeRuntimeConfigStore.load();
     final cookieUrls = await _webDataService.collectCookieUrls();
     final cookies = await _webDataService.exportCookies(urls: cookieUrls);
     final webStorageOrigins = _webDataService.collectWebStorageOrigins(
@@ -137,6 +143,7 @@ class BrowserBackupService {
       telegramCheckinConfig: telegramCheckinConfig,
       exportedAt: DateTime.now(),
       simpleFileManagerFavoritePaths: simpleFileManagerSettings.favoritePaths,
+      lifeRuntimeConfig: lifeRuntimeConfig,
     );
   }
 
@@ -201,6 +208,9 @@ class BrowserBackupService {
 
     if (importSettings) {
       await _settingsService.saveSettings(data.settings);
+      if (data.lifeRuntimeConfig != null) {
+        await _lifeRuntimeConfigStore.save(data.lifeRuntimeConfig!);
+      }
       await _telegramCheckinStore.save(data.telegramCheckinConfig);
       final favoritePaths = data.simpleFileManagerFavoritePaths;
       if (favoritePaths != null) {

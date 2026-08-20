@@ -18,6 +18,7 @@ import java.util.zip.ZipOutputStream
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.util.concurrent.TimeUnit
+import java.net.NetworkInterface
 
 internal class LifeRuntimeController(private val context: Context) {
     private data class RunningProcess(
@@ -95,6 +96,10 @@ internal class LifeRuntimeController(private val context: Context) {
                 executable.absolutePath,
                 "serve",
                 "--config", config.absolutePath,
+                "--host", host,
+                "--port", port.toString(),
+                "--root", root.absolutePath,
+                "--data-dir", data.absolutePath,
             )
         }
         val logFile = File(logRoot, "$serviceId.log")
@@ -223,17 +228,30 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     private fun statusFor(process: RunningProcess, message: String?): String {
+        val displayHost = if (process.host == "0.0.0.0") lanAddress() else process.host
         return JSONObject()
             .put("service", process.id)
             .put("running", process.process.isAlive)
             .put("host", process.host)
             .put("port", process.port)
-            .put("url", "http://${process.host}:${process.port}")
+            .put("url", "http://$displayHost:${process.port}")
             .put("root", process.root.absolutePath)
             .put("startedAt", process.startedAt)
             .apply { if (process.password != null) put("password", process.password) }
             .apply { if (message != null) put("error", message) }
             .toString()
+    }
+
+    private fun lanAddress(): String {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().toList()
+                .asSequence()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.toList().asSequence() }
+                .filter { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }
+                .mapNotNull { it.hostAddress }
+                .firstOrNull()
+        }.getOrNull() ?: "0.0.0.0"
     }
 
     private fun error(message: String): String = JSONObject().put("error", message).toString()
@@ -355,6 +373,10 @@ internal class LifeRuntimeController(private val context: Context) {
             "git-remote-https" to File(native, "libgit_remote_http.so"),
             "git-remote-ftp" to File(native, "libgit_remote_http.so"),
             "git-remote-ftps" to File(native, "libgit_remote_http.so"),
+            "ssh" to File(native, "libssh.so"),
+            "rg" to File(native, "librg.so"),
+            "unzip" to File(native, "libunzip.so"),
+            "zip" to File(native, "libzip.so"),
         )
         links.forEach { (name, target) ->
             if (!target.isFile) return@forEach
