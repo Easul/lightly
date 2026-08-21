@@ -58,6 +58,10 @@ internal class LifeRuntimeController(private val context: Context) {
         processes.values.any { it.process.isAlive }
     }
 
+    fun hasLanBoundProcess(): Boolean = synchronized(lock) {
+        processes.values.any { it.process.isAlive && it.host == "0.0.0.0" }
+    }
+
     fun start(serviceId: String, optionsJson: String): String = synchronized(lock) {
         if (serviceId != SERVICE_MINDGIT && serviceId != SERVICE_LIFE_RECORD) {
             return error("unknown service: $serviceId")

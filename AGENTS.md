@@ -1443,6 +1443,11 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - Populate the private runtime `bin` from the device's actual `toybox --long` applet list while
   preserving dedicated Git, SSH, ripgrep, zip, and unzip executables. Toybox commands remain
   restricted by the companion UID and are not a host-side arbitrary command API.
+- When a Life Runtime service binds to `0.0.0.0` for LAN access, the companion must hold a
+  high-performance `WifiLock` while that service is running and release it when all LAN services
+  stop. Android/MIUI can enable Wi-Fi suspend optimizations on screen-off even for a foreground,
+  battery-unrestricted, device-idle-whitelisted service; loopback-only services must not hold this
+  lock.
 - Related files: `extensions/life-runtime/android/app/src/main/kotlin/lightly/tool/plugin/liferuntime/LifeRuntimeController.kt`,
   `lib/pages/life_runtime_page.dart`, and `docs/optional-plugin-release.md`.
 
