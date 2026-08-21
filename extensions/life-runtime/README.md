@@ -11,7 +11,7 @@ and logs:
 /data/user/0/lightly.tool.plugin.liferuntime/files/runtime/
   workspaces/
     mindgit/
-      .mindgit.json
+      mindgit.json
       mindgit.log
     life-record/
       life-record.yaml

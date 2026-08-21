@@ -39,7 +39,7 @@ internal class LifeRuntimeController(private val context: Context) {
     private val dataRoot = File(runtimeRoot, "data")
     private val mindGitRoot = File(workspaceRoot, "mindgit")
     private val lifeRecordRoot = File(workspaceRoot, "life-record")
-    private val mindGitConfigFile = File(mindGitRoot, ".mindgit.json")
+    private val mindGitConfigFile = File(mindGitRoot, "mindgit.json")
     private val lifeRecordConfigFile = File(lifeRecordRoot, "life-record.yaml")
     private val mindGitLogFile = File(mindGitRoot, "mindgit.log")
     private val lifeRecordLogFile = File(lifeRecordRoot, "life-record.log")
@@ -499,7 +499,7 @@ internal class LifeRuntimeController(private val context: Context) {
     }
 
     private fun migrateMindGitConfig() {
-        val source = File(workspaceRoot, ".mindgit.json")
+        val source = File(workspaceRoot, "mindgit.json")
         if (!source.isFile || mindGitConfigFile.exists()) return
         val config = readJsonObject(source)
         if (config == null) {

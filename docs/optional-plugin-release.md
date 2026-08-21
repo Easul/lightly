@@ -61,7 +61,7 @@ User content, service configuration, data, and logs live below
 `files/runtime/workspaces`. MindGit `-d` paths, Life Record content paths, and Life Record data paths
 are relative to that workspace root and must not escape it. MindGit uses `./` directly and does not
 create a `default` directory. Runtime-owned files are
-`mindgit/.mindgit.json`, `mindgit/mindgit.log`, `life-record/life-record.yaml`,
+`mindgit/mindgit.json`, `mindgit/mindgit.log`, `life-record/life-record.yaml`,
 `life-record/life-record.log`, and `life-record/data`; no `life-runtime` workspace directory is
 created. Life Runtime API 3 synchronizes page-owned fields in both directions. Only the selected
 Life Record AI profile's key, Base URL, API type, and model cross into the YAML file.

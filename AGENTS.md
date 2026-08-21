@@ -1432,7 +1432,7 @@ The address bar lock icon opens a dialog for clearing current-site data:
 - The Life Runtime companion owns `files/runtime/workspaces`. MindGit uses that directory directly
   through `-d ./`; do not recreate `workspaces/default` or add its absolute path to MindGit's
   projects.
-- Runtime-owned files live at `workspaces/mindgit/.mindgit.json`,
+- Runtime-owned files live at `workspaces/mindgit/mindgit.json`,
   `workspaces/mindgit/mindgit.log`, `workspaces/life-record/life-record.yaml`, and
   `workspaces/life-record/life-record.log`. Life Record data defaults to
   `workspaces/life-record/data`. Do not recreate `workspaces/life-runtime`.
