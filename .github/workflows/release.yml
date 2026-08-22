@@ -220,6 +220,17 @@ jobs:
         ref: ${{ vars.MINDGIT_REF || 'main' }}
         path: .ci-sources/mindgit
 
+    - name: Validate private Life Record checkout token
+      if: steps.optional_plugins.outputs.build == '1'
+      env:
+        LIFE_RECORD_READ_TOKEN: ${{ secrets.LIFE_RECORD_READ_TOKEN }}
+      run: |
+        if [ -z "$LIFE_RECORD_READ_TOKEN" ]; then
+          echo "LIFE_RECORD_READ_TOKEN is required for the private Life Record repository" >&2
+          echo "Use optional_plugins=reuse until the repository and token are configured." >&2
+          exit 1
+        fi
+
     - name: Checkout private Life Record source
       if: steps.optional_plugins.outputs.build == '1'
       uses: actions/checkout@v4
@@ -236,12 +247,7 @@ jobs:
         LIFE_RECORD_ROOT: ${{ github.workspace }}/.ci-sources/life-record
         LIFE_RUNTIME_BIN_DIR: ${{ github.workspace }}/build/life-runtime/bin
         LIFE_RUNTIME_GIT_DIR: ${{ github.workspace }}/build/life-runtime/git
-        LIFE_RECORD_READ_TOKEN: ${{ secrets.LIFE_RECORD_READ_TOKEN }}
       run: |
-        if [ -z "$LIFE_RECORD_READ_TOKEN" ]; then
-          echo "LIFE_RECORD_READ_TOKEN is required for the private Life Record repository" >&2
-          exit 1
-        fi
         export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
         extensions/life-runtime/tools/build_runtime.sh
 
