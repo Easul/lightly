@@ -125,6 +125,7 @@ build_plugin() {
     PLUGIN_VERSION_CODE="$PLUGIN_VERSION_CODE" \
     PLUGIN_VERSION_NAME="$PLUGIN_VERSION_NAME" \
     LIFE_RUNTIME_BIN_DIR="${LIFE_RUNTIME_BIN_DIR:-}" \
+    LIFE_RUNTIME_GIT_DIR="${LIFE_RUNTIME_GIT_DIR:-}" \
     "$GRADLEW" -p "$gradle_dir" "${GRADLE_NETWORK_ARGS[@]}" :app:assembleRelease >/dev/null
   cp "$apk_source" "$apk"
 

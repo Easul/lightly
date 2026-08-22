@@ -1083,6 +1083,13 @@ class _BrowserPageState extends State<BrowserPage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadAddress(String rawValue) async {
+    if (BrowserPageInputResolver.isDeveloperToolsCommand(rawValue)) {
+      _addressController.text = _currentUrl;
+      if (mounted) {
+        await Navigator.of(context).pushNamed('/tool-visibility-settings');
+      }
+      return;
+    }
     final plan = _addressBarCoordinator.buildLoadPlan(
       rawValue: rawValue,
       isProxyActive: _isProxyActive,

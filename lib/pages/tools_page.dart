@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../features/optional_plugins/domain/optional_feature.dart';
 import '../features/optional_plugins/presentation/optional_feature_gate.dart';
+import '../features/tools/tool_visibility_store.dart';
 import '../services/app_toast.dart';
 import '../services/time_overlay_service.dart';
 
@@ -17,14 +18,17 @@ class ToolsPage extends StatefulWidget {
 class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
   final TimeOverlayService _timeOverlayService = TimeOverlayService();
   final OptionalFeatureGate _optionalFeatureGate = OptionalFeatureGate();
+  final ToolVisibilityStore _toolVisibilityStore = ToolVisibilityStore();
   bool _timeOverlayRunning = false;
   bool _busy = false;
+  Set<String>? _hiddenToolIds;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refreshOverlayState());
+    unawaited(_refreshToolVisibility());
   }
 
   @override
@@ -37,8 +41,16 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshOverlayState());
+      unawaited(_refreshToolVisibility());
     }
   }
+
+  Future<void> _refreshToolVisibility() async {
+    final hidden = await _toolVisibilityStore.loadHiddenIds();
+    if (mounted) setState(() => _hiddenToolIds = hidden);
+  }
+
+  bool _visible(String id) => !(_hiddenToolIds ?? {}).contains(id);
 
   Future<void> _refreshOverlayState() async {
     try {
@@ -111,6 +123,12 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (_hiddenToolIds == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('小工具')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('小工具')),
       body: ListView(
@@ -119,26 +137,29 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
           _ToolSection(
             title: '通讯与协作',
             children: [
-              _ToolTile(
-                icon: Icons.telegram,
-                label: 'TG 工具',
-                onTap: () => unawaited(_openTelegramPlugin()),
-              ),
-              _ToolTile(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: '聊天工具',
-                onTap: () => Navigator.pushNamed(context, '/ai-chat'),
-              ),
+              if (_visible(ToolVisibilityStore.tg))
+                _ToolTile(
+                  icon: Icons.telegram,
+                  label: 'TG 工具',
+                  onTap: () => unawaited(_openTelegramPlugin()),
+                ),
+              if (_visible(ToolVisibilityStore.chat))
+                _ToolTile(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: '聊天工具',
+                  onTap: () => Navigator.pushNamed(context, '/ai-chat'),
+                ),
               _ToolTile(
                 icon: Icons.content_paste_rounded,
                 label: '剪贴板',
                 onTap: () => Navigator.pushNamed(context, '/clipboard'),
               ),
-              _ToolTile(
-                icon: Icons.control_camera_rounded,
-                label: '远程控制',
-                onTap: () => Navigator.pushNamed(context, '/remote-control'),
-              ),
+              if (_visible(ToolVisibilityStore.remoteControl))
+                _ToolTile(
+                  icon: Icons.control_camera_rounded,
+                  label: '远程控制',
+                  onTap: () => Navigator.pushNamed(context, '/remote-control'),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -157,42 +178,49 @@ class _ToolsPageState extends State<ToolsPage> with WidgetsBindingObserver {
                 onTap: () =>
                     Navigator.pushNamed(context, '/simple-file-manager'),
               ),
-              _ToolTile(
-                icon: Icons.vpn_lock_rounded,
-                label: 'P2P VPN',
-                onTap: () => unawaited(_openEasyTierPlugin()),
-              ),
-              _ToolTile(
-                icon: Icons.auto_stories_rounded,
-                label: '人生运行时',
-                onTap: () => unawaited(_openLifeRuntime()),
-              ),
+              if (_visible(ToolVisibilityStore.p2pVpn))
+                _ToolTile(
+                  icon: Icons.vpn_lock_rounded,
+                  label: 'P2P VPN',
+                  onTap: () => unawaited(_openEasyTierPlugin()),
+                ),
+              if (_visible(ToolVisibilityStore.lifeRuntime))
+                _ToolTile(
+                  icon: Icons.auto_stories_rounded,
+                  label: '人生运行时',
+                  onTap: () => unawaited(_openLifeRuntime()),
+                ),
             ],
           ),
           const SizedBox(height: 20),
           _ToolSection(
             title: '日常工具',
             children: [
-              _ToolTile(
-                icon: Icons.calculate_rounded,
-                label: '计算器',
-                onTap: () => Navigator.pushNamed(context, '/calculator'),
-              ),
-              _ToolTile(
-                icon: Icons.translate_rounded,
-                label: '翻译工具',
-                onTap: () => Navigator.pushNamed(context, '/translation-tool'),
-              ),
-              _ToolTile(
-                icon: Icons.library_music_rounded,
-                label: '音乐',
-                onTap: () => Navigator.pushNamed(context, '/music-player'),
-              ),
-              _ToolTile(
-                icon: Icons.grid_view_rounded,
-                label: '2048',
-                onTap: () => Navigator.pushNamed(context, '/game-2048'),
-              ),
+              if (_visible(ToolVisibilityStore.calculator))
+                _ToolTile(
+                  icon: Icons.calculate_rounded,
+                  label: '计算器',
+                  onTap: () => Navigator.pushNamed(context, '/calculator'),
+                ),
+              if (_visible(ToolVisibilityStore.translation))
+                _ToolTile(
+                  icon: Icons.translate_rounded,
+                  label: '翻译工具',
+                  onTap: () =>
+                      Navigator.pushNamed(context, '/translation-tool'),
+                ),
+              if (_visible(ToolVisibilityStore.music))
+                _ToolTile(
+                  icon: Icons.library_music_rounded,
+                  label: '音乐',
+                  onTap: () => Navigator.pushNamed(context, '/music-player'),
+                ),
+              if (_visible(ToolVisibilityStore.game2048))
+                _ToolTile(
+                  icon: Icons.grid_view_rounded,
+                  label: '2048',
+                  onTap: () => Navigator.pushNamed(context, '/game-2048'),
+                ),
               _ToolTile(
                 icon: Icons.schedule_rounded,
                 label: '时间悬浮窗',

@@ -85,6 +85,30 @@ The workflow publishes the optional-plugin Release before the Lightly Release. C
 [GitHub Release and Plugin Delivery](github-release-delivery.md). The final host APK and all six
 companion APKs are certificate-compared by `scripts/verify_optional_plugin_bundle.sh`.
 
+### Life Runtime source builds
+
+Life Runtime is built from the two upstream Go repositories during the same Action run; no
+executables are committed to `lightly`:
+
+| Input | Default | Visibility | Purpose |
+|---|---|---|---|
+| `MINDGIT_REPOSITORY` variable | `Easul/mindgit` | public | MindGit source repository |
+| `MINDGIT_REF` variable | `main` | public | Branch, tag, or commit to build |
+| `LIFE_RECORD_REPOSITORY` variable | `Easul/life-record` | private | Life Record source repository |
+| `LIFE_RECORD_REF` variable | `main` | private | Branch, tag, or commit to build |
+| `LIFE_RECORD_READ_TOKEN` secret | none | private | Fine-grained read-only Contents token |
+
+The Action checks out both repositories into an ephemeral workspace, installs Go 1.26 and Android
+NDK 28.2, and runs `extensions/life-runtime/tools/build_runtime.sh`. The script produces the
+arm64 Android `mindgit` and `liferecord` executables, then prepares the pinned Termux Git runtime.
+`scripts/build_optional_plugins.sh` passes both runtime directories to Gradle; the existing ABI,
+Flutter-artifact, hash, and same-signature checks remain in force.
+
+The private token is used only by the checkout step and is never passed to Go, Gradle, the APK, or
+`plugins.json`. Until the Life Record repository exists, keep release runs in `reuse` mode; switch
+to `build` (or `auto` after a companion-related change) after the repository, ref, and token are
+configured. Pinning both refs to a commit or release tag is recommended for reproducible builds.
+
 ## Migration acceptance (2026-07-29)
 
 The native companion extraction is implementation-complete. The following manual matrix was
