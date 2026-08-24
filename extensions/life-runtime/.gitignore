@@ -1,5 +1,6 @@
 android/.gradle/
 android/build/
 android/app/build/
+build/
 runtime/
 .deps/
