@@ -8,6 +8,7 @@ import '../features/optional_plugins/domain/optional_feature.dart';
 import '../features/optional_plugins/domain/optional_plugin_download_settings.dart';
 import '../features/optional_plugins/domain/optional_plugin_manifest.dart';
 import '../features/optional_plugins/infrastructure/optional_plugin_download_settings_store.dart';
+import '../features/tools/tool_visibility_store.dart';
 import '../services/app_toast.dart';
 
 class OptionalPluginSettingsPage extends StatefulWidget {
@@ -15,10 +16,12 @@ class OptionalPluginSettingsPage extends StatefulWidget {
     super.key,
     this.settingsStore,
     this.coordinator,
+    this.visibilityStore,
   });
 
   final OptionalPluginDownloadSettingsStore? settingsStore;
   final OptionalFeatureCoordinator? coordinator;
+  final ToolVisibilityStore? visibilityStore;
 
   @override
   State<OptionalPluginSettingsPage> createState() =>
@@ -29,10 +32,12 @@ class _OptionalPluginSettingsPageState
     extends State<OptionalPluginSettingsPage> {
   late final OptionalPluginDownloadSettingsStore _settingsStore;
   late final OptionalFeatureCoordinator _coordinator;
+  late final ToolVisibilityStore _visibilityStore;
   late final TextEditingController _mirrorPrefixController;
 
   OptionalPluginDownloadMode _mode = OptionalPluginDownloadMode.automatic;
   OptionalPluginManifest? _manifest;
+  Set<String> _hiddenToolIds = ToolVisibilityStore.hiddenByDefault;
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
@@ -44,6 +49,7 @@ class _OptionalPluginSettingsPageState
     _settingsStore =
         widget.settingsStore ?? OptionalPluginDownloadSettingsStore();
     _coordinator = widget.coordinator ?? OptionalFeatureCoordinator.instance;
+    _visibilityStore = widget.visibilityStore ?? ToolVisibilityStore();
     _mirrorPrefixController = TextEditingController();
     unawaited(_load());
   }
@@ -56,6 +62,7 @@ class _OptionalPluginSettingsPageState
 
   Future<void> _load() async {
     final settings = await _settingsStore.load();
+    final hiddenToolIds = await _visibilityStore.loadHiddenIds();
     OptionalPluginManifest? manifest;
     try {
       manifest = await _coordinator.loadBundledManifest();
@@ -67,6 +74,7 @@ class _OptionalPluginSettingsPageState
       _mode = settings.mode;
       _mirrorPrefixController.text = settings.normalizedMirrorPrefix;
       _manifest = manifest;
+      _hiddenToolIds = hiddenToolIds;
       _loading = false;
     });
   }
@@ -233,6 +241,9 @@ class _OptionalPluginSettingsPageState
     }
     final rows = <Widget>[];
     for (final featureId in OptionalFeatureId.values) {
+      if (!_isFeatureVisible(featureId)) {
+        continue;
+      }
       final descriptor = OptionalFeatureCatalog.descriptor(featureId);
       final release = manifest.releaseFor(featureId);
       if (rows.isNotEmpty) {
@@ -251,6 +262,25 @@ class _OptionalPluginSettingsPageState
         ),
       );
     }
+    if (rows.isEmpty) {
+      return const <Widget>[
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('暂无已启用的可选插件'),
+          subtitle: Text('请先在开发者工具设置中开启对应功能'),
+        ),
+      ];
+    }
     return rows;
+  }
+
+  bool _isFeatureVisible(OptionalFeatureId featureId) {
+    final toolId = switch (featureId) {
+      OptionalFeatureId.telegram => ToolVisibilityStore.tg,
+      OptionalFeatureId.webRtcVoice => ToolVisibilityStore.remoteControl,
+      OptionalFeatureId.easyTier => ToolVisibilityStore.p2pVpn,
+      OptionalFeatureId.lifeRuntime => ToolVisibilityStore.lifeRuntime,
+    };
+    return !_hiddenToolIds.contains(toolId);
   }
 }
